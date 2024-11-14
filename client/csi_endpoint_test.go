@@ -994,22 +994,24 @@ func TestCSINode_DetachVolume(t *testing.T) {
 	ci.Parallel(t)
 
 	cases := []struct {
-		Name        string
-		ModManager  func(m *csimanager.MockCSIManager)
-		Request     *structs.ClientCSINodeDetachVolumeRequest
-		ExpectedErr error
+		Name             string
+		ClientSetupFunc  func(*fake.Client)
+		Request          *structs.ClientCSINodeDetachVolumeRequest
+		ExpectedErr      error
+		ExpectedResponse *structs.ClientCSINodeDetachVolumeResponse
 	}{
 		{
-			Name: "success",
+			Name: "returns plugin not found errors",
 			Request: &structs.ClientCSINodeDetachVolumeRequest{
-				PluginID:       "fake-plugin",
-				VolumeID:       "fake-vol",
-				AllocID:        "fake-alloc",
-				NodeID:         "fake-node",
+				PluginID:       "some-garbage",
+				VolumeID:       "-",
+				AllocID:        "-",
+				NodeID:         "-",
 				AttachmentMode: nstructs.CSIVolumeAttachmentModeFilesystem,
 				AccessMode:     nstructs.CSIVolumeAccessModeMultiNodeReader,
 				ReadOnly:       true,
 			},
+			ExpectedErr: errors.New("CSI.NodeDetachVolume: plugin some-garbage for type csi-node not found"),
 		},
 		{
 			Name: "validates volumeid is not empty",
@@ -1027,51 +1029,43 @@ func TestCSINode_DetachVolume(t *testing.T) {
 			ExpectedErr: errors.New("CSI.NodeDetachVolume: AllocID is required"),
 		},
 		{
-			Name: "returns csi manager errors",
-			ModManager: func(m *csimanager.MockCSIManager) {
-				m.NextManagerForPluginErr = errors.New("no plugin")
+			Name: "returns transitive errors",
+			ClientSetupFunc: func(fc *fake.Client) {
+				fc.NextNodeUnpublishVolumeErr = errors.New("wont-see-this")
 			},
 			Request: &structs.ClientCSINodeDetachVolumeRequest{
 				PluginID: fakeNodePlugin.Name,
 				VolumeID: "1234-4321-1234-4321",
 				AllocID:  "4321-1234-4321-1234",
 			},
-			ExpectedErr: errors.New("CSI.NodeDetachVolume: no plugin"),
-		},
-		{
-			Name: "returns volume manager errors",
-			ModManager: func(m *csimanager.MockCSIManager) {
-				m.VM.NextUnmountVolumeErr = errors.New("error unmounting")
-			},
-			Request: &structs.ClientCSINodeDetachVolumeRequest{
-				PluginID: fakeNodePlugin.Name,
-				VolumeID: "1234-4321-1234-4321",
-				AllocID:  "4321-1234-4321-1234",
-			},
-			ExpectedErr: errors.New("CSI.NodeDetachVolume: error unmounting"),
+			// we don't have a csimanager in this context
+			ExpectedErr: errors.New("CSI.NodeDetachVolume: plugin test-plugin for type csi-node not found"),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
+			require := require.New(t)
 			client, cleanup := TestClient(t, nil)
 			defer cleanup()
 
-			mockManager := &csimanager.MockCSIManager{
-				VM: &csimanager.MockVolumeManager{},
+			fakeClient := &fake.Client{}
+			if tc.ClientSetupFunc != nil {
+				tc.ClientSetupFunc(fakeClient)
 			}
-			if tc.ModManager != nil {
-				tc.ModManager(mockManager)
+
+			dispenserFunc := func(*dynamicplugins.PluginInfo) (interface{}, error) {
+				return fakeClient, nil
 			}
-			client.csimanager = mockManager
+			client.dynamicRegistry.StubDispenserForType(dynamicplugins.PluginTypeCSINode, dispenserFunc)
+			err := client.dynamicRegistry.RegisterPlugin(fakeNodePlugin)
+			require.Nil(err)
 
 			var resp structs.ClientCSINodeDetachVolumeResponse
-			err := client.ClientRPC("CSI.NodeDetachVolume", tc.Request, &resp)
-			if tc.ExpectedErr != nil {
-				must.Error(t, err)
-				must.EqError(t, tc.ExpectedErr, err.Error())
-			} else {
-				must.NoError(t, err)
+			err = client.ClientRPC("CSI.NodeDetachVolume", tc.Request, &resp)
+			require.Equal(tc.ExpectedErr, err)
+			if tc.ExpectedResponse != nil {
+				require.Equal(tc.ExpectedResponse, &resp)
 			}
 		})
 	}
