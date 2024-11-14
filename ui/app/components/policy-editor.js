@@ -19,10 +19,6 @@ export default class PolicyEditorComponent extends Component {
     this.policy.set('rules', value);
   }
 
-  @action updatePolicyName({ target: { value } }) {
-    this.policy.set('name', value);
-  }
-
   @action async save(e) {
     if (e instanceof Event) {
       e.preventDefault(); // code-mirror "command+enter" submits the form, but doesnt have a preventDefault()
