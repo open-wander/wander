@@ -41,12 +41,7 @@ export default () => ({
     scope: '[data-test-dry-run-message]',
     title: text('[data-test-dry-run-title]'),
     body: text('[data-test-dry-run-body]'),
-    errored: hasClass('hds-alert--color-critical'),
-    succeeded: hasClass('hds-alert--color-success'),
-  },
-
-  warningMessage: {
-    scope: '[data-test-dry-run-warnings]',
-    body: text('[data-test-dry-run-warning-body]'),
+    errored: hasClass('is-warning'),
+    succeeded: hasClass('is-primary'),
   },
 });

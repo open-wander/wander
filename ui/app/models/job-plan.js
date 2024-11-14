@@ -12,8 +12,5 @@ export default class JobPlan extends Model {
   @attr() diff;
   @fragmentArray('placement-failure', { defaultValue: () => [] })
   failedTGAllocs;
-
   @hasMany('allocation') preemptions;
-
-  @attr('string') warnings;
 }
