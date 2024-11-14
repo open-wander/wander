@@ -4,7 +4,6 @@
 package nomad
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -1890,8 +1889,7 @@ func TestCSIVolume_expandVolume(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			fake.NextControllerExpandVolumeResponse = &cstructs.ClientCSIControllerExpandVolumeResponse{
-				CapacityBytes: tc.ControllerResp,
-				// this also exercises some node expand code, incidentally
+				CapacityBytes:         tc.ControllerResp,
 				NodeExpansionRequired: true,
 			}
 
@@ -1916,81 +1914,6 @@ func TestCSIVolume_expandVolume(t *testing.T) {
 		})
 	}
 
-	// a nodeExpandVolume error should fail expandVolume too
-	t.Run("node error", func(t *testing.T) {
-		expect := "sad node expand"
-		fake.NextNodeExpandError = errors.New(expect)
-		fake.NextControllerExpandVolumeResponse = &cstructs.ClientCSIControllerExpandVolumeResponse{
-			CapacityBytes:         2000,
-			NodeExpansionRequired: true,
-		}
-		err = endpoint.expandVolume(vol, plug, &csi.CapacityRange{
-			RequiredBytes: 2000,
-		})
-		test.ErrorContains(t, err, expect)
-	})
-
-}
-
-func TestCSIVolume_nodeExpandVolume(t *testing.T) {
-	ci.Parallel(t)
-
-	srv, cleanupSrv := TestServer(t, nil)
-	t.Cleanup(cleanupSrv)
-	testutil.WaitForLeader(t, srv.RPC)
-	t.Log("server started 👍")
-
-	c, fake, _, fakeVolID := testClientWithCSI(t, srv)
-	fakeClaim := fakeCSIClaim(c.NodeID())
-
-	endpoint := NewCSIVolumeEndpoint(srv, nil)
-	plug, vol, err := endpoint.volAndPluginLookup(structs.DefaultNamespace, fakeVolID)
-	must.NoError(t, err)
-
-	// there's not a lot of logic here -- validation has been done prior,
-	// in (controller) expandVolume and what preceeds it.
-	cases := []struct {
-		Name  string
-		Error error
-	}{
-		{
-			Name: "ok",
-		},
-		{
-			Name:  "not ok",
-			Error: errors.New("test node expand fail"),
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-
-			fake.NextNodeExpandError = tc.Error
-			capacity := &csi.CapacityRange{
-				RequiredBytes: 10,
-				LimitBytes:    10,
-			}
-
-			err = endpoint.nodeExpandVolume(vol, plug, capacity)
-
-			if tc.Error == nil {
-				test.NoError(t, err)
-			} else {
-				must.Error(t, err)
-				must.ErrorContains(t, err,
-					fmt.Sprintf("CSI.NodeExpandVolume error: %s", tc.Error))
-			}
-
-			req := fake.LastNodeExpandRequest
-			must.NotNil(t, req, must.Sprint("request should have happened"))
-			test.Eq(t, fakeVolID, req.VolumeID)
-			test.Eq(t, capacity, req.Capacity)
-			test.Eq(t, "fake-csi-plugin", req.PluginID)
-			test.Eq(t, "fake-csi-external-id", req.ExternalID)
-			test.Eq(t, fakeClaim, req.Claim)
-
-		})
-	}
 }
 
 func TestCSIPluginEndpoint_RegisterViaFingerprint(t *testing.T) {
@@ -2343,8 +2266,8 @@ func testClientWithCSI(t *testing.T, srv *Server) (c *client.Client, m *MockClie
 	t.Helper()
 
 	m = newMockClientCSI()
-	plugID = "fake-csi-plugin"
-	volID = "fake-csi-volume"
+	plugID = "fake-plugin"
+	volID = "fake-volume"
 
 	c, cleanup := client.TestClientWithRPCs(t,
 		func(c *cconfig.Config) {
@@ -2393,18 +2316,14 @@ func testClientWithCSI(t *testing.T, srv *Server) (c *client.Client, m *MockClie
 	// Register a minimum-viable fake volume
 	req := &structs.CSIVolumeRegisterRequest{
 		Volumes: []*structs.CSIVolume{{
-			PluginID:   plugID,
-			ID:         volID,
-			ExternalID: "fake-csi-external-id",
-			Namespace:  structs.DefaultNamespace,
+			PluginID:  plugID,
+			ID:        volID,
+			Namespace: structs.DefaultNamespace,
 			RequestedCapabilities: []*structs.CSIVolumeCapability{
 				{
-					AccessMode:     structs.CSIVolumeAccessModeMultiNodeSingleWriter,
+					AccessMode:     structs.CSIVolumeAccessModeMultiNodeMultiWriter,
 					AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem,
 				},
-			},
-			WriteClaims: map[string]*structs.CSIVolumeClaim{
-				"fake-csi-claim": fakeCSIClaim(c.NodeID()),
 			},
 		}},
 		WriteRequest: structs.WriteRequest{Region: srv.Region()},
@@ -2413,16 +2332,4 @@ func testClientWithCSI(t *testing.T, srv *Server) (c *client.Client, m *MockClie
 	t.Logf("CSI volume %s registered 👍", volID)
 
 	return c, m, plugID, volID
-}
-
-func fakeCSIClaim(nodeID string) *structs.CSIVolumeClaim {
-	return &structs.CSIVolumeClaim{
-		NodeID:         nodeID,
-		AllocationID:   "fake-csi-alloc",
-		ExternalNodeID: "fake-csi-external-node",
-		Mode:           structs.CSIVolumeClaimWrite,
-		AccessMode:     structs.CSIVolumeAccessModeMultiNodeSingleWriter,
-		AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem,
-		State:          structs.CSIVolumeClaimStateTaken,
-	}
 }

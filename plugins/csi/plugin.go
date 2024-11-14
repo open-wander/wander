@@ -1020,19 +1020,6 @@ type CapacityRange struct {
 	LimitBytes    int64
 }
 
-func (c *CapacityRange) Validate() error {
-	if c == nil {
-		return nil
-	}
-	if c.RequiredBytes == 0 && c.LimitBytes == 0 {
-		return errors.New("either RequiredBytes or LimitBytes must be set")
-	}
-	if c.LimitBytes > 0 && c.LimitBytes < c.RequiredBytes {
-		return errors.New("LimitBytes cannot be less than RequiredBytes")
-	}
-	return nil
-}
-
 func (c *CapacityRange) ToCSIRepresentation() *csipbv1.CapacityRange {
 	if c == nil {
 		return nil
@@ -1045,24 +1032,11 @@ func (c *CapacityRange) ToCSIRepresentation() *csipbv1.CapacityRange {
 
 type NodeExpandVolumeRequest struct {
 	ExternalVolumeID string
-	CapacityRange    *CapacityRange
-	Capability       *VolumeCapability
+	RequiredBytes    int64
+	LimitBytes       int64
 	TargetPath       string
 	StagingPath      string
-}
-
-func (r *NodeExpandVolumeRequest) Validate() error {
-	var err error
-	if r.ExternalVolumeID == "" {
-		err = errors.Join(err, errors.New("ExternalVolumeID is required"))
-	}
-	if r.TargetPath == "" {
-		err = errors.Join(err, errors.New("TargetPath is required"))
-	}
-	if e := r.CapacityRange.Validate(); e != nil {
-		err = errors.Join(err, e)
-	}
-	return err
+	Capability       *VolumeCapability
 }
 
 func (r *NodeExpandVolumeRequest) ToCSIRepresentation() *csipbv1.NodeExpandVolumeRequest {
@@ -1070,10 +1044,13 @@ func (r *NodeExpandVolumeRequest) ToCSIRepresentation() *csipbv1.NodeExpandVolum
 		return nil
 	}
 	return &csipbv1.NodeExpandVolumeRequest{
-		VolumeId:          r.ExternalVolumeID,
-		VolumePath:        r.TargetPath,
+		VolumeId:   r.ExternalVolumeID,
+		VolumePath: r.TargetPath,
+		CapacityRange: &csipbv1.CapacityRange{
+			RequiredBytes: r.RequiredBytes,
+			LimitBytes:    r.LimitBytes,
+		},
 		StagingTargetPath: r.StagingPath,
-		CapacityRange:     r.CapacityRange.ToCSIRepresentation(),
 		VolumeCapability:  r.Capability.ToCSIRepresentation(),
 	}
 }
