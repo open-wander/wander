@@ -25,15 +25,8 @@ export default class CodeMirrorModifier extends Modifier {
     }
   }
 
-  element = null;
-  args = {};
-
-  modify(element, positional, named) {
-    if (!this.element) {
-      this.element = element;
-      this.args = { positional, named };
-      this._setup();
-    }
+  didInstall() {
+    this._setup();
   }
 
   didUpdateArguments() {

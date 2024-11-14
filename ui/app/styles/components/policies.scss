@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-// TODO: merge this in with access-control.scss, consider getting rid of policies table specific stuff
-
 table.policies {
   tr {
     cursor: pointer;
@@ -49,11 +47,10 @@ table.policies {
 
     .external-link svg {
       position: relative;
-      top: 3px;
+      top: 3px;  
     }
 
-    button.create-test-token,
-    pre {
+    button.create-test-token, pre {
       margin-top: 1rem;
     }
 
@@ -73,6 +70,7 @@ table.policies {
     grid-template-columns: 1fr;
   }
 }
+
 
 table.tokens {
   margin-bottom: 3rem;

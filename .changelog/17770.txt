@@ -1,3 +1,0 @@
-```release-note:improvement
-ui: observe a token's roles' rules in the UI and add an interface for managing tokens, roles, and policies
-```

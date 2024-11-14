@@ -15,22 +15,9 @@ export default class TokenAdapter extends ApplicationAdapter {
 
   namespace = namespace + '/acl';
 
-  methodForRequest(params) {
-    if (params.requestType === 'updateRecord') {
-      return 'POST';
-    }
-    return super.methodForRequest(params);
-  }
-
-  updateRecord(store, type, snapshot) {
-    let data = this.serialize(snapshot);
-    return this.ajax(`${this.buildURL()}/token/${snapshot.id}`, 'POST', {
-      data,
-    });
-  }
-
   createRecord(_store, type, snapshot) {
     let data = this.serialize(snapshot);
+    data.Policies = data.PolicyIDs;
     return this.ajax(`${this.buildURL()}/token`, 'POST', { data });
   }
 

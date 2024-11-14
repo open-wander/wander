@@ -5,11 +5,13 @@
 
 // @ts-check
 import Controller from '@ember/controller';
+import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
+import { tracked } from '@glimmer/tracking';
 import { alias } from '@ember/object/computed';
 import { task } from 'ember-concurrency';
 
-export default class AccessControlPoliciesPolicyController extends Controller {
+export default class PoliciesPolicyController extends Controller {
   @service notifications;
   @service router;
   @service store;
@@ -17,32 +19,36 @@ export default class AccessControlPoliciesPolicyController extends Controller {
   @alias('model.policy') policy;
   @alias('model.tokens') tokens;
 
+  @tracked
+  error = null;
+
+  @tracked isDeleting = false;
+
   get newTokenString() {
-    return `nomad acl token create -name="<TOKEN_NAME>" -policy="${this.policy.name}" -type=client -ttl=8h`;
+    return `nomad acl token create -name="<TOKEN_NAME>" -policy="${this.policy.name}" -type=client -ttl=<8h>`;
   }
+
+  @action
+  onDeletePrompt() {
+    this.isDeleting = true;
+  }
+
+  @action
+  onDeleteCancel() {
+    this.isDeleting = false;
+  }
+
   @task(function* () {
     try {
       yield this.policy.deleteRecord();
       yield this.policy.save();
-
-      // Cleanup: Remove references from roles and tokens
-      this.store.peekAll('role').forEach((role) => {
-        role.policies.removeObject(this.policy);
-      });
-      this.store.peekAll('token').forEach((token) => {
-        token.policies.removeObject(this.policy);
-      });
-      if (this.store.peekRecord('policy', this.policy.id)) {
-        this.store.unloadRecord(this.policy);
-      }
-
       this.notifications.add({
         title: 'Policy Deleted',
         color: 'success',
         type: `success`,
         destroyOnClick: false,
       });
-      this.router.transitionTo('access-control.policies');
+      this.router.transitionTo('policies');
     } catch (err) {
       this.notifications.add({
         title: `Error deleting Policy ${this.policy.name}`,
@@ -86,12 +92,12 @@ export default class AccessControlPoliciesPolicyController extends Controller {
         },
       });
     } catch (err) {
-      this.notifications.add({
-        title: 'Error creating test token',
-        message: err,
-        color: 'critical',
-        sticky: true,
-      });
+      this.error = {
+        title: 'Error creating new token',
+        description: err,
+      };
+
+      throw err;
     }
   })
   createTestToken;
@@ -106,12 +112,12 @@ export default class AccessControlPoliciesPolicyController extends Controller {
         color: 'success',
       });
     } catch (err) {
-      this.notifications.add({
+      this.error = {
         title: 'Error deleting token',
-        message: err,
-        color: 'critical',
-        sticky: true,
-      });
+        description: err,
+      };
+
+      throw err;
     }
   })
   deleteToken;
