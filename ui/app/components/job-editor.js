@@ -11,7 +11,6 @@ import { task } from 'ember-concurrency';
 import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
 import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
 import { tracked } from '@glimmer/tracking';
-import jsonToHcl from 'nomad-ui/utils/json-to-hcl';
 
 /**
  * JobEditor component that provides an interface for editing and managing Nomad jobs.
@@ -40,7 +39,9 @@ export default class JobEditor extends Component {
     if (this.args.variables) {
       this.args.job.set(
         '_newDefinitionVariables',
-        jsonToHcl(this.args.variables.flags).concat(this.args.variables.literal)
+        this.jsonToHcl(this.args.variables.flags).concat(
+          this.args.variables.literal
+        )
       );
     }
   }
@@ -255,6 +256,24 @@ export default class JobEditor extends Component {
     } else {
       return this.args.specification;
     }
+  }
+
+  /**
+   * Convert a JSON object to an HCL string.
+   *
+   * @param {Object} obj - The JSON object to convert.
+   * @returns {string} The HCL string representation of the JSON object.
+   */
+  jsonToHcl(obj) {
+    const hclLines = [];
+
+    for (const key in obj) {
+      const value = obj[key];
+      const hclValue = typeof value === 'string' ? `"${value}"` : value;
+      hclLines.push(`${key}=${hclValue}\n`);
+    }
+
+    return hclLines.join('\n');
   }
 
   get data() {
