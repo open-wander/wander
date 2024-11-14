@@ -31,10 +31,9 @@ job "test3" {
     }
 
     reschedule {
-      delay          = "5s"
-      delay_function = "constant"
-      unlimited      = true
+      attempts  = 2
+      interval  = "5m"
+      unlimited = false
     }
-
   }
 }
