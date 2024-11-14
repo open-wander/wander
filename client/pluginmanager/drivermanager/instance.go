@@ -10,7 +10,6 @@ import (
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/pluginutils/loader"
 	"github.com/hashicorp/nomad/helper/pluginutils/singleton"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -291,7 +290,7 @@ func (i *instanceManager) fingerprint() {
 
 	// backoff and retry used if the RPC is closed by the other end
 	var backoff time.Duration
-	var retry uint64
+	var retry int
 	for {
 		if backoff > 0 {
 			select {
@@ -330,7 +329,11 @@ func (i *instanceManager) fingerprint() {
 				i.handleFingerprintError()
 
 				// Calculate the new backoff
-				backoff = helper.Backoff(driverFPBackoffBaseline, driverFPBackoffLimit, retry)
+				backoff = (1 << (2 * uint64(retry))) * driverFPBackoffBaseline
+				if backoff > driverFPBackoffLimit {
+					backoff = driverFPBackoffLimit
+				}
+				// Increment retry counter
 				retry++
 				continue
 			}
@@ -423,7 +426,7 @@ func (i *instanceManager) handleEvents() {
 	}
 
 	var backoff time.Duration
-	var retry uint64
+	var retry int
 	for {
 		if backoff > 0 {
 			select {
@@ -450,7 +453,10 @@ func (i *instanceManager) handleEvents() {
 				i.logger.Warn("failed to receive task events, retrying", "error", err, "retry", retry)
 
 				// Calculate the new backoff
-				backoff = helper.Backoff(driverFPBackoffBaseline, driverFPBackoffLimit, retry)
+				backoff = (1 << (2 * uint64(retry))) * driverFPBackoffBaseline
+				if backoff > driverFPBackoffLimit {
+					backoff = driverFPBackoffLimit
+				}
 				retry++
 				continue
 			}

@@ -483,9 +483,7 @@ type createContainerClient interface {
 func (d *Driver) createContainer(client createContainerClient, config docker.CreateContainerOptions,
 	image string) (*docker.Container, error) {
 	// Create a container
-	var attempted uint64
-	var backoff time.Duration
-
+	attempted := 0
 CREATE:
 	container, createErr := client.CreateContainer(config)
 	if createErr == nil {
@@ -535,19 +533,16 @@ CREATE:
 
 		if attempted < 5 {
 			attempted++
-			backoff = helper.Backoff(50*time.Millisecond, time.Minute, attempted)
-			time.Sleep(backoff)
+			time.Sleep(nextBackoff(attempted))
 			goto CREATE
 		}
-
 	} else if strings.Contains(strings.ToLower(createErr.Error()), "no such image") {
 		// There is still a very small chance this is possible even with the
 		// coordinator so retry.
 		return nil, nstructs.NewRecoverableError(createErr, true)
 	} else if isDockerTransientError(createErr) && attempted < 5 {
 		attempted++
-		backoff = helper.Backoff(50*time.Millisecond, time.Minute, attempted)
-		time.Sleep(backoff)
+		time.Sleep(nextBackoff(attempted))
 		goto CREATE
 	}
 
@@ -562,9 +557,8 @@ func (d *Driver) startContainer(c *docker.Container) error {
 		return err
 	}
 
-	var attempted uint64
-	var backoff time.Duration
-
+	// Start a container
+	attempted := 0
 START:
 	startErr := dockerClient.StartContainer(c.ID, c.HostConfig)
 	if startErr == nil || strings.Contains(startErr.Error(), "Container already running") {
@@ -576,14 +570,20 @@ START:
 	if isDockerTransientError(startErr) {
 		if attempted < 5 {
 			attempted++
-			backoff = helper.Backoff(50*time.Millisecond, time.Minute, attempted)
-			time.Sleep(backoff)
+			time.Sleep(nextBackoff(attempted))
 			goto START
 		}
 		return nstructs.NewRecoverableError(startErr, true)
 	}
 
 	return recoverableErrTimeouts(startErr)
+}
+
+// nextBackoff returns appropriate docker backoff durations after attempted attempts.
+func nextBackoff(attempted int) time.Duration {
+	// attempts in 200ms, 800ms, 3.2s, 12.8s, 51.2s
+	// TODO: add randomization factor and extract to a helper
+	return 1 << (2 * uint64(attempted)) * 50 * time.Millisecond
 }
 
 // createImage creates a docker image either by pulling it from a registry or by

@@ -16,7 +16,6 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/state"
 	"github.com/hashicorp/nomad/nomad/structs"
@@ -110,9 +109,8 @@ type Worker struct {
 
 	// failures is the count of errors encountered while dequeueing evaluations
 	// and is used to calculate backoff.
-	failures       uint64
-	failureBackoff time.Duration
-	evalToken      string
+	failures  uint
+	evalToken string
 
 	// snapshotIndex is the index of the snapshot in which the scheduler was
 	// first invoked. It is used to mark the SnapshotIndex of evaluations
@@ -135,7 +133,6 @@ func newWorker(ctx context.Context, srv *Server, args SchedulerWorkerPoolArgs) *
 		start:             time.Now(),
 		status:            WorkerStarting,
 		enabledSchedulers: make([]string, len(args.EnabledSchedulers)),
-		failureBackoff:    time.Duration(0),
 	}
 	copy(w.enabledSchedulers, args.EnabledSchedulers)
 
@@ -877,10 +874,12 @@ func (w *Worker) shouldResubmit(err error) bool {
 // backoff if the server or the worker is shutdown.
 func (w *Worker) backoffErr(base, limit time.Duration) bool {
 	w.setWorkloadStatus(WorkloadBackoff)
-
-	backoff := helper.Backoff(base, limit, w.failures)
-	w.failures++
-
+	backoff := (1 << (2 * w.failures)) * base
+	if backoff > limit {
+		backoff = limit
+	} else {
+		w.failures++
+	}
 	select {
 	case <-time.After(backoff):
 		return false

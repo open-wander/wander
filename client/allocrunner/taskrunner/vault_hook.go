@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
 	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
 	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -312,8 +311,7 @@ OUTER:
 // deriveVaultToken derives the Vault token using exponential backoffs. It
 // returns the Vault token and whether the manager should exit.
 func (h *vaultHook) deriveVaultToken() (token string, exit bool) {
-	var attempts uint64
-	var backoff time.Duration
+	attempts := 0
 	for {
 		tokens, err := h.client.DeriveToken(h.alloc, []string{h.taskName})
 		if err == nil {
@@ -341,10 +339,13 @@ func (h *vaultHook) deriveVaultToken() (token string, exit bool) {
 		}
 
 		// Handle the retry case
-		backoff = helper.Backoff(vaultBackoffBaseline, vaultBackoffLimit, attempts)
-		attempts++
-
+		backoff := (1 << (2 * uint64(attempts))) * vaultBackoffBaseline
+		if backoff > vaultBackoffLimit {
+			backoff = vaultBackoffLimit
+		}
 		h.logger.Error("failed to derive Vault token", "error", err, "recoverable", true, "backoff", backoff)
+
+		attempts++
 
 		// Wait till retrying
 		select {

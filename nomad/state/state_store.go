@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/lib/lang"
 	"github.com/hashicorp/nomad/nomad/stream"
@@ -266,9 +265,8 @@ func (s *StateStore) SnapshotMinIndex(ctx context.Context, index uint64) (*State
 
 	const backoffBase = 20 * time.Millisecond
 	const backoffLimit = 1 * time.Second
-	var retries uint64
+	var retries uint
 	var retryTimer *time.Timer
-	var deadline time.Duration
 
 	// XXX: Potential optimization is to set up a watch on the state
 	// store's index table and only unblock via a trigger rather than
@@ -286,13 +284,16 @@ func (s *StateStore) SnapshotMinIndex(ctx context.Context, index uint64) (*State
 		}
 
 		// Exponential back off
+		retries++
 		if retryTimer == nil {
 			// First retry, start at baseline
 			retryTimer = time.NewTimer(backoffBase)
 		} else {
 			// Subsequent retry, reset timer
-			deadline = helper.Backoff(backoffBase, backoffLimit, retries)
-			retries++
+			deadline := 1 << (2 * retries) * backoffBase
+			if deadline > backoffLimit {
+				deadline = backoffLimit
+			}
 			retryTimer.Reset(deadline)
 		}
 
