@@ -4,16 +4,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "sunday"
-      time: "09:00"
     labels:
       - "theme/dependencies"
   - package-ecosystem: gomod
     directory: "/api"
     schedule:
       interval: "weekly"
-      day: "sunday"
-      time: "09:00"
     labels:
       - "theme/dependencies"
       - "theme/api"
@@ -21,8 +17,6 @@ updates:
     directory: "/ui"
     schedule:
       interval: "weekly"
-      day: "sunday"
-      time: "09:00"
     labels:
       - "theme/dependencies"
       - "theme/ui"
@@ -30,10 +24,14 @@ updates:
     directory: "/website"
     schedule:
       interval: "weekly"
-      day: "sunday"
-      time: "09:00"
-    assignees:
-      - "@hashicorp/web-platform"
     labels:
       - "theme/dependencies"
       - "theme/website"
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+      - "/.github/actions"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "theme/dependencies"
