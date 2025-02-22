@@ -47,19 +47,12 @@ env:
   NOMAD_TEST_LOG_LEVEL: OFF
 
 jobs:
-  # this caches dependencies for subsequent jobs, including private deps in enterprise
+  # this caches dependencies for subsequent jobs
   mods:
-    runs-on: ${{ endsWith(github.repository, '-enterprise') && fromJSON('["self-hosted", "ondemand", "linux"]') || 'ubuntu-22.04' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-      - uses: ./.github/actions/vault-secrets
-        with:
-          paths: |-
-            kv/data/github/hashicorp/nomad-enterprise/gha ELEVATED_GITHUB_TOKEN ;
-      - name: Git config token
-        if: endsWith(github.repository, '-enterprise')
-        run: git config --global url.'https://${{ env.ELEVATED_GITHUB_TOKEN }}@github.com'.insteadOf 'https://github.com'
       - uses: hashicorp/setup-golang@v1
       - name: Get Go modules
         run: |
@@ -85,7 +78,7 @@ jobs:
           make dev
   tests-api:
     needs: [mods]
-    runs-on: [custom, xl, 22.04]
+    runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
