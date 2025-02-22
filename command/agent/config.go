@@ -1352,12 +1352,15 @@ func DefaultConfig() *Config {
 			CollectionInterval: "1s",
 			collectionInterval: 1 * time.Second,
 		},
-		TLSConfig:          &config.TLSConfig{},
-		Sentinel:           &config.SentinelConfig{},
-		Version:            version.GetVersion(),
-		Autopilot:          config.DefaultAutopilotConfig(),
-		Audit:              &config.AuditConfig{},
-		DisableUpdateCheck: pointer.Of(false),
+		TLSConfig: &config.TLSConfig{},
+		Sentinel:  &config.SentinelConfig{},
+		Version:   version.GetVersion(),
+		Autopilot: config.DefaultAutopilotConfig(),
+		Audit:     &config.AuditConfig{},
+		// DisableUpdateCheck: pointer.Of(false),
+		// Setting this to true by default for now
+		// TODO: Remove this once we have a proper way to handle updates
+		DisableUpdateCheck: pointer.Of(true),
 		Limits:             config.DefaultLimits(),
 	}
 }
