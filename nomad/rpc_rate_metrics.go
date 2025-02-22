@@ -6,7 +6,7 @@ package nomad
 import (
 	"github.com/armon/go-metrics"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // MeasureRPCRate increments the appropriate rate metric for this endpoint,

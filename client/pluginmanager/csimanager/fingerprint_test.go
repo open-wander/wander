@@ -8,8 +8,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/csi"
 	"github.com/stretchr/testify/require"
 )
 

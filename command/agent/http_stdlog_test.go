@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/ci"
+	"github.com/open-wander/wander/ci"
 	"github.com/stretchr/testify/require"
 )
 

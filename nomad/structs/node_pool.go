@@ -9,7 +9,7 @@ import (
 	"sort"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/open-wander/wander/helper/pointer"
 	"golang.org/x/crypto/blake2b"
 	"golang.org/x/exp/maps"
 )

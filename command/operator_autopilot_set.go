@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	flaghelper "github.com/hashicorp/nomad/helper/flags"
+	flaghelper "github.com/open-wander/wander/helper/flags"
 	"github.com/posener/complete"
 )
 

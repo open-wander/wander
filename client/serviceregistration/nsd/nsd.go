@@ -12,8 +12,8 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/client/serviceregistration"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/client/serviceregistration"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 type ServiceRegistrationHandler struct {

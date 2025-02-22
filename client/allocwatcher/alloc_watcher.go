@@ -15,12 +15,12 @@ import (
 	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
-	nomadapi "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/config"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
+	nomadapi "github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/client/allocdir"
+	"github.com/open-wander/wander/client/config"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

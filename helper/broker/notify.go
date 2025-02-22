@@ -6,7 +6,7 @@ package broker
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/helper"
+	"github.com/open-wander/wander/helper"
 )
 
 // GenericNotifier allows a process to send updates to many subscribers in an

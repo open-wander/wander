@@ -6,9 +6,9 @@ package catalog
 import (
 	testing "github.com/mitchellh/go-testing-interface"
 
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/open-wander/wander/helper/pluginutils/loader"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad/structs/config"
 )
 
 // TestPluginLoader returns a plugin loader populated only with internal plugins

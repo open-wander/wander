@@ -10,7 +10,7 @@ import (
 
 	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/docker/docker/libnetwork/types"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 func GenerateDNSMount(taskDir string, conf *drivers.DNSConfig) (*drivers.MountConfig, error) {

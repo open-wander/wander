@@ -6,8 +6,8 @@ package agent
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/uuid"
 	"github.com/stretchr/testify/require"
 )
 

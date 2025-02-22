@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	capi "github.com/hashicorp/consul/api"
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 )
 
 // TestSuite defines a set of test cases and under what conditions to run them

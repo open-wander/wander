@@ -16,14 +16,14 @@ import (
 	// into their command logic. This is because they are run as separate
 	// processes along side of a task. By early importing them we can avoid
 	// additional code being imported and thus reserving memory.
-	_ "github.com/hashicorp/nomad/client/allocrunner/taskrunner/getter"
-	_ "github.com/hashicorp/nomad/client/logmon"
-	_ "github.com/hashicorp/nomad/drivers/docker/docklog"
-	_ "github.com/hashicorp/nomad/drivers/shared/executor"
+	_ "github.com/open-wander/wander/client/allocrunner/taskrunner/getter"
+	_ "github.com/open-wander/wander/client/logmon"
+	_ "github.com/open-wander/wander/drivers/docker/docklog"
+	_ "github.com/open-wander/wander/drivers/shared/executor"
 
 	// Don't move any other code imports above the import block above!
-	"github.com/hashicorp/nomad/command"
-	"github.com/hashicorp/nomad/version"
+	"github.com/open-wander/wander/command"
+	"github.com/open-wander/wander/version"
 	"github.com/mitchellh/cli"
 )
 

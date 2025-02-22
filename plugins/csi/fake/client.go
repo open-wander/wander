@@ -13,9 +13,9 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/csi"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/csi"
+	"github.com/open-wander/wander/plugins/shared/hclspec"
 )
 
 var _ csi.CSIPlugin = &Client{}

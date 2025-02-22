@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 func TestAnnotateTaskGroup_Updates(t *testing.T) {

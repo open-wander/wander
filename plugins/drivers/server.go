@@ -14,10 +14,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers/proto"
-	dstructs "github.com/hashicorp/nomad/plugins/shared/structs"
-	sproto "github.com/hashicorp/nomad/plugins/shared/structs/proto"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers/proto"
+	dstructs "github.com/open-wander/wander/plugins/shared/structs"
+	sproto "github.com/open-wander/wander/plugins/shared/structs/proto"
 )
 
 type driverPluginServer struct {

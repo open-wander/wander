@@ -10,7 +10,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
 
-	"github.com/hashicorp/nomad/plugins/base"
+	"github.com/open-wander/wander/plugins/base"
 )
 
 // Install a plugin cli handler to ease working with tests

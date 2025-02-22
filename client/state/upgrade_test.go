@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/boltdd"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/boltdd"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/helper/uuid"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
 )

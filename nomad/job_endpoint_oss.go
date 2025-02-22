@@ -7,7 +7,7 @@
 package nomad
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // enforceSubmitJob is used to check any Sentinel policies for the submit-job scope

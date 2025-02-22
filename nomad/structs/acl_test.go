@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/helper/uuid"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

@@ -6,16 +6,16 @@ package taskrunner
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	dtu "github.com/hashicorp/nomad/plugins/drivers/testutils"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	"github.com/open-wander/wander/client/pluginmanager/csimanager"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/client/taskenv"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
+	dtu "github.com/open-wander/wander/plugins/drivers/testutils"
 	"github.com/stretchr/testify/require"
 )
 

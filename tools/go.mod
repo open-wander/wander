@@ -1,4 +1,4 @@
-module github.com/hashicorp/nomad/tools
+module github.com/open-wander/wander/tools
 
 go 1.20
 

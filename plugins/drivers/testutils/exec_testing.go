@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	dproto "github.com/hashicorp/nomad/plugins/drivers/proto"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/client/lib/cgutil"
+	"github.com/open-wander/wander/plugins/drivers"
+	dproto "github.com/open-wander/wander/plugins/drivers/proto"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 )
 

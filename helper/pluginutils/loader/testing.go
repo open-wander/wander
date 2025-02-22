@@ -9,8 +9,8 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/plugins/base"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/plugins/base"
 )
 
 // MockCatalog provides a mock PluginCatalog to be used for testing

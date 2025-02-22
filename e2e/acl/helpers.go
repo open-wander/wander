@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 	"github.com/shoenig/test"
 	"github.com/shoenig/test/must"
 )

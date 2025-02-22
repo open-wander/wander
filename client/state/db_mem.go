@@ -7,14 +7,14 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	arstate "github.com/hashicorp/nomad/client/allocrunner/state"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	dmstate "github.com/hashicorp/nomad/client/devicemanager/state"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	driverstate "github.com/hashicorp/nomad/client/pluginmanager/drivermanager/state"
-	"github.com/hashicorp/nomad/client/serviceregistration/checks"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
+	arstate "github.com/open-wander/wander/client/allocrunner/state"
+	"github.com/open-wander/wander/client/allocrunner/taskrunner/state"
+	dmstate "github.com/open-wander/wander/client/devicemanager/state"
+	"github.com/open-wander/wander/client/dynamicplugins"
+	driverstate "github.com/open-wander/wander/client/pluginmanager/drivermanager/state"
+	"github.com/open-wander/wander/client/serviceregistration/checks"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/nomad/structs"
 	"golang.org/x/exp/maps"
 )
 

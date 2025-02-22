@@ -5,8 +5,8 @@ package state
 
 import (
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/stream"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/stream"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // ReadTxn is implemented by memdb.Txn to perform read operations.

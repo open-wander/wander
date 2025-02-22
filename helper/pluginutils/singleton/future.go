@@ -4,8 +4,8 @@
 package singleton
 
 import (
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/helper/pluginutils/loader"
+	"github.com/open-wander/wander/helper/uuid"
 )
 
 // future is a sharable future for retrieving a plugin instance or any error

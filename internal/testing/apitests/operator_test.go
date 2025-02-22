@@ -6,8 +6,8 @@ package apitests
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )

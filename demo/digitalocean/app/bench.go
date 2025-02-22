@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 func main() {

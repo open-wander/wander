@@ -7,12 +7,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/client/allocdir"
+	"github.com/open-wander/wander/client/allocrunner/taskrunner/interfaces"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/client/taskenv"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 /*

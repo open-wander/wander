@@ -13,8 +13,8 @@ import (
 	"github.com/hashicorp/cap/jwt"
 	"golang.org/x/exp/slices"
 
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // Validate performs token signature verification and JWT header validation,

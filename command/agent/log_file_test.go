@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/logutils"
-	"github.com/hashicorp/nomad/ci"
+	"github.com/open-wander/wander/ci"
 	"github.com/stretchr/testify/require"
 )
 

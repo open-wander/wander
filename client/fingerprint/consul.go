@@ -12,7 +12,7 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-version"
-	agentconsul "github.com/hashicorp/nomad/command/agent/consul"
+	agentconsul "github.com/open-wander/wander/command/agent/consul"
 )
 
 const (

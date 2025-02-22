@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/client/testutil"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/client/testutil"
+	"github.com/open-wander/wander/helper/uuid"
 	"github.com/shoenig/test/must"
 )
 

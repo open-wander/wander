@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/e2e/v3/cluster3"
-	"github.com/hashicorp/nomad/e2e/v3/jobs3"
+	"github.com/open-wander/wander/e2e/v3/cluster3"
+	"github.com/open-wander/wander/e2e/v3/jobs3"
 	"github.com/shoenig/test/must"
 )
 

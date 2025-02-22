@@ -15,12 +15,12 @@ import (
 	"time"
 
 	sockaddr "github.com/hashicorp/go-sockaddr"
-	"github.com/hashicorp/nomad/ci"
-	client "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/testutil"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/open-wander/wander/ci"
+	client "github.com/open-wander/wander/client/config"
+	"github.com/open-wander/wander/client/testutil"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/stretchr/testify/require"
 )
 

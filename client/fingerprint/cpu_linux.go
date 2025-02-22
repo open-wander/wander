@@ -4,7 +4,7 @@
 package fingerprint
 
 import (
-	"github.com/hashicorp/nomad/client/lib/cgutil"
+	"github.com/open-wander/wander/client/lib/cgutil"
 )
 
 func (f *CPUFingerprint) deriveReservableCores(cgroupParent string) []uint16 {

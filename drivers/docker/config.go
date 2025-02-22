@@ -13,12 +13,12 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/drivers/shared/capabilities"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclutils"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	"github.com/open-wander/wander/drivers/shared/capabilities"
+	"github.com/open-wander/wander/helper/pluginutils/hclutils"
+	"github.com/open-wander/wander/helper/pluginutils/loader"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/drivers"
+	"github.com/open-wander/wander/plugins/shared/hclspec"
 )
 
 const (

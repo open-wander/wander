@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/nomad/client/logmon/proto"
-	"github.com/hashicorp/nomad/helper/pluginutils/grpcutils"
+	"github.com/open-wander/wander/client/logmon/proto"
+	"github.com/open-wander/wander/helper/pluginutils/grpcutils"
 )
 
 type logmonClient struct {

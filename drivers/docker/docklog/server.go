@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/hashicorp/nomad/drivers/docker/docklog/proto"
+	"github.com/open-wander/wander/drivers/docker/docklog/proto"
 )
 
 // dockerLoggerServer is the server side translation between the protobuf and native interfaces

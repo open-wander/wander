@@ -11,14 +11,14 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/config"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	nstructs "github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/testutil"
 )
 
 // TestClient_SelfDrainConfig is an integration test of the client's Leave

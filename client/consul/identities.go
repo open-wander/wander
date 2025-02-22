@@ -5,7 +5,7 @@ package consul
 
 import (
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // Implementation of ServiceIdentityAPI used to interact with Nomad Server from

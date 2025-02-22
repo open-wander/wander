@@ -11,8 +11,8 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/go-sockaddr/template"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/client/config"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

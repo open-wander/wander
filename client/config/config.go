@@ -18,17 +18,17 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/command/agent/host"
-	"github.com/hashicorp/nomad/helper/bufconndialer"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
-	structsc "github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/version"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	"github.com/open-wander/wander/client/lib/cgutil"
+	"github.com/open-wander/wander/client/state"
+	"github.com/open-wander/wander/command/agent/host"
+	"github.com/open-wander/wander/helper/bufconndialer"
+	"github.com/open-wander/wander/helper/pluginutils/loader"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/nomad/structs"
+	structsc "github.com/open-wander/wander/nomad/structs/config"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/version"
 )
 
 var (

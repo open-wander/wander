@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/open-wander/wander/helper/pointer"
 )
 
 const (

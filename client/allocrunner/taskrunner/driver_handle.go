@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 // NewDriverHandle returns a handle for task operations on a specific task

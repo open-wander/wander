@@ -12,12 +12,12 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/client/structs"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
-	"github.com/hashicorp/nomad/plugins/csi/fake"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/dynamicplugins"
+	"github.com/open-wander/wander/client/structs"
+	nstructs "github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/csi"
+	"github.com/open-wander/wander/plugins/csi/fake"
 )
 
 var fakePlugin = &dynamicplugins.PluginInfo{

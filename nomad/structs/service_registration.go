@@ -8,8 +8,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/ipaddr"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/helper/ipaddr"
 	"golang.org/x/exp/slices"
 )
 

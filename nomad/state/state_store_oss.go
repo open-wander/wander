@@ -7,7 +7,7 @@
 package state
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // quotaSpecExists on returns whether the quota exists

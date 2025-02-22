@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/open-wander/wander/helper/pointer"
 )
 
 // ArtifactConfig is the configuration specific to the Artifact block

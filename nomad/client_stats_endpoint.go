@@ -8,9 +8,9 @@ import (
 
 	metrics "github.com/armon/go-metrics"
 	log "github.com/hashicorp/go-hclog"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
+	nstructs "github.com/open-wander/wander/nomad/structs"
 
-	"github.com/hashicorp/nomad/client/structs"
+	"github.com/open-wander/wander/client/structs"
 )
 
 // ClientStats is used to forward RPC requests to the targed Nomad client's

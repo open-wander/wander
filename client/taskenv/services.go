@@ -4,7 +4,7 @@
 package taskenv
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // InterpolateServices returns an interpolated copy of services and checks with

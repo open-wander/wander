@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"

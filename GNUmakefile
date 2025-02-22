@@ -3,7 +3,7 @@ PROJECT_ROOT := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 THIS_OS := $(shell uname | cut -d- -f1)
 THIS_ARCH := $(shell uname -m)
 
-GO_MODULE = github.com/hashicorp/nomad
+GO_MODULE = github.com/open-wander/wander
 
 GIT_COMMIT := $(shell git rev-parse HEAD)
 GIT_DIRTY := $(if $(shell git status --porcelain),+CHANGES)
@@ -29,8 +29,8 @@ ifeq ($(CI),true)
 GO_TAGS := codegen_generated $(GO_TAGS)
 endif
 
-# Don't embed the Nomad UI when the NOMAD_NO_UI env var is set.
-ifndef NOMAD_NO_UI
+# Don't embed the Wander UI when the WANDER_NO_UI env var is set.
+ifndef WANDER_NO_UI
 GO_TAGS := ui $(GO_TAGS)
 endif
 
@@ -82,11 +82,11 @@ CGO_ENABLED = 1
 # include per-user customization after all variables are defined
 -include GNUMakefile.local
 
-pkg/%/nomad: GO_OUT ?= $@
-pkg/%/nomad: CC ?= $(shell go env CC)
-pkg/%/nomad: ## Build Nomad for GOOS_GOARCH, e.g. pkg/linux_amd64/nomad
+pkg/%/wander: GO_OUT ?= $@
+pkg/%/wander: CC ?= $(shell go env CC)
+pkg/%/wander: ## Build Wander for GOOS_GOARCH, e.g. pkg/linux_amd64/wander
 ifeq (,$(findstring $(THIS_OS),$(SUPPORTED_OSES)))
-	$(warning WARNING: Building Nomad is only supported on $(SUPPORTED_OSES); not $(THIS_OS))
+	$(warning WARNING: Building Wander is only supported on $(SUPPORTED_OSES); not $(THIS_OS))
 endif
 	@echo "==> Building $@ with tags $(GO_TAGS)..."
 	@CGO_ENABLED=$(CGO_ENABLED) \
@@ -96,24 +96,24 @@ endif
 		go build -trimpath -ldflags "$(GO_LDFLAGS)" -tags "$(GO_TAGS)" -o $(GO_OUT)
 
 ifneq (armv7l,$(THIS_ARCH))
-pkg/linux_arm/nomad: CC = arm-linux-gnueabihf-gcc
+pkg/linux_arm/wander: CC = arm-linux-gnueabihf-gcc
 endif
 
 ifneq (aarch64,$(THIS_ARCH))
-pkg/linux_arm64/nomad: CC = aarch64-linux-gnu-gcc
+pkg/linux_arm64/wander: CC = aarch64-linux-gnu-gcc
 endif
 
 ifeq (Darwin,$(THIS_OS))
-pkg/linux_%/nomad: CGO_ENABLED = 0
+pkg/linux_%/wander: CGO_ENABLED = 0
 endif
 
-pkg/windows_%/nomad: GO_OUT = $@.exe
-pkg/windows_%/nomad: GO_TAGS += timetzdata
+pkg/windows_%/wander: GO_OUT = $@.exe
+pkg/windows_%/wander: GO_TAGS += timetzdata
 
 # Define package targets for each of the build targets we actually have on this system
 define makePackageTarget
 
-pkg/$(1).zip: pkg/$(1)/nomad
+pkg/$(1).zip: pkg/$(1)/wander
 	@echo "==> Packaging for $(1)..."
 	@zip -j pkg/$(1).zip pkg/$(1)/*
 
@@ -178,10 +178,10 @@ check: ## Lint the source code
 	@if (git status -s | grep -q -e '\.hcl$$' -e '\.nomad$$' -e '\.tf$$'); then echo the following HCL files are out of sync; git status -s | grep -e '\.hcl$$' -e '\.nomad$$' -e '\.tf$$'; exit 1; fi
 
 	@echo "==> Check API package is isolated from rest"
-	@cd ./api && if go list --test -f '{{ join .Deps "\n" }}' . | grep github.com/hashicorp/nomad/ | grep -v -e /nomad/api/ -e nomad/api.test; then echo "  /api package depends the ^^ above internal nomad packages.  Remove such dependency"; exit 1; fi
+	@cd ./api && if go list --test -f '{{ join .Deps "\n" }}' . | grep github.com/open-wander/wander/ | grep -v -e /wander/api/ -e wander/api.test; then echo "  /api package depends the ^^ above internal wander packages.  Remove such dependency"; exit 1; fi
 
 	@echo "==> Check command package does not import structs"
-	@cd ./command && if go list -f '{{ join .Imports "\n" }}' . | grep github.com/hashicorp/nomad/nomad/structs; then echo "  /command package imports the structs pkg. Remove such import"; exit 1; fi
+	@cd ./command && if go list -f '{{ join .Imports "\n" }}' . | grep github.com/open-wander/wander/nomad/structs; then echo "  /command package imports the structs pkg. Remove such import"; exit 1; fi
 
 	@echo "==> Checking Go mod.."
 	@GO111MODULE=on $(MAKE) tidy
@@ -247,22 +247,22 @@ tidy: ## Tidy up the go mod files
 	@echo "==> Tidy up submodules"
 	@cd tools && go mod tidy
 	@cd api && go mod tidy
-	@echo "==> Tidy nomad module"
+	@echo "==> Tidy wander module"
 	@go mod tidy
 
 .PHONY: dev
 dev: GOOS=$(shell go env GOOS)
 dev: GOARCH=$(shell go env GOARCH)
-dev: DEV_TARGET=pkg/$(GOOS)_$(GOARCH)/nomad
+dev: DEV_TARGET=pkg/$(GOOS)_$(GOARCH)/wander
 dev: hclfmt ## Build for the current development platform
 	@echo "==> Removing old development build..."
 	@rm -f $(PROJECT_ROOT)/$(DEV_TARGET)
-	@rm -f $(PROJECT_ROOT)/bin/nomad
-	@rm -f $(BIN)/nomad
+	@rm -f $(PROJECT_ROOT)/bin/wander
+	@rm -f $(BIN)/wander
 	@if [ -d vendor ]; then echo -e "==> WARNING: Found vendor directory.  This may cause build errors, consider running 'rm -r vendor' or 'make clean' to remove.\n"; fi
 	@$(MAKE) --no-print-directory \
 		$(DEV_TARGET) \
-		GO_TAGS="$(GO_TAGS) $(NOMAD_UI_TAG)"
+		GO_TAGS="$(GO_TAGS) $(WANDER_UI_TAG)"
 	@mkdir -p $(PROJECT_ROOT)/bin
 	@mkdir -p $(BIN)
 	@cp $(PROJECT_ROOT)/$(DEV_TARGET) $(PROJECT_ROOT)/bin/
@@ -270,7 +270,7 @@ dev: hclfmt ## Build for the current development platform
 
 .PHONY: prerelease
 prerelease: GO_TAGS=ui codegen_generated release
-prerelease: generate-all ember-dist static-assets ## Generate all the static assets for a Nomad release
+prerelease: generate-all ember-dist static-assets ## Generate all the static assets for a Wander release
 
 .PHONY: release
 release: GO_TAGS=ui codegen_generated release
@@ -278,10 +278,10 @@ release: clean $(foreach t,$(ALL_TARGETS),pkg/$(t).zip) ## Build all release pac
 	@echo "==> Results:"
 	@tree --dirsfirst $(PROJECT_ROOT)/pkg
 
-.PHONY: test-nomad
-test-nomad: GOTEST_PKGS=$(foreach g,$(GOTEST_GROUP),$(shell go run -modfile=tools/go.mod tools/missing/main.go ci/test-core.json $(g)))
-test-nomad: # dev ## Run Nomad unit tests
-	@echo "==> Running Nomad unit tests $(GOTEST_GROUP)"
+.PHONY: test-wander
+test-wander: GOTEST_PKGS=$(foreach g,$(GOTEST_GROUP),$(shell go run -modfile=tools/go.mod tools/missing/main.go ci/test-core.json $(g)))
+test-wander: # dev ## Run Wander unit tests
+	@echo "==> Running Wander unit tests $(GOTEST_GROUP)"
 	@echo "==> with packages $(GOTEST_PKGS)"
 	gotestsum --format=testname --rerun-fails=3 --packages="$(GOTEST_PKGS)" -- \
 		-cover \
@@ -290,9 +290,9 @@ test-nomad: # dev ## Run Nomad unit tests
 		-tags "$(GO_TAGS)" \
 		$(GOTEST_PKGS)
 
-.PHONY: test-nomad-module
-test-nomad-module: dev ## Run Nomad unit tests on sub-module
-	@echo "==> Running Nomad unit tests on sub-module $(GOTEST_MOD)"
+.PHONY: test-wander-module
+test-wander-module: dev ## Run Wander unit tests on sub-module
+	@echo "==> Running Wander unit tests on sub-module $(GOTEST_MOD)"
 	cd $(GOTEST_MOD); gotestsum --format=testname --rerun-fails=3 --packages=./... -- \
 		-cover \
 		-timeout=20m \
@@ -302,24 +302,24 @@ test-nomad-module: dev ## Run Nomad unit tests on sub-module
 		./...
 
 .PHONY: e2e-test
-e2e-test: dev ## Run the Nomad e2e test suite
-	@echo "==> Running Nomad E2E test suites:"
+e2e-test: dev ## Run the Wander e2e test suite
+	@echo "==> Running Wander E2E test suites:"
 	go test \
 		$(if $(ENABLE_RACE),-race) $(if $(VERBOSE),-v) \
 		-timeout=900s \
 		-tags "$(GO_TAGS)" \
-		github.com/hashicorp/nomad/e2e
+		github.com/open-wander/wander/e2e
 
 .PHONY: integration-test
-integration-test: dev ## Run Nomad integration tests
-	@echo "==> Running Nomad integration test suites:"
-	NOMAD_E2E_VAULTCOMPAT=1 go test \
+integration-test: dev ## Run Wander integration tests
+	@echo "==> Running Wander integration test suites:"
+	WANDER_E2E_VAULTCOMPAT=1 go test \
 		-v \
 		-race \
 		-timeout=900s \
 		-count=1 \
 		-tags "$(GO_TAGS)" \
-		github.com/hashicorp/nomad/e2e/vaultcompat
+		github.com/open-wander/wander/e2e/vaultcompat
 
 .PHONY: clean
 clean: GOPATH=$(shell go env GOPATH)
@@ -328,16 +328,16 @@ clean: ## Remove build artifacts
 	@rm -rf "$(PROJECT_ROOT)/bin/"
 	@rm -rf "$(PROJECT_ROOT)/pkg/"
 	@rm -rf "$(PROJECT_ROOT)/vendor/"
-	@rm -f "$(BIN)/nomad"
+	@rm -f "$(BIN)/wander"
 
 .PHONY: testcluster
 testcluster: ## Bring up a Linux test cluster using Vagrant. Set PROVIDER if necessary.
-	vagrant up nomad-server01 \
-		nomad-server02 \
-		nomad-server03 \
-		nomad-client01 \
-		nomad-client02 \
-		nomad-client03 \
+	vagrant up wander-server01 \
+		wander-server02 \
+		wander-server03 \
+		wander-client01 \
+		wander-client02 \
+		wander-client03 \
 		$(if $(PROVIDER),--provider $(PROVIDER))
 
 .PHONY: static-assets
@@ -382,13 +382,13 @@ help: ## Display this usage information
 ui-screenshots: ## Collect  UI screenshots
 	@echo "==> Collecting UI screenshots..."
         # Build the screenshots image if it doesn't exist yet
-	@if [[ "$$(docker images -q nomad-ui-screenshots 2> /dev/null)" == "" ]]; then \
-		docker build --tag="nomad-ui-screenshots" ./scripts/screenshots; \
+	@if [[ "$$(docker images -q wander-ui-screenshots 2> /dev/null)" == "" ]]; then \
+		docker build --tag="wander-ui-screenshots" ./scripts/screenshots; \
 	fi
 	@docker run \
 		--rm \
 		--volume "$(shell pwd)/scripts/screenshots/screenshots:/screenshots" \
-		nomad-ui-screenshots
+		wander-ui-screenshots
 
 .PHONY: ui-screenshots-local
 ui-screenshots-local: ## Collect UI screenshots (local)

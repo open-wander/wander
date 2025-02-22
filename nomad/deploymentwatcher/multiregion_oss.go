@@ -6,7 +6,7 @@
 
 package deploymentwatcher
 
-import "github.com/hashicorp/nomad/nomad/structs"
+import "github.com/open-wander/wander/nomad/structs"
 
 // DeploymentRPC and JobRPC hold methods for interacting with peer regions
 // in enterprise edition.

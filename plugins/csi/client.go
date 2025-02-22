@@ -19,10 +19,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/hashicorp/nomad/helper/grpc-middleware/logging"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	"github.com/open-wander/wander/helper/grpc-middleware/logging"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/shared/hclspec"
 )
 
 // PluginTypeCSI implements the CSI plugin interface

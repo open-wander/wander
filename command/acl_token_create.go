@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/helper"
 	"github.com/posener/complete"
 )
 

@@ -12,7 +12,7 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 
-	"github.com/hashicorp/nomad/api/internal/testutil"
+	"github.com/open-wander/wander/api/internal/testutil"
 )
 
 func TestJobs_Register(t *testing.T) {

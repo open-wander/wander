@@ -9,7 +9,7 @@ import (
 
 	multierror "github.com/hashicorp/go-multierror"
 
-	"github.com/hashicorp/nomad/client/config"
+	"github.com/open-wander/wander/client/config"
 )
 
 type groupPrevAllocWatcher struct {

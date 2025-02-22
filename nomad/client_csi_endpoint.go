@@ -14,8 +14,8 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // ClientCSI is used to forward RPC requests to the targed Nomad client's

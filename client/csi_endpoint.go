@@ -12,11 +12,11 @@ import (
 	metrics "github.com/armon/go-metrics"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/client/pluginmanager/csimanager"
-	"github.com/hashicorp/nomad/client/structs"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
+	"github.com/open-wander/wander/client/dynamicplugins"
+	"github.com/open-wander/wander/client/pluginmanager/csimanager"
+	"github.com/open-wander/wander/client/structs"
+	nstructs "github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/csi"
 )
 
 // CSI endpoint is used for interacting with CSI plugins on a client.

@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/plugins/base/proto"
+	"github.com/open-wander/wander/plugins/base/proto"
 )
 
 // basePluginServer wraps a base plugin and exposes it via gRPC.

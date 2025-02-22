@@ -6,7 +6,7 @@ package interfaces
 import (
 	"context"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 type TaskLifecycle interface {

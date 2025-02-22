@@ -3,7 +3,7 @@
 
 package taskrunner
 
-import "github.com/hashicorp/nomad/client/allocrunner/interfaces"
+import "github.com/open-wander/wander/client/allocrunner/interfaces"
 
 // Statically assert the stats hook implements the expected interfaces
 var _ interfaces.TaskPrestartHook = (*vaultHook)(nil)

@@ -4,11 +4,11 @@
 package catalog
 
 import (
-	"github.com/hashicorp/nomad/drivers/docker"
-	"github.com/hashicorp/nomad/drivers/exec"
-	"github.com/hashicorp/nomad/drivers/java"
-	"github.com/hashicorp/nomad/drivers/qemu"
-	"github.com/hashicorp/nomad/drivers/rawexec"
+	"github.com/open-wander/wander/drivers/docker"
+	"github.com/open-wander/wander/drivers/exec"
+	"github.com/open-wander/wander/drivers/java"
+	"github.com/open-wander/wander/drivers/qemu"
+	"github.com/open-wander/wander/drivers/rawexec"
 )
 
 // This file is where all builtin plugins should be registered in the catalog.

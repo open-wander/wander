@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	trstate "github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	"github.com/hashicorp/nomad/client/state"
+	trstate "github.com/open-wander/wander/client/allocrunner/taskrunner/state"
+	"github.com/open-wander/wander/client/state"
 	"github.com/posener/complete"
 )
 

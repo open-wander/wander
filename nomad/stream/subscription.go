@@ -8,7 +8,7 @@ import (
 	"errors"
 	"sync/atomic"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

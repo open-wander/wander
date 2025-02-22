@@ -6,9 +6,9 @@ package structs
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/uuid"
-	psstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/uuid"
+	psstructs "github.com/open-wander/wander/plugins/shared/structs"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

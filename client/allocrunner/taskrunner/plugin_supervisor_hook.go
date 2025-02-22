@@ -12,12 +12,12 @@ import (
 	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	ti "github.com/open-wander/wander/client/allocrunner/taskrunner/interfaces"
+	"github.com/open-wander/wander/client/dynamicplugins"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/csi"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 // csiPluginSupervisorHook manages supervising plugins that are running as Nomad

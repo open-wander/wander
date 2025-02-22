@@ -8,8 +8,8 @@ package docker
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/client/allocdir"
+	"github.com/open-wander/wander/testutil"
 )
 
 func newTaskConfig(variant string, command []string) TaskConfig {

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/jobspec"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/jobspec"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

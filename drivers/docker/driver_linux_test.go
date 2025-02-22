@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/testutil"
-	"github.com/hashicorp/nomad/helper/pointer"
-	tu "github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/testutil"
+	"github.com/open-wander/wander/helper/pointer"
+	tu "github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 )
 

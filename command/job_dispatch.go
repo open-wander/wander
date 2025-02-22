@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	flaghelper "github.com/hashicorp/nomad/helper/flags"
+	"github.com/open-wander/wander/api"
+	flaghelper "github.com/open-wander/wander/helper/flags"
 	"github.com/posener/complete"
 )
 

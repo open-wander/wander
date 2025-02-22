@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/felixge/httpsnoop"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/internal/testutil"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/api/internal/testutil"
 	"github.com/shoenig/test/must"
 )
 

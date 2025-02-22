@@ -6,9 +6,9 @@ package command
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/pointer"
 	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/require"
 )

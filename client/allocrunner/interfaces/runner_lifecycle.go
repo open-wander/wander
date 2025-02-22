@@ -4,7 +4,7 @@
 package interfaces
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // RunnerHook is a lifecycle hook into the life cycle of an allocation runner.

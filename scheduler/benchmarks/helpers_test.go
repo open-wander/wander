@@ -14,8 +14,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hashicorp/nomad/helper/raftutil"
-	"github.com/hashicorp/nomad/scheduler"
+	"github.com/open-wander/wander/helper/raftutil"
+	"github.com/open-wander/wander/scheduler"
 	"github.com/stretchr/testify/require"
 )
 

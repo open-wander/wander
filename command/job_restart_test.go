@@ -19,11 +19,11 @@ import (
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/command/agent"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/command/agent"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/testutil"
 	"github.com/mitchellh/cli"
 
 	"github.com/shoenig/test/must"

@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
-	client "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	client "github.com/open-wander/wander/client/config"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/nomad/structs/config"
 )
 
 // ParseConfigFile returns an agent.Config from parsed from a file.

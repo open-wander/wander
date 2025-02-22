@@ -14,8 +14,8 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/lib/auth/oidc"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/lib/auth/oidc"
 )
 
 // Ensure LoginCommand satisfies the cli.Command interface.

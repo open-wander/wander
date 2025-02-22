@@ -8,8 +8,8 @@ import (
 	"fmt"
 
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/plugins/device"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/plugins/device"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 // PluginFactory returns a new plugin instance

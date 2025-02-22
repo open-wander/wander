@@ -11,8 +11,8 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/command/asset"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/command/asset"
 )
 
 func TestNodePoolInitCommand_Implements(t *testing.T) {

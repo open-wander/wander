@@ -10,9 +10,9 @@ import (
 
 	"github.com/hashicorp/go-msgpack/codec"
 
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/stream"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/nomad/stream"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 type Event struct {

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	multierror "github.com/hashicorp/go-multierror"
-	agent "github.com/hashicorp/nomad/command/agent"
+	agent "github.com/open-wander/wander/command/agent"
 )
 
 type ConfigValidateCommand struct {

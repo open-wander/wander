@@ -23,9 +23,9 @@ import (
 	"github.com/hashicorp/go-kms-wrapping/v2/aead"
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/crypto"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/helper/crypto"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const nomadKeystoreExtension = ".nks.json"

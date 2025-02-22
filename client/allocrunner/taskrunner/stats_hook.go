@@ -9,10 +9,10 @@ import (
 	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
-	bstructs "github.com/hashicorp/nomad/plugins/base/structs"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/nomad/structs"
+	bstructs "github.com/open-wander/wander/plugins/base/structs"
 )
 
 // StatsUpdater is the interface required by the StatsHook to update stats.
