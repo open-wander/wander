@@ -24,8 +24,8 @@ import (
 	cnilibrary "github.com/containernetworking/cni/libcni"
 	"github.com/coreos/go-iptables/iptables"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 const (

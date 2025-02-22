@@ -6,8 +6,8 @@ package mock
 import (
 	"math/rand"
 
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 func Alloc() *structs.Allocation {

@@ -10,7 +10,7 @@ import (
 	"github.com/armon/go-metrics"
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // Plan endpoint is used for plan interactions

@@ -13,12 +13,12 @@ import (
 
 	"github.com/armon/go-metrics"
 	"github.com/hashicorp/go-msgpack/codec"
-	"github.com/hashicorp/nomad/acl"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/acl"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/helper/uuid"
+	nstructs "github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 // Allocations endpoint is used for interacting with client allocations

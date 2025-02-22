@@ -30,14 +30,14 @@ import (
 	"github.com/rs/cors"
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/client"
-	"github.com/hashicorp/nomad/command/agent/event"
-	"github.com/hashicorp/nomad/helper/noxssrw"
-	"github.com/hashicorp/nomad/helper/tlsutil"
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/open-wander/wander/acl"
+	"github.com/open-wander/wander/client"
+	"github.com/open-wander/wander/command/agent/event"
+	"github.com/open-wander/wander/helper/noxssrw"
+	"github.com/open-wander/wander/helper/tlsutil"
+	"github.com/open-wander/wander/nomad"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs/config"
 )
 
 const (

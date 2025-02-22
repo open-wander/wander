@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/hil"
 	"github.com/hashicorp/hil/ast"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // Binder is responsible for collecting the ACL roles and policies to be

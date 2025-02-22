@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/api/contexts"
-	flaghelper "github.com/hashicorp/nomad/helper/flags"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/api/contexts"
+	flaghelper "github.com/open-wander/wander/helper/flags"
 	"github.com/posener/complete"
 )
 

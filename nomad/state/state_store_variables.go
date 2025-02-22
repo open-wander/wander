@@ -8,7 +8,7 @@ import (
 	"math"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // Variables queries all the variables and is used only for

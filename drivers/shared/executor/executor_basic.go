@@ -9,8 +9,8 @@ import (
 	"os/exec"
 
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/lib/resources"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/client/lib/resources"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 func NewExecutorWithIsolation(logger hclog.Logger, cpuTotalTicks uint64) Executor {

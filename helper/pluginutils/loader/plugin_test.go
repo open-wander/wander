@@ -13,9 +13,9 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/device"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/device"
+	"github.com/open-wander/wander/plugins/shared/hclspec"
 )
 
 type stringSliceFlags []string

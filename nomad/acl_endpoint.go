@@ -19,15 +19,15 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-set"
 
-	policy "github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/lib/auth"
-	"github.com/hashicorp/nomad/lib/auth/jwt"
-	"github.com/hashicorp/nomad/lib/auth/oidc"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/state/paginator"
-	"github.com/hashicorp/nomad/nomad/structs"
+	policy "github.com/open-wander/wander/acl"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/lib/auth"
+	"github.com/open-wander/wander/lib/auth/jwt"
+	"github.com/open-wander/wander/lib/auth/oidc"
+	"github.com/open-wander/wander/nomad/state"
+	"github.com/open-wander/wander/nomad/state/paginator"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 var (

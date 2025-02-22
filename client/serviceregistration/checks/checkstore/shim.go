@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/serviceregistration/checks"
-	"github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/client/serviceregistration/checks"
+	"github.com/open-wander/wander/client/state"
+	"github.com/open-wander/wander/nomad/structs"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )

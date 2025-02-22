@@ -16,13 +16,13 @@ import (
 	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocdir"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/allocdir"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 )
 

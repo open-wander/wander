@@ -16,17 +16,17 @@ import (
 
 	metrics "github.com/armon/go-metrics"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	client "github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/fingerprint"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	sconfig "github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
+	client "github.com/open-wander/wander/client/config"
+	"github.com/open-wander/wander/client/fingerprint"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	sconfig "github.com/open-wander/wander/nomad/structs/config"
+	"github.com/open-wander/wander/testutil"
 )
 
 // TempDir defines the base dir for temporary directories.

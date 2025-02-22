@@ -11,8 +11,8 @@ import (
 	csipbv1 "github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/base"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/base"
 )
 
 // CSIPlugin implements a lightweight abstraction layer around a CSI Plugin.

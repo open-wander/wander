@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper"
 )
 
 func TestGate(t *testing.T) {

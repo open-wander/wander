@@ -8,8 +8,8 @@ import (
 
 	"math"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	psstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/open-wander/wander/nomad/structs"
+	psstructs "github.com/open-wander/wander/plugins/shared/structs"
 )
 
 // deviceAllocator is used to allocate devices to allocations. The allocator

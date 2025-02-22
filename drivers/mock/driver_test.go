@@ -14,17 +14,17 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/testtask"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	basePlug "github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	dtestutil "github.com/hashicorp/nomad/plugins/drivers/testutils"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/allocdir"
+	"github.com/open-wander/wander/client/taskenv"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/helper/testtask"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	basePlug "github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/drivers"
+	dtestutil "github.com/open-wander/wander/plugins/drivers/testutils"
 )
 
 func TestMockDriver_StartWaitRecoverWaitStop(t *testing.T) {

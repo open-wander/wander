@@ -4,9 +4,9 @@
 package loader
 
 import (
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/device"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/device"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 var (

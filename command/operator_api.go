@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 	"github.com/posener/complete"
 )
 

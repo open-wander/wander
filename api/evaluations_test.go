@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/hashicorp/nomad/api/internal/testutil"
+	"github.com/open-wander/wander/api/internal/testutil"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )

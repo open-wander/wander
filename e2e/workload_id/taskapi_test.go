@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/e2e/e2eutil"
+	"github.com/open-wander/wander/helper/uuid"
 	"github.com/shoenig/test"
 	"github.com/shoenig/test/must"
 )

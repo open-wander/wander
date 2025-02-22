@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/ci"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 )
 

@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )

@@ -8,7 +8,7 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper/pluginutils/hclutils"
+	"github.com/open-wander/wander/helper/pluginutils/hclutils"
 )
 
 // publishedPorts is a utility struct to keep track of the port bindings to publish.

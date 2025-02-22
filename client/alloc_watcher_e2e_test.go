@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/command/agent"
-	"github.com/hashicorp/nomad/nomad"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/nomad/structs/config"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/command/agent"
+	"github.com/open-wander/wander/nomad"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs/config"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 )
 

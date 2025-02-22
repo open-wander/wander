@@ -15,10 +15,10 @@ import (
 	"github.com/hashicorp/consul-template/signals"
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	ti "github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	"github.com/hashicorp/nomad/client/vaultclient"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	ti "github.com/open-wander/wander/client/allocrunner/taskrunner/interfaces"
+	"github.com/open-wander/wander/client/vaultclient"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

@@ -10,13 +10,13 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/mount"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/csi"
-	csifake "github.com/hashicorp/nomad/plugins/csi/fake"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/mount"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/csi"
+	csifake "github.com/open-wander/wander/plugins/csi/fake"
 	"github.com/stretchr/testify/require"
 )
 

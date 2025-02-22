@@ -4,8 +4,8 @@
 package base
 
 import (
-	"github.com/hashicorp/nomad/plugins/base/proto"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
+	"github.com/open-wander/wander/plugins/base/proto"
+	"github.com/open-wander/wander/plugins/shared/hclspec"
 )
 
 // BasePlugin is the interface that all Nomad plugins must support.

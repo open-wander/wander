@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	hcljson "github.com/hashicorp/hcl/v2/json"
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 )
 
 func Parse(path string, r io.Reader) (*api.Job, error) {

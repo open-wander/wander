@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/serviceregistration"
+	"github.com/open-wander/wander/client/serviceregistration"
 )
 
 // Ensure that the mock handler implements the service registration handler

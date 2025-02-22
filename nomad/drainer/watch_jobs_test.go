@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/state"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 func testNodes(t *testing.T, state *state.StateStore) (drainingNode, runningNode *structs.Node) {

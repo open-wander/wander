@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/helper/pointer"
 	"github.com/posener/complete"
 )
 

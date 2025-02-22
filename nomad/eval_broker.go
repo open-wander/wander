@@ -14,11 +14,11 @@ import (
 	"time"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/broker"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/lib/delayheap"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/helper/broker"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/lib/delayheap"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

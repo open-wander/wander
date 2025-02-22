@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 )
 
 type AgentMode int

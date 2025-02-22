@@ -9,8 +9,8 @@ import (
 	"runtime"
 
 	docker "github.com/fsouza/go-dockerclient"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/stats"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/helper/stats"
 )
 
 var (

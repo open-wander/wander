@@ -11,7 +11,7 @@ import (
 	"github.com/posener/complete"
 	"github.com/ryanuber/columnize"
 
-	"github.com/hashicorp/nomad/helper/tlsutil"
+	"github.com/open-wander/wander/helper/tlsutil"
 )
 
 type TLSCertInfoCommand struct {

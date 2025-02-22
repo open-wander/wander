@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/open-wander/wander/ci"
 	"github.com/stretchr/testify/require"
 )
 

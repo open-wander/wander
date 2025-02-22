@@ -6,10 +6,10 @@ package parameterized
 import (
 	"fmt"
 
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/e2e/framework"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/e2e/e2eutil"
+	"github.com/open-wander/wander/e2e/framework"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 )
 

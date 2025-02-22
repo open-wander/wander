@@ -11,10 +11,10 @@ import (
 
 	"github.com/LK4D4/joincontext"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	"github.com/open-wander/wander/client/allocrunner/taskrunner/state"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 // hookResources captures the resources for the task provided by hooks.

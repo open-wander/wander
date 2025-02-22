@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/testutil"
 	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/require"
 )

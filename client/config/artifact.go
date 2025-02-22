@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/open-wander/wander/nomad/structs/config"
 )
 
 // ArtifactConfig is the internal readonly copy of the client agent's

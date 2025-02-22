@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
 )
 
 // GetAddress returns the IP (or custom advertise address) and port to use for a

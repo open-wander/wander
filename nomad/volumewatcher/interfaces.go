@@ -4,7 +4,7 @@
 package volumewatcher
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // CSIVolumeRPC is a minimal interface of the Server, intended as an aid

@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/hashicorp/cap/oidc"
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 )
 
 // CallbackServer is started with NewCallbackServer and creates an HTTP

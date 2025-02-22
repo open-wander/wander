@@ -19,8 +19,8 @@ import (
 	log "github.com/hashicorp/go-hclog"
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
-	"github.com/hashicorp/nomad/helper/stats"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper/stats"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

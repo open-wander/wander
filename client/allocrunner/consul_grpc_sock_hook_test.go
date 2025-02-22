@@ -12,12 +12,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocdir"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs/config"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/allocdir"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

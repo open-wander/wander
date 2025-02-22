@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

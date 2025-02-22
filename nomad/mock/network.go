@@ -4,7 +4,7 @@
 package mock
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // NetworkStatus is a mock implementation of structs.NetworkStatus

@@ -8,9 +8,9 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/plugins/base"
-	bproto "github.com/hashicorp/nomad/plugins/base/proto"
-	"github.com/hashicorp/nomad/plugins/device/proto"
+	"github.com/open-wander/wander/plugins/base"
+	bproto "github.com/open-wander/wander/plugins/base/proto"
+	"github.com/open-wander/wander/plugins/device/proto"
 	"google.golang.org/grpc"
 )
 

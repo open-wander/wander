@@ -6,7 +6,7 @@ package nomad
 import (
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // Region is used to query and list the known regions

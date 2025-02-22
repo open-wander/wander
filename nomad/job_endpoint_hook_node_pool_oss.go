@@ -6,7 +6,7 @@
 
 package nomad
 
-import "github.com/hashicorp/nomad/nomad/structs"
+import "github.com/open-wander/wander/nomad/structs"
 
 // enterpriseValidation implements any admission hooks for node pools for Nomad
 // Enterprise.

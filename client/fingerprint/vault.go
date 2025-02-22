@@ -10,8 +10,8 @@ import (
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/useragent"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/helper/useragent"
 	vapi "github.com/hashicorp/vault/api"
 )
 

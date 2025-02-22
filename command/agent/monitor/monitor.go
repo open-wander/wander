@@ -9,7 +9,7 @@ import (
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper"
+	"github.com/open-wander/wander/helper"
 )
 
 // Monitor provides a mechanism to stream logs using go-hclog

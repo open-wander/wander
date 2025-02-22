@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/stretchr/testify/require"
 )
 

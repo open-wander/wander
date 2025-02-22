@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/nomad/ci"
-	regMock "github.com/hashicorp/nomad/client/serviceregistration/mock"
-	"github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/ci"
+	regMock "github.com/open-wander/wander/client/serviceregistration/mock"
+	"github.com/open-wander/wander/client/state"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/testutil"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

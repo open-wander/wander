@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/dynamicplugins"
-	"github.com/hashicorp/nomad/plugins/csi"
+	"github.com/open-wander/wander/client/dynamicplugins"
+	"github.com/open-wander/wander/plugins/csi"
 )
 
 const managerFingerprintInterval = 30 * time.Second

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/helper"
+	"github.com/open-wander/wander/client/lib/cgutil"
+	"github.com/open-wander/wander/helper"
 )
 
 const (

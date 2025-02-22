@@ -4,10 +4,10 @@
 package scheduler_system
 
 import (
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/e2e/framework"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/e2e/e2eutil"
+	"github.com/open-wander/wander/e2e/framework"
+	"github.com/open-wander/wander/nomad/structs"
 	"github.com/stretchr/testify/require"
 )
 

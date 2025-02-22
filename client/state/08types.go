@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/state"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/open-wander/wander/client/allocrunner/taskrunner/state"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
+	pstructs "github.com/open-wander/wander/plugins/shared/structs"
 )
 
 // allocRunnerMutableState08 is state that had to be written on each save as it

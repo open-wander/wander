@@ -22,12 +22,12 @@ import (
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hpcloud/tail/watch"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/client/allocdir"
-	sframer "github.com/hashicorp/nomad/client/lib/streamframer"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/acl"
+	"github.com/open-wander/wander/client/allocdir"
+	sframer "github.com/open-wander/wander/client/lib/streamframer"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 var (

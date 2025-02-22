@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hashicorp/nomad/command/agent"
-	"github.com/hashicorp/nomad/version"
+	"github.com/open-wander/wander/command/agent"
+	"github.com/open-wander/wander/version"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mitchellh/cli"
 )

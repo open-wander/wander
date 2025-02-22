@@ -11,8 +11,8 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/helper/pointer"
 	"github.com/mitchellh/mapstructure"
 )
 

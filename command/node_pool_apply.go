@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsimple"
-	"github.com/hashicorp/nomad/api"
+	"github.com/open-wander/wander/api"
 	"github.com/posener/complete"
 )
 

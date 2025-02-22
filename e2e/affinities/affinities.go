@@ -4,11 +4,11 @@
 package affinities
 
 import (
-	"github.com/hashicorp/nomad/e2e/framework"
+	"github.com/open-wander/wander/e2e/framework"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/e2e/e2eutil"
+	"github.com/open-wander/wander/helper/uuid"
 )
 
 type BasicAffinityTest struct {

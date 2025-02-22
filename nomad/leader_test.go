@@ -20,12 +20,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/state"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/testutil"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
 )

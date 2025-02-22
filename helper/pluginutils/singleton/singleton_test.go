@@ -11,10 +11,10 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/plugins/base"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/pluginutils/loader"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/plugins/base"
 	"github.com/stretchr/testify/require"
 )
 

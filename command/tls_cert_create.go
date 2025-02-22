@@ -12,9 +12,9 @@ import (
 
 	"github.com/posener/complete"
 
-	"github.com/hashicorp/nomad/helper/flags"
-	"github.com/hashicorp/nomad/helper/tlsutil"
-	"github.com/hashicorp/nomad/lib/file"
+	"github.com/open-wander/wander/helper/flags"
+	"github.com/open-wander/wander/helper/tlsutil"
+	"github.com/open-wander/wander/lib/file"
 )
 
 type TLSCertCreateCommand struct {

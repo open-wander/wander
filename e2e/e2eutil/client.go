@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	capi "github.com/hashicorp/consul/api"
-	napi "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/helper/useragent"
+	napi "github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/helper/useragent"
 	vapi "github.com/hashicorp/vault/api"
 	"github.com/shoenig/test/must"
 )

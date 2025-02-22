@@ -7,7 +7,7 @@ import (
 	"context"
 
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/client/config"
+	"github.com/open-wander/wander/client/config"
 )
 
 // upstreamAllocsHook waits for a PrevAllocWatcher to exit before allowing

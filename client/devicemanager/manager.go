@@ -13,13 +13,13 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/nomad/client/devicemanager/state"
-	"github.com/hashicorp/nomad/client/pluginmanager"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/device"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/open-wander/wander/client/devicemanager/state"
+	"github.com/open-wander/wander/client/pluginmanager"
+	"github.com/open-wander/wander/helper/pluginutils/loader"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/device"
+	pstructs "github.com/open-wander/wander/plugins/shared/structs"
 )
 
 // Manager is the interface used to manage device plugins

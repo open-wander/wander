@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-set"
-	nomadapi "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/e2e/v3/util3"
-	"github.com/hashicorp/nomad/helper"
+	nomadapi "github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/e2e/v3/util3"
+	"github.com/open-wander/wander/helper"
 	"github.com/shoenig/test"
 	"github.com/shoenig/test/must"
 )

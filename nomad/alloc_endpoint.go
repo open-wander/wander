@@ -12,12 +12,12 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/state/paginator"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/acl"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/state"
+	"github.com/open-wander/wander/nomad/state/paginator"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // Alloc endpoint is used for manipulating allocations

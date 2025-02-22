@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/open-wander/wander/ci"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/agent"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/command/agent"
+	"github.com/open-wander/wander/testutil"
 )
 
 func TestRecommendationDismissCommand_Run(t *testing.T) {

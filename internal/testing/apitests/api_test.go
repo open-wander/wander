@@ -6,8 +6,8 @@ package apitests
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/testutil"
 )
 
 type configCallback func(c *api.Config)

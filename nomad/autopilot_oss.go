@@ -9,7 +9,7 @@ package nomad
 import (
 	autopilot "github.com/hashicorp/raft-autopilot"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 func (s *Server) autopilotPromoter() autopilot.Promoter {

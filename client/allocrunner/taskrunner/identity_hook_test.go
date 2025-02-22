@@ -3,7 +3,7 @@
 
 package taskrunner
 
-import "github.com/hashicorp/nomad/client/allocrunner/interfaces"
+import "github.com/open-wander/wander/client/allocrunner/interfaces"
 
 var _ interfaces.TaskPrestartHook = (*identityHook)(nil)
 

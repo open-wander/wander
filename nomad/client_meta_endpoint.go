@@ -8,8 +8,8 @@ import (
 
 	metrics "github.com/armon/go-metrics"
 	log "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/nomad/structs"
-	nstructs "github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
+	nstructs "github.com/open-wander/wander/nomad/structs"
 )
 
 type NodeMeta struct {

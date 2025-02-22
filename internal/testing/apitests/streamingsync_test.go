@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/stretchr/testify/require"
 )
 

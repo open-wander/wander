@@ -17,10 +17,10 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/lib/lang"
-	"github.com/hashicorp/nomad/nomad/stream"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/lib/lang"
+	"github.com/open-wander/wander/nomad/stream"
+	"github.com/open-wander/wander/nomad/structs"
 	"golang.org/x/exp/slices"
 )
 

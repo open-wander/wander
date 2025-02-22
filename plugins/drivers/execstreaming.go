@@ -9,7 +9,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/hashicorp/nomad/plugins/drivers/proto"
+	"github.com/open-wander/wander/plugins/drivers/proto"
 )
 
 // StreamToExecOptions is a convenience method to convert exec stream into

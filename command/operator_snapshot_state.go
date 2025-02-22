@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 
-	flaghelper "github.com/hashicorp/nomad/helper/flags"
-	"github.com/hashicorp/nomad/helper/raftutil"
-	"github.com/hashicorp/nomad/nomad"
+	flaghelper "github.com/open-wander/wander/helper/flags"
+	"github.com/open-wander/wander/helper/raftutil"
+	"github.com/open-wander/wander/nomad"
 	"github.com/posener/complete"
 )
 

@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
-	psstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
+	psstructs "github.com/open-wander/wander/plugins/shared/structs"
 	"github.com/stretchr/testify/require"
 )
 

@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/command/asset"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/command/asset"
 	"github.com/posener/complete"
 )
 

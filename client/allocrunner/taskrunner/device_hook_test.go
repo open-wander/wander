@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
-	"github.com/hashicorp/nomad/client/devicemanager"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/device"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
+	"github.com/open-wander/wander/client/devicemanager"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/device"
+	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/stretchr/testify/require"
 )
 

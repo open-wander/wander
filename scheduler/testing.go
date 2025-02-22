@@ -13,9 +13,9 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/nomad/state"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/nomad/state"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // RejectPlan is used to always reject the entire plan and force a state refresh

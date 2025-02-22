@@ -12,20 +12,20 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/drivers/shared/capabilities"
+	"github.com/open-wander/wander/client/lib/cgutil"
+	"github.com/open-wander/wander/drivers/shared/capabilities"
 
 	"github.com/hashicorp/consul-template/signals"
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/drivers/shared/eventer"
-	"github.com/hashicorp/nomad/drivers/shared/executor"
-	"github.com/hashicorp/nomad/drivers/shared/resolvconf"
-	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/plugins/base"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/drivers/utils"
-	"github.com/hashicorp/nomad/plugins/shared/hclspec"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/open-wander/wander/drivers/shared/eventer"
+	"github.com/open-wander/wander/drivers/shared/executor"
+	"github.com/open-wander/wander/drivers/shared/resolvconf"
+	"github.com/open-wander/wander/helper/pluginutils/loader"
+	"github.com/open-wander/wander/plugins/base"
+	"github.com/open-wander/wander/plugins/drivers"
+	"github.com/open-wander/wander/plugins/drivers/utils"
+	"github.com/open-wander/wander/plugins/shared/hclspec"
+	pstructs "github.com/open-wander/wander/plugins/shared/structs"
 )
 
 const (

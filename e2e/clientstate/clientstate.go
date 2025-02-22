@@ -16,16 +16,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/client/state"
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/e2e/execagent"
-	"github.com/hashicorp/nomad/e2e/framework"
-	"github.com/hashicorp/nomad/helper/discover"
-	"github.com/hashicorp/nomad/helper/testlog"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/client/state"
+	"github.com/open-wander/wander/e2e/e2eutil"
+	"github.com/open-wander/wander/e2e/execagent"
+	"github.com/open-wander/wander/e2e/framework"
+	"github.com/open-wander/wander/helper/discover"
+	"github.com/open-wander/wander/helper/testlog"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/testutil"
 )
 
 func init() {

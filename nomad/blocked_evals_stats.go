@@ -6,7 +6,7 @@ package nomad
 import (
 	"time"
 
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // BlockedStats returns all the stats about the blocked eval tracker.

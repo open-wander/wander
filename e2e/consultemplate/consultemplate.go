@@ -10,13 +10,13 @@ import (
 	"time"
 
 	capi "github.com/hashicorp/consul/api"
-	api "github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/e2e/framework"
-	"github.com/hashicorp/nomad/helper/uuid"
-	"github.com/hashicorp/nomad/jobspec"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/testutil"
+	api "github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/e2e/e2eutil"
+	"github.com/open-wander/wander/e2e/framework"
+	"github.com/open-wander/wander/helper/uuid"
+	"github.com/open-wander/wander/jobspec"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/testutil"
 )
 
 const ns = ""

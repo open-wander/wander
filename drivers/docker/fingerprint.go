@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/nomad/client/lib/cgutil"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/plugins/drivers"
-	"github.com/hashicorp/nomad/plugins/drivers/utils"
-	pstructs "github.com/hashicorp/nomad/plugins/shared/structs"
+	"github.com/open-wander/wander/client/lib/cgutil"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/plugins/drivers"
+	"github.com/open-wander/wander/plugins/drivers/utils"
+	pstructs "github.com/open-wander/wander/plugins/shared/structs"
 )
 
 func (d *Driver) Fingerprint(ctx context.Context) (<-chan *drivers.Fingerprint, error) {

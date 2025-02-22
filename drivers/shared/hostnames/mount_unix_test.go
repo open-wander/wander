@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/stretchr/testify/require"
 )
 

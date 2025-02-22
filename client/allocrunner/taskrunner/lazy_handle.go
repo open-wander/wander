@@ -10,8 +10,8 @@ import (
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	bstructs "github.com/hashicorp/nomad/plugins/base/structs"
+	cstructs "github.com/open-wander/wander/client/structs"
+	bstructs "github.com/open-wander/wander/plugins/base/structs"
 )
 
 const (

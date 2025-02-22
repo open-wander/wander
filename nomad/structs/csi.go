@@ -11,7 +11,7 @@ import (
 
 	multierror "github.com/hashicorp/go-multierror"
 
-	"github.com/hashicorp/nomad/helper"
+	"github.com/open-wander/wander/helper"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )

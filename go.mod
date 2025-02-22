@@ -1,4 +1,4 @@
-module github.com/hashicorp/nomad
+module github.com/open-wander/wander
 
 go 1.21
 
@@ -13,7 +13,7 @@ replace (
 replace github.com/armon/go-metrics => github.com/armon/go-metrics v0.0.0-20230509193637-d9ca9af9f1f9
 
 // Nomad is built using the current source of the API module
-replace github.com/hashicorp/nomad/api => ./api
+replace github.com/open-wander/wander/api => ./api
 
 require (
 	github.com/LK4D4/joincontext v0.0.0-20171026170139-1724345da6d5
@@ -76,7 +76,6 @@ require (
 	github.com/hashicorp/logutils v1.0.0
 	github.com/hashicorp/memberlist v0.5.0
 	github.com/hashicorp/net-rpc-msgpackrpc v0.0.0-20151116020338-a14192a58a69
-	github.com/hashicorp/nomad/api v0.0.0-20230103221135-ce00d683f9be
 	github.com/hashicorp/raft v1.5.0
 	github.com/hashicorp/raft-autopilot v0.1.6
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
@@ -101,6 +100,7 @@ require (
 	github.com/moby/sys/mount v0.3.3
 	github.com/moby/sys/mountinfo v0.6.2
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
+	github.com/open-wander/wander/api v0.0.0-20230103221135-ce00d683f9be
 	github.com/opencontainers/runc v1.1.8
 	github.com/opencontainers/runtime-spec v1.1.0-rc.3
 	github.com/posener/complete v1.2.3
@@ -130,6 +130,8 @@ require (
 	gopkg.in/tomb.v2 v2.0.0-20140626144623-14b3d72120e8
 	oss.indeed.com/go/libtime v1.6.0
 )
+
+require github.com/hashicorp/nomad/api v0.0.0-20230103221135-ce00d683f9be // indirect
 
 require (
 	cloud.google.com/go v0.110.7 // indirect

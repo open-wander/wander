@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/helper/uuid"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
 )

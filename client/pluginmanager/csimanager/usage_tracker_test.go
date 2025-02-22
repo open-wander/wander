@@ -6,8 +6,8 @@ package csimanager
 import (
 	"testing"
 
-	"github.com/hashicorp/nomad/nomad/mock"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/structs"
 	"github.com/stretchr/testify/require"
 )
 

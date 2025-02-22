@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/nomad/ci"
+	"github.com/open-wander/wander/ci"
 	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/testutil"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/testutil"
 )
 
 func TestRecommendationInfoCommand_Run(t *testing.T) {

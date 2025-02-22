@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/nomad/helper/snapshot"
+	"github.com/open-wander/wander/helper/snapshot"
 	"github.com/posener/complete"
 )
 

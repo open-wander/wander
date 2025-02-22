@@ -8,7 +8,7 @@ import (
 	"context"
 	"io"
 
-	nomadapi "github.com/hashicorp/nomad/api"
+	nomadapi "github.com/open-wander/wander/api"
 	"github.com/shoenig/test/must"
 )
 

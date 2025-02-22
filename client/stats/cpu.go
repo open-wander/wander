@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/nomad/helper/stats"
+	"github.com/open-wander/wander/helper/stats"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shoenig/go-m1cpu"
 )

@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/hashicorp/nomad/helper/testlog"
+	"github.com/open-wander/wander/helper/testlog"
 	"github.com/shoenig/test/must"
 	"golang.org/x/sys/unix"
 )

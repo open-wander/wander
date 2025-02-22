@@ -8,8 +8,8 @@ import (
 
 	"github.com/armon/go-metrics"
 	"github.com/hashicorp/go-set"
-	"github.com/hashicorp/nomad/acl"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/acl"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

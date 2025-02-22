@@ -11,7 +11,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/hashicorp/nomad/plugins/device/proto"
+	"github.com/open-wander/wander/plugins/device/proto"
 )
 
 // devicePluginServer wraps a device plugin and exposes it via gRPC.

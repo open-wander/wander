@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-msgpack/codec"
-	cstructs "github.com/hashicorp/nomad/client/structs"
-	"github.com/hashicorp/nomad/nomad/structs"
+	cstructs "github.com/open-wander/wander/client/structs"
+	"github.com/open-wander/wander/nomad/structs"
 	"github.com/stretchr/testify/require"
 )
 

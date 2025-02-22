@@ -12,12 +12,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/nomad/helper"
-	hargs "github.com/hashicorp/nomad/helper/args"
-	"github.com/hashicorp/nomad/helper/escapingfs"
-	"github.com/hashicorp/nomad/lib/cpuset"
-	"github.com/hashicorp/nomad/nomad/structs"
-	"github.com/hashicorp/nomad/plugins/drivers"
+	"github.com/open-wander/wander/helper"
+	hargs "github.com/open-wander/wander/helper/args"
+	"github.com/open-wander/wander/helper/escapingfs"
+	"github.com/open-wander/wander/lib/cpuset"
+	"github.com/open-wander/wander/nomad/structs"
+	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/zclconf/go-cty/cty"
 )
 

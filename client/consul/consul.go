@@ -4,7 +4,7 @@
 package consul
 
 import (
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // TokenDeriverFunc takes an allocation and a set of tasks and derives a

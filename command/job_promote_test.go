@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/command/agent"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/command/agent"
+	"github.com/open-wander/wander/nomad/structs"
 	"github.com/shoenig/test/must"
 
-	"github.com/hashicorp/nomad/nomad/mock"
+	"github.com/open-wander/wander/nomad/mock"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 	"github.com/stretchr/testify/assert"

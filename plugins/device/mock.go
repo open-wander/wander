@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/nomad/plugins/base"
+	"github.com/open-wander/wander/plugins/base"
 )
 
 type FingerprintFn func(context.Context) (<-chan *FingerprintResponse, error)

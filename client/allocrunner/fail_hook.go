@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 
-	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
+	"github.com/open-wander/wander/client/allocrunner/interfaces"
 )
 
 var ErrFailHookError = errors.New("failed successfully")

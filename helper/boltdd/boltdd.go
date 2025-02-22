@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-msgpack/codec"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/nomad/structs"
 	"go.etcd.io/bbolt"
 	"golang.org/x/crypto/blake2b"
 )

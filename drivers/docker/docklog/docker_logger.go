@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/hashicorp/nomad/client/lib/fifo"
+	"github.com/open-wander/wander/client/lib/fifo"
 )
 
 // DockerLogger is a small utility to forward logs from a docker container to a target

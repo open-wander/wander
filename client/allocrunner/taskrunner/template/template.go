@@ -20,11 +20,11 @@ import (
 	"github.com/hashicorp/consul-template/signals"
 	envparse "github.com/hashicorp/go-envparse"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/nomad/client/allocrunner/taskrunner/interfaces"
-	"github.com/hashicorp/nomad/client/config"
-	"github.com/hashicorp/nomad/client/taskenv"
-	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/client/allocrunner/taskrunner/interfaces"
+	"github.com/open-wander/wander/client/config"
+	"github.com/open-wander/wander/client/taskenv"
+	"github.com/open-wander/wander/helper/pointer"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

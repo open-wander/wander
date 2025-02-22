@@ -4,10 +4,10 @@
 package eval_priority
 
 import (
-	"github.com/hashicorp/nomad/api"
-	"github.com/hashicorp/nomad/e2e/e2eutil"
-	"github.com/hashicorp/nomad/e2e/framework"
-	"github.com/hashicorp/nomad/helper/uuid"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/e2e/e2eutil"
+	"github.com/open-wander/wander/e2e/framework"
+	"github.com/open-wander/wander/helper/uuid"
 )
 
 type EvalPriorityTest struct {

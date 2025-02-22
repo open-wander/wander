@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/hashicorp/nomad/ci"
-	"github.com/hashicorp/nomad/nomad/structs"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 func TestHTTP_Keyring_CRUD(t *testing.T) {
