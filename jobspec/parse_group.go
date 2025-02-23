@@ -9,8 +9,8 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
 )
 
 func parseGroups(result *api.Job, list *ast.ObjectList) error {
@@ -95,7 +95,6 @@ func parseGroups(result *api.Job, list *ast.ObjectList) error {
 			WeaklyTypedInput: true,
 			Result:           &g,
 		})
-
 		if err != nil {
 			return err
 		}

@@ -9,8 +9,8 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
 )
 
 func parseJob(result *api.Job, list *ast.ObjectList) error {

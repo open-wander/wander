@@ -15,12 +15,14 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
 )
 
-var reDynamicPorts = regexp.MustCompile("^[a-zA-Z0-9_]+$")
-var errPortLabel = fmt.Errorf("Port label does not conform to naming requirements %s", reDynamicPorts.String())
+var (
+	reDynamicPorts = regexp.MustCompile("^[a-zA-Z0-9_]+$")
+	errPortLabel   = fmt.Errorf("Port label does not conform to naming requirements %s", reDynamicPorts.String())
+)
 
 // Parse parses the job spec from the given io.Reader.
 //
