@@ -35,9 +35,11 @@ const (
 func int8ToPtr(i int8) *int8 {
 	return &i
 }
+
 func uint64ToPtr(u uint64) *uint64 {
 	return &u
 }
+
 func int64ToPtr(i int64) *int64 {
 	return &i
 }
@@ -1654,29 +1656,34 @@ func TestParse(t *testing.T) {
 										TLSMinVersion: "TLSv1_2",
 										CipherSuites:  []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"},
 									},
-									Listeners: []*api.ConsulIngressListener{{
-										Port:     8001,
-										Protocol: "tcp",
-										Services: []*api.ConsulIngressService{{
-											Name: "service1",
-											Hosts: []string{
-												"127.0.0.1:8001",
-												"[::1]:8001",
-											}}, {
-											Name: "service2",
-											Hosts: []string{
-												"10.0.0.1:8001",
-											}},
-										}}, {
-										Port:     8080,
-										Protocol: "http",
-										Services: []*api.ConsulIngressService{{
-											Name: "nginx",
-											Hosts: []string{
-												"2.2.2.2:8080",
+									Listeners: []*api.ConsulIngressListener{
+										{
+											Port:     8001,
+											Protocol: "tcp",
+											Services: []*api.ConsulIngressService{
+												{
+													Name: "service1",
+													Hosts: []string{
+														"127.0.0.1:8001",
+														"[::1]:8001",
+													},
+												}, {
+													Name: "service2",
+													Hosts: []string{
+														"10.0.0.1:8001",
+													},
+												},
 											},
-										}},
-									},
+										}, {
+											Port:     8080,
+											Protocol: "http",
+											Services: []*api.ConsulIngressService{{
+												Name: "nginx",
+												Hosts: []string{
+													"2.2.2.2:8080",
+												},
+											}},
+										},
 									},
 								},
 							},

@@ -9,12 +9,11 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
 )
 
 func parseMultiregion(result *api.Multiregion, list *ast.ObjectList) error {
-
 	list = list.Elem()
 	if len(list.Items) > 1 {
 		return fmt.Errorf("only one 'multiregion' block allowed")
@@ -92,7 +91,6 @@ func parseMultiregionStrategy(final **api.MultiregionStrategy, list *ast.ObjectL
 		WeaklyTypedInput: true,
 		Result:           &result,
 	})
-
 	if err != nil {
 		return err
 	}
