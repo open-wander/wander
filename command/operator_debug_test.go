@@ -17,6 +17,7 @@ import (
 
 	consulapi "github.com/hashicorp/consul/api"
 	consultest "github.com/hashicorp/consul/sdk/testutil"
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ci"
 	clienttest "github.com/open-wander/wander/client/testutil"
@@ -25,7 +26,6 @@ import (
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/testutil"
-	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

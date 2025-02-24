@@ -6,9 +6,9 @@ package tasklifecycle
 import (
 	"time"
 
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	testing "github.com/mitchellh/go-testing-interface"
 )
 
 func RequireTaskBlocked(t testing.T, c *Coordinator, task *structs.Task) {

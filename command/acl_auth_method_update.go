@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 	"github.com/posener/complete"
 	"golang.org/x/exp/slices"
 )

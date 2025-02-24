@@ -9,6 +9,7 @@ import (
 	"net/rpc"
 	"time"
 
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/open-wander/wander/client/config"
 	"github.com/open-wander/wander/client/fingerprint"
 	"github.com/open-wander/wander/client/servers"
@@ -18,7 +19,6 @@ import (
 	"github.com/open-wander/wander/helper/pluginutils/singleton"
 	"github.com/open-wander/wander/helper/pool"
 	"github.com/open-wander/wander/helper/testlog"
-	testing "github.com/mitchellh/go-testing-interface"
 )
 
 // TestClient creates an in-memory client for testing purposes and returns a

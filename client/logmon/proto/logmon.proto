@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 syntax = "proto3";
-package hashicorp.nomad.client.logmon.proto;
+package open-wander.wander.client.logmon.proto;
 option go_package = "proto";
 
 service LogMon {

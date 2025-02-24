@@ -17,12 +17,12 @@ import (
 	"time"
 
 	gg "github.com/hashicorp/go-getter"
+	"github.com/kr/text"
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	flaghelper "github.com/open-wander/wander/helper/flags"
 	"github.com/open-wander/wander/jobspec"
 	"github.com/open-wander/wander/jobspec2"
-	"github.com/kr/text"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 	"github.com/ryanuber/columnize"
 )

@@ -11,10 +11,10 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
-	"github.com/open-wander/wander/nomad"
-	"github.com/open-wander/wander/nomad/state"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/open-wander/wander/nomad"
+	"github.com/open-wander/wander/nomad/state"
 )
 
 var ErrNoMoreLogs = fmt.Errorf("no more logs")

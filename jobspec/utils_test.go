@@ -41,5 +41,4 @@ func TestFlattenMapSlice(t *testing.T) {
 	}
 
 	require.Equal(t, output, flattenMapSlice(input))
-
 }

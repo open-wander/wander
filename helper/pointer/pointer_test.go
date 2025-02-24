@@ -78,7 +78,7 @@ func Test_Compare(t *testing.T) {
 
 func Test_Merge(t *testing.T) {
 	ci.Parallel(t)
-	
+
 	a := 1
 	b := 2
 

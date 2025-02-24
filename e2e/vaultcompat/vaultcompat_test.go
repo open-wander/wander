@@ -17,9 +17,9 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-set"
 	"github.com/hashicorp/go-version"
+	vaultapi "github.com/hashicorp/vault/api"
 	nomadapi "github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/testutil"
-	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )

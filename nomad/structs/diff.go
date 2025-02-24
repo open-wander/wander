@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/open-wander/wander/helper/flatmap"
 	"github.com/mitchellh/hashstructure"
+	"github.com/open-wander/wander/helper/flatmap"
 )
 
 // DiffableWithID defines an object that has a unique and stable value that can

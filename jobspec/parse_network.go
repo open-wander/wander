@@ -10,8 +10,8 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
 )
 
 // ParseNetwork parses a collection containing exactly one NetworkResource

@@ -22,9 +22,9 @@ import (
 	_ "github.com/open-wander/wander/drivers/shared/executor"
 
 	// Don't move any other code imports above the import block above!
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/command"
 	"github.com/open-wander/wander/version"
-	"github.com/mitchellh/cli"
 )
 
 var (

@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/helper/pool"
 	"github.com/open-wander/wander/helper/tlsutil"
-	"github.com/hashicorp/raft"
 )
 
 // RaftLayer implements the raft.StreamLayer interface,

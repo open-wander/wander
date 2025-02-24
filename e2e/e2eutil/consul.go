@@ -9,8 +9,8 @@ import (
 	"time"
 
 	capi "github.com/hashicorp/consul/api"
-	"github.com/open-wander/wander/testutil"
 	"github.com/kr/pretty"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

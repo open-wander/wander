@@ -11,8 +11,8 @@ import (
 	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
-	nomadapi "github.com/open-wander/wander/api"
 	vaultapi "github.com/hashicorp/vault/api"
+	nomadapi "github.com/open-wander/wander/api"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )

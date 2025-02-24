@@ -9,8 +9,8 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
 )
 
 func parseGroupServices(g *api.TaskGroup, serviceObjs *ast.ObjectList) error {
@@ -753,7 +753,6 @@ func parseSidecarTask(item *ast.ObjectItem) (*api.SidecarTask, error) {
 		WeaklyTypedInput: true,
 		Result:           sidecarTask,
 	})
-
 	if err != nil {
 		return nil, err
 	}

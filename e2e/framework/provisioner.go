@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	capi "github.com/hashicorp/consul/api"
+	vapi "github.com/hashicorp/vault/api"
 	napi "github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/helper/useragent"
 	"github.com/open-wander/wander/helper/uuid"
-	vapi "github.com/hashicorp/vault/api"
 )
 
 // ClusterInfo is a handle to a provisioned cluster, along with clients

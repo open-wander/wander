@@ -66,15 +66,15 @@ var (
 )
 
 const (
-	dockerLabelAllocID       = "com.hashicorp.nomad.alloc_id"
-	dockerLabelJobName       = "com.hashicorp.nomad.job_name"
-	dockerLabelJobID         = "com.hashicorp.nomad.job_id"
-	dockerLabelTaskGroupName = "com.hashicorp.nomad.task_group_name"
-	dockerLabelTaskName      = "com.hashicorp.nomad.task_name"
-	dockerLabelNamespace     = "com.hashicorp.nomad.namespace"
-	dockerLabelNodeName      = "com.hashicorp.nomad.node_name"
-	dockerLabelNodeID        = "com.hashicorp.nomad.node_id"
-	dockerLabelParentJobID   = "com.hashicorp.nomad.parent_job_id"
+	dockerLabelAllocID       = "com.open-wander.wander.alloc_id"
+	dockerLabelJobName       = "com.open-wander.wander.job_name"
+	dockerLabelJobID         = "com.open-wander.wander.job_id"
+	dockerLabelTaskGroupName = "com.open-wander.wander.task_group_name"
+	dockerLabelTaskName      = "com.open-wander.wander.task_name"
+	dockerLabelNamespace     = "com.open-wander.wander.namespace"
+	dockerLabelNodeName      = "com.open-wander.wander.node_name"
+	dockerLabelNodeID        = "com.open-wander.wander.node_id"
+	dockerLabelParentJobID   = "com.open-wander.wander.parent_job_id"
 )
 
 type pauseContainerStore struct {
@@ -676,7 +676,6 @@ func (d *Driver) resolveRegistryAuthentication(driverConfig *TaskConfig, repo st
 
 // loadImage creates an image by loading it from the file system
 func (d *Driver) loadImage(task *drivers.TaskConfig, driverConfig *TaskConfig, client *docker.Client) (id string, err error) {
-
 	archive := filepath.Join(task.TaskDir().LocalDir, driverConfig.LoadImage)
 	d.logger.Debug("loading image from disk", "archive", archive)
 
@@ -776,7 +775,6 @@ func (d *Driver) containerBinds(task *drivers.TaskConfig, driverConfig *TaskConf
 }
 
 func (d *Driver) findPauseContainer(allocID string) (string, error) {
-
 	dockerClient, err := d.getDockerClient()
 	if err != nil {
 		return "", err
@@ -1317,7 +1315,7 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	// main mandatory label
 	labels[dockerLabelAllocID] = task.AllocID
 
-	//optional labels, as configured in plugin configuration
+	// optional labels, as configured in plugin configuration
 	for _, configurationExtraLabel := range d.config.ExtraLabels {
 		if glob.Glob(configurationExtraLabel, "job_name") {
 			labels[dockerLabelJobName] = task.JobName
@@ -1475,7 +1473,6 @@ func (d *Driver) detectIP(c *docker.Container, driverConfig *TaskConfig) (string
 // containerByName finds a running container by name, and returns an error
 // if the container is dead or can't be found.
 func (d *Driver) containerByName(name string) (*docker.Container, error) {
-
 	dockerClient, err := d.getDockerClient()
 	if err != nil {
 		return nil, err

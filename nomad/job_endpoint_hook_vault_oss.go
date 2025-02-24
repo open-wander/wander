@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/open-wander/wander/nomad/structs"
 	vapi "github.com/hashicorp/vault/api"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 // validateNamespaces returns an error if the job contains multiple Vault

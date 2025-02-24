@@ -18,12 +18,12 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/v2/hcldec"
+	"github.com/kr/pretty"
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/helper/pluginutils/hclspecutils"
 	"github.com/open-wander/wander/helper/pluginutils/hclutils"
 	"github.com/open-wander/wander/plugins/base"
 	"github.com/open-wander/wander/plugins/device"
-	"github.com/kr/pretty"
-	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty/msgpack"
 )
 

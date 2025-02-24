@@ -12,9 +12,9 @@ import (
 	"github.com/hashicorp/go-msgpack/codec"
 	multierror "github.com/hashicorp/go-multierror"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/hashicorp/yamux"
 	"github.com/open-wander/wander/helper/pool"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/hashicorp/yamux"
 )
 
 // nodeConnState is used to track connection information about a Nomad Client.

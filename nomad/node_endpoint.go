@@ -20,12 +20,12 @@ import (
 	vapi "github.com/hashicorp/vault/api"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/state/paginator"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/hashicorp/raft"
 )
 
 const (

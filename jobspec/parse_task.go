@@ -11,9 +11,9 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/mitchellh/mapstructure"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/helper/pointer"
-	"github.com/mitchellh/mapstructure"
 )
 
 var (
@@ -127,7 +127,6 @@ func parseTask(item *ast.ObjectItem, keys []string) (*api.Task, error) {
 		WeaklyTypedInput: true,
 		Result:           &t,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +474,7 @@ func parseTemplates(result *[]*api.Template, list *ast.ObjectList) error {
 			"source",
 			"splay",
 			"env",
-			"vault_grace", //COMPAT(0.12) not used; emits warning in 0.11.
+			"vault_grace", // COMPAT(0.12) not used; emits warning in 0.11.
 			"wait",
 			"error_on_missing_key",
 		}

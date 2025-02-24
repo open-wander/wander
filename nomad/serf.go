@@ -9,9 +9,9 @@ import (
 
 	log "github.com/hashicorp/go-hclog"
 
-	"github.com/open-wander/wander/nomad/structs"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

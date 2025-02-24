@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 )
 
 type MonitorCommand struct {

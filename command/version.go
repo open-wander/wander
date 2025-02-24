@@ -4,8 +4,8 @@
 package command
 
 import (
-	"github.com/open-wander/wander/version"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/version"
 )
 
 // VersionCommand is a Command implementation prints the version.

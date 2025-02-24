@@ -21,9 +21,9 @@ import (
 	metrics "github.com/armon/go-metrics"
 	log "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
+	vapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
-	vapi "github.com/hashicorp/vault/api"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"

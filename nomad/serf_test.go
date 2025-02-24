@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/open-wander/wander/ci"
-	"github.com/open-wander/wander/testutil"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
+	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/testutil"
 	"github.com/stretchr/testify/require"
 )
 

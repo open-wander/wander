@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/config"
 	"github.com/open-wander/wander/helper/pointer"
@@ -15,7 +16,6 @@ import (
 	"github.com/open-wander/wander/helper/useragent"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

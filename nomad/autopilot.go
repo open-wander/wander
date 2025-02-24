@@ -9,10 +9,10 @@ import (
 	"strconv"
 
 	metrics "github.com/armon/go-metrics"
-	"github.com/open-wander/wander/nomad/structs"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	"github.com/hashicorp/serf/serf"
+	"github.com/open-wander/wander/nomad/structs"
 )
 
 const (

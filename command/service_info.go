@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 	"github.com/posener/complete"
 )
 

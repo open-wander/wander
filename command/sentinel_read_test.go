@@ -6,8 +6,8 @@ package command
 import (
 	"testing"
 
-	"github.com/open-wander/wander/ci"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/ci"
 )
 
 func TestSentinelReadCommand_Implements(t *testing.T) {

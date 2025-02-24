@@ -13,10 +13,10 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/hashicorp/raft"
 )
 
 // planner is used to manage the submitted allocation plans that are waiting

@@ -14,14 +14,14 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/hashicorp/memberlist"
+	"github.com/hashicorp/raft"
+	"github.com/hashicorp/serf/serf"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/deploymentwatcher"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/scheduler"
-	"github.com/hashicorp/raft"
-	"github.com/hashicorp/serf/serf"
 )
 
 const (

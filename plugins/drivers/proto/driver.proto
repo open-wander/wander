@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 syntax = "proto3";
-package hashicorp.nomad.plugins.drivers.proto;
+package open-wander.wander.plugins.drivers.proto;
 option go_package = "proto";
 
 import "google/protobuf/duration.proto";
@@ -95,7 +95,7 @@ message TaskConfigSchemaRequest {}
 message TaskConfigSchemaResponse {
 
     // Spec is the configuration schema for the job driver config block
-    hashicorp.nomad.plugins.shared.hclspec.Spec spec = 1;
+    open-wander.wander.plugins.shared.hclspec.Spec spec = 1;
 }
 
 message CapabilitiesRequest {}
@@ -116,7 +116,7 @@ message FingerprintResponse {
 
     // Attributes are key/value pairs that annotate the nomad client and can be
     // used in scheduling constraints and affinities.
-    map<string, hashicorp.nomad.plugins.shared.structs.Attribute> attributes = 1;
+    map<string, open-wander.wander.plugins.shared.structs.Attribute> attributes = 1;
 
     enum HealthState {
         UNDETECTED = 0;
