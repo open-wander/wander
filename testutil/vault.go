@@ -10,13 +10,13 @@ import (
 	"os/exec"
 	"time"
 
+	vapi "github.com/hashicorp/vault/api"
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/useragent"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/structs/config"
-	vapi "github.com/hashicorp/vault/api"
-	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/stretchr/testify/require"
 )
 

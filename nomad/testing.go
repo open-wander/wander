@@ -10,13 +10,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/command/agent/consul"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/version"
-	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/shoenig/test/must"
 )
 

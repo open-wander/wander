@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/ci"
 	trstate "github.com/open-wander/wander/client/allocrunner/taskrunner/state"
 	dmstate "github.com/open-wander/wander/client/devicemanager/state"
@@ -18,7 +19,6 @@ import (
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

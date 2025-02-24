@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: MPL-2.0
 
 name: install-vault
+description: "Install Vault"
 inputs:
   version:
+    description: "Vault Version"
     required: false
     default: 1.2.4
 runs:

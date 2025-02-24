@@ -25,11 +25,11 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 	log "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/open-wander/wander/acl"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"github.com/hashicorp/serf/serf"
+	"github.com/open-wander/wander/acl"
 	"go.etcd.io/bbolt"
 
 	"github.com/open-wander/wander/command/agent/consul"

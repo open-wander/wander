@@ -25,9 +25,9 @@ import (
 	"time"
 
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/discover"
-	testing "github.com/mitchellh/go-testing-interface"
 )
 
 // TestServerConfig is the main server configuration struct.

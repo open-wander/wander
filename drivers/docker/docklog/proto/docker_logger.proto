@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 syntax = "proto3";
-package hashicorp.nomad.drivers.docker.docklog.proto;
+package open-wander.wander.drivers.docker.docklog.proto;
 option go_package = "proto";
 
 service DockerLogger {

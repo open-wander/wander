@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
+	vapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/uuid"
@@ -27,7 +28,6 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/testutil"
-	vapi "github.com/hashicorp/vault/api"
 )
 
 const (

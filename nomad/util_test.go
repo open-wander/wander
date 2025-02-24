@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/serf/serf"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/uuid"
-	"github.com/hashicorp/serf/serf"
 	"github.com/stretchr/testify/require"
 )
 

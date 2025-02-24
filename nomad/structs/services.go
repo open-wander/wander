@@ -21,10 +21,10 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-set"
+	"github.com/mitchellh/copystructure"
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/helper/args"
 	"github.com/open-wander/wander/helper/pointer"
-	"github.com/mitchellh/copystructure"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )

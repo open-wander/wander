@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/open-wander/wander/testutil"
 	"github.com/kr/pretty"
+	"github.com/open-wander/wander/testutil"
 )
 
 // This test checks, that even if the frame size has not been hit, a flush will

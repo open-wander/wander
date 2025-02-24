@@ -6,11 +6,11 @@ package command
 import (
 	"testing"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/command/agent"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/require"
 )
 

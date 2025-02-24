@@ -812,10 +812,10 @@ func TestDockerDriver_ExtraLabels(t *testing.T) {
 	}
 
 	expectedLabels := map[string]string{
-		"com.hashicorp.nomad.alloc_id":        task.AllocID,
-		"com.hashicorp.nomad.task_name":       task.Name,
-		"com.hashicorp.nomad.task_group_name": task.TaskGroupName,
-		"com.hashicorp.nomad.job_name":        task.JobName,
+		"com.open-wander.wander.alloc_id":        task.AllocID,
+		"com.open-wander.wander.task_name":       task.Name,
+		"com.open-wander.wander.task_group_name": task.TaskGroupName,
+		"com.open-wander.wander.job_name":        task.JobName,
 	}
 
 	// expect to see 4 labels (allocID by default, task_name and task_group_name due to task*, and job_name)
@@ -1132,9 +1132,9 @@ func TestDockerDriver_CreateContainerConfig_Labels(t *testing.T) {
 	cfg.Labels = map[string]string{
 		"user_label": "user_value",
 
-		// com.hashicorp.nomad. labels are reserved and
+		// com.open-wander.wander. labels are reserved and
 		// cannot be overridden
-		"com.hashicorp.nomad.alloc_id": "bad_value",
+		"com.open-wander.wander.alloc_id": "bad_value",
 	}
 
 	require.NoError(t, task.EncodeConcreteDriverConfig(cfg))
@@ -1149,7 +1149,7 @@ func TestDockerDriver_CreateContainerConfig_Labels(t *testing.T) {
 		// user provided labels
 		"user_label": "user_value",
 		// default label
-		"com.hashicorp.nomad.alloc_id": task.AllocID,
+		"com.open-wander.wander.alloc_id": task.AllocID,
 	}
 
 	require.Equal(t, expectedLabels, c.Config.Labels)
@@ -1530,7 +1530,6 @@ func TestDockerDriver_DNS(t *testing.T) {
 
 		dtestutil.TestTaskDNSConfig(t, d, task.ID, c.cfg)
 	}
-
 }
 
 func TestDockerDriver_Init(t *testing.T) {
@@ -1799,8 +1798,8 @@ func TestDockerDriver_CreateContainerConfig_Ports(t *testing.T) {
 		docker.Port("6379/udp"): {{HostIP: hostIP, HostPort: fmt.Sprintf("%d", ports[1])}},
 	}
 	require.Exactly(t, expectedPortBindings, c.HostConfig.PortBindings)
-
 }
+
 func TestDockerDriver_CreateContainerConfig_PortsMapping(t *testing.T) {
 	ci.Parallel(t)
 
@@ -1833,7 +1832,6 @@ func TestDockerDriver_CreateContainerConfig_PortsMapping(t *testing.T) {
 		docker.Port("6379/udp"): {{HostIP: hostIP, HostPort: fmt.Sprintf("%d", dyn)}},
 	}
 	require.Exactly(t, expectedPortBindings, c.HostConfig.PortBindings)
-
 }
 
 func TestDockerDriver_CleanupContainer(t *testing.T) {
@@ -2622,12 +2620,15 @@ type fakeDockerClient struct{}
 func (fakeDockerClient) CreateContainer(docker.CreateContainerOptions) (*docker.Container, error) {
 	return nil, fmt.Errorf("volume is attached on another node")
 }
+
 func (fakeDockerClient) InspectContainer(id string) (*docker.Container, error) {
 	panic("not implemented")
 }
+
 func (fakeDockerClient) ListContainers(docker.ListContainersOptions) ([]docker.APIContainers, error) {
 	panic("not implemented")
 }
+
 func (fakeDockerClient) RemoveContainer(opts docker.RemoveContainerOptions) error {
 	panic("not implemented")
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 syntax = "proto3";
-package hashicorp.nomad.plugins.shared.structs;
+package open-wander.wander.plugins.shared.structs;
 option go_package = "proto";
 
 import "google/protobuf/wrappers.proto";

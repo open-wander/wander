@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ci"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"

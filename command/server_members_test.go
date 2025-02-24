@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/command/agent"
-	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 )
 

@@ -6,8 +6,8 @@ package executor
 import (
 	"testing"
 
-	"github.com/open-wander/wander/ci"
 	"github.com/mitchellh/go-ps"
+	"github.com/open-wander/wander/ci"
 )
 
 func TestScanPids(t *testing.T) {

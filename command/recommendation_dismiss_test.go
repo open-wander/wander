@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/open-wander/wander/ci"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/ci"
 	"github.com/posener/complete"
 	"github.com/stretchr/testify/require"
 

@@ -27,6 +27,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hashicorp/logutils"
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/helper"
 	flaghelper "github.com/open-wander/wander/helper/flags"
 	gatedwriter "github.com/open-wander/wander/helper/gated-writer"
@@ -35,7 +36,6 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/version"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
 

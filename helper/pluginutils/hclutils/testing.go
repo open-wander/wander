@@ -9,11 +9,11 @@ import (
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/mitchellh/mapstructure"
 	"github.com/open-wander/wander/helper/pluginutils/hclspecutils"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/open-wander/wander/plugins/shared/hclspec"
-	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )

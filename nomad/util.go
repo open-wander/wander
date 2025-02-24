@@ -13,9 +13,9 @@ import (
 
 	memdb "github.com/hashicorp/go-memdb"
 	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/serf/serf"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/hashicorp/serf/serf"
 	"golang.org/x/exp/slices"
 )
 

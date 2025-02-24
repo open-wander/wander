@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-getter"
+	"github.com/mitchellh/go-homedir"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/testutil"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/mitchellh/go-homedir"
 	"github.com/shoenig/test/must"
 )
 

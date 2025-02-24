@@ -6,9 +6,9 @@ package vaultclient
 import (
 	"sync"
 
+	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/structs"
-	vaultapi "github.com/hashicorp/vault/api"
 )
 
 // MockVaultClient is used for testing the vaultclient integration and is safe

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 )
 
 func deviceQualifiedID(vendor, typ, name, id string) string {

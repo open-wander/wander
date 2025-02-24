@@ -13,6 +13,8 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/hashicorp/raft"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
@@ -20,8 +22,6 @@ import (
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	"github.com/hashicorp/raft"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

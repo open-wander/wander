@@ -11,12 +11,12 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/kr/pretty"
 	api "github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/jobspec2"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 )
 

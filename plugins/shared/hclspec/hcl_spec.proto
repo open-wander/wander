@@ -56,7 +56,7 @@ The following type names and type constructors are supported:
 
 `null` is a valid value of any type, and not a type itself.
 */
-package hashicorp.nomad.plugins.shared.hclspec;
+package open-wander.wander.plugins.shared.hclspec;
 
 // Spec defines the available specification types.
 message Spec {
