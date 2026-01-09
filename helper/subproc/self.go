@@ -21,11 +21,11 @@ func init() {
 		panic(fmt.Sprintf("failed to detect executable: %v", err))
 	}
 
-	// when running tests, we need to use the real nomad binary,
+	// when running tests, we need to use the real wander binary,
 	// and make sure you recompile between changes!
 	if strings.HasSuffix(s, ".test") {
-		if s, err = exec.LookPath("nomad"); err != nil {
-			panic(fmt.Sprintf("failed to find nomad binary: %v", err))
+		if s, err = exec.LookPath("wander"); err != nil {
+			panic(fmt.Sprintf("failed to find wander binary: %v", err))
 		}
 	}
 	executable = s

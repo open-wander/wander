@@ -380,7 +380,7 @@ func TestLeader_PeriodicDispatcher_Restore_Adds(t *testing.T) {
 		}
 		return true, nil
 	}, func(err error) {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	})
 }
 

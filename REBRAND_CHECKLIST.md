@@ -1,6 +1,8 @@
 # Wander Rebrand Checklist
 
 This document tracks all items that need to be changed as part of the rebrand from HashiCorp Nomad to open-wander/wander.
+Domain openwander.org
+Consider Docusoaurus for document handling
 
 ## Status Legend
 - [ ] Not started

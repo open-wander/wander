@@ -335,7 +335,7 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 	}
 	if !config.DevMode && (config.TLSConfig == nil ||
 		!config.TLSConfig.EnableHTTP || !config.TLSConfig.EnableRPC) {
-		c.Ui.Error("WARNING: mTLS is not configured - Nomad is not secure without mTLS!")
+		c.Ui.Error("WARNING: mTLS is not configured - Wander is not secure without mTLS!")
 	}
 
 	if config.Server.EncryptKey != "" {
@@ -564,7 +564,7 @@ func SetupLoggers(ui cli.Ui, config *Config) (*logutils.LevelFilter, *gatedwrite
 
 // setupAgent is used to start the agent and various interfaces
 func (c *Command) setupAgent(config *Config, logger hclog.InterceptLogger, logOutput io.Writer, inmem *metrics.InmemSink) error {
-	c.Ui.Output("Starting Nomad agent...")
+	c.Ui.Output("Starting Wander agent...")
 
 	agent, err := NewAgent(config, logger, logOutput, inmem)
 	if err != nil {
@@ -826,7 +826,7 @@ func (c *Command) Run(args []string) int {
 
 	// Agent configuration output
 	padding := 18
-	c.Ui.Output("Nomad agent configuration:\n")
+	c.Ui.Output("Wander agent configuration:\n")
 	for _, k := range infoKeys {
 		c.Ui.Info(fmt.Sprintf(
 			"%s%s: %s",
@@ -837,7 +837,7 @@ func (c *Command) Run(args []string) int {
 	c.Ui.Output("")
 
 	// Output the header that the server has started
-	c.Ui.Output("Nomad agent started! Log data will stream in below:\n")
+	c.Ui.Output("Wander agent started! Log data will stream in below:\n")
 
 	// Enable log streaming
 	logGate.Flush()
@@ -1189,7 +1189,7 @@ func (c *Command) setupTelemetry(config *Config) (*metrics.InmemSink, error) {
 		cfg.CheckManager.Broker.SelectTag = telConfig.CirconusBrokerSelectTag
 
 		if cfg.CheckManager.Check.DisplayName == "" {
-			cfg.CheckManager.Check.DisplayName = "Nomad"
+			cfg.CheckManager.Check.DisplayName = "Wander"
 		}
 
 		if cfg.CheckManager.API.TokenApp == "" {

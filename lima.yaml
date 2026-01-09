@@ -1,0 +1,280 @@
+# Lima configuration for Wander development on Apple Silicon Macs
+# This provides a Linux VM alternative to Vagrant for ARM-based Macs.
+#
+# Usage:
+#   limactl create --name=wander lima.yaml
+#   limactl start wander
+#   limactl shell wander
+#
+# Or use the convenience script:
+#   ./scripts/lima-start.sh
+
+# Use Ubuntu 22.04 for better ARM64 support
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+
+# VM resources - adjust as needed
+cpus: 4
+memory: "4GiB"
+disk: "50GiB"
+
+# Mount the home directory (project accessible at same path as on host)
+mounts:
+  - location: "~"
+    writable: true
+
+# Port forwarding for Nomad and Consul
+portForwards:
+  - guestPort: 4646
+    hostPort: 4646
+  - guestPort: 8500
+    hostPort: 8500
+  - guestPort: 8200
+    hostPort: 8200
+
+# Containerd is managed by Lima for nerdctl, but we also install Docker
+containerd:
+  system: false
+  user: false
+
+# Provisioning scripts - run in order
+provision:
+  # Install base dependencies
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      export DEBIAN_FRONTEND=noninteractive
+
+      # Update package lists
+      apt-get update
+
+      # Install basic utilities first
+      apt-get install -y \
+        software-properties-common \
+        build-essential \
+        git \
+        pkg-config \
+        zip \
+        curl \
+        jq \
+        tree \
+        unzip \
+        wget
+
+      # Ensure everything is up to date
+      apt-get upgrade -y
+
+  # Install Go
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      ARCH=""
+      case $(arch) in
+          x86_64) ARCH="amd64" ;;
+          aarch64) ARCH="arm64" ;;
+      esac
+
+      GO_VERSION="1.22.5"
+      DOWNLOAD="https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz"
+
+      if go version 2>&1 | grep -q "${GO_VERSION}"; then
+          echo "Go ${GO_VERSION} already installed"
+          exit 0
+      fi
+
+      rm -rf /usr/local/go
+      curl -sSL --fail -o /tmp/go.tar.gz --retry 5 --retry-connrefused "${DOWNLOAD}"
+      tar -C /usr/local -xf /tmp/go.tar.gz
+      rm /tmp/go.tar.gz
+
+      # Create symlinks
+      ln -sf /usr/local/go/bin/go /usr/bin/go
+      ln -sf /usr/local/go/bin/gofmt /usr/bin/gofmt
+
+      # Setup GOPATH - Lima creates a user with UID 501 (macOS default)
+      LIMA_USER=$(getent passwd 501 | cut -d: -f1 || echo "")
+      if [ -z "$LIMA_USER" ]; then
+          LIMA_USER=$(getent passwd 1000 | cut -d: -f1 || echo "nobody")
+      fi
+      mkdir -p /opt/gopath
+      chown -R ${LIMA_USER}:${LIMA_USER} /opt/gopath
+
+      # Add to profile
+      echo 'export GOPATH="/opt/gopath"' > /etc/profile.d/gopath.sh
+      echo 'export PATH="/opt/gopath/bin:/usr/local/go/bin:$PATH"' >> /etc/profile.d/gopath.sh
+      chmod 755 /etc/profile.d/gopath.sh
+
+  # Install Docker
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      export DEBIAN_FRONTEND=noninteractive
+
+      ARCH=""
+      case $(arch) in
+          x86_64) ARCH="amd64" ;;
+          aarch64) ARCH="arm64" ;;
+      esac
+
+      # Add Docker repository
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=${ARCH} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io
+
+      # Add Lima user to docker group
+      LIMA_USER=$(getent passwd 501 | cut -d: -f1 || echo "")
+      if [ -z "$LIMA_USER" ]; then
+          LIMA_USER=$(getent passwd 1000 | cut -d: -f1 || echo "nobody")
+      fi
+      usermod -aG docker ${LIMA_USER}
+
+      systemctl enable docker
+      systemctl start docker
+
+  # Install Consul
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      ARCH=""
+      case $(arch) in
+          x86_64) ARCH="amd64" ;;
+          aarch64) ARCH="arm64" ;;
+      esac
+
+      VERSION="1.15.1"
+      DOWNLOAD="https://releases.hashicorp.com/consul/${VERSION}/consul_${VERSION}_linux_${ARCH}.zip"
+
+      if consul version 2>&1 | grep -q "${VERSION}"; then
+          echo "Consul ${VERSION} already installed"
+          exit 0
+      fi
+
+      curl -sSL --fail -o /tmp/consul.zip "${DOWNLOAD}"
+      unzip -o -d /tmp /tmp/consul.zip
+      mv /tmp/consul /usr/bin/consul
+      chmod +x /usr/bin/consul
+      rm /tmp/consul.zip
+
+  # Install Vault
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      ARCH=""
+      case $(arch) in
+          x86_64) ARCH="amd64" ;;
+          aarch64) ARCH="arm64" ;;
+      esac
+
+      VERSION="1.13.0"
+      DOWNLOAD="https://releases.hashicorp.com/vault/${VERSION}/vault_${VERSION}_linux_${ARCH}.zip"
+
+      if vault version 2>&1 | grep -q "${VERSION}"; then
+          echo "Vault ${VERSION} already installed"
+          exit 0
+      fi
+
+      curl -sSL --fail -o /tmp/vault.zip "${DOWNLOAD}"
+      unzip -o -d /tmp /tmp/vault.zip
+      mv /tmp/vault /usr/bin/vault
+      chmod +x /usr/bin/vault
+      rm /tmp/vault.zip
+
+  # Install CNI plugins
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      ARCH=""
+      case $(arch) in
+          x86_64) ARCH="amd64" ;;
+          aarch64) ARCH="arm64" ;;
+      esac
+
+      VERSION="v1.0.0"
+      DOWNLOAD="https://github.com/containernetworking/plugins/releases/download/${VERSION}/cni-plugins-linux-${ARCH}-${VERSION}.tgz"
+      TARGET_DIR="/opt/cni/bin"
+      CONFIG_DIR="/opt/cni/config"
+
+      mkdir -p ${TARGET_DIR} ${CONFIG_DIR}
+
+      if [[ -e ${TARGET_DIR}/${VERSION} ]]; then
+          echo "CNI plugins ${VERSION} already installed"
+          exit 0
+      fi
+
+      curl -sSL --fail -o /tmp/cni-plugins.tar.gz "${DOWNLOAD}"
+      tar -xf /tmp/cni-plugins.tar.gz -C ${TARGET_DIR}
+      touch ${TARGET_DIR}/${VERSION}
+      rm /tmp/cni-plugins.tar.gz
+
+  # Setup user environment
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Add Go to user's bashrc
+      if ! grep -q "GOPATH" ~/.bashrc; then
+        echo '' >> ~/.bashrc
+        echo '# Go environment' >> ~/.bashrc
+        echo 'export GOPATH="/opt/gopath"' >> ~/.bashrc
+        echo 'export PATH="/opt/gopath/bin:/usr/local/go/bin:$PATH"' >> ~/.bashrc
+      fi
+
+      echo ""
+      echo "=========================================="
+      echo "Lima VM provisioning complete!"
+      echo ""
+      echo "To access the VM:"
+      echo "  limactl shell wander"
+      echo ""
+      echo "Your home directory is mounted - access the project"
+      echo "at the same path as on your Mac."
+      echo ""
+      echo "First time setup inside VM:"
+      echo "  cd <project-dir>"
+      echo "  make bootstrap"
+      echo "  make test"
+      echo "=========================================="
+
+# Message displayed after VM creation
+message: |
+  Wander development VM is ready!
+
+  Access the VM:
+    limactl shell wander
+    # or
+    ./scripts/lima-start.sh ssh
+
+  Your home directory is mounted at the same path as on macOS.
+  Access your project at its normal location.
+
+  First time setup inside VM:
+    cd ~/dev/wander/wander  # (your project path)
+    make bootstrap
+    make test
+
+  Quick commands inside the VM:
+    make dev          # Build development binary
+    make test         # Run smoke tests
+    make check        # Run linting
+    sudo bin/wander agent -dev  # Run dev server
+
+  Ports forwarded to host:
+    - 4646 (Nomad/Wander)
+    - 8500 (Consul)
+    - 8200 (Vault)

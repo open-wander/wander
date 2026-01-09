@@ -111,8 +111,8 @@ require (
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/shirou/gopsutil/v3 v3.23.4
 	github.com/shoenig/go-landlock v0.1.5
-	github.com/shoenig/go-m1cpu v0.1.6
-	github.com/shoenig/test v0.6.7
+	github.com/shoenig/go-m1cpu v0.1.7
+	github.com/shoenig/test v1.7.0
 	github.com/stretchr/testify v1.8.4
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/zclconf/go-cty v1.12.1

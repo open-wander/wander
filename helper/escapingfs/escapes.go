@@ -47,20 +47,26 @@ func PathEscapesAllocViaRelative(prefix, path string) (bool, error) {
 //
 // The base directory must be an absolute path.
 func pathEscapesBaseViaSymlink(base, full string) (bool, error) {
-	resolveSym, err := filepath.EvalSymlinks(full)
+	// Resolve symlinks in both paths to handle cases where base itself
+	// contains symlinks (e.g., /var -> /private/var on macOS)
+	resolvedBase, err := filepath.EvalSymlinks(base)
 	if err != nil {
 		return false, err
 	}
 
-	rel, err := filepath.Rel(resolveSym, base)
+	resolvedFull, err := filepath.EvalSymlinks(full)
+	if err != nil {
+		return false, err
+	}
+
+	// Compute relative path from resolved base to the resolved full path.
+	// If the relative path starts with "..", the full path is outside base.
+	rel, err := filepath.Rel(resolvedBase, resolvedFull)
 	if err != nil {
 		return true, nil
 	}
 
-	// note: this is not the same as !filesystem.IsAbs; we are asking if the relative
-	// path is descendent of the base path, indicating it does not escape.
-	isRelative := strings.HasPrefix(rel, "..") || rel == "."
-	escapes := !isRelative
+	escapes := strings.HasPrefix(rel, "..")
 	return escapes, nil
 }
 

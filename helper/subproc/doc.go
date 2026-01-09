@@ -1,8 +1,8 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package subproc provides helper utilities for executing the Nomad binary as
-// a child process of the Nomad agent.
+// Package subproc provides helper utilities for executing the Wander binary as
+// a child process of the Wander agent.
 //
 // The main entrypoint is the Do function, in which the given MainFunc will be
 // executed as a sub-process if the first argument matches the subcommand.

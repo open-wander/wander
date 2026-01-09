@@ -2005,7 +2005,7 @@ func (j *Job) Dispatch(args *structs.JobDispatchRequest, reply *structs.JobDispa
 		if err != nil {
 			errMsg := "failed to retrieve jobs for idempotency check"
 			j.logger.Error(errMsg, "error", err)
-			return fmt.Errorf(errMsg)
+			return errors.New(errMsg)
 		}
 
 		// Iterate

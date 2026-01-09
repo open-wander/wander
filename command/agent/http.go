@@ -46,7 +46,7 @@ const (
 
 	// ErrEntOnly is the error returned if accessing an enterprise only
 	// endpoint
-	ErrEntOnly = "Nomad Enterprise only endpoint"
+	ErrEntOnly = "Wander Enterprise only endpoint"
 
 	// ErrServerOnly is the error text returned if accessing a server only
 	// endpoint

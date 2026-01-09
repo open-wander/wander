@@ -24,7 +24,7 @@ var (
 	fileNameNotPresentErr = CodedError(400, "must provide a file name")
 	taskNotPresentErr     = CodedError(400, "must provide task name")
 	logTypeNotPresentErr  = CodedError(400, "must provide log type (stdout/stderr)")
-	clientNotRunning      = CodedError(400, "node is not running a Nomad Client")
+	clientNotRunning      = CodedError(400, "node is not running a Wander Client")
 	invalidOrigin         = CodedError(400, "origin must be start or end")
 )
 

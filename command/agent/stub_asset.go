@@ -14,7 +14,7 @@ func init() {
 	uiEnabled = false
 	stubHTML = `<!DOCTYPE html>
 <html>
-<p>Nomad UI is not available in this binary. To get Nomad UI do one of the following:</p>
+<p>Wander UI is not available in this binary. To get Wander UI do one of the following:</p>
 <ul>
 <li><a href="https://openwander.org/wander/downloads.html">Download an official release</a></li>
 <li>Run <pre>make release</pre> to create your own release binaries.
@@ -24,7 +24,7 @@ func init() {
 `
 }
 
-// assetFS is a stub for building Nomad without a UI.
+// assetFS is a stub for building Wander without a UI.
 func assetFS() *assetfs.AssetFS {
 	return nil
 }

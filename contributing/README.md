@@ -28,6 +28,54 @@ A development environment is supplied via Vagrant to make getting started easier
     $ vagrant ssh
     ```
 
+Developing with Lima (Apple Silicon Macs)
+---
+Vagrant with VirtualBox does not work on Apple Silicon (M1/M2/M3) Macs. Lima provides
+a lightweight Linux VM alternative that works natively on ARM-based Macs.
+
+1. Install [Lima](https://lima-vm.io/)
+    ```sh
+    $ brew install lima
+    ```
+
+1. Create and start the VM using the convenience script
+    ```sh
+    $ ./scripts/lima-start.sh up
+    ```
+
+    This will create an Ubuntu 22.04 VM with all dependencies pre-installed:
+    - Go 1.21.5
+    - Docker
+    - Consul
+    - Vault
+    - CNI plugins
+
+1. SSH into the VM
+    ```sh
+    $ ./scripts/lima-start.sh ssh
+    ```
+
+1. Your home directory is mounted at the same path, so access the project at its normal location
+
+1. First time inside VM - bootstrap and run tests
+    ```sh
+    $ cd ~/path/to/wander   # same path as on your Mac
+    $ make bootstrap
+    $ make test
+    ```
+
+1. When done, stop the VM
+    ```sh
+    $ ./scripts/lima-start.sh stop
+    ```
+
+**Lima Commands:**
+- `./scripts/lima-start.sh up` - Create and start VM
+- `./scripts/lima-start.sh ssh` - SSH into VM
+- `./scripts/lima-start.sh stop` - Stop VM
+- `./scripts/lima-start.sh destroy` - Delete VM completely
+- `./scripts/lima-start.sh status` - Show VM status
+
 Developing without Vagrant
 ---
 1. Install [Go 1.21.5+](https://golang.org/) *(Note: `gcc-go` is not supported)*
