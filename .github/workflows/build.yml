@@ -310,13 +310,13 @@ jobs:
 
       - name: Download Linux amd64 artifact
         if: matrix.arch == 'amd64'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}_${{ env.version }}_linux_amd64.zip
 
       - name: Download Linux arm64 artifact
         if: matrix.arch == 'arm64'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}_${{ env.version }}_linux_arm64.zip
 
@@ -375,7 +375,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{needs.get-go-version.outputs.go-version}}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - name: Test binary
