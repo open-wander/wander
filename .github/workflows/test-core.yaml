@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-      - uses: hashicorp/setup-golang@v1
+      - uses: hashicorp/setup-golang@v3
       - name: Get Go modules
         run: |
           make tidy
@@ -71,7 +71,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-      - uses: hashicorp/setup-golang@v1
+      - uses: hashicorp/setup-golang@v3
       - name: Run make dev
         run: |
           make bootstrap
@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-      - uses: hashicorp/setup-golang@v1
+      - uses: hashicorp/setup-golang@v3
       - name: Run API tests
         env:
           GOTEST_MOD: api
@@ -106,7 +106,7 @@ jobs:
           - quick
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-      - uses: hashicorp/setup-golang@v1
+      - uses: hashicorp/setup-golang@v3
       - name: Run Matrix Tests
         env:
           GOTEST_GROUP: ${{matrix.groups}}
