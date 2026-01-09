@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2/hcldec"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/drivers/docker"
 	"github.com/open-wander/wander/helper/pluginutils/hclspecutils"
 	"github.com/open-wander/wander/helper/pluginutils/hclutils"
 	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/open-wander/wander/plugins/shared/hclspec"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )

@@ -6,7 +6,7 @@
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
 import sinon from 'sinon';
-import setupGlimmerComponentFactory from 'nomad-ui/tests/helpers/glimmer-factory';
+import setupGlimmerComponentFactory from 'wander-ui/tests/helpers/glimmer-factory';
 
 module('Unit | Component | scale-events-chart', function (hooks) {
   setupTest(hooks);

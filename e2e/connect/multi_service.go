@@ -9,12 +9,12 @@ import (
 	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/e2e/framework"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/jobspec"
 	"github.com/open-wander/wander/testutil"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 )
 

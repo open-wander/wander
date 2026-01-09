@@ -4,8 +4,8 @@
  */
 
 import Controller from '@ember/controller';
-import WithNamespaceResetting from 'nomad-ui/mixins/with-namespace-resetting';
-import Sortable from 'nomad-ui/mixins/sortable';
+import WithNamespaceResetting from 'wander-ui/mixins/with-namespace-resetting';
+import Sortable from 'wander-ui/mixins/sortable';
 import { alias } from '@ember/object/computed';
 import { computed } from '@ember/object';
 import { union } from '@ember/object/computed';

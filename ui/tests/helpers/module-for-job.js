@@ -9,8 +9,8 @@ import { currentRouteName, currentURL, visit, find } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import JobDetail from 'nomad-ui/tests/pages/jobs/detail';
-import setPolicy from 'nomad-ui/tests/utils/set-policy';
+import JobDetail from 'wander-ui/tests/pages/jobs/detail';
+import setPolicy from 'wander-ui/tests/utils/set-policy';
 
 const jobTypesWithStatusPanel = ['service', 'system', 'batch', 'sysbatch'];
 async function switchToHistorical() {

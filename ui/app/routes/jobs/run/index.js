@@ -7,7 +7,7 @@
 import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
 import classic from 'ember-classic-decorator';
-import notifyForbidden from 'nomad-ui/utils/notify-forbidden';
+import notifyForbidden from 'wander-ui/utils/notify-forbidden';
 
 @classic
 export default class JobsRunIndexRoute extends Route {

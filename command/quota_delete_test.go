@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/uuid"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 	"github.com/stretchr/testify/assert"
 )

@@ -12,7 +12,7 @@ import { alias } from '@ember/object/computed';
 import { scheduleOnce } from '@ember/runloop';
 import { task, timeout } from 'ember-concurrency';
 import { lazyClick } from '../helpers/lazy-click';
-import AllocationStatsTracker from 'nomad-ui/utils/classes/allocation-stats-tracker';
+import AllocationStatsTracker from 'wander-ui/utils/classes/allocation-stats-tracker';
 import classic from 'ember-classic-decorator';
 import {
   classNames,

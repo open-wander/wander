@@ -6,8 +6,8 @@ package config
 import (
 	"time"
 
-	"github.com/open-wander/wander/helper/pointer"
 	vault "github.com/hashicorp/vault/api"
+	"github.com/open-wander/wander/helper/pointer"
 )
 
 const (

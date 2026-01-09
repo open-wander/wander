@@ -7,7 +7,7 @@ import { alias } from '@ember/object/computed';
 import EmberObject, { computed } from '@ember/object';
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import Searchable from 'nomad-ui/mixins/searchable';
+import Searchable from 'wander-ui/mixins/searchable';
 
 module('Unit | Mixin | Searchable', function (hooks) {
   setupTest(hooks);

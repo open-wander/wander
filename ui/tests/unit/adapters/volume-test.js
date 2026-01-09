@@ -7,7 +7,7 @@ import { next } from '@ember/runloop';
 import { settled } from '@ember/test-helpers';
 import { setupTest } from 'ember-qunit';
 import { module, test } from 'qunit';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import { startMirage } from 'wander-ui/initializers/ember-cli-mirage';
 import { AbortController } from 'fetch';
 
 module('Unit | Adapter | Volume', function (hooks) {

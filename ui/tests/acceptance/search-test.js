@@ -9,8 +9,8 @@ import { module, test } from 'qunit';
 import { currentURL, triggerEvent, visit } from '@ember/test-helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import Layout from 'nomad-ui/tests/pages/layout';
-import JobsList from 'nomad-ui/tests/pages/jobs/list';
+import Layout from 'wander-ui/tests/pages/layout';
+import JobsList from 'wander-ui/tests/pages/jobs/list';
 import { selectSearch } from 'ember-power-select/test-support';
 import Response from 'ember-cli-mirage/response';
 

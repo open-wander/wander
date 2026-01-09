@@ -4,7 +4,7 @@
  */
 
 import Helper from '@ember/component/helper';
-import { formatBytes } from 'nomad-ui/utils/units';
+import { formatBytes } from 'wander-ui/utils/units';
 
 /**
  * Bytes Formatter

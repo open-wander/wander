@@ -8,7 +8,7 @@ import { tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
-import KeyboardShortcutModifier from 'nomad-ui/modifiers/keyboard-shortcut';
+import KeyboardShortcutModifier from 'wander-ui/modifiers/keyboard-shortcut';
 
 @classic
 @tagName('')

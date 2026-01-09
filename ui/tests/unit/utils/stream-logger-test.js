@@ -6,7 +6,7 @@
 import { module, test } from 'qunit';
 import { Promise } from 'rsvp';
 import sinon from 'sinon';
-import StreamLogger from 'nomad-ui/utils/classes/stream-logger';
+import StreamLogger from 'wander-ui/utils/classes/stream-logger';
 
 module('Unit | Util | StreamLogger', function () {
   test('when a StreamLogger is stopped before the poll request responds, the request is immediately canceled upon completion', async function (assert) {

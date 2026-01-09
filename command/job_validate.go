@@ -23,8 +23,8 @@ type JobValidateCommand struct {
 
 func (c *JobValidateCommand) Help() string {
 	helpText := `
-Usage: nomad job validate [options] <path>
-Alias: nomad validate
+Usage: wander job validate [options] <path>
+Alias: wander validate
 
   Checks if a given HCL job file has a valid specification. This can be used to
   check for any syntax errors or validation problems with a job.
@@ -48,7 +48,7 @@ Validate Options:
 
   -json
     Parses the job file as JSON. If the outer object has a Job field, such as
-    from "nomad job inspect" or "nomad run -output", the value of the field is
+    from "wander job inspect" or "wander run -output", the value of the field is
     used as the job.
 
   -hcl1
@@ -62,9 +62,9 @@ Validate Options:
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
     according to its Vault policies. A Vault token must be supplied if the vault
-    block allow_unauthenticated is disabled in the Nomad server configuration.
+    block allow_unauthenticated is disabled in the Wander server configuration.
     If the -vault-token flag is set, the passed Vault token is added to the jobspec
-    before sending to the Nomad servers. This allows passing the Vault token
+    before sending to the Wander servers. This allows passing the Vault token
     without storing it in the job file. This overrides the token found in the
     $VAULT_TOKEN environment variable and the vault_token field in the job file.
     This token is cleared from the job after validating and cannot be used within
@@ -73,7 +73,7 @@ Validate Options:
 
   -vault-namespace
     If set, the passed Vault namespace is stored in the job before sending to the
-    Nomad servers.
+    Wander servers.
 
   -var 'key=value'
     Variable for template, can be used multiple times.
@@ -188,7 +188,7 @@ func (c *JobValidateCommand) Run(args []string) int {
 
 	if jr != nil && !jr.DriverConfigValidated {
 		c.Ui.Output(
-			c.Colorize().Color("[bold][yellow]Driver configuration not validated since connection to Nomad agent couldn't be established.[reset]\n"))
+			c.Colorize().Color("[bold][yellow]Driver configuration not validated since connection to Wander agent couldn't be established.[reset]\n"))
 	}
 
 	if jr != nil && jr.Error != "" {

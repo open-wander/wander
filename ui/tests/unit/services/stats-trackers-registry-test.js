@@ -10,8 +10,8 @@ import { setupTest } from 'ember-qunit';
 import { settled } from '@ember/test-helpers';
 import Pretender from 'pretender';
 import sinon from 'sinon';
-import fetch from 'nomad-ui/utils/fetch';
-import NodeStatsTracker from 'nomad-ui/utils/classes/node-stats-tracker';
+import fetch from 'wander-ui/utils/fetch';
+import NodeStatsTracker from 'wander-ui/utils/classes/node-stats-tracker';
 
 module('Unit | Service | Stats Trackers Registry', function (hooks) {
   setupTest(hooks);

@@ -4,7 +4,7 @@
  */
 
 import Component from '@glimmer/component';
-import ResourcesDiffs from 'nomad-ui/utils/resources-diffs';
+import ResourcesDiffs from 'wander-ui/utils/resources-diffs';
 
 export default class DasResourceTotalsComponent extends Component {
   get diffs() {

@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 	"github.com/posener/complete"
 )
 
@@ -27,7 +27,7 @@ type ServiceInfoCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ServiceInfoCommand) Help() string {
 	helpText := `
-Usage: nomad service info [options] <service_name>
+Usage: wander service info [options] <service_name>
 
   Info is used to read the services registered to a single service name.
 
@@ -63,7 +63,7 @@ Service Info Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ServiceInfoCommand) Synopsis() string {
-	return "Display an individual Nomad service registration"
+	return "Display an individual Wander service registration"
 }
 
 func (s *ServiceInfoCommand) AutocompleteFlags() complete.Flags {

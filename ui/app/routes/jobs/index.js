@@ -7,10 +7,10 @@ import { inject as service } from '@ember/service';
 import Route from '@ember/routing/route';
 import RSVP from 'rsvp';
 import { collect } from '@ember/object/computed';
-import { watchAll, watchQuery } from 'nomad-ui/utils/properties/watch';
-import WithWatchers from 'nomad-ui/mixins/with-watchers';
-import notifyForbidden from 'nomad-ui/utils/notify-forbidden';
-import WithForbiddenState from 'nomad-ui/mixins/with-forbidden-state';
+import { watchAll, watchQuery } from 'wander-ui/utils/properties/watch';
+import WithWatchers from 'wander-ui/mixins/with-watchers';
+import notifyForbidden from 'wander-ui/utils/notify-forbidden';
+import WithForbiddenState from 'wander-ui/mixins/with-forbidden-state';
 
 export default class IndexRoute extends Route.extend(
   WithWatchers,

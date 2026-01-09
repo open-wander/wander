@@ -8,7 +8,7 @@ import { click, find, findAll, render, settled } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
 // Used to prevent XSS warnings in console
 const h = (height) => htmlSafe(`height:${height}px`);

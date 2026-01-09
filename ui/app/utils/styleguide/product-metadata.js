@@ -5,10 +5,10 @@
 
 export default [
   {
-    name: 'Nomad',
+    name: 'Wander',
     lang: 'golang',
-    desc: 'Nomad is a flexible, enterprise-grade cluster scheduler designed to easily integrate into existing workflows. Nomad can run a diverse workload of micro-service, batch, containerized and non-containerized applications.',
-    link: 'https://www.nomadproject.io/',
+    desc: 'Wander is a flexible, enterprise-grade cluster scheduler designed to easily integrate into existing workflows. Wander can run a diverse workload of micro-service, batch, containerized and non-containerized applications.',
+    link: 'https://openwander.org/',
   },
   {
     name: 'Terraform',

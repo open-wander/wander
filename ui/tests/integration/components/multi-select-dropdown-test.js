@@ -15,7 +15,7 @@ import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import sinon from 'sinon';
 import hbs from 'htmlbars-inline-precompile';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
 const TAB = 9;
 const ESC = 27;

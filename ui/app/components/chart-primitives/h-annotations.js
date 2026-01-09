@@ -6,7 +6,7 @@
 import Component from '@glimmer/component';
 import { htmlSafe } from '@ember/template';
 import { action, get } from '@ember/object';
-import styleString from 'nomad-ui/utils/properties/glimmer-style-string';
+import styleString from 'wander-ui/utils/properties/glimmer-style-string';
 
 export default class ChartPrimitiveVAnnotations extends Component {
   @styleString

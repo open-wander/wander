@@ -15,11 +15,11 @@ import intersection from 'lodash.intersection';
 import {
   serialize,
   deserializedQueryParam as selection,
-} from 'nomad-ui/utils/qp-serialize';
+} from 'wander-ui/utils/qp-serialize';
 
 import EmberObject, { computed } from '@ember/object';
 import { alias } from '@ember/object/computed';
-import Searchable from 'nomad-ui/mixins/searchable';
+import Searchable from 'wander-ui/mixins/searchable';
 import classic from 'ember-classic-decorator';
 
 export default class OptimizeController extends Controller {

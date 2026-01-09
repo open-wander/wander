@@ -13,10 +13,10 @@ import {
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import sinon from 'sinon';
 import { create } from 'ember-cli-page-object';
-import stepperInput from 'nomad-ui/tests/pages/components/stepper-input';
+import stepperInput from 'wander-ui/tests/pages/components/stepper-input';
 
 const StepperInput = create(stepperInput());
 const valueChange = () => {

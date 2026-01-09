@@ -4,7 +4,7 @@
  */
 
 import { module, test } from 'qunit';
-import jobClientStatus from 'nomad-ui/utils/properties/job-client-status';
+import jobClientStatus from 'wander-ui/utils/properties/job-client-status';
 import EmberObject from '@ember/object';
 
 class JobClientStatusMock extends EmberObject {

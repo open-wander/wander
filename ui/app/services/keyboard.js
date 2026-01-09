@@ -18,7 +18,7 @@ import { guidFor } from '@ember/object/internals';
 import { assert } from '@ember/debug';
 // eslint-disable-next-line no-unused-vars
 import MutableArray from '@ember/array/mutable';
-import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
+import localStorageProperty from 'wander-ui/utils/properties/local-storage';
 
 /**
  * @typedef {Object} KeyCommand

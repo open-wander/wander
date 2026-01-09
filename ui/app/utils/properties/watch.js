@@ -11,9 +11,9 @@ import { assert } from '@ember/debug';
 import RSVP from 'rsvp';
 import { task } from 'ember-concurrency';
 import { AbortController } from 'fetch';
-import wait from 'nomad-ui/utils/wait';
-import Watchable from 'nomad-ui/adapters/watchable';
-import config from 'nomad-ui/config/environment';
+import wait from 'wander-ui/utils/wait';
+import Watchable from 'wander-ui/adapters/watchable';
+import config from 'wander-ui/config/environment';
 
 const isEnabled = config.APP.blockingQueries !== false;
 

@@ -9,7 +9,7 @@ import { tracked } from '@glimmer/tracking';
 import { task, timeout } from 'ember-concurrency';
 import { htmlSafe } from '@ember/template';
 import Ember from 'ember';
-import ResourcesDiffs from 'nomad-ui/utils/resources-diffs';
+import ResourcesDiffs from 'wander-ui/utils/resources-diffs';
 
 export default class DasRecommendationAccordionComponent extends Component {
   @tracked waitingToProceed = false;

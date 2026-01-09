@@ -9,10 +9,10 @@
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
-import JobDispatch from 'nomad-ui/tests/pages/jobs/dispatch';
-import JobDetail from 'nomad-ui/tests/pages/jobs/detail';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import setupCodeMirror from 'wander-ui/tests/helpers/codemirror';
+import JobDispatch from 'wander-ui/tests/pages/jobs/dispatch';
+import JobDetail from 'wander-ui/tests/pages/jobs/detail';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import { currentURL } from '@ember/test-helpers';
 
 const REQUIRED_INDICATOR = '*';

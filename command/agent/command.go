@@ -27,6 +27,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hashicorp/logutils"
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/helper"
 	flaghelper "github.com/open-wander/wander/helper/flags"
 	gatedwriter "github.com/open-wander/wander/helper/gated-writer"
@@ -35,7 +36,6 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/version"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
 
@@ -1297,17 +1297,17 @@ func (c *Command) getAdvertiseAddrSynopsis() string {
 }
 
 func (c *Command) Synopsis() string {
-	return "Runs a Nomad agent"
+	return "Runs a Wander agent"
 }
 
 func (c *Command) Help() string {
 	helpText := `
-Usage: nomad agent [options]
+Usage: wander agent [options]
 
-  Starts the Nomad agent and runs until an interrupt is received.
+  Starts the Wander agent and runs until an interrupt is received.
   The agent may be a client and/or server.
 
-  The Nomad agent's configuration primarily comes from the config
+  The Wander agent's configuration primarily comes from the config
   files used, but a subset of the options may also be passed directly
   as CLI arguments, listed below.
 

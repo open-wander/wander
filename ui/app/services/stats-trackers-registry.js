@@ -6,8 +6,8 @@
 import { computed } from '@ember/object';
 import Service, { inject as service } from '@ember/service';
 import { LRUMap } from 'lru_map';
-import NodeStatsTracker from 'nomad-ui/utils/classes/node-stats-tracker';
-import AllocationStatsTracker from 'nomad-ui/utils/classes/allocation-stats-tracker';
+import NodeStatsTracker from 'wander-ui/utils/classes/node-stats-tracker';
+import AllocationStatsTracker from 'wander-ui/utils/classes/allocation-stats-tracker';
 
 // An unbounded number of stat trackers is a great way to gobble up all the memory
 // on a machine. This max number is unscientific, but aims to balance losing

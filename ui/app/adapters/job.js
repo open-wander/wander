@@ -4,8 +4,8 @@
  */
 
 import WatchableNamespaceIDs from './watchable-namespace-ids';
-import addToPath from 'nomad-ui/utils/add-to-path';
-import { base64EncodeString } from 'nomad-ui/utils/encode';
+import addToPath from 'wander-ui/utils/add-to-path';
+import { base64EncodeString } from 'wander-ui/utils/encode';
 import classic from 'ember-classic-decorator';
 
 @classic

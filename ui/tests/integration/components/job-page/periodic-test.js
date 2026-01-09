@@ -9,9 +9,9 @@ import { click, find, findAll, render } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import moment from 'moment';
 import { create, collection } from 'ember-cli-page-object';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
-import pageSizeSelect from 'nomad-ui/tests/acceptance/behaviors/page-size-select';
-import pageSizeSelectPageObject from 'nomad-ui/tests/pages/components/page-size-select';
+import { startMirage } from 'wander-ui/initializers/ember-cli-mirage';
+import pageSizeSelect from 'wander-ui/tests/acceptance/behaviors/page-size-select';
+import pageSizeSelectPageObject from 'wander-ui/tests/pages/components/page-size-select';
 import {
   jobURL,
   stopJob,
@@ -22,7 +22,7 @@ import {
   expectStartRequest,
   expectPurgeRequest,
 } from './helpers';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
 // A minimum viable page object to use with the pageSizeSelect behavior
 const PeriodicJobPage = create({

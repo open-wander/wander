@@ -59,7 +59,7 @@ type TLSCACreateCommand struct {
 
 func (c *TLSCACreateCommand) Help() string {
 	helpText := `
-Usage: nomad tls ca create [options]
+Usage: wander tls ca create [options]
 
   Create a new certificate authority.
 
@@ -72,7 +72,7 @@ CA Create Options:
     combination with -domain and -name-constraint.
 
   -common-name
-    Common Name of CA. Defaults to "Nomad Agent CA".
+    Common Name of CA. Defaults to "Wander Agent CA".
 
   -country
     Country of the CA. Defaults to "US".
@@ -82,8 +82,8 @@ CA Create Options:
     Defaults to 5 years or 1825 days.
 
   -domain
-    Domain of Nomad cluster. Only used in combination with -name-constraint.
-    Defaults to "nomad".
+    Domain of Wander cluster. Only used in combination with -name-constraint.
+    Defaults to "wander".
 
   -locality
     Locality of the CA. Defaults to "San Francisco".
@@ -96,10 +96,10 @@ CA Create Options:
     -additional-domain. Defaults to false.
 
   -organization
-    Organization of the CA. Defaults to "HashiCorp Inc.".
+    Organization of the CA. Defaults to "Open Wander".
 
   -organizational-unit
-    Organizational Unit of the CA. Defaults to "Nomad".
+    Organizational Unit of the CA. Defaults to "Wander".
 
   -postal-code
     Postal Code of the CA. Defaults to "94105".
@@ -137,7 +137,7 @@ func (c *TLSCACreateCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *TLSCACreateCommand) Synopsis() string {
-	return "Create a certificate authority for Nomad"
+	return "Create a certificate authority for Wander"
 }
 
 func (c *TLSCACreateCommand) Name() string { return "tls ca create" }

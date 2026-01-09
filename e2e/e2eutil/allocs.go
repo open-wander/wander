@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kr/pretty"
 	api "github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/testutil"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )

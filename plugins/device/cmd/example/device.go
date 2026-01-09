@@ -13,12 +13,12 @@ import (
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/plugins/base"
 	"github.com/open-wander/wander/plugins/device"
 	"github.com/open-wander/wander/plugins/shared/hclspec"
 	"github.com/open-wander/wander/plugins/shared/structs"
-	"github.com/kr/pretty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

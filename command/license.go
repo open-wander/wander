@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 )
 
 var _ cli.Command = &LicenseCommand{}
@@ -20,22 +20,22 @@ type LicenseCommand struct {
 
 func (l *LicenseCommand) Help() string {
 	helpText := `
-Usage: nomad license <subcommand> [options] [args]
+Usage: wander license <subcommand> [options] [args]
 
-This command has subcommands for managing the Nomad Enterprise license.
+This command has subcommands for managing the Wander Enterprise license.
 For more detailed examples see:
-https://www.nomadproject.io/docs/commands/license/
+https://openwander.org/wander/docs/commands/license/
 
 Retrieve the server's license:
 
-	$ nomad license get
+	$ wander license get
 
 	`
 	return strings.TrimSpace(helpText)
 }
 
 func (l *LicenseCommand) Synopsis() string {
-	return "Interact with Nomad Enterprise License"
+	return "Interact with Wander Enterprise License"
 }
 
 func (l *LicenseCommand) Name() string { return "license" }

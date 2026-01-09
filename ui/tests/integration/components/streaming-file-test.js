@@ -8,11 +8,11 @@ import { find, render, triggerKeyEvent } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import Pretender from 'pretender';
 import { logEncode } from '../../../mirage/data/logs';
-import fetch from 'nomad-ui/utils/fetch';
-import Log from 'nomad-ui/utils/classes/log';
+import fetch from 'wander-ui/utils/fetch';
+import Log from 'wander-ui/utils/classes/log';
 
 const { assign } = Object;
 const A_KEY = 65;

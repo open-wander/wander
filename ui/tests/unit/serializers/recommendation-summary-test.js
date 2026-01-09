@@ -5,7 +5,7 @@
 
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import RecommendationSummaryModel from 'nomad-ui/models/recommendation-summary';
+import RecommendationSummaryModel from 'wander-ui/models/recommendation-summary';
 
 module('Unit | Serializer | RecommendationSummary', function (hooks) {
   setupTest(hooks);

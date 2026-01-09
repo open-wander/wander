@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
-	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -409,7 +409,7 @@ func TestIsValidConfig(t *testing.T) {
 				Client: &ClientConfig{
 					Enabled: true,
 					HostNetworks: []*structs.ClientHostNetworkConfig{
-						&structs.ClientHostNetworkConfig{
+						{
 							Name:          "test",
 							ReservedPorts: "3-2147483647",
 						},

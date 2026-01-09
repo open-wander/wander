@@ -13,9 +13,9 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/mitchellh/mapstructure"
 	"github.com/open-wander/wander/api"
 	flaghelper "github.com/open-wander/wander/helper/flags"
-	"github.com/mitchellh/mapstructure"
 	"github.com/posener/complete"
 )
 

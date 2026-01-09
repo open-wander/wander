@@ -15,11 +15,11 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import allocations from 'nomad-ui/tests/pages/components/allocations';
-import taskGroups from 'nomad-ui/tests/pages/components/task-groups';
-import twoStepButton from 'nomad-ui/tests/pages/components/two-step-button';
-import recommendationAccordion from 'nomad-ui/tests/pages/components/recommendation-accordion';
-import jobClientStatusBar from 'nomad-ui/tests/pages/components/job-client-status-bar';
+import allocations from 'wander-ui/tests/pages/components/allocations';
+import taskGroups from 'wander-ui/tests/pages/components/task-groups';
+import twoStepButton from 'wander-ui/tests/pages/components/two-step-button';
+import recommendationAccordion from 'wander-ui/tests/pages/components/recommendation-accordion';
+import jobClientStatusBar from 'wander-ui/tests/pages/components/job-client-status-bar';
 
 export default create({
   visit: visitable('/jobs/:id'),

@@ -14,10 +14,10 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-multierror"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/uuid"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

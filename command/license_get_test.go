@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ci"
-	"github.com/mitchellh/cli"
 	"github.com/stretchr/testify/require"
 )
 

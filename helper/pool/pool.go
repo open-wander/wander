@@ -16,10 +16,10 @@ import (
 
 	hclog "github.com/hashicorp/go-hclog"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/hashicorp/yamux"
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/helper/tlsutil"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/hashicorp/yamux"
 )
 
 // NewClientCodec returns a new rpc.ClientCodec to be used to make RPC calls.

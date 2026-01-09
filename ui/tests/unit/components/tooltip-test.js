@@ -5,7 +5,7 @@
 
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import setupGlimmerComponentFactory from 'nomad-ui/tests/helpers/glimmer-factory';
+import setupGlimmerComponentFactory from 'wander-ui/tests/helpers/glimmer-factory';
 
 module('Unit | Component | tooltip', function (hooks) {
   setupTest(hooks);

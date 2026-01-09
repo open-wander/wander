@@ -10,7 +10,7 @@ import { alias } from '@ember/object/computed';
 import { inject as service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 import classic from 'ember-classic-decorator';
-import WithNamespaceResetting from 'nomad-ui/mixins/with-namespace-resetting';
+import WithNamespaceResetting from 'wander-ui/mixins/with-namespace-resetting';
 
 /**
  * Controller for handling job definition and specification, along with editing state and view.

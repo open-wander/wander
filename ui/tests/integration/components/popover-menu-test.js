@@ -7,9 +7,9 @@ import { click, render } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import { create } from 'ember-cli-page-object';
-import popoverMenuPageObject from 'nomad-ui/tests/pages/components/popover-menu';
+import popoverMenuPageObject from 'wander-ui/tests/pages/components/popover-menu';
 
 const PopoverMenu = create(popoverMenuPageObject());
 

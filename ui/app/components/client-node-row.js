@@ -6,8 +6,8 @@
 import { inject as service } from '@ember/service';
 import Component from '@ember/component';
 import { lazyClick } from '../helpers/lazy-click';
-import { watchRelationship } from 'nomad-ui/utils/properties/watch';
-import WithVisibilityDetection from 'nomad-ui/mixins/with-component-visibility-detection';
+import { watchRelationship } from 'wander-ui/utils/properties/watch';
+import WithVisibilityDetection from 'wander-ui/mixins/with-component-visibility-detection';
 import { computed } from '@ember/object';
 import { classNames, tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';

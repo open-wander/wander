@@ -6,17 +6,17 @@
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { hbs } from 'ember-cli-htmlbars';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import { click, typeIn, find, findAll, render } from '@ember/test-helpers';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
-import { codeFillable, code } from 'nomad-ui/tests/pages/helpers/codemirror';
+import setupCodeMirror from 'wander-ui/tests/helpers/codemirror';
+import { codeFillable, code } from 'wander-ui/tests/pages/helpers/codemirror';
 import percySnapshot from '@percy/ember';
 import {
   selectChoose,
   clickTrigger,
 } from 'ember-power-select/test-support/helpers';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 
 module('Integration | Component | variable-form', function (hooks) {
   setupRenderingTest(hooks);

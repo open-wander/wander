@@ -9,8 +9,8 @@ import { setupRenderingTest } from 'ember-qunit';
 import { render } from '@ember/test-helpers';
 import { hbs } from 'ember-cli-htmlbars';
 import sinon from 'sinon';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
-import jobClientStatusBar from 'nomad-ui/tests/pages/components/job-client-status-bar';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
+import jobClientStatusBar from 'wander-ui/tests/pages/components/job-client-status-bar';
 
 const JobClientStatusBar = create(jobClientStatusBar());
 

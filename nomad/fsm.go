@@ -15,12 +15,12 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/scheduler"
-	"github.com/hashicorp/raft"
 )
 
 const (

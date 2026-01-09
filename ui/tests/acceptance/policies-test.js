@@ -9,7 +9,7 @@ import { setupApplicationTest } from 'ember-qunit';
 import { allScenarios } from '../../mirage/scenarios/default';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import percySnapshot from '@percy/ember';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 
 module('Acceptance | policies', function (hooks) {
   setupApplicationTest(hooks);

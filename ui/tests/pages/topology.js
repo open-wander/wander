@@ -13,9 +13,9 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
-import TopoViz from 'nomad-ui/tests/pages/components/topo-viz';
-import notification from 'nomad-ui/tests/pages/components/notification';
+import { multiFacet } from 'wander-ui/tests/pages/components/facet';
+import TopoViz from 'wander-ui/tests/pages/components/topo-viz';
+import notification from 'wander-ui/tests/pages/components/notification';
 
 export default create({
   visit: visitable('/topology'),

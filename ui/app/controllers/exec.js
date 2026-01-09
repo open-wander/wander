@@ -7,10 +7,10 @@ import { inject as service } from '@ember/service';
 import Controller from '@ember/controller';
 import { action, computed } from '@ember/object';
 import { alias, mapBy, sort, uniq } from '@ember/object/computed';
-import escapeTaskName from 'nomad-ui/utils/escape-task-name';
-import ExecCommandEditorXtermAdapter from 'nomad-ui/utils/classes/exec-command-editor-xterm-adapter';
-import ExecSocketXtermAdapter from 'nomad-ui/utils/classes/exec-socket-xterm-adapter';
-import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
+import escapeTaskName from 'wander-ui/utils/escape-task-name';
+import ExecCommandEditorXtermAdapter from 'wander-ui/utils/classes/exec-command-editor-xterm-adapter';
+import ExecSocketXtermAdapter from 'wander-ui/utils/classes/exec-socket-xterm-adapter';
+import localStorageProperty from 'wander-ui/utils/properties/local-storage';
 import classic from 'ember-classic-decorator';
 
 const ANSI_UI_GRAY_400 = '\x1b[38;2;142;150;163m';

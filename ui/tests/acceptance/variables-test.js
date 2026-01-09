@@ -19,14 +19,14 @@ import {
 } from 'ember-power-select/test-support/helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { module, test } from 'qunit';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import { allScenarios } from '../../mirage/scenarios/default';
 import cleanWhitespace from '../utils/clean-whitespace';
 import percySnapshot from '@percy/ember';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 
-import Variables from 'nomad-ui/tests/pages/variables';
-import Layout from 'nomad-ui/tests/pages/layout';
+import Variables from 'wander-ui/tests/pages/variables';
+import Layout from 'wander-ui/tests/pages/layout';
 
 const VARIABLE_TOKEN_ID = '53cur3-v4r14bl35';
 const LIMITED_VARIABLE_TOKEN_ID = 'f3w3r-53cur3-v4r14bl35';

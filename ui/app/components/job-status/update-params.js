@@ -8,7 +8,7 @@ import Component from '@glimmer/component';
 import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
-import formatDuration from 'nomad-ui/utils/format-duration';
+import formatDuration from 'wander-ui/utils/format-duration';
 
 /**
  * @typedef {Object} DefinitionUpdateStrategy

@@ -5,7 +5,7 @@
 
 import { alias } from '@ember/object/computed';
 import Controller, { inject as controller } from '@ember/controller';
-import Sortable from 'nomad-ui/mixins/sortable';
+import Sortable from 'wander-ui/mixins/sortable';
 
 export default class IndexController extends Controller.extend(Sortable) {
   @controller('servers') serversController;

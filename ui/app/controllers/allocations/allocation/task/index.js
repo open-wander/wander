@@ -7,7 +7,7 @@ import Controller from '@ember/controller';
 import { computed as overridable } from 'ember-overridable-computed';
 import { task } from 'ember-concurrency';
 import classic from 'ember-classic-decorator';
-import messageForError from 'nomad-ui/utils/message-from-adapter-error';
+import messageForError from 'wander-ui/utils/message-from-adapter-error';
 
 @classic
 export default class IndexController extends Controller {

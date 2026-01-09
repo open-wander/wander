@@ -4,7 +4,7 @@
  */
 
 import { module, test } from 'qunit';
-import { formatVolumeName } from 'nomad-ui/helpers/format-volume-name';
+import { formatVolumeName } from 'wander-ui/helpers/format-volume-name';
 
 module('Unit | Helper | formatVolumeName', function () {
   test('Returns source as string when isPerAlloc is false', function (assert) {

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import escapeTaskName from 'nomad-ui/utils/escape-task-name';
+import escapeTaskName from 'wander-ui/utils/escape-task-name';
 import { module, test } from 'qunit';
 
 module('Unit | Utility | escape-task-name', function () {

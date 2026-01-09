@@ -6,10 +6,10 @@
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
+import { startMirage } from 'wander-ui/initializers/ember-cli-mirage';
 import { render, settled } from '@ember/test-helpers';
-import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initializers/fragment-serializer';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { initialize as fragmentSerializerInitializer } from 'wander-ui/initializers/fragment-serializer';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
 module('Integration | Component | plugin allocation row', function (hooks) {
   setupRenderingTest(hooks);

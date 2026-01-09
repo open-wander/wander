@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/go-msgpack/codec"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/mitchellh/mapstructure"
 	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
@@ -23,7 +24,6 @@ import (
 	"github.com/open-wander/wander/nomad/stream"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	"github.com/mitchellh/mapstructure"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

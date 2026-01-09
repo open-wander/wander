@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/testutil"
-	"github.com/mitchellh/cli"
 )
 
 func TestScalingPolicyInfoCommand_Run(t *testing.T) {

@@ -9,8 +9,8 @@ import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import { allScenarios } from '../../mirage/scenarios/default';
 
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import Services from 'nomad-ui/tests/pages/jobs/job/services';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
+import Services from 'wander-ui/tests/pages/jobs/job/services';
 
 module('Acceptance | job services', function (hooks) {
   setupApplicationTest(hooks);

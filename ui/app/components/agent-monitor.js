@@ -9,7 +9,7 @@ import { computed } from '@ember/object';
 import { assert } from '@ember/debug';
 import { tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
-import Log from 'nomad-ui/utils/classes/log';
+import Log from 'wander-ui/utils/classes/log';
 
 const LEVELS = ['error', 'warn', 'info', 'debug', 'trace'];
 

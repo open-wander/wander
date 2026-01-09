@@ -7,7 +7,7 @@ import Component from '@ember/component';
 import { action, computed } from '@ember/object';
 import { inject as service } from '@ember/service';
 import { alias } from '@ember/object/computed';
-import Sortable from 'nomad-ui/mixins/sortable';
+import Sortable from 'wander-ui/mixins/sortable';
 import { classNames } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 

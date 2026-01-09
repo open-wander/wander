@@ -24,9 +24,9 @@ type UiCommand struct {
 
 func (c *UiCommand) Help() string {
 	helpText := `
-Usage: nomad ui [options] <identifier>
+Usage: wander ui [options] <identifier>
 
-Open the Nomad Web UI in the default browser. An optional identifier may be
+Open the Wander Web UI in the default browser. An optional identifier may be
 provided, in which case the UI will be opened to view the details for that
 object. Supported identifiers are jobs, allocations and nodes.
 
@@ -36,10 +36,10 @@ General Options:
 
 UI Options
 
-  -authenticate: Exchange your Nomad ACL token for a one-time token in the
+  -authenticate: Exchange your Wander ACL token for a one-time token in the
     web UI, if ACLs are enabled.
 
-  -show-url: Show the Nomad UI URL instead of opening with the default browser.
+  -show-url: Show the Wander UI URL instead of opening with the default browser.
 `
 
 	return strings.TrimSpace(helpText)
@@ -80,7 +80,7 @@ func (c *UiCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *UiCommand) Synopsis() string {
-	return "Open the Nomad Web UI"
+	return "Open the Wander Web UI"
 }
 
 func (c *UiCommand) Name() string { return "ui" }

@@ -10,11 +10,11 @@ import { render } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import { create } from 'ember-cli-page-object';
 import sinon from 'sinon';
-import { startMirage } from 'nomad-ui/initializers/ember-cli-mirage';
-import jobEditor from 'nomad-ui/tests/pages/components/job-editor';
-import { initialize as fragmentSerializerInitializer } from 'nomad-ui/initializers/fragment-serializer';
-import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { startMirage } from 'wander-ui/initializers/ember-cli-mirage';
+import jobEditor from 'wander-ui/tests/pages/components/job-editor';
+import { initialize as fragmentSerializerInitializer } from 'wander-ui/initializers/fragment-serializer';
+import setupCodeMirror from 'wander-ui/tests/helpers/codemirror';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
 const Editor = create(jobEditor());
 

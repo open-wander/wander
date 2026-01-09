@@ -5,7 +5,7 @@
 
 import { inject as service } from '@ember/service';
 import Route from '@ember/routing/route';
-import notifyError from 'nomad-ui/utils/notify-error';
+import notifyError from 'wander-ui/utils/notify-error';
 
 export default class PluginRoute extends Route {
   @service store;

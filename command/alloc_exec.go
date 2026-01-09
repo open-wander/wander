@@ -14,10 +14,10 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/moby/term"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/api/contexts"
 	"github.com/open-wander/wander/helper/escapingio"
-	"github.com/moby/term"
 	"github.com/posener/complete"
 )
 

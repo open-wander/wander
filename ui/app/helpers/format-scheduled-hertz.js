@@ -4,7 +4,7 @@
  */
 
 import Helper from '@ember/component/helper';
-import { formatScheduledHertz } from 'nomad-ui/utils/units';
+import { formatScheduledHertz } from 'wander-ui/utils/units';
 
 /**
  * Scheduled Hertz Formatter

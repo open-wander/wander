@@ -10,9 +10,9 @@ import (
 	"time"
 
 	log "github.com/hashicorp/go-hclog"
+	vapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/helper/useragent"
-	vapi "github.com/hashicorp/vault/api"
 )
 
 const (

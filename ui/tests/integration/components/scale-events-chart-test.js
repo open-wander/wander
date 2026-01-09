@@ -8,8 +8,8 @@ import { setupRenderingTest } from 'ember-qunit';
 import { click, find, findAll, render } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import moment from 'moment';
-import setupCodeMirror from 'nomad-ui/tests/helpers/codemirror';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import setupCodeMirror from 'wander-ui/tests/helpers/codemirror';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
 module('Integration | Component | scale-events-chart', function (hooks) {
   setupRenderingTest(hooks);

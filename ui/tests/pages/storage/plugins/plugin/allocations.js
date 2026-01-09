@@ -11,9 +11,9 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import allocations from 'nomad-ui/tests/pages/components/allocations';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
+import allocations from 'wander-ui/tests/pages/components/allocations';
+import { multiFacet } from 'wander-ui/tests/pages/components/facet';
+import pageSizeSelect from 'wander-ui/tests/pages/components/page-size-select';
 
 export default create({
   pageSize: 25,

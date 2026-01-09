@@ -8,7 +8,7 @@ import RSVP from 'rsvp';
 import { run } from '@ember/runloop';
 import sinon from 'sinon';
 import { module, test } from 'qunit';
-import _Log from 'nomad-ui/utils/classes/log';
+import _Log from 'wander-ui/utils/classes/log';
 
 import { settled } from '@ember/test-helpers';
 

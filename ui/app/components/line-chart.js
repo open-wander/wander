@@ -13,8 +13,8 @@ import d3Axis from 'd3-axis';
 import d3Array from 'd3-array';
 import d3Format from 'd3-format';
 import d3TimeFormat from 'd3-time-format';
-import styleString from 'nomad-ui/utils/properties/glimmer-style-string';
-import uniquely from 'nomad-ui/utils/properties/uniquely';
+import styleString from 'wander-ui/utils/properties/glimmer-style-string';
+import uniquely from 'wander-ui/utils/properties/uniquely';
 
 // Returns a new array with the specified number of points linearly
 // distributed across the bounds

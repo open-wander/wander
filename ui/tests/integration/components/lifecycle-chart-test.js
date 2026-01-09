@@ -9,9 +9,9 @@ import { setupRenderingTest } from 'ember-qunit';
 import { render, settled } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import { set } from '@ember/object';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import { create } from 'ember-cli-page-object';
-import LifecycleChart from 'nomad-ui/tests/pages/components/lifecycle-chart';
+import LifecycleChart from 'wander-ui/tests/pages/components/lifecycle-chart';
 
 const Chart = create(LifecycleChart);
 

@@ -5,7 +5,7 @@
 
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import DeploymentModel from 'nomad-ui/models/deployment';
+import DeploymentModel from 'wander-ui/models/deployment';
 
 module('Unit | Serializer | Deployment', function (hooks) {
   setupTest(hooks);

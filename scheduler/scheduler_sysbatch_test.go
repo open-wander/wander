@@ -9,13 +9,13 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-memdb"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

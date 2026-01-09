@@ -15,22 +15,22 @@ type ServerCommand struct {
 
 func (f *ServerCommand) Help() string {
 	helpText := `
-Usage: nomad server <subcommand> [options] [args]
+Usage: wander server <subcommand> [options] [args]
 
-  This command groups subcommands for interacting with Nomad servers. Users can
+  This command groups subcommands for interacting with Wander servers. Users can
   list Servers, join a server to the cluster, and force leave a server.
 
-  List Nomad servers:
+  List Wander servers:
 
-      $ nomad server members
+      $ wander server members
 
   Join a new server to another:
 
-      $ nomad server join "IP:Port"
+      $ wander server join "IP:Port"
 
   Force a server to leave:
 
-      $ nomad server force-leave <name>
+      $ wander server force-leave <name>
 
   Please see the individual subcommand help for detailed usage information.
 `

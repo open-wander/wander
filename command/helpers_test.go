@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kr/pretty"
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/testutil"
 	"github.com/open-wander/wander/helper/flatmap"
 	"github.com/open-wander/wander/helper/pointer"
-	"github.com/kr/pretty"
-	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

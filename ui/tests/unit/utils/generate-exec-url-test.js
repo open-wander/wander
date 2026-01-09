@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import generateExecUrl from 'nomad-ui/utils/generate-exec-url';
+import generateExecUrl from 'wander-ui/utils/generate-exec-url';
 import { module, test } from 'qunit';
 import sinon from 'sinon';
 

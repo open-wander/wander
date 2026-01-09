@@ -12,15 +12,15 @@ import { observes } from '@ember-decorators/object';
 import { scheduleOnce } from '@ember/runloop';
 import { task } from 'ember-concurrency';
 import intersection from 'lodash.intersection';
-import Sortable from 'nomad-ui/mixins/sortable';
-import Searchable from 'nomad-ui/mixins/searchable';
-import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
+import Sortable from 'wander-ui/mixins/sortable';
+import Searchable from 'wander-ui/mixins/searchable';
+import messageFromAdapterError from 'wander-ui/utils/message-from-adapter-error';
 import {
   serialize,
   deserializedQueryParam as selection,
-} from 'nomad-ui/utils/qp-serialize';
+} from 'wander-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
-import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
+import localStorageProperty from 'wander-ui/utils/properties/local-storage';
 import { inject as service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 

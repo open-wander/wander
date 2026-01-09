@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	ps "github.com/mitchellh/go-ps"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/allocdir"
 	"github.com/open-wander/wander/client/lib/cgutil"
@@ -28,7 +29,6 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/plugins/drivers"
 	tu "github.com/open-wander/wander/testutil"
-	ps "github.com/mitchellh/go-ps"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

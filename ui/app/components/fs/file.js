@@ -9,8 +9,8 @@ import Component from '@ember/component';
 import { action, computed } from '@ember/object';
 import { equal, gt } from '@ember/object/computed';
 import RSVP from 'rsvp';
-import Log from 'nomad-ui/utils/classes/log';
-import timeout from 'nomad-ui/utils/timeout';
+import Log from 'wander-ui/utils/classes/log';
+import timeout from 'wander-ui/utils/timeout';
 import { classNames, attributeBindings } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 

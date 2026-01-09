@@ -13,10 +13,10 @@ import {
   text,
   visitable,
 } from 'ember-cli-page-object';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
+import { multiFacet } from 'wander-ui/tests/pages/components/facet';
 
-import clients from 'nomad-ui/tests/pages/components/clients';
-import error from 'nomad-ui/tests/pages/components/error';
+import clients from 'wander-ui/tests/pages/components/clients';
+import error from 'wander-ui/tests/pages/components/error';
 
 export default create({
   visit: visitable('/jobs/:id/clients'),

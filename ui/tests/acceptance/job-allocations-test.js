@@ -8,8 +8,8 @@ import { currentURL, click, find } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import Allocations from 'nomad-ui/tests/pages/jobs/job/allocations';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
+import Allocations from 'wander-ui/tests/pages/jobs/job/allocations';
 
 let job;
 let allocations;

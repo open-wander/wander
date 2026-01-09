@@ -13,9 +13,9 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import error from 'nomad-ui/tests/pages/components/error';
-import { singleFacet } from 'nomad-ui/tests/pages/components/facet';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
+import error from 'wander-ui/tests/pages/components/error';
+import { singleFacet } from 'wander-ui/tests/pages/components/facet';
+import pageSizeSelect from 'wander-ui/tests/pages/components/page-size-select';
 
 export default create({
   pageSize: 25,

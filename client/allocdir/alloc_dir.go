@@ -17,10 +17,10 @@ import (
 
 	hclog "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hpcloud/tail/watch"
 	cstructs "github.com/open-wander/wander/client/structs"
 	"github.com/open-wander/wander/helper/escapingfs"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/hpcloud/tail/watch"
 	tomb "gopkg.in/tomb.v1"
 )
 

@@ -23,6 +23,7 @@ import (
 
 	templateconfig "github.com/hashicorp/consul-template/config"
 	ctestutil "github.com/hashicorp/consul/sdk/testutil"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/allocdir"
 	"github.com/open-wander/wander/client/config"
@@ -36,7 +37,6 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	sconfig "github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/testutil"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2467,7 +2467,7 @@ func TestTaskTemplateManager_Template_Wait_Set(t *testing.T) {
 	templateMapping, err := parseTemplateConfigs(ttmConfig)
 	require.NoError(t, err)
 
-	for k, _ := range templateMapping {
+	for k := range templateMapping {
 		require.True(t, *k.Wait.Enabled)
 		require.Equal(t, 5*time.Second, *k.Wait.Min)
 		require.Equal(t, 10*time.Second, *k.Wait.Max)

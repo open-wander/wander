@@ -8,8 +8,8 @@ import Component from '@glimmer/component';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
 import { task } from 'ember-concurrency';
-import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
-import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
+import messageFromAdapterError from 'wander-ui/utils/message-from-adapter-error';
+import localStorageProperty from 'wander-ui/utils/properties/local-storage';
 import { tracked } from '@glimmer/tracking';
 
 /**

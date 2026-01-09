@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/yamux"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/nomad/structs/config"
-	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

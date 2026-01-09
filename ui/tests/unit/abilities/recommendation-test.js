@@ -7,7 +7,7 @@
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
 import Service from '@ember/service';
-import setupAbility from 'nomad-ui/tests/helpers/setup-ability';
+import setupAbility from 'wander-ui/tests/helpers/setup-ability';
 
 module('Unit | Ability | recommendation', function (hooks) {
   setupTest(hooks);

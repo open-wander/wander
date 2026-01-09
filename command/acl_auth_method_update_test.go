@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/command/agent"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 )
 

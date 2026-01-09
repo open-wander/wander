@@ -5,8 +5,8 @@
 
 import { inject as service } from '@ember/service';
 import Route from '@ember/routing/route';
-import WithForbiddenState from 'nomad-ui/mixins/with-forbidden-state';
-import notifyForbidden from 'nomad-ui/utils/notify-forbidden';
+import WithForbiddenState from 'wander-ui/mixins/with-forbidden-state';
+import notifyForbidden from 'wander-ui/utils/notify-forbidden';
 import classic from 'ember-classic-decorator';
 import RSVP from 'rsvp';
 

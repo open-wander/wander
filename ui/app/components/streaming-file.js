@@ -6,7 +6,7 @@
 import Component from '@ember/component';
 import { scheduleOnce, once } from '@ember/runloop';
 import { task } from 'ember-concurrency';
-import WindowResizable from 'nomad-ui/mixins/window-resizable';
+import WindowResizable from 'wander-ui/mixins/window-resizable';
 import {
   classNames,
   tagName,

@@ -6,8 +6,8 @@ package command
 import (
 	"strings"
 
-	"github.com/open-wander/wander/api/contexts"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api/contexts"
 	"github.com/posener/complete"
 )
 

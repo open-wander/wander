@@ -67,7 +67,7 @@ func TestCSIHook(t *testing.T) {
 				},
 			},
 			expectedMounts: map[string]*csimanager.MountInfo{
-				"vol0": &csimanager.MountInfo{Source: testMountSrc},
+				"vol0": {Source: testMountSrc},
 			},
 			expectedCalls: map[string]int{
 				"claim": 1, "mount": 1, "unmount": 1, "unpublish": 1},
@@ -88,7 +88,7 @@ func TestCSIHook(t *testing.T) {
 				},
 			},
 			expectedMounts: map[string]*csimanager.MountInfo{
-				"vol0": &csimanager.MountInfo{Source: testMountSrc},
+				"vol0": {Source: testMountSrc},
 			},
 			expectedCalls: map[string]int{
 				"claim": 1, "mount": 1, "unmount": 1, "unpublish": 1},
@@ -110,7 +110,7 @@ func TestCSIHook(t *testing.T) {
 			},
 			startsUnschedulable: true,
 			expectedMounts: map[string]*csimanager.MountInfo{
-				"vol0": &csimanager.MountInfo{Source: testMountSrc},
+				"vol0": {Source: testMountSrc},
 			},
 			expectedCalls: map[string]int{"claim": 1},
 			expectedClaimErr: errors.New(
@@ -133,7 +133,7 @@ func TestCSIHook(t *testing.T) {
 			},
 			startsWithClaims: true,
 			expectedMounts: map[string]*csimanager.MountInfo{
-				"vol0": &csimanager.MountInfo{Source: testMountSrc},
+				"vol0": {Source: testMountSrc},
 			},
 			expectedCalls: map[string]int{
 				"claim": 2, "mount": 1, "unmount": 1, "unpublish": 1},
@@ -160,7 +160,7 @@ func TestCSIHook(t *testing.T) {
 			}},
 			startsWithValidMounts: true,
 			expectedMounts: map[string]*csimanager.MountInfo{
-				"vol0": &csimanager.MountInfo{Source: testMountSrc},
+				"vol0": {Source: testMountSrc},
 			},
 			expectedCalls: map[string]int{"hasMount": 1, "unmount": 1, "unpublish": 1},
 		},
@@ -186,7 +186,7 @@ func TestCSIHook(t *testing.T) {
 			}},
 			startsWithValidMounts: false,
 			expectedMounts: map[string]*csimanager.MountInfo{
-				"vol0": &csimanager.MountInfo{Source: testMountSrc},
+				"vol0": {Source: testMountSrc},
 			},
 			expectedCalls: map[string]int{
 				"hasMount": 1, "claim": 1, "mount": 1, "unmount": 1, "unpublish": 1},
@@ -208,7 +208,7 @@ func TestCSIHook(t *testing.T) {
 			},
 			failsFirstUnmount: true,
 			expectedMounts: map[string]*csimanager.MountInfo{
-				"vol0": &csimanager.MountInfo{Source: testMountSrc},
+				"vol0": {Source: testMountSrc},
 			},
 			expectedCalls: map[string]int{
 				"claim": 1, "mount": 1, "unmount": 2, "unpublish": 2},

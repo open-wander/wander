@@ -8,7 +8,7 @@ import { action, computed } from '@ember/object';
 import { classNames } from '@ember-decorators/component';
 import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
-import messageForError from 'nomad-ui/utils/message-from-adapter-error';
+import messageForError from 'wander-ui/utils/message-from-adapter-error';
 import classic from 'ember-classic-decorator';
 
 const changeTypes = ['Added', 'Deleted', 'Edited'];

@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-set"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

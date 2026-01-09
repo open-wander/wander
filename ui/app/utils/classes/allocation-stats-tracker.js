@@ -5,8 +5,8 @@
 
 import EmberObject, { get, computed } from '@ember/object';
 import { alias } from '@ember/object/computed';
-import RollingArray from 'nomad-ui/utils/classes/rolling-array';
-import AbstractStatsTracker from 'nomad-ui/utils/classes/abstract-stats-tracker';
+import RollingArray from 'wander-ui/utils/classes/rolling-array';
+import AbstractStatsTracker from 'wander-ui/utils/classes/abstract-stats-tracker';
 import classic from 'ember-classic-decorator';
 
 const percent = (numerator, denominator) => {

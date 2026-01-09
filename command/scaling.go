@@ -20,7 +20,7 @@ type ScalingCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ScalingCommand) Help() string {
 	helpText := `
-Usage: nomad scaling <subcommand> [options]
+Usage: wander scaling <subcommand> [options]
 
   This command groups subcommands for interacting with the scaling API.
 
@@ -31,7 +31,7 @@ Usage: nomad scaling <subcommand> [options]
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ScalingCommand) Synopsis() string {
-	return "Interact with the Nomad scaling endpoint"
+	return "Interact with the Wander scaling endpoint"
 }
 
 // Name returns the name of this command.

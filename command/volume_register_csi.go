@@ -10,9 +10,9 @@ import (
 	humanize "github.com/dustin/go-humanize"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/mitchellh/mapstructure"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/helper"
-	"github.com/mitchellh/mapstructure"
 )
 
 func (c *VolumeRegisterCommand) csiRegister(client *api.Client, ast *ast.File) int {

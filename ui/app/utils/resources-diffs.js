@@ -5,7 +5,7 @@
 
 import d3Format from 'd3-format';
 
-import { formatBytes, formatHertz } from 'nomad-ui/utils/units';
+import { formatBytes, formatHertz } from 'wander-ui/utils/units';
 
 const formatPercent = d3Format.format('+.0%');
 const sumAggregate = (total, val) => total + val;

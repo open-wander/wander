@@ -21,13 +21,13 @@ type OperatorSnapshotStateCommand struct {
 
 func (c *OperatorSnapshotStateCommand) Help() string {
 	helpText := `
-Usage: nomad operator snapshot state [options] <file>
+Usage: wander operator snapshot state [options] <file>
 
   Displays a JSON representation of state in the snapshot.
 
   To inspect the file "backup.snap":
 
-    $ nomad operator snapshot state backup.snap
+    $ wander operator snapshot state backup.snap
 
 Snapshot State Options:
 
@@ -47,7 +47,7 @@ func (c *OperatorSnapshotStateCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *OperatorSnapshotStateCommand) Synopsis() string {
-	return "Displays information about a Nomad snapshot file"
+	return "Displays information about a Wander snapshot file"
 }
 
 func (c *OperatorSnapshotStateCommand) Name() string { return "operator snapshot state" }

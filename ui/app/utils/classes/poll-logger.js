@@ -5,7 +5,7 @@
 
 import EmberObject from '@ember/object';
 import { task, timeout } from 'ember-concurrency';
-import { decode } from 'nomad-ui/utils/stream-frames';
+import { decode } from 'wander-ui/utils/stream-frames';
 import AbstractLogger from './abstract-logger';
 import { fetchFailure } from './log';
 import classic from 'ember-classic-decorator';

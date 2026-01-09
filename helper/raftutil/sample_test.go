@@ -6,10 +6,10 @@ package raftutil
 import (
 	"testing"
 
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/scheduler"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 )
 

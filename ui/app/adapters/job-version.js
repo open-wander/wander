@@ -4,7 +4,7 @@
  */
 
 import ApplicationAdapter from './application';
-import addToPath from 'nomad-ui/utils/add-to-path';
+import addToPath from 'wander-ui/utils/add-to-path';
 import classic from 'ember-classic-decorator';
 
 @classic

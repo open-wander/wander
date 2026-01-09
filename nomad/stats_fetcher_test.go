@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/testutil"
-	"github.com/hashicorp/raft"
 )
 
 func TestStatsFetcher(t *testing.T) {

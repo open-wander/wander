@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/nomad/mock"
-	testing "github.com/mitchellh/go-testing-interface"
 )
 
 // TestClientConfig returns a default client configuration for test clients and

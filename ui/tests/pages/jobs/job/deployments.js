@@ -13,8 +13,8 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import allocations from 'nomad-ui/tests/pages/components/allocations';
-import error from 'nomad-ui/tests/pages/components/error';
+import allocations from 'wander-ui/tests/pages/components/allocations';
+import error from 'wander-ui/tests/pages/components/error';
 
 export default create({
   visit: visitable('/jobs/:id/deployments'),

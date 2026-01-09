@@ -15,8 +15,8 @@ import EmberObject, { set } from '@ember/object';
 // eslint-disable-next-line no-unused-vars
 import MutableArray from '@ember/array/mutable';
 import { A } from '@ember/array';
-import { stringifyObject } from 'nomad-ui/helpers/stringify-object';
-import notifyConflict from 'nomad-ui/utils/notify-conflict';
+import { stringifyObject } from 'wander-ui/helpers/stringify-object';
+import notifyConflict from 'wander-ui/utils/notify-conflict';
 import isEqual from 'lodash.isequal';
 
 const EMPTY_KV = {

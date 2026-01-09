@@ -16,10 +16,10 @@ type LicenseGetCommand struct {
 
 func (c *LicenseGetCommand) Help() string {
 	helpText := `
-Usage: nomad license get [options]
+Usage: wander license get [options]
 
   Gets the license loaded by the server. The command is not forwarded to the
-  Nomad leader, and will return the license from the specific server being
+  Wander leader, and will return the license from the specific server being
   contacted.
 
   When ACLs are enabled, this command requires a token with the
@@ -41,7 +41,7 @@ func (c *LicenseGetCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *LicenseGetCommand) Synopsis() string {
-	return "Retrieve the current Nomad Enterprise License"
+	return "Retrieve the current Wander Enterprise License"
 }
 
 func (c *LicenseGetCommand) Name() string { return "license get" }

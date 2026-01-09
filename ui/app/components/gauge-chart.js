@@ -9,7 +9,7 @@ import { assert } from '@ember/debug';
 import { guidFor } from '@ember/object/internals';
 import { once } from '@ember/runloop';
 import d3Shape from 'd3-shape';
-import WindowResizable from 'nomad-ui/mixins/window-resizable';
+import WindowResizable from 'wander-ui/mixins/window-resizable';
 import { classNames } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 

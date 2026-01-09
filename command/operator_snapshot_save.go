@@ -20,9 +20,9 @@ type OperatorSnapshotSaveCommand struct {
 
 func (c *OperatorSnapshotSaveCommand) Help() string {
 	helpText := `
-Usage: nomad operator snapshot save [options] <file>
+Usage: wander operator snapshot save [options] <file>
 
-  Retrieves an atomic, point-in-time snapshot of the state of the Nomad servers
+  Retrieves an atomic, point-in-time snapshot of the state of the Wander servers
   which includes jobs, nodes, allocations, periodic jobs, and ACLs.
 
   If ACLs are enabled, a management token must be supplied in order to perform
@@ -30,16 +30,16 @@ Usage: nomad operator snapshot save [options] <file>
 
   To create a snapshot from the leader server and save it to "backup.snap":
 
-    $ nomad snapshot save backup.snap
+    $ wander snapshot save backup.snap
 
   To create a potentially stale snapshot from any available server (useful if no
   leader is available):
 
-    $ nomad snapshot save -stale backup.snap
+    $ wander snapshot save -stale backup.snap
 
   This is useful for situations where a cluster is in a degraded state and no
   leader is available. To target a specific server for a snapshot, you can run
-  the 'nomad operator snapshot save' command on that specific server.
+  the 'wander operator snapshot save' command on that specific server.
 
 
 General Options:
@@ -68,7 +68,7 @@ func (c *OperatorSnapshotSaveCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *OperatorSnapshotSaveCommand) Synopsis() string {
-	return "Saves snapshot of Nomad server state"
+	return "Saves snapshot of Wander server state"
 }
 
 func (c *OperatorSnapshotSaveCommand) Name() string { return "operator snapshot save" }

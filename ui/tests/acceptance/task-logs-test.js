@@ -14,10 +14,10 @@ import { run } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import TaskLogs from 'nomad-ui/tests/pages/allocations/task/logs';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
+import TaskLogs from 'wander-ui/tests/pages/allocations/task/logs';
 import percySnapshot from '@percy/ember';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 
 let allocation;
 let task;

@@ -6,7 +6,7 @@
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
 import { run } from '@ember/runloop';
-import NodeModel from 'nomad-ui/models/node';
+import NodeModel from 'wander-ui/models/node';
 import pushPayloadToStore from '../../utils/push-payload-to-store';
 import { settled } from '@ember/test-helpers';
 

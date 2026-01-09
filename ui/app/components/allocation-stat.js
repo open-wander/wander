@@ -6,7 +6,7 @@
 import Component from '@ember/component';
 import { computed } from '@ember/object';
 import { alias } from '@ember/object/computed';
-import { formatBytes, formatHertz } from 'nomad-ui/utils/units';
+import { formatBytes, formatHertz } from 'wander-ui/utils/units';
 import { tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 

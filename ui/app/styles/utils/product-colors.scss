@@ -16,9 +16,16 @@ $terraform-purple-dark: #4040b2;
 $vagrant-blue: #1563ff;
 $vagrant-blue-dark: #104eb2;
 
-$nomad-green: #25ba81;
-$nomad-green-dark: #1d9467;
-$nomad-green-darker: #16704d;
-$nomad-green-pale: #d9f0e6;
+// Wander Ocean Blue palette
+$wander-blue: #2563eb;
+$wander-blue-dark: #1d4ed8;
+$wander-blue-darker: #1e3a8a;
+$wander-blue-pale: #dbeafe;
+
+// Legacy nomad-green aliases for backward compatibility
+$nomad-green: $wander-blue;
+$nomad-green-dark: $wander-blue-dark;
+$nomad-green-darker: $wander-blue-darker;
+$nomad-green-pale: $wander-blue-pale;
 
 $serf-red: #dd4e58;

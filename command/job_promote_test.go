@@ -13,8 +13,8 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/shoenig/test/must"
 
-	"github.com/open-wander/wander/nomad/mock"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/nomad/mock"
 	"github.com/posener/complete"
 	"github.com/stretchr/testify/assert"
 )

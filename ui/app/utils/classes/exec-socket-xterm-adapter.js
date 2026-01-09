@@ -5,7 +5,7 @@
 
 const ANSI_UI_GRAY_400 = '\x1b[38;2;142;150;163m';
 
-import { base64DecodeString, base64EncodeString } from 'nomad-ui/utils/encode';
+import { base64DecodeString, base64EncodeString } from 'wander-ui/utils/encode';
 
 export const HEARTBEAT_INTERVAL = 10000; // ten seconds
 

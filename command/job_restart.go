@@ -106,7 +106,7 @@ type JobRestartCommand struct {
 
 func (c *JobRestartCommand) Help() string {
 	helpText := `
-Usage: nomad job restart [options] <job>
+Usage: wander job restart [options] <job>
 
   Restart or reschedule allocations for a particular job.
 

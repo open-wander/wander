@@ -8,7 +8,7 @@ import { setupTest } from 'ember-qunit';
 import moment from 'moment';
 import d3Format from 'd3-format';
 import d3TimeFormat from 'd3-time-format';
-import setupGlimmerComponentFactory from 'nomad-ui/tests/helpers/glimmer-factory';
+import setupGlimmerComponentFactory from 'wander-ui/tests/helpers/glimmer-factory';
 
 module('Unit | Component | stats-time-series', function (hooks) {
   setupTest(hooks);

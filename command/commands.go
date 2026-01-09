@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/open-wander/wander/command/agent"
-	"github.com/open-wander/wander/version"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/command/agent"
+	"github.com/open-wander/wander/version"
 )
 
 const (

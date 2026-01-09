@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-wander/wander/ci"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/open-wander/wander/ci"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

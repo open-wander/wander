@@ -11,7 +11,7 @@ import { A } from '@ember/array';
 import { task } from 'ember-concurrency';
 import { noCase } from 'no-case';
 import { titleCase } from 'title-case';
-import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
+import messageFromAdapterError from 'wander-ui/utils/message-from-adapter-error';
 
 class MetaField {
   @tracked value;

@@ -24,9 +24,9 @@ type RecommendationApplyCommand struct {
 // Help satisfies the cli.Command Help function.
 func (r *RecommendationApplyCommand) Help() string {
 	helpText := `
-Usage: nomad recommendation apply [options] <recommendation_ids>
+Usage: wander recommendation apply [options] <recommendation_ids>
 
-  Apply one or more Nomad recommendations.
+  Apply one or more Wander recommendations.
 
   When ACLs are enabled, this command requires a token with the 'submit-job',
   'read-job', and 'submit-recommendation' capabilities for the
@@ -56,7 +56,7 @@ Recommendation Apply Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (r *RecommendationApplyCommand) Synopsis() string {
-	return "Apply one or more Nomad recommendations"
+	return "Apply one or more Wander recommendations"
 }
 
 func (r *RecommendationApplyCommand) AutocompleteFlags() complete.Flags {

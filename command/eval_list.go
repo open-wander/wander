@@ -19,9 +19,9 @@ type EvalListCommand struct {
 
 func (c *EvalListCommand) Help() string {
 	helpText := `
-Usage: nomad eval list [options]
+Usage: wander eval list [options]
 
-  List is used to list the set of evaluations processed by Nomad.
+  List is used to list the set of evaluations processed by Wander.
 
 General Options:
 
@@ -58,7 +58,7 @@ Eval List Options:
 }
 
 func (c *EvalListCommand) Synopsis() string {
-	return "List the set of evaluations processed by Nomad"
+	return "List the set of evaluations processed by Wander"
 }
 
 func (c *EvalListCommand) AutocompleteFlags() complete.Flags {

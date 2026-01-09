@@ -8,9 +8,9 @@ import { setupRenderingTest } from 'ember-qunit';
 import { render, settled } from '@ember/test-helpers';
 import { hbs } from 'ember-cli-htmlbars';
 import Service from '@ember/service';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
-import RecommendationCardComponent from 'nomad-ui/tests/pages/components/recommendation-card';
+import RecommendationCardComponent from 'wander-ui/tests/pages/components/recommendation-card';
 import { create } from 'ember-cli-page-object';
 const RecommendationCard = create(RecommendationCardComponent);
 

@@ -7,12 +7,12 @@ import { module, test } from 'qunit';
 import { render, triggerEvent } from '@ember/test-helpers';
 import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import { create } from 'ember-cli-page-object';
 import { setupMirage } from 'ember-cli-mirage/test-support';
 import sinon from 'sinon';
-import faker from 'nomad-ui/mirage/faker';
-import topoVizPageObject from 'nomad-ui/tests/pages/components/topo-viz';
+import faker from 'wander-ui/mirage/faker';
+import topoVizPageObject from 'wander-ui/tests/pages/components/topo-viz';
 import { HOSTS } from '../../../mirage/common';
 
 const TopoViz = create(topoVizPageObject());

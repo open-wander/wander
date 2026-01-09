@@ -8,11 +8,11 @@ import { currentURL, visit } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import pageSizeSelect from './behaviors/page-size-select';
-import VolumesList from 'nomad-ui/tests/pages/storage/volumes/list';
+import VolumesList from 'wander-ui/tests/pages/storage/volumes/list';
 import percySnapshot from '@percy/ember';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 
 const assignWriteAlloc = (volume, alloc) => {
   volume.writeAllocs.add(alloc);

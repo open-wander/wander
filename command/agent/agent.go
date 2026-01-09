@@ -21,6 +21,7 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 	log "github.com/hashicorp/go-hclog"
 	uuidparse "github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/client"
 	clientconfig "github.com/open-wander/wander/client/config"
 	"github.com/open-wander/wander/client/lib/cgutil"
@@ -37,7 +38,6 @@ import (
 	"github.com/open-wander/wander/nomad/deploymentwatcher"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
-	"github.com/hashicorp/raft"
 )
 
 const (

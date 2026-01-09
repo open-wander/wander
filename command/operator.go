@@ -15,11 +15,11 @@ type OperatorCommand struct {
 
 func (f *OperatorCommand) Help() string {
 	helpText := `
-Usage: nomad operator <subcommand> [options]
+Usage: wander operator <subcommand> [options]
 
-  Provides cluster-level tools for Nomad operators, such as interacting with
+  Provides cluster-level tools for Wander operators, such as interacting with
   the Raft subsystem. NOTE: Use this command with extreme caution, as improper
-  use could lead to a Nomad outage and even loss of data.
+  use could lead to a Wander outage and even loss of data.
 
   Please see the individual subcommand help for detailed usage information.
 `
@@ -27,7 +27,7 @@ Usage: nomad operator <subcommand> [options]
 }
 
 func (f *OperatorCommand) Synopsis() string {
-	return "Provides cluster-level tools for Nomad operators"
+	return "Provides cluster-level tools for Wander operators"
 }
 
 func (f *OperatorCommand) Name() string { return "operator" }

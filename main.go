@@ -22,9 +22,9 @@ import (
 	_ "github.com/open-wander/wander/drivers/shared/executor"
 
 	// Don't move any other code imports above the import block above!
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/command"
 	"github.com/open-wander/wander/version"
-	"github.com/mitchellh/cli"
 )
 
 var (
@@ -85,7 +85,7 @@ func Run(args []string) int {
 	metaPtr := new(command.Meta)
 	metaPtr.SetupUi(args)
 
-	// The Nomad agent never outputs color
+	// The Wander agent never outputs color
 	agentUi := &cli.BasicUi{
 		Reader:      os.Stdin,
 		Writer:      os.Stdout,
@@ -94,7 +94,7 @@ func Run(args []string) int {
 
 	commands := command.Commands(metaPtr, agentUi)
 	cli := &cli.CLI{
-		Name:                       "nomad",
+		Name:                       "wander",
 		Version:                    version.GetVersion().FullVersionNumber(true),
 		Args:                       args,
 		Commands:                   commands,
@@ -102,7 +102,7 @@ func Run(args []string) int {
 		Autocomplete:               true,
 		AutocompleteNoDefaultFlags: true,
 		HelpFunc: groupedHelpFunc(
-			cli.BasicHelpFunc("nomad"),
+			cli.BasicHelpFunc("wander"),
 		),
 		HelpWriter: os.Stdout,
 	}
@@ -121,7 +121,7 @@ func groupedHelpFunc(f cli.HelpFunc) cli.HelpFunc {
 		var b bytes.Buffer
 		tw := tabwriter.NewWriter(&b, 0, 2, 6, ' ', 0)
 
-		fmt.Fprintf(tw, "Usage: nomad [-version] [-help] [-autocomplete-(un)install] <command> [args]\n\n")
+		fmt.Fprintf(tw, "Usage: wander [-version] [-help] [-autocomplete-(un)install] <command> [args]\n\n")
 		fmt.Fprintf(tw, "Common commands:\n")
 		for _, v := range commonCommands {
 			printCommand(tw, v, commands[v])

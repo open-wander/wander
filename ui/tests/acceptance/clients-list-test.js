@@ -8,11 +8,11 @@ import { currentURL, settled } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import pageSizeSelect from './behaviors/page-size-select';
-import ClientsList from 'nomad-ui/tests/pages/clients/list';
+import ClientsList from 'wander-ui/tests/pages/clients/list';
 import percySnapshot from '@percy/ember';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 
 module('Acceptance | clients list', function (hooks) {
   setupApplicationTest(hooks);

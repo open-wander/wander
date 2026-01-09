@@ -9,15 +9,15 @@ import { currentURL, settled } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import {
   formatBytes,
   formatHertz,
   formatScheduledBytes,
   formatScheduledHertz,
-} from 'nomad-ui/utils/units';
-import TaskGroup from 'nomad-ui/tests/pages/jobs/job/task-group';
-import Layout from 'nomad-ui/tests/pages/layout';
+} from 'wander-ui/utils/units';
+import TaskGroup from 'wander-ui/tests/pages/jobs/job/task-group';
+import Layout from 'wander-ui/tests/pages/layout';
 import pageSizeSelect from './behaviors/page-size-select';
 import moment from 'moment';
 

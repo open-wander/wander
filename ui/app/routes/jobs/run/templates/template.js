@@ -5,7 +5,7 @@
 
 import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
-import notifyForbidden from 'nomad-ui/utils/notify-forbidden';
+import notifyForbidden from 'wander-ui/utils/notify-forbidden';
 
 export default class JobsRunTemplatesTemplateRoute extends Route {
   @service can;

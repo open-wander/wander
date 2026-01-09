@@ -4,12 +4,12 @@
  */
 
 import Route from '@ember/routing/route';
-import WithWatchers from 'nomad-ui/mixins/with-watchers';
+import WithWatchers from 'wander-ui/mixins/with-watchers';
 import { collect } from '@ember/object/computed';
 import {
   watchRecord,
   watchRelationship,
-} from 'nomad-ui/utils/properties/watch';
+} from 'wander-ui/utils/properties/watch';
 
 export default class JobsJobServicesRoute extends Route.extend(WithWatchers) {
   model() {

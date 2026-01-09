@@ -15,11 +15,11 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/open-wander/wander/api"
-	"github.com/open-wander/wander/api/contexts"
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/colorstring"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/api/contexts"
 	"github.com/posener/complete"
 )
 

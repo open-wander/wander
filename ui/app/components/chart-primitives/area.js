@@ -6,7 +6,7 @@
 import Component from '@glimmer/component';
 import { assert } from '@ember/debug';
 import { default as d3Shape, area, line } from 'd3-shape';
-import uniquely from 'nomad-ui/utils/properties/uniquely';
+import uniquely from 'wander-ui/utils/properties/uniquely';
 
 export default class ChartPrimitiveArea extends Component {
   get colorClass() {

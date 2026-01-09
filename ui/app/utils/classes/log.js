@@ -12,9 +12,9 @@ import { computed as overridable } from 'ember-overridable-computed';
 import { assign } from '@ember/polyfills';
 import queryString from 'query-string';
 import { task } from 'ember-concurrency';
-import StreamLogger from 'nomad-ui/utils/classes/stream-logger';
-import PollLogger from 'nomad-ui/utils/classes/poll-logger';
-import { decode } from 'nomad-ui/utils/stream-frames';
+import StreamLogger from 'wander-ui/utils/classes/stream-logger';
+import PollLogger from 'wander-ui/utils/classes/poll-logger';
+import { decode } from 'wander-ui/utils/stream-frames';
 import Anser from 'anser';
 import classic from 'ember-classic-decorator';
 

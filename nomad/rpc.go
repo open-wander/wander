@@ -22,13 +22,13 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	memdb "github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/hashicorp/raft"
+	"github.com/hashicorp/yamux"
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/helper/pool"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
-	"github.com/hashicorp/raft"
-	"github.com/hashicorp/yamux"
 )
 
 const (

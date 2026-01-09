@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
-	"github.com/open-wander/wander/api/internal/testutil/discover"
 	testing "github.com/mitchellh/go-testing-interface"
+	"github.com/open-wander/wander/api/internal/testutil/discover"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )

@@ -8,8 +8,8 @@ import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
 import { render } from '@ember/test-helpers';
 import { hbs } from 'ember-cli-htmlbars';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
-import pathTree from 'nomad-ui/utils/path-tree';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
+import pathTree from 'wander-ui/utils/path-tree';
 import Service from '@ember/service';
 let tree;
 

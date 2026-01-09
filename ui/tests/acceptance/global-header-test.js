@@ -8,7 +8,7 @@ import { module, test } from 'qunit';
 import { click, visit, currentURL } from '@ember/test-helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import Layout from 'nomad-ui/tests/pages/layout';
+import Layout from 'wander-ui/tests/pages/layout';
 
 let managementToken;
 

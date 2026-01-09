@@ -12,7 +12,7 @@ import {
 } from 'ember-cli-page-object';
 import { getter } from 'ember-cli-page-object/macros';
 
-import toggle from 'nomad-ui/tests/pages/components/toggle';
+import toggle from 'wander-ui/tests/pages/components/toggle';
 
 export default {
   scope: '[data-test-task-group-recommendations]',

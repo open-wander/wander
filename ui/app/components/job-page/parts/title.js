@@ -7,7 +7,7 @@
 import Component from '@ember/component';
 import { task } from 'ember-concurrency';
 import { inject as service } from '@ember/service';
-import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
+import messageFromAdapterError from 'wander-ui/utils/message-from-adapter-error';
 import { tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 

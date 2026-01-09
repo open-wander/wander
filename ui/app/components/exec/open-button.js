@@ -6,8 +6,8 @@
 import Component from '@ember/component';
 import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
-import generateExecUrl from 'nomad-ui/utils/generate-exec-url';
-import openExecUrl from 'nomad-ui/utils/open-exec-url';
+import generateExecUrl from 'wander-ui/utils/generate-exec-url';
+import openExecUrl from 'wander-ui/utils/open-exec-url';
 import { tagName } from '@ember-decorators/component';
 import classic from 'ember-classic-decorator';
 

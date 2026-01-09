@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
+	vapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/nomad/structs"
-	vapi "github.com/hashicorp/vault/api"
 	"golang.org/x/exp/slices"
 )
 

@@ -4,7 +4,7 @@
  */
 
 import { module, test } from 'qunit';
-import formatDuration from 'nomad-ui/utils/format-duration';
+import formatDuration from 'wander-ui/utils/format-duration';
 
 module('Unit | Util | formatDuration', function () {
   test('When all units have values, all units are displayed', function (assert) {

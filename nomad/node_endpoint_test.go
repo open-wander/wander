@@ -16,6 +16,8 @@ import (
 
 	memdb "github.com/hashicorp/go-memdb"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	vapi "github.com/hashicorp/vault/api"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/command/agent/consul"
@@ -26,8 +28,6 @@ import (
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
-	vapi "github.com/hashicorp/vault/api"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 	"github.com/stretchr/testify/assert"

@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/go-msgpack/codec"
 	msgpackrpc "github.com/hashicorp/net-rpc-msgpackrpc"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client"
@@ -24,7 +25,6 @@ import (
 	nstructs "github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/open-wander/wander/testutil"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 )
 

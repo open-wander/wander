@@ -9,14 +9,14 @@ import { action, computed } from '@ember/object';
 import { scheduleOnce } from '@ember/runloop';
 import intersection from 'lodash.intersection';
 import { alias } from '@ember/object/computed';
-import SortableFactory from 'nomad-ui/mixins/sortable-factory';
-import Searchable from 'nomad-ui/mixins/searchable';
-import WithNamespaceResetting from 'nomad-ui/mixins/with-namespace-resetting';
-import jobClientStatus from 'nomad-ui/utils/properties/job-client-status';
+import SortableFactory from 'wander-ui/mixins/sortable-factory';
+import Searchable from 'wander-ui/mixins/searchable';
+import WithNamespaceResetting from 'wander-ui/mixins/with-namespace-resetting';
+import jobClientStatus from 'wander-ui/utils/properties/job-client-status';
 import {
   serialize,
   deserializedQueryParam as selection,
-} from 'nomad-ui/utils/qp-serialize';
+} from 'wander-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 import { inject as service } from '@ember/service';
 

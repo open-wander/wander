@@ -23,33 +23,33 @@ func fileDoesNotExist(file string) bool {
 
 func (c *TLSCommand) Help() string {
 	helpText := `
-Usage: nomad tls <subcommand> <subcommand> [options]
+Usage: wander tls <subcommand> <subcommand> [options]
 
-This command groups subcommands for creating certificates for Nomad TLS configuration. 
+This command groups subcommands for creating certificates for Wander TLS configuration.
 The TLS command allows operators to generate self signed certificates to use
-when securing your Nomad cluster.
+when securing your Wander cluster.
 
 Some simple examples for creating certificates can be found here.
 More detailed examples are available in the subcommands or the documentation.
 
 Create a CA
 
-    $ nomad tls ca create
+    $ wander tls ca create
 
 Create a server certificate
 
-    $ nomad tls cert create -server
+    $ wander tls cert create -server
 
 Create a client certificate
 
-    $ nomad tls cert create -client
+    $ wander tls cert create -client
 
 `
 	return strings.TrimSpace(helpText)
 }
 
 func (c *TLSCommand) Synopsis() string {
-	return "Generate Self Signed TLS Certificates for Nomad"
+	return "Generate Self Signed TLS Certificates for Wander"
 }
 
 func (c *TLSCommand) Name() string { return "tls" }

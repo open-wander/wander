@@ -10,11 +10,11 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/open-wander/wander/api"
-	"github.com/open-wander/wander/helper/pointer"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/colorstring"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/helper/pointer"
 	"github.com/posener/complete"
 	"golang.org/x/crypto/ssh/terminal"
 )

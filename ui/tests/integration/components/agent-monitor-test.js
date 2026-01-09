@@ -16,7 +16,7 @@ import {
   selectOpen,
   selectOpenChoose,
 } from '../../utils/ember-power-select-extensions';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import { capitalize } from '@ember/string';
 
 module('Integration | Component | agent-monitor', function (hooks) {

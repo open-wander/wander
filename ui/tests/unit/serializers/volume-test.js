@@ -5,7 +5,7 @@
 
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import VolumeModel from 'nomad-ui/models/volume';
+import VolumeModel from 'wander-ui/models/volume';
 
 module('Unit | Serializer | Volume', function (hooks) {
   setupTest(hooks);

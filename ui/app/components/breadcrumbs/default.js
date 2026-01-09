@@ -5,7 +5,7 @@
 
 import { action } from '@ember/object';
 import Component from '@glimmer/component';
-import KeyboardShortcutModifier from 'nomad-ui/modifiers/keyboard-shortcut';
+import KeyboardShortcutModifier from 'wander-ui/modifiers/keyboard-shortcut';
 import { inject as service } from '@ember/service';
 
 export default class BreadcrumbsTemplate extends Component {

@@ -34,12 +34,12 @@ type OperatorAPICommand struct {
 
 func (*OperatorAPICommand) Help() string {
 	helpText := `
-Usage: nomad operator api [options] <path>
+Usage: wander operator api [options] <path>
 
-  api is a utility command for accessing Nomad's HTTP API and is inspired by
-  the popular curl command line tool. Nomad's operator api command populates
-  Nomad's standard environment variables into their appropriate HTTP headers.
-  If the 'path' does not begin with "http" then $NOMAD_ADDR will be used.
+  api is a utility command for accessing Wander's HTTP API and is inspired by
+  the popular curl command line tool. Wander's operator api command populates
+  Wander's standard environment variables into their appropriate HTTP headers.
+  If the 'path' does not begin with "http" then $WANDER_ADDR will be used.
 
   The 'path' can be in one of the following forms:
 
@@ -87,7 +87,7 @@ Operator API Specific Options:
 }
 
 func (*OperatorAPICommand) Synopsis() string {
-	return "Query Nomad's HTTP API"
+	return "Query Wander's HTTP API"
 }
 
 func (c *OperatorAPICommand) AutocompleteFlags() complete.Flags {

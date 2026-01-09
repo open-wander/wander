@@ -8,9 +8,9 @@ import { run } from '@ember/runloop';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import ClientMonitor from 'nomad-ui/tests/pages/clients/monitor';
-import Layout from 'nomad-ui/tests/pages/layout';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
+import ClientMonitor from 'wander-ui/tests/pages/clients/monitor';
+import Layout from 'wander-ui/tests/pages/layout';
 
 let node;
 let managementToken;

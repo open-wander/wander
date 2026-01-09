@@ -19,7 +19,7 @@ if (process.env.USE_PERCY) {
 
 module.exports = function (environment) {
   let ENV = {
-    modulePrefix: 'nomad-ui',
+    modulePrefix: 'wander-ui',
     environment: environment,
     rootURL: '/ui/',
     locationType: 'auto',

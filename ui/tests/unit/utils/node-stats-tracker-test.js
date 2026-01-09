@@ -10,8 +10,8 @@ import sinon from 'sinon';
 import Pretender from 'pretender';
 import NodeStatsTracker, {
   stats,
-} from 'nomad-ui/utils/classes/node-stats-tracker';
-import fetch from 'nomad-ui/utils/fetch';
+} from 'wander-ui/utils/classes/node-stats-tracker';
+import fetch from 'wander-ui/utils/fetch';
 import statsTrackerFrameMissingBehavior from './behaviors/stats-tracker-frame-missing';
 
 import { settled } from '@ember/test-helpers';

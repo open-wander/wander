@@ -8,11 +8,11 @@ import { module, test } from 'qunit';
 import { currentURL } from '@ember/test-helpers';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import moment from 'moment';
-import { formatBytes, formatHertz } from 'nomad-ui/utils/units';
-import VolumeDetail from 'nomad-ui/tests/pages/storage/volumes/detail';
-import Layout from 'nomad-ui/tests/pages/layout';
+import { formatBytes, formatHertz } from 'wander-ui/utils/units';
+import VolumeDetail from 'wander-ui/tests/pages/storage/volumes/detail';
+import Layout from 'wander-ui/tests/pages/layout';
 
 const assignWriteAlloc = (volume, alloc) => {
   volume.writeAllocs.add(alloc);

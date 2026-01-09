@@ -10,12 +10,12 @@ import Controller, { inject as controller } from '@ember/controller';
 import { action, computed } from '@ember/object';
 import { scheduleOnce } from '@ember/runloop';
 import intersection from 'lodash.intersection';
-import SortableFactory from 'nomad-ui/mixins/sortable-factory';
-import Searchable from 'nomad-ui/mixins/searchable';
+import SortableFactory from 'wander-ui/mixins/sortable-factory';
+import Searchable from 'wander-ui/mixins/searchable';
 import {
   serialize,
   deserializedQueryParam as selection,
-} from 'nomad-ui/utils/qp-serialize';
+} from 'wander-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 
 @classic

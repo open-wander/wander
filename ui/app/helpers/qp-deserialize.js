@@ -4,7 +4,7 @@
  */
 
 import { helper } from '@ember/component/helper';
-import { deserialize } from 'nomad-ui/utils/qp-serialize';
+import { deserialize } from 'wander-ui/utils/qp-serialize';
 
 /**
  * Query Param Serialize

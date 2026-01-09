@@ -18,7 +18,7 @@
     border-right: none;
 
     &.is-open {
-      box-shadow: 0 0 30px darken($nomad-green-darker, 20%);
+      box-shadow: 0 0 30px darken($wander-blue-darker, 20%);
     }
 
     .collapsed-only {
@@ -43,7 +43,7 @@
       fill: $grey-light;
     }
 
-    .nomad-logo {
+    .wander-logo {
       fill: $grey-light;
     }
 
@@ -77,7 +77,7 @@
 .gutter-backdrop {
   display: block;
   position: fixed;
-  background: darken($nomad-green-darker, 10%);
+  background: darken($wander-blue-darker, 10%);
   opacity: 0;
   width: calc(100vw + #{$gutter-width});
   height: 100vh;

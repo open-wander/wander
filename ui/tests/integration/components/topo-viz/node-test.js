@@ -9,14 +9,14 @@ import { setupRenderingTest } from 'ember-qunit';
 import hbs from 'htmlbars-inline-precompile';
 import { create } from 'ember-cli-page-object';
 import sinon from 'sinon';
-import faker from 'nomad-ui/mirage/faker';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import faker from 'wander-ui/mirage/faker';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import topoVisNodePageObject from 'nomad-ui/tests/pages/components/topo-viz/node';
+import topoVisNodePageObject from 'wander-ui/tests/pages/components/topo-viz/node';
 import {
   formatScheduledBytes,
   formatScheduledHertz,
-} from 'nomad-ui/utils/units';
+} from 'wander-ui/utils/units';
 
 const TopoVizNode = create(topoVisNodePageObject());
 

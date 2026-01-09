@@ -8,7 +8,7 @@ import { computed } from '@ember/object';
 import Model from '@ember-data/model';
 import { attr } from '@ember-data/model';
 import classic from 'ember-classic-decorator';
-import formatHost from 'nomad-ui/utils/format-host';
+import formatHost from 'wander-ui/utils/format-host';
 
 @classic
 export default class Agent extends Model {

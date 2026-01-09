@@ -13,7 +13,7 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import twoStepButton from 'nomad-ui/tests/pages/components/two-step-button';
+import twoStepButton from 'wander-ui/tests/pages/components/two-step-button';
 
 export default create({
   visit: visitable('/allocations/:id/:name'),

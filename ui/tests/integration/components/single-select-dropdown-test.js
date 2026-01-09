@@ -12,7 +12,7 @@ import {
 } from 'ember-power-select/test-support/helpers';
 import sinon from 'sinon';
 import hbs from 'htmlbars-inline-precompile';
-import { componentA11yAudit } from 'nomad-ui/tests/helpers/a11y-audit';
+import { componentA11yAudit } from 'wander-ui/tests/helpers/a11y-audit';
 
 module('Integration | Component | single-select dropdown', function (hooks) {
   setupRenderingTest(hooks);

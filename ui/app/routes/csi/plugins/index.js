@@ -5,8 +5,8 @@
 
 import Route from '@ember/routing/route';
 import { collect } from '@ember/object/computed';
-import { watchQuery } from 'nomad-ui/utils/properties/watch';
-import WithWatchers from 'nomad-ui/mixins/with-watchers';
+import { watchQuery } from 'wander-ui/utils/properties/watch';
+import WithWatchers from 'wander-ui/mixins/with-watchers';
 import { inject as service } from '@ember/service';
 
 export default class IndexRoute extends Route.extend(WithWatchers) {

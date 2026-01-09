@@ -4,13 +4,13 @@
  */
 
 /* eslint-disable qunit/no-conditional-assertions */
-import ExecSocketXtermAdapter from 'nomad-ui/utils/classes/exec-socket-xterm-adapter';
+import ExecSocketXtermAdapter from 'wander-ui/utils/classes/exec-socket-xterm-adapter';
 import { setupRenderingTest } from 'ember-qunit';
 import { module, test } from 'qunit';
 import { render, settled } from '@ember/test-helpers';
 import hbs from 'htmlbars-inline-precompile';
 import { Terminal } from 'xterm';
-import { HEARTBEAT_INTERVAL } from 'nomad-ui/utils/classes/exec-socket-xterm-adapter';
+import { HEARTBEAT_INTERVAL } from 'wander-ui/utils/classes/exec-socket-xterm-adapter';
 import sinon from 'sinon';
 
 module('Integration | Utility | exec-socket-xterm-adapter', function (hooks) {

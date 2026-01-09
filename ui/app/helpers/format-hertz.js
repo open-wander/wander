@@ -4,7 +4,7 @@
  */
 
 import Helper from '@ember/component/helper';
-import { formatHertz } from 'nomad-ui/utils/units';
+import { formatHertz } from 'wander-ui/utils/units';
 
 /**
  * Hertz Formatter

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/ci"
 	cstructs "github.com/open-wander/wander/client/structs"
 	"github.com/open-wander/wander/helper/pointer"
@@ -23,7 +24,6 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/testutil"
-	"github.com/hashicorp/raft"
 )
 
 func TestAgent_RPC_Ping(t *testing.T) {

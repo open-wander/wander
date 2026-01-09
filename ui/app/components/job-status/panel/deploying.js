@@ -8,7 +8,7 @@ import Component from '@glimmer/component';
 import { task } from 'ember-concurrency';
 import { tracked } from '@glimmer/tracking';
 import { alias } from '@ember/object/computed';
-import messageFromAdapterError from 'nomad-ui/utils/message-from-adapter-error';
+import messageFromAdapterError from 'wander-ui/utils/message-from-adapter-error';
 import { jobAllocStatuses } from '../../../utils/allocation-client-statuses';
 
 export default class JobStatusPanelDeployingComponent extends Component {

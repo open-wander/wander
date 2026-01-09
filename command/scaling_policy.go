@@ -21,19 +21,19 @@ type ScalingPolicyCommand struct {
 // Help satisfies the cli.Command Help function.
 func (s *ScalingPolicyCommand) Help() string {
 	helpText := `
-Usage: nomad scaling policy <subcommand> [options]
+Usage: wander scaling policy <subcommand> [options]
 
   This command groups subcommands for interacting with scaling policies. Scaling
   policies can be used by an external autoscaler to perform scaling actions on
-  Nomad targets.
+  Wander targets.
 
   List policies:
 
-      $ nomad scaling policy list
+      $ wander scaling policy list
 
   Detail an individual scaling policy:
 
-      $ nomad scaling policy info <policy_id>
+      $ wander scaling policy info <policy_id>
 
   Please see the individual subcommand help for detailed usage information.
 `
@@ -42,7 +42,7 @@ Usage: nomad scaling policy <subcommand> [options]
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (s *ScalingPolicyCommand) Synopsis() string {
-	return "Interact with Nomad scaling policies"
+	return "Interact with Wander scaling policies"
 }
 
 // Name returns the name of this command.

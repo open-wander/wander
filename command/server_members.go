@@ -21,9 +21,9 @@ type ServerMembersCommand struct {
 
 func (c *ServerMembersCommand) Help() string {
 	helpText := `
-Usage: nomad server members [options]
+Usage: wander server members [options]
 
-  Display a list of the known servers and their status. Only Nomad servers are
+  Display a list of the known servers and their status. Only Wander servers are
   able to service this command.
 
   If ACLs are enabled, this option requires a token with the 'node:read'

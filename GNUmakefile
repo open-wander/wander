@@ -144,7 +144,7 @@ deps:  ## Install build and development dependencies
 .PHONY: lint-deps
 lint-deps: ## Install linter dependencies
 	@echo "==> Updating linter dependencies..."
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.0
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
 	go install github.com/client9/misspell/cmd/misspell@v0.3.4
 	go install github.com/hashicorp/go-hclog/hclogvet@v0.1.6
 
@@ -347,7 +347,7 @@ static-assets: ## Compile the static routes to serve alongside the API
 	@mv bindata_assetfs.go command/agent
 
 .PHONY: test-ui
-test-ui: ## Run Nomad UI test suite
+test-ui: ## Run Wander UI test suite
 	@echo "==> Installing JavaScript assets"
 	@cd ui && npm rebuild node-sass
 	@cd ui && yarn install
@@ -364,7 +364,7 @@ ember-dist: ## Build the static UI assets from source
 
 .PHONY: dev-ui
 dev-ui: ember-dist static-assets ## Build a dev UI binary
-	@$(MAKE) NOMAD_UI_TAG="ui" dev ## Build a dev binary with the UI baked in
+	@$(MAKE) WANDER_UI_TAG="ui" dev ## Build a dev binary with the UI baked in
 
 HELP_FORMAT="    \033[36m%-25s\033[0m %s\n"
 .PHONY: help
@@ -420,7 +420,7 @@ cl: ## Create a new Changelog entry
 .PHONY: test
 test: GOTEST_PKGS := $(foreach g,$(GOTEST_GROUP),$(shell go run -modfile=tools/go.mod tools/missing/main.go ci/test-core.json $(g)))
 test: ## Use this target as a smoke test
-	@echo "==> Running Nomad smoke tests on groups: $(GOTEST_GROUP)"
+	@echo "==> Running Wander smoke tests on groups: $(GOTEST_GROUP)"
 	@echo "==> with packages: $(GOTEST_PKGS)"
 	gotestsum --format=testname --packages="$(GOTEST_PKGS)" -- \
 		-cover \

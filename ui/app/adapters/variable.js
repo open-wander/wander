@@ -9,7 +9,7 @@ import AdapterError from '@ember-data/adapter/error';
 import { pluralize } from 'ember-inflector';
 import classic from 'ember-classic-decorator';
 import { ConflictError } from '@ember-data/adapter/error';
-import DEFAULT_JOB_TEMPLATES from 'nomad-ui/utils/default-job-templates';
+import DEFAULT_JOB_TEMPLATES from 'wander-ui/utils/default-job-templates';
 import { inject as service } from '@ember/service';
 
 @classic

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 	"github.com/posener/complete"
 )
 
@@ -31,7 +31,7 @@ type ACLBindingRuleCreateCommand struct {
 // Help satisfies the cli.Command Help function.
 func (a *ACLBindingRuleCreateCommand) Help() string {
 	helpText := `
-Usage: nomad acl binding-rule create [options]
+Usage: wander acl binding-rule create [options]
 
   Create is used to create new ACL binding rules. Use requires a management
   token.
@@ -56,7 +56,7 @@ Create Options:
 
   -bind-type
     Specifies adjusts how this binding rule is applied at login time to internal
-    Nomad objects. Valid options are "role", "policy", or "management".
+    Wander objects. Valid options are "role", "policy", or "management".
 
   -bind-name
     Specifies is the target of the binding used on selector match. This can be

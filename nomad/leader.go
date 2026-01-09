@@ -17,12 +17,12 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/raft"
+	"github.com/hashicorp/serf/serf"
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/hashicorp/raft"
-	"github.com/hashicorp/serf/serf"
 	"golang.org/x/time/rate"
 )
 

@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/command/agent"
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/mitchellh/cli"
 	"github.com/shoenig/test/must"
 )
 

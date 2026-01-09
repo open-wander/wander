@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 )
 
 // Ensure ACLAuthMethodCommand satisfies the cli.Command interface.

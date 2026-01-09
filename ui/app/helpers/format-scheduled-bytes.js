@@ -4,7 +4,7 @@
  */
 
 import Helper from '@ember/component/helper';
-import { formatScheduledBytes } from 'nomad-ui/utils/units';
+import { formatScheduledBytes } from 'wander-ui/utils/units';
 
 /**
  * Scheduled Bytes Formatter

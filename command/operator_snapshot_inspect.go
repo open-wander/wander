@@ -18,12 +18,12 @@ type OperatorSnapshotInspectCommand struct {
 
 func (c *OperatorSnapshotInspectCommand) Help() string {
 	helpText := `
-Usage: nomad operator snapshot inspect [options] <file>
+Usage: wander operator snapshot inspect [options] <file>
 
   Displays information about a snapshot file on disk.
 
   To inspect the file "backup.snap":
-    $ nomad operator snapshot inspect backup.snap
+    $ wander operator snapshot inspect backup.snap
 `
 	return strings.TrimSpace(helpText)
 }
@@ -37,7 +37,7 @@ func (c *OperatorSnapshotInspectCommand) AutocompleteArgs() complete.Predictor {
 }
 
 func (c *OperatorSnapshotInspectCommand) Synopsis() string {
-	return "Displays information about a Nomad snapshot file"
+	return "Displays information about a Wander snapshot file"
 }
 
 func (c *OperatorSnapshotInspectCommand) Name() string { return "operator snapshot inspect" }

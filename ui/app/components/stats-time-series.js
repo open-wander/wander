@@ -9,7 +9,7 @@ import d3TimeFormat from 'd3-time-format';
 import d3Format from 'd3-format';
 import { scaleTime, scaleLinear } from 'd3-scale';
 import d3Array from 'd3-array';
-import formatDuration from 'nomad-ui/utils/format-duration';
+import formatDuration from 'wander-ui/utils/format-duration';
 
 export default class StatsTimeSeries extends Component {
   get xFormat() {

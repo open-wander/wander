@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/open-wander/wander/api/internal/testutil"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api/internal/testutil"
 	"github.com/shoenig/test/must"
 )
 

@@ -26,7 +26,7 @@ module.exports = {
       settings: {
         'ember-a11y-testing': {
           auditModule: {
-            package: 'nomad-ui/tests/helpers/a11y-audit',
+            package: 'wander-ui/tests/helpers/a11y-audit',
             exportName: 'default',
           },
         },
@@ -41,7 +41,7 @@ module.exports = {
       settings: {
         'ember-a11y-testing': {
           auditModule: {
-            package: 'nomad-ui/tests/helpers/a11y-audit',
+            package: 'wander-ui/tests/helpers/a11y-audit',
             exportName: 'componentA11yAudit',
           },
         },

@@ -1,7 +1,7 @@
 {
-  "name": "nomad-ui",
+  "name": "wander-ui",
   "version": "0.0.0",
-  "description": "The web ui for Nomad, by HashiCorp.",
+  "description": "The web UI for Wander.",
   "repository": "",
   "directories": {
     "doc": "doc",

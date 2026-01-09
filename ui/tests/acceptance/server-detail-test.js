@@ -8,9 +8,9 @@ import { currentURL } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import ServerDetail from 'nomad-ui/tests/pages/servers/detail';
-import formatHost from 'nomad-ui/utils/format-host';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
+import ServerDetail from 'wander-ui/tests/pages/servers/detail';
+import formatHost from 'wander-ui/utils/format-host';
 
 let agent;
 

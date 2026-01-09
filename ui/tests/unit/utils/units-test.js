@@ -4,7 +4,7 @@
  */
 
 import { module, test } from 'qunit';
-import * as units from 'nomad-ui/utils/units';
+import * as units from 'wander-ui/utils/units';
 
 function table(fn, cases) {
   cases.forEach((testCase) => {

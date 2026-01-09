@@ -8,10 +8,10 @@ import { action, computed } from '@ember/object';
 import { alias, readOnly } from '@ember/object/computed';
 import { scheduleOnce } from '@ember/runloop';
 import Controller, { inject as controller } from '@ember/controller';
-import SortableFactory from 'nomad-ui/mixins/sortable-factory';
-import Searchable from 'nomad-ui/mixins/searchable';
-import { lazyClick } from 'nomad-ui/helpers/lazy-click';
-import { serialize } from 'nomad-ui/utils/qp-serialize';
+import SortableFactory from 'wander-ui/mixins/sortable-factory';
+import Searchable from 'wander-ui/mixins/searchable';
+import { lazyClick } from 'wander-ui/helpers/lazy-click';
+import { serialize } from 'wander-ui/utils/qp-serialize';
 import classic from 'ember-classic-decorator';
 
 @classic

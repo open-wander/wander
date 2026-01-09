@@ -7,7 +7,7 @@
 import { computed, get } from '@ember/object';
 import { or } from '@ember/object/computed';
 import AbstractAbility from './abstract';
-import doesMatchPattern from 'nomad-ui/utils/match-glob';
+import doesMatchPattern from 'wander-ui/utils/match-glob';
 
 const WILDCARD_GLOB = '*';
 const WILDCARD_PATTERN = '/';

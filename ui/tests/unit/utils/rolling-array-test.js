@@ -5,7 +5,7 @@
 
 import { isArray } from '@ember/array';
 import { module, test } from 'qunit';
-import RollingArray from 'nomad-ui/utils/classes/rolling-array';
+import RollingArray from 'wander-ui/utils/classes/rolling-array';
 
 module('Unit | Util | RollingArray', function () {
   test('has a maxLength property that gets set in the constructor', function (assert) {

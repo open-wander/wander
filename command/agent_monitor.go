@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/open-wander/wander/api"
 	"github.com/mitchellh/cli"
+	"github.com/open-wander/wander/api"
 )
 
 type MonitorCommand struct {
@@ -30,10 +30,10 @@ type MonitorCommand struct {
 
 func (c *MonitorCommand) Help() string {
 	helpText := `
-Usage: nomad monitor [options]
+Usage: wander monitor [options]
 
-  Stream log messages of a nomad agent. The monitor command lets you
-  listen for log levels that may be filtered out of the Nomad agent. For
+  Stream log messages of a wander agent. The monitor command lets you
+  listen for log levels that may be filtered out of the Wander agent. For
   example your agent may only be logging at INFO level, but with the monitor
   command you can set -log-level DEBUG
 
@@ -65,7 +65,7 @@ Monitor Specific Options:
 }
 
 func (c *MonitorCommand) Synopsis() string {
-	return "Stream logs from a Nomad agent"
+	return "Stream logs from a Wander agent"
 }
 
 func (c *MonitorCommand) Name() string { return "monitor" }

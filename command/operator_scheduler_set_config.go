@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/api"
 	flagHelper "github.com/open-wander/wander/helper/flags"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 )
 

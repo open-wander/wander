@@ -13,12 +13,12 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import allocations from 'nomad-ui/tests/pages/components/allocations';
-import error from 'nomad-ui/tests/pages/components/error';
-import pageSizeSelect from 'nomad-ui/tests/pages/components/page-size-select';
-import stepperInput from 'nomad-ui/tests/pages/components/stepper-input';
-import LifecycleChart from 'nomad-ui/tests/pages/components/lifecycle-chart';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
+import allocations from 'wander-ui/tests/pages/components/allocations';
+import error from 'wander-ui/tests/pages/components/error';
+import pageSizeSelect from 'wander-ui/tests/pages/components/page-size-select';
+import stepperInput from 'wander-ui/tests/pages/components/stepper-input';
+import LifecycleChart from 'wander-ui/tests/pages/components/lifecycle-chart';
+import { multiFacet } from 'wander-ui/tests/pages/components/facet';
 
 export default create({
   pageSize: 25,

@@ -12,7 +12,7 @@
   <Hds::Alert @type="inline" @color="highlight" as |A|>
     <A.Title>Automatic Access to Variables</A.Title>
     <A.Description>
-      <p>Tasks in this job can have <a href="https://developer.hashicorp.com/nomad/docs/concepts/variables#task-access-to-variables" target="_blank" rel="noopener noreferrer">automatic access to Nomad Variables</a>.</p>
+      <p>Tasks in this job can have <a href="https://openwander.org/wander/docs/concepts/variables#task-access-to-variables" target="_blank" rel="noopener noreferrer">automatic access to Wander Variables</a>.</p>
       <ul>
         <li data-test-variables-intro-all-jobs>Use 
           <code>
@@ -55,7 +55,7 @@
         </li>
       </ul>
     </A.Description>
-    <A.Link::Standalone @color="secondary" @icon="arrow-right" @iconPosition="trailing" @text="Learn more about Nomad Variables" @href="https://developer.hashicorp.com/nomad/tutorials/variables" />
+    <A.Link::Standalone @color="secondary" @icon="arrow-right" @iconPosition="trailing" @text="Learn more about Wander Variables" @href="https://openwander.org/wander/tutorials/variables" />
   </Hds::Alert>
 </header>
 
@@ -66,7 +66,7 @@
 {{else}}
   <section class="job-variables-message">
     <p data-test-no-auto-vars-message>
-      Job <strong>{{this.model.job.name}}</strong> does not have automatic access to any variables, but may have access by virtue of policies associated with this job's tasks' workload identities. See <a href="https://developer.hashicorp.com/nomad/docs/concepts/workload-identity#workload-associated-acl-policies" target="_blank" rel="noopener noreferrer">Workload-Associated ACL Policies</a> for more information.
+      Job <strong>{{this.model.job.name}}</strong> does not have automatic access to any variables, but may have access by virtue of policies associated with this job's tasks' workload identities. See <a href="https://openwander.org/wander/docs/concepts/workload-identity#workload-associated-acl-policies" target="_blank" rel="noopener noreferrer">Workload-Associated ACL Policies</a> for more information.
     </p>
     {{#if (can "write variable")}}
       <Hds::Button data-test-create-variable-button @text="Create a Variable" @size="large" @route="variables.new" @query={{hash path=(concat "nomad/jobs/" this.model.job.name)}} />

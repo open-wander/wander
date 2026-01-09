@@ -10,11 +10,11 @@ import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { selectChoose } from 'ember-power-select/test-support';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import JobsList from 'nomad-ui/tests/pages/jobs/list';
-import ClientsList from 'nomad-ui/tests/pages/clients/list';
-import Layout from 'nomad-ui/tests/pages/layout';
-import Allocation from 'nomad-ui/tests/pages/allocations/detail';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
+import JobsList from 'wander-ui/tests/pages/jobs/list';
+import ClientsList from 'wander-ui/tests/pages/clients/list';
+import Layout from 'wander-ui/tests/pages/layout';
+import Allocation from 'wander-ui/tests/pages/allocations/detail';
 
 module('Acceptance | regions (only one)', function (hooks) {
   setupApplicationTest(hooks);

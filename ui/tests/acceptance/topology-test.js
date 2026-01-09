@@ -9,17 +9,17 @@ import { currentURL, typeIn, click } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
-import Topology from 'nomad-ui/tests/pages/topology';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
+import Topology from 'wander-ui/tests/pages/topology';
 import {
   formatBytes,
   formatScheduledBytes,
   formatHertz,
   formatScheduledHertz,
-} from 'nomad-ui/utils/units';
+} from 'wander-ui/utils/units';
 import queryString from 'query-string';
 import percySnapshot from '@percy/ember';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 
 const sumResources = (list, dimension) =>
   list.reduce((agg, val) => agg + (get(val, dimension) || 0), 0);

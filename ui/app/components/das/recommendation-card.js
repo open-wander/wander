@@ -7,7 +7,7 @@ import Component from '@glimmer/component';
 import { inject as service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
-import ResourcesDiffs from 'nomad-ui/utils/resources-diffs';
+import ResourcesDiffs from 'wander-ui/utils/resources-diffs';
 import { htmlSafe } from '@ember/template';
 import { didCancel, task, timeout } from 'ember-concurrency';
 import Ember from 'ember';

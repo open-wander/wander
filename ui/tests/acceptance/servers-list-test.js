@@ -8,12 +8,12 @@ import { currentURL } from '@ember/test-helpers';
 import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import { findLeader } from '../../mirage/config';
-import ServersList from 'nomad-ui/tests/pages/servers/list';
-import formatHost from 'nomad-ui/utils/format-host';
+import ServersList from 'wander-ui/tests/pages/servers/list';
+import formatHost from 'wander-ui/utils/format-host';
 import percySnapshot from '@percy/ember';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 
 const minimumSetup = () => {
   faker.seed(1);

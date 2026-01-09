@@ -5,7 +5,7 @@
 
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import JobPlanModel from 'nomad-ui/models/job-plan';
+import JobPlanModel from 'wander-ui/models/job-plan';
 
 module('Unit | Serializer | JobPlan', function (hooks) {
   setupTest(hooks);

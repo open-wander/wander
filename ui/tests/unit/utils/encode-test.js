@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { base64DecodeString, base64EncodeString } from 'nomad-ui/utils/encode';
+import { base64DecodeString, base64EncodeString } from 'wander-ui/utils/encode';
 import { module, test } from 'qunit';
 
 module('Unit | Utility | encode', function () {

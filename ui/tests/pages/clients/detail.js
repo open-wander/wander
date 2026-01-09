@@ -15,11 +15,11 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import allocations from 'nomad-ui/tests/pages/components/allocations';
-import twoStepButton from 'nomad-ui/tests/pages/components/two-step-button';
-import notification from 'nomad-ui/tests/pages/components/notification';
-import toggle from 'nomad-ui/tests/pages/components/toggle';
-import { multiFacet } from 'nomad-ui/tests/pages/components/facet';
+import allocations from 'wander-ui/tests/pages/components/allocations';
+import twoStepButton from 'wander-ui/tests/pages/components/two-step-button';
+import notification from 'wander-ui/tests/pages/components/notification';
+import toggle from 'wander-ui/tests/pages/components/toggle';
+import { multiFacet } from 'wander-ui/tests/pages/components/facet';
 
 export default create({
   visit: visitable('/clients/:id'),

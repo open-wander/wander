@@ -4,7 +4,7 @@
  */
 
 import Component from '@glimmer/component';
-import ResourcesDiffs from 'nomad-ui/utils/resources-diffs';
+import ResourcesDiffs from 'wander-ui/utils/resources-diffs';
 import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
 

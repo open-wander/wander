@@ -18,9 +18,9 @@ import {
 } from '@ember/test-helpers';
 
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import faker from 'nomad-ui/mirage/faker';
+import faker from 'wander-ui/mirage/faker';
 import percySnapshot from '@percy/ember';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 // TODO: Mirage is not type-friendly / assigns "server" as a global. Try to work around this shortcoming.
 
 module('Acceptance | job status panel', function (hooks) {

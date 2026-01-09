@@ -27,8 +27,8 @@ type JobInitCommand struct {
 
 func (c *JobInitCommand) Help() string {
 	helpText := `
-Usage: nomad job init <filename>
-Alias: nomad init <filename>
+Usage: wander job init <filename>
+Alias: wander init <filename>
 
   Creates an example job file that can be used as a starting point to customize
   further. If no filename is given, the default of "example.nomad.hcl" will be used.
@@ -42,7 +42,7 @@ Init Options:
     If the connect flag is set, the jobspec includes Consul Connect integration.
 
   -template
-    Specifies a predefined template to initialize. Must be a Nomad Variable that
+    Specifies a predefined template to initialize. Must be a Wander Variable that
     lives at nomad/job-templates/<template>
 
   -list-templates
@@ -166,7 +166,7 @@ func (c *JobInitCommand) Run(args []string) int {
 			c.Ui.Output(fmt.Sprintf("Initializing a job template from %s", template))
 			jobSpec = []byte(v)
 		} else {
-			c.Ui.Error(fmt.Sprintf("Job template %q is malformed and is missing a template field. Please visit the jobs/run/templates route in  the Nomad UI to add it", template))
+			c.Ui.Error(fmt.Sprintf("Job template %q is malformed and is missing a template field. Please visit the jobs/run/templates route in  the Wander UI to add it", template))
 			return 1
 		}
 

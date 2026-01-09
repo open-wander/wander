@@ -5,7 +5,7 @@
 
 import { module, test } from 'qunit';
 import { setupTest } from 'ember-qunit';
-import ScaleEventModel from 'nomad-ui/models/scale-event';
+import ScaleEventModel from 'wander-ui/models/scale-event';
 
 module('Unit | Serializer | Scale Event', function (hooks) {
   setupTest(hooks);

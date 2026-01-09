@@ -4,7 +4,7 @@
  */
 
 import { module, test } from 'qunit';
-import { stringifyObject } from 'nomad-ui/helpers/stringify-object';
+import { stringifyObject } from 'wander-ui/helpers/stringify-object';
 
 const objectToStringify = {
   dog: 'thelonious',

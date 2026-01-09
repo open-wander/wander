@@ -4,7 +4,7 @@
  */
 
 import EmberRouter from '@ember/routing/router';
-import config from 'nomad-ui/config/environment';
+import config from 'wander-ui/config/environment';
 
 export default class Router extends EmberRouter {
   location = config.locationType;

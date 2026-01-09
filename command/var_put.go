@@ -17,10 +17,10 @@ import (
 	"github.com/hashicorp/go-set"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/open-wander/wander/api"
-	"github.com/open-wander/wander/helper"
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/mapstructure"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/helper"
 	"github.com/posener/complete"
 	"golang.org/x/exp/slices"
 )

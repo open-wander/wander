@@ -6,7 +6,7 @@
 import Controller from '@ember/controller';
 import { inject as service } from '@ember/service';
 import { action, computed } from '@ember/object';
-import { qpBuilder } from 'nomad-ui/utils/classes/query-params';
+import { qpBuilder } from 'wander-ui/utils/classes/query-params';
 
 export default class VolumeController extends Controller {
   // Used in the template

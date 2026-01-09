@@ -9,9 +9,9 @@ import { collect } from '@ember/object/computed';
 import {
   watchRecord,
   watchNonStoreRecords,
-} from 'nomad-ui/utils/properties/watch';
-import WithWatchers from 'nomad-ui/mixins/with-watchers';
-import notifyError from 'nomad-ui/utils/notify-error';
+} from 'wander-ui/utils/properties/watch';
+import WithWatchers from 'wander-ui/mixins/with-watchers';
+import notifyError from 'wander-ui/utils/notify-error';
 export default class AllocationRoute extends Route.extend(WithWatchers) {
   @service notifications;
   @service router;

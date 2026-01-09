@@ -49,9 +49,9 @@ type FormatCommand struct {
 
 func (*FormatCommand) Help() string {
 	helpText := `
-Usage: nomad fmt [flags] paths ...
+Usage: wander fmt [flags] paths ...
 
-  Formats Nomad agent configuration and job file to a canonical format.
+  Formats Wander agent configuration and job file to a canonical format.
   If a path is a directory, it will recursively format all files
   with .nomad and .hcl extensions in the directory.
 
@@ -82,7 +82,7 @@ Format Options:
 }
 
 func (*FormatCommand) Synopsis() string {
-	return "Rewrites Nomad config and job files to canonical format"
+	return "Rewrites Wander config and job files to canonical format"
 }
 
 func (*FormatCommand) AutocompleteArgs() complete.Predictor {
@@ -190,7 +190,7 @@ func (f *FormatCommand) fmt() {
 
 				fp.Close()
 			} else {
-				f.appendError(fmt.Errorf("Only .nomad and .hcl files can be processed using nomad fmt"))
+				f.appendError(fmt.Errorf("Only .nomad and .hcl files can be processed using wander fmt"))
 				continue
 			}
 		}

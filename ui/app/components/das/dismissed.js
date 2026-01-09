@@ -4,7 +4,7 @@
  */
 
 import Component from '@glimmer/component';
-import localStorageProperty from 'nomad-ui/utils/properties/local-storage';
+import localStorageProperty from 'wander-ui/utils/properties/local-storage';
 import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
 

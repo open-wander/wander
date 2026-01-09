@@ -10,14 +10,14 @@ import { alias } from '@ember/object/computed';
 import { inject as service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 import classic from 'ember-classic-decorator';
-import { reduceBytes, reduceHertz } from 'nomad-ui/utils/units';
+import { reduceBytes, reduceHertz } from 'wander-ui/utils/units';
 import {
   serialize,
   deserializedQueryParam as selection,
-} from 'nomad-ui/utils/qp-serialize';
+} from 'wander-ui/utils/qp-serialize';
 import { scheduleOnce } from '@ember/runloop';
 import intersection from 'lodash.intersection';
-import Searchable from 'nomad-ui/mixins/searchable';
+import Searchable from 'wander-ui/mixins/searchable';
 
 const sumAggregator = (sum, value) => sum + (value || 0);
 const formatter = new Intl.NumberFormat(window.navigator.locale || 'en', {

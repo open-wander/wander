@@ -37,10 +37,10 @@ type LoginCommand struct {
 // Help satisfies the cli.Command Help function.
 func (l *LoginCommand) Help() string {
 	helpText := `
-Usage: nomad login [options]
+Usage: wander login [options]
 
   The login command will exchange the provided third party credentials with the
-  requested auth method for a newly minted Nomad ACL token.
+  requested auth method for a newly minted Wander ACL token.
 
 General Options:
 
@@ -71,7 +71,7 @@ Login Options:
 
 // Synopsis satisfies the cli.Command Synopsis function.
 func (l *LoginCommand) Synopsis() string {
-	return "Login to Nomad using an auth method"
+	return "Login to Wander using an auth method"
 }
 
 func (l *LoginCommand) AutocompleteFlags() complete.Flags {

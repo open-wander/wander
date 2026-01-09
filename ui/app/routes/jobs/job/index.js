@@ -11,8 +11,8 @@ import {
   watchRelationship,
   watchAll,
   watchQuery,
-} from 'nomad-ui/utils/properties/watch';
-import WithWatchers from 'nomad-ui/mixins/with-watchers';
+} from 'wander-ui/utils/properties/watch';
+import WithWatchers from 'wander-ui/mixins/with-watchers';
 
 export default class IndexRoute extends Route.extend(WithWatchers) {
   @service can;

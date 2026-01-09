@@ -13,13 +13,13 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/kr/pretty"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/serviceregistration"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/plugins/drivers"
-	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

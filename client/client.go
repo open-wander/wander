@@ -20,6 +20,7 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 	hclog "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
+	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/client/allocdir"
 	"github.com/open-wander/wander/client/allocrunner"
 	"github.com/open-wander/wander/client/allocrunner/interfaces"
@@ -57,7 +58,6 @@ import (
 	nconfig "github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/plugins/csi"
 	"github.com/open-wander/wander/plugins/device"
-	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/shirou/gopsutil/v3/host"
 	"golang.org/x/exp/maps"
 )

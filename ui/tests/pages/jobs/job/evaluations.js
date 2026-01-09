@@ -12,7 +12,7 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import error from 'nomad-ui/tests/pages/components/error';
+import error from 'wander-ui/tests/pages/components/error';
 
 export default create({
   visit: visitable('/jobs/:id/evaluations'),

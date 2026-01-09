@@ -13,6 +13,7 @@ import (
 
 	hclog "github.com/hashicorp/go-hclog"
 	plugin "github.com/hashicorp/go-plugin"
+	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/allocdir"
 	"github.com/open-wander/wander/client/lib/cgutil"
@@ -25,7 +26,6 @@ import (
 	"github.com/open-wander/wander/plugins/base"
 	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/open-wander/wander/plugins/shared/hclspec"
-	testing "github.com/mitchellh/go-testing-interface"
 	"github.com/stretchr/testify/require"
 )
 

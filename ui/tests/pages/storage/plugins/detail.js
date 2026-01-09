@@ -11,7 +11,7 @@ import {
   visitable,
 } from 'ember-cli-page-object';
 
-import allocations from 'nomad-ui/tests/pages/components/allocations';
+import allocations from 'wander-ui/tests/pages/components/allocations';
 
 export default create({
   visit: visitable('/csi/plugins/:id'),

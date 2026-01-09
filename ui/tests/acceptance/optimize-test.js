@@ -9,14 +9,14 @@ import { module, test } from 'qunit';
 import { setupApplicationTest } from 'ember-qunit';
 import { currentURL, visit } from '@ember/test-helpers';
 import { setupMirage } from 'ember-cli-mirage/test-support';
-import a11yAudit from 'nomad-ui/tests/helpers/a11y-audit';
+import a11yAudit from 'wander-ui/tests/helpers/a11y-audit';
 import Response from 'ember-cli-mirage/response';
 import moment from 'moment';
-import { formatBytes, formatHertz, replaceMinus } from 'nomad-ui/utils/units';
+import { formatBytes, formatHertz, replaceMinus } from 'wander-ui/utils/units';
 
-import Optimize from 'nomad-ui/tests/pages/optimize';
-import Layout from 'nomad-ui/tests/pages/layout';
-import JobsList from 'nomad-ui/tests/pages/jobs/list';
+import Optimize from 'wander-ui/tests/pages/optimize';
+import Layout from 'wander-ui/tests/pages/layout';
+import JobsList from 'wander-ui/tests/pages/jobs/list';
 import collapseWhitespace from '../helpers/collapse-whitespace';
 
 let managementToken, clientToken;
