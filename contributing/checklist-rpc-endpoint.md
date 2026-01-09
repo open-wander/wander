@@ -56,5 +56,5 @@ Prefer adding a new message to changing any existing RPC messages.
 ## Docs
 
 * [ ] Changelog
-* [ ] [Metrics](https://www.nomadproject.io/docs/operations/metrics#server-metrics)
-* [ ] [API docs](https://www.nomadproject.io/api-docs) for RPCs with an HTTP endpoint, include ACLs, params, and example response body.
+* [ ] [Metrics](https://openwander.org/wander/docs/operations/metrics#server-metrics)
+* [ ] [API docs](https://openwander.org/wander/api-docs) for RPCs with an HTTP endpoint, include ACLs, params, and example response body.

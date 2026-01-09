@@ -37,7 +37,7 @@ CLI (command/) -> API Client (api/) -> HTTP API (command/agent) -> RPC (nomad/)
 ## Docs
 
 * [ ] Changelog
-* [ ] API docs https://www.nomadproject.io/api
-* [ ] CLI docs https://www.nomadproject.io/docs/commands
+* [ ] API docs https://openwander.org/wander/api
+* [ ] CLI docs https://openwander.org/wander/docs/commands
 * [ ] If adding new docs see [website README](../website/README.md#editing-navigation-sidebars)
-* [ ] Consider if it needs a guide https://www.nomadproject.io/guides/index.html
+* [ ] Consider if it needs a guide https://openwander.org/wander/guides/index.html

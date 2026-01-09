@@ -4,8 +4,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Ask a Question
-    url: https://discuss.hashicorp.com/c/nomad
-    about: If you have a question, or are looking for advice, please post on our Discuss forum.
-  - name: Nomad Learn Tracks
-    url: https://learn.hashicorp.com/nomad
-    about: Please check out our Learn Guides. These hands on guides deal with many of the tasks common to using Nomad.
+    url: https://github.com/open-wander/wander/discussions
+    about: If you have a question, or are looking for advice, please post on our GitHub Discussions.
+  - name: Wander Documentation
+    url: https://openwander.org/wander/docs
+    about: Please check out our documentation for guides and reference material.

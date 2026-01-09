@@ -198,4 +198,4 @@ flowchart LR
 ```
 
 
-[Scheduling in Nomad]: https://www.nomadproject.io/docs/internals/scheduling/scheduling
+[Scheduling in Nomad]: https://openwander.org/wander/docs/internals/scheduling/scheduling

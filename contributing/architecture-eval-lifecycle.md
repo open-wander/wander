@@ -339,4 +339,4 @@ sequenceDiagram
 
 
 [Scheduling Concepts]: https://nomadproject.io/docs/concepts/scheduling/scheduling
-[`update`]: https://www.nomadproject.io/docs/job-specification/update
+[`update`]: https://openwander.org/wander/docs/job-specification/update

@@ -9,7 +9,7 @@ can be modified for the CephFS Driver, as used
 ## Deployment
 
 The Ceph CSI Node task requires that [`privileged =
-true`](https://www.nomadproject.io/docs/drivers/docker#privileged) be
+true`](https://openwander.org/wander/docs/drivers/docker#privileged) be
 set. This is not needed for the Controller task.
 
 ### Plugin Arguments

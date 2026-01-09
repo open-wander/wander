@@ -1,11 +1,11 @@
 [Unit]
-Description=Nomad
-Documentation=https://nomadproject.io/docs/
+Description=Wander
+Documentation=https://openwander.org/wander/docs/
 Wants=network-online.target
 After=network-online.target
 
-# When using Nomad with Consul it is not necessary to start Consul first. These
-# lines start Consul before Nomad as an optimization to avoid Nomad logging
+# When using Wander with Consul it is not necessary to start Consul first. These
+# lines start Consul before Wander as an optimization to avoid Wander logging
 # that Consul is unavailable at startup.
 #Wants=consul.service
 #After=consul.service
@@ -26,9 +26,9 @@ After=network-online.target
 # StartLimitInterval = 10s
 
 [Service]
-EnvironmentFile=-/etc/nomad.d/nomad.env
+EnvironmentFile=-/etc/wander.d/wander.env
 ExecReload=/bin/kill -HUP $MAINPID
-ExecStart=/usr/bin/nomad agent -config /etc/nomad.d
+ExecStart=/usr/bin/wander agent -config /etc/wander.d
 KillMode=process
 KillSignal=SIGINT
 LimitNOFILE=65536

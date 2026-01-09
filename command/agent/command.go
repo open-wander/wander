@@ -586,13 +586,18 @@ func (c *Command) setupAgent(config *Config, logger hclog.InterceptLogger, logOu
 
 	// If DisableUpdateCheck is not enabled, set up update checking
 	// (DisableUpdateCheck is false by default)
+	//
+	// NOTE: The checkpoint service currently uses HashiCorp's infrastructure.
+	// Since "wander" is not registered as a product there, update checks will
+	// not return useful results. In the future, this could be replaced with
+	// a custom update check endpoint at openwander.org.
 	if config.DisableUpdateCheck != nil && !*config.DisableUpdateCheck {
 		version := config.Version.Version
 		if config.Version.VersionPrerelease != "" {
 			version += fmt.Sprintf("-%s", config.Version.VersionPrerelease)
 		}
 		updateParams := &checkpoint.CheckParams{
-			Product: "nomad",
+			Product: "wander",
 			Version: version,
 		}
 		if !config.DisableAnonymousSignature {
@@ -619,7 +624,7 @@ func (c *Command) checkpointResults(results *checkpoint.CheckResponse, err error
 		return
 	}
 	if results.Outdated {
-		c.Ui.Error(fmt.Sprintf("Newer Nomad version available: %s (currently running: %s)", results.CurrentVersion, c.Version.VersionNumber()))
+		c.Ui.Error(fmt.Sprintf("Newer Wander version available: %s (currently running: %s)", results.CurrentVersion, c.Version.VersionNumber()))
 	}
 	for _, alert := range results.Alerts {
 		switch alert.Level {

@@ -84,7 +84,7 @@ export default class Abstract extends Ability {
   }
 
   // Chooses the closest namespace as described at the bottom here:
-  // https://learn.hashicorp.com/tutorials/nomad/access-control-policies?in=nomad/access-control#namespace-rules
+  // https://openwander.org/wander/docs/access-control#namespace-rules
   _findMatchingNamespace(policyNamespaces, namespace) {
     let namespaceNames = policyNamespaces.mapBy('Name');
 
