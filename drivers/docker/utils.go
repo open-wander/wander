@@ -15,7 +15,7 @@ import (
 
 	"github.com/docker/cli/cli/config/configfile"
 	"github.com/docker/cli/cli/config/types"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	registrytypes "github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/registry"
 	docker "github.com/fsouza/go-dockerclient"
