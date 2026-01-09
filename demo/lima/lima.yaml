@@ -2,12 +2,12 @@
 # This provides a Linux VM alternative to Vagrant for ARM-based Macs.
 #
 # Usage:
-#   limactl create --name=wander lima.yaml
+#   limactl create --name=wander demo/lima/lima.yaml
 #   limactl start wander
 #   limactl shell wander
 #
 # Or use the convenience script:
-#   ./scripts/lima-start.sh
+#   ./scripts/lima-start.sh up
 
 # Use Ubuntu 22.04 for better ARM64 support
 images:
@@ -17,8 +17,8 @@ images:
     arch: "x86_64"
 
 # VM resources - adjust as needed
-cpus: 4
-memory: "4GiB"
+cpus: 8
+memory: "12GiB"
 disk: "50GiB"
 
 # Mount the home directory (project accessible at same path as on host)

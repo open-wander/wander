@@ -752,7 +752,7 @@ func TestHTTP_AllocSnapshot_Atomic(t *testing.T) {
 				return false, err
 			}
 
-			return serverAlloc.ClientStatus == structs.AllocClientStatusRunning, fmt.Errorf(serverAlloc.ClientStatus)
+			return serverAlloc.ClientStatus == structs.AllocClientStatusRunning, fmt.Errorf("%s", serverAlloc.ClientStatus)
 		}, func(err error) {
 			t.Fatalf("client not running alloc: %v", err)
 		})

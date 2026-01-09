@@ -95,14 +95,14 @@ jobs:
 
       - name: Update version file
         run: |
-          NOMAD_VERSION="${{ github.event.inputs.version }}"
-          NOMAD_MAIN_VERSION=$(semver get release "$NOMAD_VERSION")
-          NOMAD_PRERELEASE_VERSION=$(semver get prerel "$NOMAD_VERSION")
+          WANDER_VERSION="${{ github.event.inputs.version }}"
+          WANDER_MAIN_VERSION=$(semver get release "$WANDER_VERSION")
+          WANDER_PRERELEASE_VERSION=$(semver get prerel "$WANDER_VERSION")
 
-          echo "updating version to ${NOMAD_MAIN_VERSION}-${NOMAD_PRERELEASE_VERSION}"
+          echo "updating version to ${WANDER_MAIN_VERSION}-${WANDER_PRERELEASE_VERSION}"
 
-          sed -i.bak -e "s|\(Version * = *\"\)[^\"]*|\1${NOMAD_MAIN_VERSION}|g" version/version.go
-          sed -i.bak -e "s|\(VersionPrerelease * = *\"\)[^\"]*|\1${NOMAD_PRERELEASE_VERSION}|g" version/version.go
+          sed -i.bak -e "s|\(Version * = *\"\)[^\"]*|\1${WANDER_MAIN_VERSION}|g" version/version.go
+          sed -i.bak -e "s|\(VersionPrerelease * = *\"\)[^\"]*|\1${WANDER_PRERELEASE_VERSION}|g" version/version.go
           rm -rf version/version.go.bak
           git diff --color=always version/version.go
 
@@ -157,7 +157,7 @@ jobs:
       - name: Update version file
         run: |
           # Only bump the Version value if this is not a pre-release.
-          # For final releases we want `nomad -version` to display the next
+          # For final releases we want `wander -version` to display the next
           # version to indicate that the current release is done.
           if [ -z "$(semver get prerel ${{ github.event.inputs.version }})" ]; then
             next_version=$(semver bump patch ${{ github.event.inputs.version }})

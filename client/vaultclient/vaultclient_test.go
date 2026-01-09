@@ -10,11 +10,11 @@ import (
 
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/open-wander/wander/ci"
-	"github.com/open-wander/wander/client/config"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/useragent"
 	"github.com/open-wander/wander/nomad/structs"
+	structsconfig "github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/testutil"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/assert"
@@ -119,11 +119,11 @@ func TestVaultClient_NamespaceSupport(t *testing.T) {
 
 	logger := testlog.HCLogger(t)
 
-	conf := config.DefaultConfig()
-	conf.VaultConfig.Enabled = &tr
-	conf.VaultConfig.Token = "testvaulttoken"
-	conf.VaultConfig.Namespace = testNs
-	c, err := NewVaultClient(conf.VaultConfig, logger, nil)
+	vaultConf := structsconfig.DefaultVaultConfig()
+	vaultConf.Enabled = &tr
+	vaultConf.Token = "testvaulttoken"
+	vaultConf.Namespace = testNs
+	c, err := NewVaultClient(vaultConf, logger, nil)
 	require.NoError(err)
 	require.Equal(testNs, c.client.Headers().Get(structs.VaultNamespaceHeaderName))
 }
@@ -132,13 +132,13 @@ func TestVaultClient_Heap(t *testing.T) {
 	ci.Parallel(t)
 
 	tr := true
-	conf := config.DefaultConfig()
-	conf.VaultConfig.Enabled = &tr
-	conf.VaultConfig.Token = "testvaulttoken"
-	conf.VaultConfig.TaskTokenTTL = "10s"
+	vaultConf := structsconfig.DefaultVaultConfig()
+	vaultConf.Enabled = &tr
+	vaultConf.Token = "testvaulttoken"
+	vaultConf.TaskTokenTTL = "10s"
 
 	logger := testlog.HCLogger(t)
-	c, err := NewVaultClient(conf.VaultConfig, logger, nil)
+	c, err := NewVaultClient(vaultConf, logger, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,10 +364,10 @@ func TestVaultClient_RenewalTime_Short(t *testing.T) {
 func TestVaultClient_SetUserAgent(t *testing.T) {
 	ci.Parallel(t)
 
-	conf := config.DefaultConfig()
-	conf.VaultConfig.Enabled = pointer.Of(true)
+	vaultConf := structsconfig.DefaultVaultConfig()
+	vaultConf.Enabled = pointer.Of(true)
 	logger := testlog.HCLogger(t)
-	c, err := NewVaultClient(conf.VaultConfig, logger, nil)
+	c, err := NewVaultClient(vaultConf, logger, nil)
 	must.NoError(t, err)
 
 	ua := c.client.Headers().Get("User-Agent")

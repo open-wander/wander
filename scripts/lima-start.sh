@@ -9,6 +9,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+LIMA_CONFIG="${PROJECT_DIR}/demo/lima/lima.yaml"
 VM_NAME="wander"
 
 # Colors for output
@@ -38,8 +39,7 @@ check_lima() {
 
 create_vm() {
     info "Creating Lima VM '${VM_NAME}'..."
-    cd "$PROJECT_DIR"
-    limactl create --name="${VM_NAME}" lima.yaml
+    limactl create --name="${VM_NAME}" "${LIMA_CONFIG}"
 }
 
 start_vm() {

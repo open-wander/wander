@@ -148,7 +148,7 @@ func TestLogFile_deleteArchives(t *testing.T) {
 		var err error
 		path := filepath.Join(tempDir, tempFile.Name())
 		if bytes, err = os.ReadFile(path); err != nil {
-			t.Errorf(err.Error())
+			t.Error(err)
 			return
 		}
 		contents := string(bytes)
