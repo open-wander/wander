@@ -172,7 +172,24 @@ func (m *Meta) clientConfig() *api.Config {
 }
 
 func (m *Meta) Client() (*api.Client, error) {
-	return api.NewClient(m.clientConfig())
+	config := m.clientConfig()
+
+	// Get and clear deprecation warnings before creating client
+	// (to avoid duplicate warnings if config is used multiple times)
+	warnings := api.GetEnvVarDeprecationWarnings()
+	api.ClearEnvVarDeprecationWarnings()
+
+	client, err := api.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Print any deprecation warnings for NOMAD_* env vars
+	for _, warning := range warnings {
+		m.Ui.Warn(fmt.Sprintf("Warning: %s", warning))
+	}
+
+	return client, nil
 }
 
 func (m *Meta) allNamespaces() bool {
@@ -218,8 +235,9 @@ func (m *Meta) Colorize() *colorstring.Colorize {
 }
 
 func (m *Meta) SetupUi(args []string) {
-	noColor := os.Getenv(EnvNomadCLINoColor) != ""
-	forceColor := os.Getenv(EnvNomadCLIForceColor) != ""
+	// Check WANDER_CLI_* first, then fall back to NOMAD_CLI_* for backward compatibility
+	noColor := os.Getenv(EnvWanderCLINoColor) != "" || os.Getenv(EnvNomadCLINoColor) != ""
+	forceColor := os.Getenv(EnvWanderCLIForceColor) != "" || os.Getenv(EnvNomadCLIForceColor) != ""
 
 	for _, arg := range args {
 		// Check if color is set
@@ -346,20 +364,23 @@ func generalOptionsUsage(usageOpts usageOptsFlags) string {
 
 	helpText := `
   -address=<addr>
-    The address of the Nomad server.
-    Overrides the NOMAD_ADDR environment variable if set.
+    The address of the Wander server.
+    Overrides the WANDER_ADDR environment variable if set.
+    (NOMAD_ADDR is also supported for backward compatibility)
     Default = http://127.0.0.1:4646
 
   -region=<region>
-    The region of the Nomad servers to forward commands to.
-    Overrides the NOMAD_REGION environment variable if set.
+    The region of the Wander servers to forward commands to.
+    Overrides the WANDER_REGION environment variable if set.
+    (NOMAD_REGION is also supported for backward compatibility)
     Defaults to the Agent's local region.
 `
 
 	namespaceText := `
   -namespace=<namespace>
     The target namespace for queries and actions bound to a namespace.
-    Overrides the NOMAD_NAMESPACE environment variable if set.
+    Overrides the WANDER_NAMESPACE environment variable if set.
+    (NOMAD_NAMESPACE is also supported for backward compatibility)
     If set to '*', subcommands which support this functionality query
     all namespaces authorized to user.
     Defaults to the "default" namespace.
@@ -370,46 +391,55 @@ func generalOptionsUsage(usageOpts usageOptsFlags) string {
 	// present in the help messages.
 	remainingText := `
   -no-color
-    Disables colored command output. Alternatively, NOMAD_CLI_NO_COLOR may be
+    Disables colored command output. Alternatively, WANDER_CLI_NO_COLOR may be
     set. This option takes precedence over -force-color.
+    (NOMAD_CLI_NO_COLOR is also supported for backward compatibility)
 
   -force-color
     Forces colored command output. This can be used in cases where the usual
-    terminal detection fails. Alternatively, NOMAD_CLI_FORCE_COLOR may be set.
+    terminal detection fails. Alternatively, WANDER_CLI_FORCE_COLOR may be set.
     This option has no effect if -no-color is also used.
+    (NOMAD_CLI_FORCE_COLOR is also supported for backward compatibility)
 
   -ca-cert=<path>
     Path to a PEM encoded CA cert file to use to verify the
-    Nomad server SSL certificate. Overrides the NOMAD_CACERT
+    Wander server SSL certificate. Overrides the WANDER_CACERT
     environment variable if set.
+    (NOMAD_CACERT is also supported for backward compatibility)
 
   -ca-path=<path>
     Path to a directory of PEM encoded CA cert files to verify
-    the Nomad server SSL certificate. If both -ca-cert and
+    the Wander server SSL certificate. If both -ca-cert and
     -ca-path are specified, -ca-cert is used. Overrides the
-    NOMAD_CAPATH environment variable if set.
+    WANDER_CAPATH environment variable if set.
+    (NOMAD_CAPATH is also supported for backward compatibility)
 
   -client-cert=<path>
     Path to a PEM encoded client certificate for TLS authentication
-    to the Nomad server. Must also specify -client-key. Overrides
-    the NOMAD_CLIENT_CERT environment variable if set.
+    to the Wander server. Must also specify -client-key. Overrides
+    the WANDER_CLIENT_CERT environment variable if set.
+    (NOMAD_CLIENT_CERT is also supported for backward compatibility)
 
   -client-key=<path>
     Path to an unencrypted PEM encoded private key matching the
     client certificate from -client-cert. Overrides the
-    NOMAD_CLIENT_KEY environment variable if set.
+    WANDER_CLIENT_KEY environment variable if set.
+    (NOMAD_CLIENT_KEY is also supported for backward compatibility)
 
   -tls-server-name=<value>
     The server name to use as the SNI host when connecting via
-    TLS. Overrides the NOMAD_TLS_SERVER_NAME environment variable if set.
+    TLS. Overrides the WANDER_TLS_SERVER_NAME environment variable if set.
+    (NOMAD_TLS_SERVER_NAME is also supported for backward compatibility)
 
   -tls-skip-verify
     Do not verify TLS certificate. This is highly not recommended. Verification
-    will also be skipped if NOMAD_SKIP_VERIFY is set.
+    will also be skipped if WANDER_SKIP_VERIFY is set.
+    (NOMAD_SKIP_VERIFY is also supported for backward compatibility)
 
   -token
     The SecretID of an ACL token to use to authenticate API requests with.
-    Overrides the NOMAD_TOKEN environment variable if set.
+    Overrides the WANDER_TOKEN environment variable if set.
+    (NOMAD_TOKEN is also supported for backward compatibility)
 `
 
 	if usageOpts&usageOptsNoNamespace == 0 {

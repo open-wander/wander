@@ -14,10 +14,18 @@ import (
 )
 
 const (
-	// EnvNomadCLINoColor is an env var that toggles colored UI output.
+	// EnvWanderCLINoColor is the env var that toggles colored UI output.
+	EnvWanderCLINoColor = `WANDER_CLI_NO_COLOR`
+
+	// EnvWanderCLIForceColor is the env var that forces colored UI output.
+	EnvWanderCLIForceColor = `WANDER_CLI_FORCE_COLOR`
+
+	// EnvNomadCLINoColor is the deprecated env var for toggling colored UI output.
+	// Use WANDER_CLI_NO_COLOR instead.
 	EnvNomadCLINoColor = `NOMAD_CLI_NO_COLOR`
 
-	// EnvNomadCLIForceColor is an env var that forces colored UI output.
+	// EnvNomadCLIForceColor is the deprecated env var for forcing colored UI output.
+	// Use WANDER_CLI_FORCE_COLOR instead.
 	EnvNomadCLIForceColor = `NOMAD_CLI_FORCE_COLOR`
 )
 
@@ -46,8 +54,8 @@ func (c *DeprecatedCommand) Run(args []string) int {
 
 func (c *DeprecatedCommand) warn() {
 	c.Ui.Warn(wrapAtLength(fmt.Sprintf(
-		"WARNING! The \"nomad %s\" command is deprecated. Please use \"nomad %s\" "+
-			"instead. This command will be removed a later version of Nomad.",
+		"WARNING! The \"wander %s\" command is deprecated. Please use \"wander %s\" "+
+			"instead. This command will be removed in a later version of Wander.",
 		c.Old,
 		c.New)))
 	c.Ui.Warn("")

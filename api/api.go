@@ -27,12 +27,49 @@ import (
 
 var (
 	// ClientConnTimeout is the timeout applied when attempting to contact a
-	// client directly before switching to a connection through the Nomad
+	// client directly before switching to a connection through the Wander
 	// server. For cluster topologies where API consumers don't have network
-	// access to Nomad clients, set this to a small value (ex 1ms) to avoid
+	// access to Wander clients, set this to a small value (ex 1ms) to avoid
 	// pausing on client APIs such as AllocFS.
 	ClientConnTimeout = 1 * time.Second
+
+	// envVarDeprecationWarnings collects deprecation warnings for NOMAD_* env vars
+	// that are used instead of WANDER_* env vars. This is populated during
+	// DefaultConfig() and can be retrieved via GetEnvVarDeprecationWarnings().
+	envVarDeprecationWarnings   []string
+	envVarDeprecationWarningSeen = make(map[string]bool)
 )
+
+// GetEnvVarDeprecationWarnings returns any deprecation warnings that were
+// generated when reading environment variables. Call this after DefaultConfig()
+// to check if any deprecated NOMAD_* env vars were used.
+func GetEnvVarDeprecationWarnings() []string {
+	return envVarDeprecationWarnings
+}
+
+// ClearEnvVarDeprecationWarnings clears the collected deprecation warnings.
+func ClearEnvVarDeprecationWarnings() {
+	envVarDeprecationWarnings = nil
+	envVarDeprecationWarningSeen = make(map[string]bool)
+}
+
+// getEnvWithFallback checks for the WANDER_* env var first, then falls back to
+// the NOMAD_* env var with a deprecation warning if the legacy var is set.
+func getEnvWithFallback(wanderVar, nomadVar string) string {
+	if v := os.Getenv(wanderVar); v != "" {
+		return v
+	}
+	if v := os.Getenv(nomadVar); v != "" {
+		// Only add warning if we haven't seen this env var before
+		if !envVarDeprecationWarningSeen[nomadVar] {
+			envVarDeprecationWarningSeen[nomadVar] = true
+			envVarDeprecationWarnings = append(envVarDeprecationWarnings,
+				fmt.Sprintf("%s is deprecated, use %s instead", nomadVar, wanderVar))
+		}
+		return v
+	}
+	return ""
+}
 
 const (
 	// AllNamespacesNamespace is a sentinel Namespace value to indicate that api should search for
@@ -288,22 +325,31 @@ func defaultHttpClient() *http.Client {
 	return httpClient
 }
 
-// DefaultConfig returns a default configuration for the client
+// DefaultConfig returns a default configuration for the client.
+// It checks for WANDER_* environment variables first, falling back to
+// NOMAD_* environment variables for backward compatibility. If NOMAD_*
+// variables are used, deprecation warnings are collected and can be
+// retrieved via GetEnvVarDeprecationWarnings().
 func DefaultConfig() *Config {
+	// Clear any previous deprecation warnings
+	envVarDeprecationWarnings = nil
+
 	config := &Config{
 		Address:   "http://127.0.0.1:4646",
 		TLSConfig: &TLSConfig{},
 	}
-	if addr := os.Getenv("NOMAD_ADDR"); addr != "" {
+
+	// Check WANDER_ADDR first, then NOMAD_ADDR
+	if addr := getEnvWithFallback("WANDER_ADDR", "NOMAD_ADDR"); addr != "" {
 		config.Address = addr
 	}
-	if v := os.Getenv("NOMAD_REGION"); v != "" {
+	if v := getEnvWithFallback("WANDER_REGION", "NOMAD_REGION"); v != "" {
 		config.Region = v
 	}
-	if v := os.Getenv("NOMAD_NAMESPACE"); v != "" {
+	if v := getEnvWithFallback("WANDER_NAMESPACE", "NOMAD_NAMESPACE"); v != "" {
 		config.Namespace = v
 	}
-	if auth := os.Getenv("NOMAD_HTTP_AUTH"); auth != "" {
+	if auth := getEnvWithFallback("WANDER_HTTP_AUTH", "NOMAD_HTTP_AUTH"); auth != "" {
 		var username, password string
 		if strings.Contains(auth, ":") {
 			split := strings.SplitN(auth, ":", 2)
@@ -320,27 +366,27 @@ func DefaultConfig() *Config {
 	}
 
 	// Read TLS specific env vars
-	if v := os.Getenv("NOMAD_CACERT"); v != "" {
+	if v := getEnvWithFallback("WANDER_CACERT", "NOMAD_CACERT"); v != "" {
 		config.TLSConfig.CACert = v
 	}
-	if v := os.Getenv("NOMAD_CAPATH"); v != "" {
+	if v := getEnvWithFallback("WANDER_CAPATH", "NOMAD_CAPATH"); v != "" {
 		config.TLSConfig.CAPath = v
 	}
-	if v := os.Getenv("NOMAD_CLIENT_CERT"); v != "" {
+	if v := getEnvWithFallback("WANDER_CLIENT_CERT", "NOMAD_CLIENT_CERT"); v != "" {
 		config.TLSConfig.ClientCert = v
 	}
-	if v := os.Getenv("NOMAD_CLIENT_KEY"); v != "" {
+	if v := getEnvWithFallback("WANDER_CLIENT_KEY", "NOMAD_CLIENT_KEY"); v != "" {
 		config.TLSConfig.ClientKey = v
 	}
-	if v := os.Getenv("NOMAD_TLS_SERVER_NAME"); v != "" {
+	if v := getEnvWithFallback("WANDER_TLS_SERVER_NAME", "NOMAD_TLS_SERVER_NAME"); v != "" {
 		config.TLSConfig.TLSServerName = v
 	}
-	if v := os.Getenv("NOMAD_SKIP_VERIFY"); v != "" {
+	if v := getEnvWithFallback("WANDER_SKIP_VERIFY", "NOMAD_SKIP_VERIFY"); v != "" {
 		if insecure, err := strconv.ParseBool(v); err == nil {
 			config.TLSConfig.Insecure = insecure
 		}
 	}
-	if v := os.Getenv("NOMAD_TOKEN"); v != "" {
+	if v := getEnvWithFallback("WANDER_TOKEN", "NOMAD_TOKEN"); v != "" {
 		config.SecretID = v
 	}
 	return config
