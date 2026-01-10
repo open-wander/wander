@@ -182,7 +182,7 @@
     "@hashicorp/ember-flight-icons": "^3.0.4",
     "@percy/cli": "^1.6.1",
     "@percy/ember": "^3.0.0",
-    "curved-arrows": "^0.1.0",
+    "curved-arrows": "^0.3.0",
     "d3": "^7.3.0",
     "lru_map": "^0.4.1",
     "no-case": "^3.0.4",
