@@ -92,7 +92,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.build-ref }}
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
 
@@ -144,7 +144,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.build-ref }}
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
 
@@ -250,7 +250,7 @@ jobs:
           ref: ${{ github.event.inputs.build-ref }}
 
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
 
@@ -372,7 +372,7 @@ jobs:
         goos: [linux]
         goarch: [amd64]
     steps:
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{needs.get-go-version.outputs.go-version}}
       - uses: actions/download-artifact@v4
