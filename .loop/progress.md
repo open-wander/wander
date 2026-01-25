@@ -216,6 +216,50 @@ Pattern: HTMX trigger headers for server-initiated UI updates
 Files: components/input.templ, textarea.templ, checkbox.templ, alert.templ, toast.templ, empty_state.templ, loading.templ, progress.templ + examples
 ---
 
+### 2026-01-25 - Tasks 11-12, 20, 29, 36, 38: Infrastructure & Navigation
+Batch of 6 tasks completed:
+
+**Task 11: Configure air for hot-reload**
+- Created .air.toml configuration
+- Created cmd/dev/main.go development server
+- Added `make ui-dev` target
+- Created DEV_WORKFLOW.md documentation
+
+**Task 12: Create SSE handler utility**
+- Full SSE implementation in handlers/sse.go
+- Headers, event formatting, heartbeat/keep-alive
+- Context cancellation, thread-safe writes
+- Comprehensive tests and SSE_README.md
+
+**Task 20: Select component**
+- Native select with custom styling
+- Size variants (sm, md, lg)
+- HTMX integration for dependent selects
+- Chevron icon indicator
+
+**Task 29: Breadcrumbs component**
+- Chevron separators
+- Last item is current page (not link)
+- Optional icon support
+- HTMX navigation, ARIA accessible
+
+**Task 36: NavItem component (renamed NavigationItem)**
+- Active state with primary colors
+- Icon and badge support
+- Disabled state handling
+- Hover effects with transitions
+
+**Task 38: SearchBar component**
+- HTMX autocomplete with debounce
+- Clear button, loading indicator
+- Keyboard shortcuts (Ctrl+K, /, Esc)
+- Minimum character threshold
+
+Pattern: SSE with heartbeat for keep-alive connections
+Pattern: Keyboard shortcuts via Alpine.js/vanilla JS
+Files: .air.toml, cmd/dev/main.go, handlers/sse.go, components/select.templ, breadcrumbs.templ, nav_item.templ, search_bar.templ
+---
+
 ### 2026-01-25 - Task 3: Create base layout template
 - Created layouts/base.templ with HTML5 structure, meta tags, script loading
 - Created layouts/page.templ with responsive sidebar, header, main content

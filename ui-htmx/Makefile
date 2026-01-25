@@ -60,3 +60,8 @@ ui-watch: ## Watch Templ templates and regenerate on changes
 setup: install-tailwind check-deps build-css-dev ## Complete setup: install CLI, check deps, build CSS
 	@echo ""
 	@echo "✓ Setup complete! You can now run 'make watch-css' for development."
+
+dev: ## Run development server with hot-reload (air)
+	@echo "Starting development server with hot-reload..."
+	@echo "Server will be available at http://localhost:3000/ui/"
+	@air

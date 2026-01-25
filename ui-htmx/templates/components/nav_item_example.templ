@@ -1,0 +1,198 @@
+package components
+
+// NavigationItemExample demonstrates the NavigationItem component with various configurations
+templ NavigationItemExample() {
+	<div class="p-8 space-y-8 bg-neutral-50 min-h-screen">
+		<div class="max-w-md">
+			<h1 class="text-2xl font-bold text-neutral-900 mb-2">NavigationItem Component</h1>
+			<p class="text-neutral-600 mb-6">
+				Navigation items for sidebar menus with active states, icons, and badges.
+			</p>
+			<!-- Basic Navigation Items -->
+			<section class="mb-8">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Basic Navigation Items</h2>
+				<div class="bg-white rounded-lg shadow-sm p-4 space-y-2">
+					@NavigationItem(NavigationItemProps{
+						Label: "Dashboard",
+						Href:  "/dashboard",
+						Icon:  "home",
+					})
+					@NavigationItem(NavigationItemProps{
+						Label: "Jobs",
+						Href:  "/jobs",
+						Icon:  "briefcase",
+					})
+					@NavigationItem(NavigationItemProps{
+						Label: "Servers",
+						Href:  "/servers",
+						Icon:  "server",
+					})
+				</div>
+			</section>
+			<!-- Active State -->
+			<section class="mb-8">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Active State</h2>
+				<div class="bg-white rounded-lg shadow-sm p-4 space-y-2">
+					@NavigationItem(NavigationItemProps{
+						Label:  "Jobs",
+						Href:   "/jobs",
+						Icon:   "briefcase",
+						Active: true,
+					})
+					@NavigationItem(NavigationItemProps{
+						Label: "Servers",
+						Href:  "/servers",
+						Icon:  "server",
+					})
+				</div>
+			</section>
+			<!-- With Badges -->
+			<section class="mb-8">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">With Badges</h2>
+				<div class="bg-white rounded-lg shadow-sm p-4 space-y-2">
+					@NavigationItem(NavigationItemProps{
+						Label:      "Jobs",
+						Href:       "/jobs",
+						Icon:       "briefcase",
+						Badge:      "12",
+						BadgeColor: "primary",
+					})
+					@NavigationItem(NavigationItemProps{
+						Label:      "Alerts",
+						Href:       "/alerts",
+						Icon:       "bell",
+						Badge:      "3",
+						BadgeColor: "error",
+					})
+					@NavigationItem(NavigationItemProps{
+						Label:      "Pending",
+						Href:       "/pending",
+						Icon:       "clock",
+						Badge:      "5",
+						BadgeColor: "warning",
+					})
+					@NavigationItem(NavigationItemProps{
+						Label:      "Completed",
+						Href:       "/completed",
+						Icon:       "check-circle",
+						Badge:      "42",
+						BadgeColor: "success",
+					})
+				</div>
+			</section>
+			<!-- Active with Badge -->
+			<section class="mb-8">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Active with Badge</h2>
+				<div class="bg-white rounded-lg shadow-sm p-4 space-y-2">
+					@NavigationItem(NavigationItemProps{
+						Label:      "Jobs",
+						Href:       "/jobs",
+						Icon:       "briefcase",
+						Active:     true,
+						Badge:      "8",
+						BadgeColor: "primary",
+					})
+					@NavigationItem(NavigationItemProps{
+						Label:      "Servers",
+						Href:       "/servers",
+						Icon:       "server",
+						Badge:      "24",
+						BadgeColor: "neutral",
+					})
+				</div>
+			</section>
+			<!-- Disabled State -->
+			<section class="mb-8">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Disabled State</h2>
+				<div class="bg-white rounded-lg shadow-sm p-4 space-y-2">
+					@NavigationItem(NavigationItemProps{
+						Label:    "Settings",
+						Href:     "/settings",
+						Icon:     "cog",
+						Disabled: true,
+					})
+					@NavigationItem(NavigationItemProps{
+						Label:      "Admin",
+						Href:       "/admin",
+						Icon:       "users",
+						Disabled:   true,
+						Badge:      "Pro",
+						BadgeColor: "warning",
+					})
+				</div>
+			</section>
+			<!-- Without Icons -->
+			<section class="mb-8">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Without Icons</h2>
+				<div class="bg-white rounded-lg shadow-sm p-4 space-y-2">
+					@NavigationItem(NavigationItemProps{
+						Label: "Overview",
+						Href:  "/overview",
+					})
+					@NavigationItem(NavigationItemProps{
+						Label:  "Details",
+						Href:   "/details",
+						Active: true,
+					})
+					@NavigationItem(NavigationItemProps{
+						Label:      "Tasks",
+						Href:       "/tasks",
+						Badge:      "new",
+						BadgeColor: "info",
+					})
+				</div>
+			</section>
+			<!-- Full Example (Sidebar-like) -->
+			<section class="mb-8">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Full Navigation Example</h2>
+				<div class="bg-white rounded-lg shadow-sm p-4">
+					<div class="space-y-1">
+						@NavigationItem(NavigationItemProps{
+							Label: "Dashboard",
+							Href:  "/",
+							Icon:  "home",
+						})
+						@NavigationItem(NavigationItemProps{
+							Label:      "Jobs",
+							Href:       "/jobs",
+							Icon:       "briefcase",
+							Active:     true,
+							Badge:      "12",
+							BadgeColor: "primary",
+						})
+						@NavigationItem(NavigationItemProps{
+							Label: "Allocations",
+							Href:  "/allocations",
+							Icon:  "cube",
+						})
+						@NavigationItem(NavigationItemProps{
+							Label: "Clients",
+							Href:  "/clients",
+							Icon:  "server",
+						})
+						@NavigationItem(NavigationItemProps{
+							Label:      "Notifications",
+							Href:       "/notifications",
+							Icon:       "bell",
+							Badge:      "3",
+							BadgeColor: "error",
+						})
+					</div>
+					<div class="mt-6 pt-6 border-t border-neutral-200 space-y-1">
+						@NavigationItem(NavigationItemProps{
+							Label: "Settings",
+							Href:  "/settings",
+							Icon:  "cog",
+						})
+						@NavigationItem(NavigationItemProps{
+							Label:    "Admin Panel",
+							Href:     "/admin",
+							Icon:     "users",
+							Disabled: true,
+						})
+					</div>
+				</div>
+			</section>
+		</div>
+	</div>
+}

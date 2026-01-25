@@ -7,6 +7,10 @@ static/css/output.css
 # Tailwind CLI binary
 bin/
 
+# Air hot-reload build artifacts
+tmp/
+build-errors.log
+
 # Node modules (for Tailwind plugins)
 node_modules/
 

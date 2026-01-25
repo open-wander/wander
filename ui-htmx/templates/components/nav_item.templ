@@ -1,0 +1,161 @@
+package components
+
+// NavigationItemProps contains parameters for the NavigationItem component
+type NavigationItemProps struct {
+	Label      string // The text label for the navigation item
+	Href       string // The URL to navigate to
+	Icon       string // Icon name from the Icon component (e.g., "home", "briefcase")
+	Active     bool   // Whether this item represents the current active page/route
+	Badge      string // Optional badge text (e.g., count, status)
+	BadgeColor string // Badge color variant: "success", "warning", "error", "info", "neutral", "primary"
+	Disabled   bool   // If true, renders as disabled (non-clickable)
+	Class      string // Additional CSS classes to apply
+}
+
+// NavigationItem renders a navigation item for use in sidebars or navigation menus.
+//
+// Features:
+//   - Active state styling with highlighted background and text
+//   - Icon support using the Icon component
+//   - Optional badge for counts or status indicators
+//   - Disabled state rendering
+//   - Hover effects for interactivity
+//   - HTMX-compatible for SPA-like navigation
+//
+// Active State:
+//   - Primary-colored background and text
+//   - Bold font weight
+//   - aria-current="page" for accessibility
+//
+// Disabled State:
+//   - Muted colors and reduced opacity
+//   - Cursor not-allowed
+//   - No hover effects
+//   - Non-clickable
+//
+// Badge Support:
+//   - Small badge positioned on the right side
+//   - Color variants match Badge component
+//   - Useful for notification counts, status, etc.
+//
+// Example Usage:
+//
+//   Active navigation item with badge:
+//     @NavigationItem(NavigationItemProps{
+//         Label: "Jobs",
+//         Href: "/jobs",
+//         Icon: "briefcase",
+//         Active: true,
+//         Badge: "12",
+//         BadgeColor: "primary",
+//     })
+//
+//   Disabled navigation item:
+//     @NavigationItem(NavigationItemProps{
+//         Label: "Settings",
+//         Href: "/settings",
+//         Icon: "cog",
+//         Disabled: true,
+//     })
+//
+//   Simple navigation item with icon:
+//     @NavigationItem(NavigationItemProps{
+//         Label: "Dashboard",
+//         Href: "/dashboard",
+//         Icon: "home",
+//     })
+templ NavigationItem(props NavigationItemProps) {
+	if props.Disabled {
+		<span class={ navItemDisabledClasses(props) }>
+			if props.Icon != "" {
+				@Icon(IconProps{Name: props.Icon, Size: "md", Class: "flex-shrink-0"})
+			}
+			<span class="flex-1">{ props.Label }</span>
+			if props.Badge != "" {
+				@navItemBadge(props.Badge, props.BadgeColor)
+			}
+		</span>
+	} else {
+		<a
+			href={ templ.SafeURL(props.Href) }
+			class={ navItemClasses(props) }
+			if props.Active {
+				aria-current="page"
+			}
+		>
+			if props.Icon != "" {
+				@Icon(IconProps{Name: props.Icon, Size: "md", Class: "flex-shrink-0"})
+			}
+			<span class="flex-1">{ props.Label }</span>
+			if props.Badge != "" {
+				@navItemBadge(props.Badge, props.BadgeColor)
+			}
+		</a>
+	}
+}
+
+// navItemBadge renders a small badge on the right side of the nav item
+templ navItemBadge(text string, colorVariant string) {
+	<span class={ navItemBadgeClasses(colorVariant) }>
+		{ text }
+	</span>
+}
+
+// navItemClasses generates the CSS classes for the navigation item
+func navItemClasses(props NavigationItemProps) string {
+	baseClasses := "group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150"
+
+	var stateClasses string
+	if props.Active {
+		// Active state: primary background and text
+		stateClasses = "bg-primary-50 text-primary-700 hover:bg-primary-100"
+	} else {
+		// Default state: subtle hover effect
+		stateClasses = "text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
+	}
+
+	classes := baseClasses + " " + stateClasses
+	if props.Class != "" {
+		classes += " " + props.Class
+	}
+
+	return classes
+}
+
+// navItemDisabledClasses generates CSS classes for disabled navigation items
+func navItemDisabledClasses(props NavigationItemProps) string {
+	baseClasses := "group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md opacity-50 cursor-not-allowed"
+	classes := baseClasses + " text-neutral-500"
+
+	if props.Class != "" {
+		classes += " " + props.Class
+	}
+
+	return classes
+}
+
+// navItemBadgeClasses generates CSS classes for the badge based on color variant
+func navItemBadgeClasses(colorVariant string) string {
+	baseClasses := "inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full"
+
+	var variantClasses string
+	switch colorVariant {
+	case "success":
+		variantClasses = "bg-success-100 text-success-800"
+	case "warning":
+		variantClasses = "bg-warning-100 text-warning-800"
+	case "error":
+		variantClasses = "bg-error-100 text-error-800"
+	case "info":
+		variantClasses = "bg-info-100 text-info-800"
+	case "neutral":
+		variantClasses = "bg-neutral-100 text-neutral-800"
+	case "primary":
+		variantClasses = "bg-primary-100 text-primary-800"
+	default:
+		// Default to neutral if no variant specified
+		variantClasses = "bg-neutral-100 text-neutral-800"
+	}
+
+	return baseClasses + " " + variantClasses
+}

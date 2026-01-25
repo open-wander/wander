@@ -44,6 +44,7 @@ The following files are auto-generated and should not be committed:
 
 - Go 1.25.5+
 - Templ CLI: `go install github.com/a-h/templ/cmd/templ@latest`
+- Air (for hot-reload): `go install github.com/air-verse/air@latest`
 - Node.js 18+ (for Tailwind CSS plugins)
 
 ## Setup
@@ -83,6 +84,39 @@ make setup
 
 ### Development Workflow
 
+#### Option 1: Hot-Reload Development (Recommended)
+
+Use air for automatic hot-reload when Go or Templ files change:
+
+**From project root:**
+```bash
+# Terminal 1: Run development server with hot-reload (watches .go and .templ files)
+make ui-dev
+
+# Terminal 2: Watch and rebuild CSS
+make ui-css-watch
+```
+
+**From ui-htmx directory:**
+```bash
+# Terminal 1: Run development server with hot-reload
+air
+
+# Terminal 2: Watch and rebuild CSS
+make watch-css
+```
+
+The dev server will be available at `http://localhost:3000/ui/`
+
+Air will automatically:
+- Generate Templ templates when .templ files change
+- Rebuild the Go server when .go files change
+- Restart the server with the new binary
+
+#### Option 2: Manual Development
+
+If you prefer manual control over the build process:
+
 **From project root:**
 ```bash
 # Terminal 1: Watch and rebuild Templ templates
@@ -91,8 +125,8 @@ make ui-watch
 # Terminal 2: Watch and rebuild CSS
 make ui-css-watch
 
-# Terminal 3: Run the Go server
-make dev
+# Terminal 3: Run the Go server manually
+cd ui-htmx && go run cmd/dev/main.go
 ```
 
 **From ui-htmx directory:**
@@ -103,8 +137,8 @@ templ generate --watch
 # Terminal 2: Watch and rebuild CSS
 make watch-css
 
-# Terminal 3: Run the Go server (from project root)
-cd .. && go run main.go
+# Terminal 3: Run the Go server
+go run cmd/dev/main.go
 ```
 
 ## Build Commands
@@ -159,6 +193,7 @@ make verify-config
 **Root Makefile targets:**
 ```
 make ui-setup          # Setup UI dependencies (Tailwind CLI + npm packages)
+make ui-dev            # Run development server with hot-reload (air)
 make ui-css            # Build production CSS (minified)
 make ui-css-dev        # Build development CSS (not minified)
 make ui-css-watch      # Watch and rebuild CSS on changes
@@ -180,6 +215,39 @@ make clean             # Remove generated CSS
 make verify-config     # Verify Tailwind config
 make check-deps        # Check npm dependencies
 make setup             # Complete setup
+```
+
+## Hot-Reload Configuration
+
+The `.air.toml` file configures air for hot-reload development:
+
+- **Watched files**: `.go` and `.templ` files (excluding test files)
+- **Build command**: Runs `templ generate` then builds the dev server
+- **Binary location**: `./tmp/ui-htmx-dev`
+- **Restart delay**: 1 second after file changes
+- **Build logs**: Saved to `build-errors.log`
+
+Air automatically:
+1. Detects file changes in Go or Templ files
+2. Runs `templ generate` to update generated Go code
+3. Rebuilds the Go binary
+4. Restarts the server
+
+This provides a smooth development experience without manual rebuilds.
+
+## Development Server
+
+The development server (`cmd/dev/main.go`) is a lightweight HTTP server that:
+
+- Serves the UI at `http://localhost:3000/ui/`
+- Uses the handlers and router from `ui-htmx/handlers/`
+- Supports command-line flags:
+  - `-port`: Server port (default: 3000)
+  - `-log-level`: Logging level (default: info)
+
+Example:
+```bash
+go run cmd/dev/main.go -port 8080 -log-level debug
 ```
 
 ## Architecture Notes

@@ -430,6 +430,11 @@ ui-setup: ## Setup UI dependencies (Tailwind CLI + npm packages)
 	@echo "==> Setting up UI dependencies..."
 	@cd ui-htmx && $(MAKE) setup
 
+.PHONY: ui-dev
+ui-dev: ## Run UI development server with hot-reload (air)
+	@echo "==> Starting UI development server with hot-reload..."
+	@cd ui-htmx && air
+
 .PHONY: version
 version: ## Lookup the current build version
 ifneq (,$(wildcard version/version_ent.go))

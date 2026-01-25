@@ -21,8 +21,8 @@ Status: in-progress
 - [x] 8. Create base Tailwind styles (typography, forms, buttons) (needs: 7)
 - [x] 9. Add Alpine.js and create component patterns (dropdown, modal, tabs) (needs: 1)
 - [x] 10. Create ui-htmx handlers package with route registration (needs: 3, 5)
-- [ ] 11. Configure air for Go hot-reload development workflow (needs: 10)
-- [ ] 12. Create SSE handler utility for real-time log streaming (needs: 10)
+- [x] 11. Configure air for Go hot-reload development workflow (needs: 10)
+- [x] 12. Create SSE handler utility for real-time log streaming (needs: 10)
 - [ ] 13. Implement SSE connection management and reconnection logic (needs: 12)
 
 ### Phase 2: Core Component Library
@@ -33,7 +33,7 @@ Status: in-progress
 - [x] 17. Create Icon component with Heroicons SVG helper (needs: 8)
 - [x] 18. Create Input component (text, number, password, search) (needs: 8)
 - [x] 19. Create Textarea component with auto-resize option (needs: 8)
-- [ ] 20. Create Select component with Alpine.js styling (needs: 9, 8)
+- [x] 20. Create Select component with Alpine.js styling (needs: 9, 8)
 - [x] 21. Create Checkbox, Radio, and Toggle components (needs: 8)
 - [ ] 22. Create FormField wrapper with label and error message (needs: 18, 19, 20, 21)
 - [x] 23. Create PageLayout component with header, sidebar, main areas (needs: 3)
@@ -42,16 +42,16 @@ Status: in-progress
 - [x] 26. Create Modal component with Alpine.js (needs: 9, 8)
 - [x] 27. Create Dropdown menu component with Alpine.js (needs: 9, 8)
 - [x] 28. Create Tabs component with HTMX lazy-loading support (needs: 5, 9)
-- [ ] 29. Create Breadcrumbs component (needs: 16)
+- [x] 29. Create Breadcrumbs component (needs: 16)
 - [x] 30. Create Alert component (info, success, warning, error) (needs: 8)
 - [x] 31. Create Toast notification system with Alpine.js (needs: 9, 8)
 - [x] 32. Create EmptyState component (needs: 8)
 - [x] 33. Create LoadingSpinner and Skeleton loader components (needs: 8)
 - [x] 34. Create ProgressBar component (needs: 8)
 - [ ] 35. Create Sidebar component with collapsible sections (needs: 9, 23)
-- [ ] 36. Create NavItem component with active state (needs: 16)
+- [x] 36. Create NavItem component with active state (needs: 16)
 - [ ] 37. Create Header component with user menu, region selector (needs: 27, 23)
-- [ ] 38. Create SearchBar component with HTMX autocomplete (needs: 5, 18)
+- [x] 38. Create SearchBar component with HTMX autocomplete (needs: 5, 18)
 
 ### Phase 3: Jobs Section
 
