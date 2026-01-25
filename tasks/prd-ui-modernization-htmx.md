@@ -635,6 +635,53 @@ This is a complete rewrite (Big Bang approach) that maintains the same layout an
 
 ---
 
+## Recommended Agents & Skills
+
+When implementing this PRD, use the following specialized agents:
+
+| Phase/Task | Agent | When to Use |
+|------------|-------|-------------|
+| Go code (handlers, templates) | `golang-pro` | Writing idiomatic Go, Templ integration, HTTP handlers |
+| Frontend design | `frontend-design` | Creating Tailwind components, layout decisions |
+| JavaScript (Alpine, D3, CodeMirror) | `javascript-pro` | Client-side code, Alpine components, D3 charts |
+| TypeScript (if any) | `typescript-pro` | Type definitions, CodeMirror 6 setup |
+| Testing | `test-automator` | Setting up Playwright, Go tests, test patterns |
+| Code review | `code-reviewer` | After completing each user story |
+| Architecture decisions | `architect-reviewer` | After structural changes, new packages |
+| Security | `security-auditor` | ACL/token handling, input validation |
+| CSS/UI verification | `ui-visual-validator` | Verifying UI matches requirements |
+| Debugging | `debugger` | When encountering errors or test failures |
+| Documentation | `docs-architect` | README updates, architecture docs |
+
+### Workflow for Each User Story
+
+1. **Start**: Read the user story and acceptance criteria
+2. **Plan**: Use `Plan` agent for complex stories (3+ files)
+3. **Implement**: Use appropriate specialized agent (e.g., `golang-pro` for Go code)
+4. **Review**: Run `code-reviewer` agent after implementation
+5. **Test**: Use `test-automator` to write/run tests
+6. **Verify UI**: Use `ui-visual-validator` for any visual changes
+7. **Complete**: Mark acceptance criteria as done
+
+### Skills to Use
+
+- `/commit` - After completing each user story
+- `/lint` - Before committing to catch issues
+- `/test` - Run test suite after changes
+- `agent-browser` - For manual UI verification (screenshots, interaction testing)
+
+### Browser Automation for UI Verification
+
+For stories with UI components, use `agent-browser` to verify:
+```bash
+agent-browser open http://localhost:4646/ui/
+agent-browser snapshot -i          # Get interactive elements
+agent-browser click @e1            # Test interactions
+agent-browser screenshot verify.png # Capture for review
+```
+
+---
+
 ## Decisions Log
 
 All open questions have been resolved:

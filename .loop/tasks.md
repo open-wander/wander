@@ -11,7 +11,7 @@ Status: in-progress
 
 ### Phase 1: Infrastructure Setup
 
-- [ ] 1. Create ui-htmx directory structure and install Templ CLI
+- [x] 1. Create ui-htmx directory structure and install Templ CLI
 - [ ] 2. Configure templ generate in Makefile with watch mode (needs: 1)
 - [ ] 3. Create base layout template with HTML head/body structure (needs: 2)
 - [ ] 4. Add HTMX library and create request detection middleware (needs: 1)

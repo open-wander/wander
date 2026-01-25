@@ -137,3 +137,7 @@ e2e/remotetasks/input/ecs.vars
 tools/missing/missing
 consul
 vault
+
+# UI-HTMX generated files
+ui-htmx/templates/**/*_templ.go
+ui-htmx/static/css/output.css
