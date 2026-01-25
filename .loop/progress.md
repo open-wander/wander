@@ -107,6 +107,64 @@
 - Files: static/css/input.css
 ---
 
+### 2026-01-25 - Tasks 14-17, 24-27: Core UI Components
+Batch of 8 component tasks completed:
+
+**Task 14: Button component**
+- Variants: primary, secondary, danger, success, warning, ghost, outline
+- Sizes: xs, sm, md, lg, xl
+- Loading state with spinner, icon support (left/right)
+- Full HTMX attribute passthrough
+
+**Task 15: Badge component**
+- Color variants mapped to job states (success, warning, error, info, neutral)
+- Sizes: sm, md, lg
+- Optional dot indicator and pill shape
+
+**Task 16: Link component**
+- Auto-detect internal/external URLs
+- External links: new tab + security attrs + icon
+- HTMX integration for SPA navigation
+- Variants: default, muted, primary
+
+**Task 17: Icon component**
+- 41+ Heroicons (outline style, 24x24)
+- Categories: navigation, actions, status, arrows, UI
+- Sizes: sm (16px), md (20px), lg (24px), xl (32px)
+- Fallback icon for unknown names
+
+**Task 24: Card component**
+- Flexible slots: header, body, footer
+- CardHeaderTitle helper for title/subtitle
+- Loading skeleton state
+- Configurable padding, border, shadow, hover
+
+**Task 25: Table component**
+- Sortable columns with HTMX
+- Sort indicators (arrows)
+- Striped/compact/hover variants
+- Empty state and loading indicator
+- Responsive horizontal scroll
+
+**Task 26: Modal component**
+- Alpine.js integration (open/close state)
+- Sizes: sm, md, lg, xl, full
+- Escape to close, backdrop click
+- Header, body, footer slots
+- HTMX lazy-load support
+
+**Task 27: Dropdown component**
+- Alpine.js integration
+- 15+ built-in icons
+- HTMX action support
+- Dividers, danger styling
+- Keyboard navigation
+
+Pattern: Component composition with sub-components (e.g., Modal → ModalHeader + ModalBody + ModalFooter)
+Pattern: Helper functions for CSS class generation
+Files: components/button.templ, badge.templ, link.templ, icon.templ, card.templ, table.templ, modal.templ, dropdown.templ + examples and docs
+---
+
 ### 2026-01-25 - Task 3: Create base layout template
 - Created layouts/base.templ with HTML5 structure, meta tags, script loading
 - Created layouts/page.templ with responsive sidebar, header, main content

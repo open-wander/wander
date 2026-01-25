@@ -1,0 +1,152 @@
+package components
+
+import "strings"
+
+// LinkProps contains parameters for the Link component
+type LinkProps struct {
+	Href      string // The URL to link to
+	External  bool   // If true, opens in new tab with security attributes
+	Variant   string // Styling variant: "default", "muted", "primary"
+	Class     string // Additional CSS classes to apply
+	HxGet     string // HTMX hx-get attribute for dynamic loading
+	HxTarget  string // HTMX hx-target attribute (e.g., "#content")
+	HxPushUrl bool   // If true, updates browser URL with HTMX navigation
+}
+
+// Link renders a smart link that handles internal/external URLs appropriately.
+//
+// Internal links (default):
+//   - Use HTMX for SPA-like navigation when HxGet is set
+//   - No new tab, standard navigation behavior
+//   - Integrates with HTMX routing and page transitions
+//
+// External links (External=true):
+//   - Opens in new tab (target="_blank")
+//   - Includes security attributes (rel="noopener noreferrer")
+//   - Shows external link icon to indicate external navigation
+//   - No HTMX attributes applied
+//
+// Variants:
+//   - "default": Standard link styling (blue with hover)
+//   - "muted": Subtle gray styling for secondary links
+//   - "primary": Bold primary color for emphasis
+//
+// Example Usage:
+//
+//   Internal link with HTMX navigation:
+//     @Link(LinkProps{
+//         Href: "/dashboard",
+//         HxGet: "/api/dashboard",
+//         HxTarget: "#main-content",
+//         HxPushUrl: true,
+//         Variant: "default",
+//     }) {
+//         Dashboard
+//     }
+//
+//   External link with new tab:
+//     @Link(LinkProps{
+//         Href: "https://example.com",
+//         External: true,
+//         Variant: "primary",
+//     }) {
+//         Visit Example
+//     }
+//
+//   Simple internal link:
+//     @Link(LinkProps{Href: "/settings"}) {
+//         Settings
+//     }
+templ Link(props LinkProps) {
+	<a
+		href={ templ.SafeURL(props.Href) }
+		if props.External {
+			target="_blank"
+			rel="noopener noreferrer"
+		}
+		if !props.External && props.HxGet != "" {
+			hx-get={ props.HxGet }
+		}
+		if !props.External && props.HxTarget != "" {
+			hx-target={ props.HxTarget }
+		}
+		if !props.External && props.HxPushUrl {
+			hx-push-url="true"
+		}
+		class={ linkClasses(props) }
+	>
+		{ children... }
+		if props.External {
+			@externalLinkIcon()
+		}
+	</a>
+}
+
+// linkClasses generates the CSS classes for the link based on variant and custom classes
+func linkClasses(props LinkProps) string {
+	baseClasses := "inline-flex items-center gap-1 transition-colors duration-150"
+
+	var variantClasses string
+	switch props.Variant {
+	case "muted":
+		variantClasses = "text-neutral-600 hover:text-neutral-900 underline-offset-2 hover:underline"
+	case "primary":
+		variantClasses = "text-primary-600 hover:text-primary-700 font-medium underline-offset-2 hover:underline"
+	default: // "default"
+		variantClasses = "text-blue-600 hover:text-blue-800 underline-offset-2 hover:underline"
+	}
+
+	// Combine base, variant, and custom classes
+	classes := baseClasses + " " + variantClasses
+	if props.Class != "" {
+		classes += " " + props.Class
+	}
+
+	return classes
+}
+
+// externalLinkIcon renders a small icon to indicate external links
+// Uses Heroicon's "arrow-top-right-on-square" icon
+templ externalLinkIcon() {
+	<svg
+		class="inline-block h-4 w-4 flex-shrink-0"
+		xmlns="http://www.w3.org/2000/svg"
+		fill="none"
+		viewBox="0 0 24 24"
+		stroke="currentColor"
+		aria-hidden="true"
+	>
+		<path
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			stroke-width="2"
+			d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+		></path>
+	</svg>
+}
+
+// IsExternalURL checks if a URL is external (different domain or protocol)
+// Useful for automatically setting External=true when building LinkProps
+func IsExternalURL(url string) bool {
+	if url == "" {
+		return false
+	}
+
+	// URLs starting with / are internal
+	if strings.HasPrefix(url, "/") {
+		return false
+	}
+
+	// URLs with protocol are external (http://, https://, mailto:, etc.)
+	if strings.Contains(url, "://") || strings.HasPrefix(url, "mailto:") {
+		return true
+	}
+
+	// Fragment-only links (#section) are internal
+	if strings.HasPrefix(url, "#") {
+		return false
+	}
+
+	// Relative paths are internal
+	return false
+}

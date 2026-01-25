@@ -1,0 +1,318 @@
+package components
+
+import "fmt"
+
+// Column represents a table column configuration
+type Column struct {
+	Key      string // Data key for this column
+	Label    string // Display label for the column header
+	Sortable bool   // Whether this column supports sorting
+	Width    string // Optional width class (e.g., "w-1/4", "w-32")
+	Align    string // Text alignment: "left", "center", "right"
+}
+
+// TableProps contains parameters for the Table component
+type TableProps struct {
+	Columns    []Column // Column definitions
+	SortColumn string   // Current sort column key
+	SortDir    string   // Current sort direction: "asc" or "desc"
+	Striped    bool     // Enable striped rows
+	Compact    bool     // Enable compact spacing
+	Hover      bool     // Enable row hover effect
+	SortURL    string   // Base URL for sort links (e.g., "/jobs")
+	Class      string   // Additional CSS classes
+}
+
+// Table renders a complete table with responsive scrolling wrapper.
+// This is the main entry point for creating tables.
+//
+// Features:
+//   - Sortable column headers with HTMX
+//   - Sort direction indicators (up/down arrows)
+//   - Responsive horizontal scroll
+//   - Striped rows variant
+//   - Compact spacing variant
+//   - Row hover effects
+//
+// Example Usage:
+//   @Table(TableProps{
+//       Columns: []Column{
+//           {Key: "name", Label: "Name", Sortable: true, Align: "left"},
+//           {Key: "status", Label: "Status", Sortable: true, Align: "center", Width: "w-32"},
+//           {Key: "created", Label: "Created", Sortable: true, Align: "right"},
+//       },
+//       SortColumn: "name",
+//       SortDir: "asc",
+//       Striped: true,
+//       Hover: true,
+//       SortURL: "/jobs",
+//   }) {
+//       @TableBody() {
+//           @TableRow(false) {
+//               @TableCell("left", "") { Job 1 }
+//               @TableCell("center", "") { Running }
+//               @TableCell("right", "") { 2 hours ago }
+//           }
+//       }
+//   }
+templ Table(props TableProps) {
+	<div class="overflow-x-auto scrollbar-thin">
+		<table class={ tableClasses(props) }>
+			@TableHeader(props)
+			{ children... }
+		</table>
+	</div>
+}
+
+// TableHeader renders the table header row with sortable columns.
+// This is used internally by Table() and shouldn't be called directly.
+templ TableHeader(props TableProps) {
+	<thead class="bg-neutral-50 dark:bg-neutral-800">
+		<tr>
+			for _, col := range props.Columns {
+				if col.Sortable {
+					@sortableHeaderCell(col, props)
+				} else {
+					@staticHeaderCell(col)
+				}
+			}
+		</tr>
+	</thead>
+}
+
+// sortableHeaderCell renders a clickable column header with HTMX sorting
+templ sortableHeaderCell(col Column, props TableProps) {
+	<th
+		class={ headerCellClasses(col) }
+		scope="col"
+	>
+		<button
+			type="button"
+			class="group inline-flex items-center gap-2 w-full text-left font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800 rounded-sm"
+			hx-get={ buildSortURL(props.SortURL, col.Key, props.SortColumn, props.SortDir) }
+			hx-target="closest table"
+			hx-swap="outerHTML"
+			hx-indicator="#table-loading"
+			hx-push-url="true"
+		>
+			<span>{ col.Label }</span>
+			@sortIndicator(col.Key, props.SortColumn, props.SortDir)
+		</button>
+	</th>
+}
+
+// staticHeaderCell renders a non-sortable column header
+templ staticHeaderCell(col Column) {
+	<th
+		class={ headerCellClasses(col) }
+		scope="col"
+	>
+		<span class="font-semibold uppercase tracking-wider">{ col.Label }</span>
+	</th>
+}
+
+// sortIndicator renders the sort direction arrows for sortable columns
+templ sortIndicator(colKey string, sortColumn string, sortDir string) {
+	<span class="flex flex-col ml-auto">
+		if sortColumn == colKey {
+			if sortDir == "asc" {
+				<!-- Active ascending arrow -->
+				<svg class="w-3 h-3 text-primary-600 dark:text-primary-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"></path>
+				</svg>
+			} else if sortDir == "desc" {
+				<!-- Active descending arrow -->
+				<svg class="w-3 h-3 text-primary-600 dark:text-primary-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+					<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+				</svg>
+			}
+		} else {
+			<!-- Inactive sort indicator - both arrows -->
+			<svg class="w-3 h-3 text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-400 dark:group-hover:text-neutral-500 transition-colors" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+				<path d="M5 10l5-5 5 5H5z"></path>
+				<path d="M15 10l-5 5-5-5h10z"></path>
+			</svg>
+		}
+	</span>
+}
+
+// TableBody wraps table rows. Accepts children as table rows.
+//
+// Example:
+//   @TableBody() {
+//       @TableRow(false) { ... cells ... }
+//       @TableRow(false) { ... cells ... }
+//   }
+templ TableBody() {
+	<tbody class="bg-white divide-y divide-neutral-200 dark:bg-neutral-900 dark:divide-neutral-700">
+		{ children... }
+	</tbody>
+}
+
+// TableRow renders a single table row with optional clickable behavior.
+//
+// Parameters:
+//   - clickable: Whether the row should have hover effects and cursor pointer
+//
+// Example:
+//   @TableRow(true) {
+//       @TableCell("left", "") { Data 1 }
+//       @TableCell("center", "") { Data 2 }
+//   }
+templ TableRow(clickable bool) {
+	<tr class={ rowClasses(clickable) }>
+		{ children... }
+	</tr>
+}
+
+// TableCell renders a single table cell with alignment and width.
+//
+// Parameters:
+//   - align: Text alignment - "left", "center", "right", or "" for default (left)
+//   - width: Optional width class (e.g., "w-32", "w-1/4") or "" for auto
+//
+// Example:
+//   @TableCell("center", "w-32") {
+//       <span class="badge badge-success">Active</span>
+//   }
+templ TableCell(align string, width string) {
+	<td class={ cellClasses(align, width) }>
+		{ children... }
+	</td>
+}
+
+// EmptyState renders a message when the table has no data.
+// Should be used inside TableBody.
+//
+// Example:
+//   @TableBody() {
+//       @EmptyState("No jobs found", "Try adjusting your filters")
+//   }
+templ EmptyState(title string, description string) {
+	<tr>
+		<td colspan="100" class="px-6 py-12 text-center">
+			<div class="flex flex-col items-center justify-center gap-2">
+				<!-- Empty state icon -->
+				<svg class="w-12 h-12 text-neutral-300 dark:text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+				</svg>
+				<div>
+					<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">{ title }</h3>
+					if description != "" {
+						<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{ description }</p>
+					}
+				</div>
+			</div>
+		</td>
+	</tr>
+}
+
+// TableLoadingIndicator shows a loading spinner during HTMX requests.
+// Should be placed outside the table.
+//
+// Example:
+//   @Table(...) { ... }
+//   @TableLoadingIndicator()
+templ TableLoadingIndicator() {
+	<div id="table-loading" class="htmx-indicator">
+		<div class="flex items-center justify-center py-4">
+			<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 dark:border-primary-400"></div>
+			<span class="ml-3 text-sm text-neutral-600 dark:text-neutral-400">Loading...</span>
+		</div>
+	</div>
+}
+
+// Helper Functions
+// ----------------
+
+// tableClasses builds the table CSS classes based on props
+func tableClasses(props TableProps) string {
+	classes := "min-w-full divide-y divide-neutral-200 dark:divide-neutral-700"
+
+	if props.Striped {
+		classes += " table-striped"
+	}
+
+	if props.Compact {
+		classes += " table-compact"
+	}
+
+	if props.Class != "" {
+		classes += " " + props.Class
+	}
+
+	return classes
+}
+
+// headerCellClasses builds CSS classes for header cells
+func headerCellClasses(col Column) string {
+	classes := "px-6 py-3 text-xs bg-neutral-50 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
+
+	// Add alignment
+	switch col.Align {
+	case "center":
+		classes += " text-center"
+	case "right":
+		classes += " text-right"
+	default:
+		classes += " text-left"
+	}
+
+	// Add width if specified
+	if col.Width != "" {
+		classes += " " + col.Width
+	}
+
+	return classes
+}
+
+// cellClasses builds CSS classes for table cells
+func cellClasses(align string, width string) string {
+	classes := "px-6 py-4 whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-300"
+
+	// Add alignment
+	switch align {
+	case "center":
+		classes += " text-center"
+	case "right":
+		classes += " text-right"
+	default:
+		classes += " text-left"
+	}
+
+	// Add width if specified
+	if width != "" {
+		classes += " " + width
+	}
+
+	return classes
+}
+
+// rowClasses builds CSS classes for table rows
+func rowClasses(clickable bool) string {
+	classes := "transition-colors duration-100"
+
+	if clickable {
+		classes += " hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+	}
+
+	return classes
+}
+
+// buildSortURL constructs the HTMX sort URL with query parameters.
+// Toggles sort direction if clicking the currently sorted column.
+func buildSortURL(baseURL string, colKey string, currentSortCol string, currentSortDir string) string {
+	newDir := "asc"
+
+	// If clicking the same column, toggle direction
+	if colKey == currentSortCol {
+		if currentSortDir == "asc" {
+			newDir = "desc"
+		} else {
+			newDir = "asc"
+		}
+	}
+
+	// Build URL with query parameters
+	return fmt.Sprintf("%s?sort=%s&dir=%s", baseURL, colKey, newDir)
+}

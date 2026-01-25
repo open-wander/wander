@@ -1,0 +1,374 @@
+package components
+
+// This file contains example usage patterns for the Modal component.
+// These examples demonstrate various modal configurations and integration patterns.
+
+// Example 1: Basic Modal with Static Content
+//
+// Usage:
+//   @ModalExampleBasic()
+templ ModalExampleBasic() {
+	<div x-data="modal()">
+		<!-- Trigger Button -->
+		<button
+			@click="open"
+			type="button"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+		>
+			Open Basic Modal
+		</button>
+		<!-- Modal -->
+		@Modal(ModalProps{
+			ID:       "basic-modal",
+			Title:    "Basic Modal Example",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@ModalBody() {
+				<p class="text-sm text-neutral-500">
+					This is a basic modal with static content. It demonstrates the default
+					modal behavior with a medium size and all standard features enabled.
+				</p>
+				<div class="mt-4">
+					<h4 class="text-sm font-medium text-neutral-900">Features:</h4>
+					<ul class="mt-2 text-sm text-neutral-500 list-disc list-inside">
+						<li>Escape key to close</li>
+						<li>Click backdrop to close</li>
+						<li>Focus trap for accessibility</li>
+						<li>Body scroll lock</li>
+						<li>Smooth animations</li>
+					</ul>
+				</div>
+			}
+			@ModalFooter() {
+				<button
+					@click="close"
+					type="button"
+					class="inline-flex justify-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+				>
+					Cancel
+				</button>
+				<button
+					@click="close"
+					type="button"
+					class="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+				>
+					Confirm
+				</button>
+			}
+		}
+	</div>
+}
+
+// Example 2: Modal with HTMX Content Loading
+//
+// This example shows how to lazy-load modal content from the server.
+// The content is fetched via HTMX when the modal opens.
+//
+// Usage:
+//   @ModalExampleHTMX()
+templ ModalExampleHTMX() {
+	<div x-data="modal()">
+		<!-- Trigger Button with HTMX -->
+		<button
+			@click="open"
+			hx-get="/api/modal-content"
+			hx-target="#dynamic-modal-body"
+			hx-trigger="click once"
+			hx-indicator="#modal-loading"
+			type="button"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
+		>
+			Open HTMX Modal
+		</button>
+		<!-- Modal with Dynamic Content -->
+		@Modal(ModalProps{
+			ID:       "htmx-modal",
+			Title:    "Dynamic Content Modal",
+			Size:     "lg",
+			Closable: true,
+		}) {
+			@ModalBody() {
+				<div id="dynamic-modal-body">
+					<!-- HTMX will populate this -->
+					<div id="modal-loading" class="htmx-indicator">
+						<div class="flex items-center justify-center py-8">
+							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+							<span class="ml-3 text-sm text-neutral-600">Loading content...</span>
+						</div>
+					</div>
+				</div>
+			}
+			@ModalFooter() {
+				<button
+					@click="close"
+					type="button"
+					class="inline-flex justify-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50"
+				>
+					Close
+				</button>
+			}
+		}
+	</div>
+}
+
+// Example 3: Form Modal with Submission
+//
+// This example demonstrates a modal containing a form that submits via HTMX.
+//
+// Usage:
+//   @ModalExampleForm()
+templ ModalExampleForm() {
+	<div x-data="modal()">
+		<!-- Trigger Button -->
+		<button
+			@click="open"
+			type="button"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
+		>
+			Open Form Modal
+		</button>
+		<!-- Modal with Form -->
+		@Modal(ModalProps{
+			ID:       "form-modal",
+			Title:    "Create New Item",
+			Size:     "md",
+			Closable: true,
+		}) {
+			<form
+				hx-post="/api/items"
+				hx-target="#form-result"
+				hx-on::after-request="if(event.detail.successful) { close() }"
+			>
+				@ModalBody() {
+					<div id="form-result"></div>
+					<div class="space-y-4">
+						<div>
+							<label for="item-name" class="block text-sm font-medium text-neutral-700">
+								Name
+							</label>
+							<input
+								type="text"
+								id="item-name"
+								name="name"
+								required
+								class="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+							/>
+						</div>
+						<div>
+							<label for="item-description" class="block text-sm font-medium text-neutral-700">
+								Description
+							</label>
+							<textarea
+								id="item-description"
+								name="description"
+								rows="3"
+								class="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+							></textarea>
+						</div>
+					</div>
+				}
+				@ModalFooter() {
+					<button
+						@click="close"
+						type="button"
+						class="inline-flex justify-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50"
+					>
+						Cancel
+					</button>
+					<button
+						type="submit"
+						class="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700"
+					>
+						Create
+					</button>
+				}
+			</form>
+		}
+	</div>
+}
+
+// Example 4: Different Modal Sizes
+//
+// This example shows all available modal sizes.
+//
+// Usage:
+//   @ModalExampleSizes()
+templ ModalExampleSizes() {
+	<div class="space-x-2">
+		<!-- Small Modal -->
+		<div x-data="modal()" class="inline-block">
+			<button @click="open" type="button" class="btn-secondary">Small</button>
+			@Modal(ModalProps{ID: "modal-sm", Title: "Small Modal", Size: "sm", Closable: true}) {
+				@ModalBody() {
+					<p class="text-sm text-neutral-500">This is a small modal (384px max-width).</p>
+				}
+			}
+		</div>
+		<!-- Medium Modal -->
+		<div x-data="modal()" class="inline-block">
+			<button @click="open" type="button" class="btn-secondary">Medium</button>
+			@Modal(ModalProps{ID: "modal-md", Title: "Medium Modal", Size: "md", Closable: true}) {
+				@ModalBody() {
+					<p class="text-sm text-neutral-500">This is a medium modal (512px max-width).</p>
+				}
+			}
+		</div>
+		<!-- Large Modal -->
+		<div x-data="modal()" class="inline-block">
+			<button @click="open" type="button" class="btn-secondary">Large</button>
+			@Modal(ModalProps{ID: "modal-lg", Title: "Large Modal", Size: "lg", Closable: true}) {
+				@ModalBody() {
+					<p class="text-sm text-neutral-500">This is a large modal (640px max-width).</p>
+				}
+			}
+		</div>
+		<!-- XL Modal -->
+		<div x-data="modal()" class="inline-block">
+			<button @click="open" type="button" class="btn-secondary">Extra Large</button>
+			@Modal(ModalProps{ID: "modal-xl", Title: "Extra Large Modal", Size: "xl", Closable: true}) {
+				@ModalBody() {
+					<p class="text-sm text-neutral-500">This is an extra large modal (768px max-width).</p>
+				}
+			}
+		</div>
+		<!-- Full Width Modal -->
+		<div x-data="modal()" class="inline-block">
+			<button @click="open" type="button" class="btn-secondary">Full Width</button>
+			@Modal(ModalProps{ID: "modal-full", Title: "Full Width Modal", Size: "full", Closable: true}) {
+				@ModalBody() {
+					<p class="text-sm text-neutral-500">This is a full width modal (90% viewport width).</p>
+				}
+			}
+		</div>
+	</div>
+}
+
+// Example 5: Non-Closable Modal (Forced Action)
+//
+// This modal requires the user to take an action - cannot be dismissed
+// by clicking backdrop or pressing escape.
+//
+// Usage:
+//   @ModalExampleNonClosable()
+templ ModalExampleNonClosable() {
+	<div x-data="modal()">
+		<!-- Trigger Button -->
+		<button
+			@click="open"
+			type="button"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700"
+		>
+			Open Required Action Modal
+		</button>
+		<!-- Non-Closable Modal -->
+		@Modal(ModalProps{
+			ID:       "required-modal",
+			Title:    "Action Required",
+			Size:     "md",
+			Closable: false,
+		}) {
+			@ModalBody() {
+				<div class="text-sm text-neutral-500">
+					<p class="font-medium text-neutral-900">This modal requires your action.</p>
+					<p class="mt-2">
+						You must make a choice before continuing. This modal cannot be dismissed
+						by clicking outside or pressing escape.
+					</p>
+				</div>
+			}
+			@ModalFooter() {
+				<button
+					@click="close"
+					type="button"
+					class="inline-flex justify-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50"
+				>
+					Decline
+				</button>
+				<button
+					@click="close"
+					type="button"
+					class="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700"
+				>
+					Accept
+				</button>
+			}
+		}
+	</div>
+}
+
+// Example 6: Scrollable Content Modal
+//
+// Demonstrates a modal with long scrollable content.
+//
+// Usage:
+//   @ModalExampleScrollable()
+templ ModalExampleScrollable() {
+	<div x-data="modal()">
+		<button @click="open" type="button" class="btn-primary">
+			Open Scrollable Modal
+		</button>
+		@Modal(ModalProps{
+			ID:       "scrollable-modal",
+			Title:    "Terms and Conditions",
+			Size:     "lg",
+			Closable: true,
+		}) {
+			@ModalBody() {
+				<div class="prose prose-sm max-w-none">
+					<h4>1. Introduction</h4>
+					<p>
+						Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
+						tempor incididunt ut labore et dolore magna aliqua.
+					</p>
+					<h4>2. User Obligations</h4>
+					<p>
+						Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi
+						ut aliquip ex ea commodo consequat.
+					</p>
+					<h4>3. Privacy Policy</h4>
+					<p>
+						Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
+						dolore eu fugiat nulla pariatur.
+					</p>
+					<h4>4. Limitation of Liability</h4>
+					<p>
+						Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia
+						deserunt mollit anim id est laborum.
+					</p>
+					<h4>5. Termination</h4>
+					<p>
+						Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium
+						doloremque laudantium.
+					</p>
+					<h4>6. Governing Law</h4>
+					<p>
+						Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi
+						architecto beatae vitae dicta sunt explicabo.
+					</p>
+					<h4>7. Changes to Terms</h4>
+					<p>
+						Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit,
+						sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.
+					</p>
+				</div>
+			}
+			@ModalFooter() {
+				<button
+					@click="close"
+					type="button"
+					class="inline-flex justify-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50"
+				>
+					Decline
+				</button>
+				<button
+					@click="close"
+					type="button"
+					class="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700"
+				>
+					I Agree
+				</button>
+			}
+		}
+	</div>
+}
