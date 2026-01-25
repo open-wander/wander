@@ -62,6 +62,37 @@
 - Files: static/js/alpine.min.js, static/js/alpine-patterns.js, static/js/README-ALPINE.md
 ---
 
+### 2026-01-25 - Task 10: Create handlers package with routing
+- Created handlers/handlers.go with Handler struct and dependency injection
+- Created handlers/router.go with route registration under /ui/ prefix
+- Created handlers/static.go with embedded static file serving
+- Created handlers/home.go with home page handler
+- Created static_embed.go for go:embed static files
+- Added router_test.go and core_test.go with tests
+- Pattern: Placeholder handlers for stubbing routes before implementation
+- Files: handlers/handlers.go, router.go, static.go, home.go, static_embed.go, tests
+---
+
+### 2026-01-25 - Task 23: Create PageLayout component
+- Created components/header.templ with breadcrumbs, region selector, user menu
+- Created components/sidebar.templ with navigation, collapsible sections
+- Created components/main.templ with content wrapper
+- Updated layouts/page.templ to use component composition
+- Pattern: Window events (@toggle-sidebar.window) for cross-component communication
+- Pattern: Helper functions instead of inline code blocks in templ
+- Files: components/header.templ, sidebar.templ, main.templ, layouts/page.templ
+---
+
+### 2026-01-25 - Task 28: Create Tabs component
+- Created components/tabs.templ with static and HTMX lazy-loading modes
+- Created pages/tabs_demo.templ with usage examples
+- Created partials/tabs_demo.templ with tab content partials
+- Created handlers/tabs_demo.go for demo routes
+- Full ARIA accessibility (role="tablist", keyboard navigation)
+- Pattern: templ.Component as parameter for flexible content
+- Files: components/tabs.templ, pages/tabs_demo.templ, partials/tabs_demo.templ, handlers/tabs_demo.go
+---
+
 ### 2026-01-25 - Task 3: Create base layout template
 - Created layouts/base.templ with HTML5 structure, meta tags, script loading
 - Created layouts/page.templ with responsive sidebar, header, main content

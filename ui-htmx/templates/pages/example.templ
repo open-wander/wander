@@ -1,6 +1,9 @@
 package pages
 
-import "github.com/open-wander/wander/ui-htmx/templates/layouts"
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+)
 
 // ExamplePage demonstrates usage of the PageLayout template
 templ ExamplePage() {
@@ -8,8 +11,8 @@ templ ExamplePage() {
 		layouts.PageLayoutProps{
 			Title:       "Example Page - Wander",
 			Description: "An example page demonstrating the base layout",
-			ActiveNav:   "home",
-			Breadcrumbs: []layouts.Breadcrumb{
+			CurrentPath: "/example",
+			Breadcrumbs: []components.Breadcrumb{
 				{Label: "Home", URL: "/"},
 				{Label: "Example", URL: ""},
 			},

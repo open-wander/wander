@@ -1,0 +1,283 @@
+package components
+
+// Tab represents a single tab in a tab list
+type Tab struct {
+	ID      string           // Unique identifier for the tab
+	Label   string           // Display text for the tab
+	Icon    string           // Optional Heroicon name (e.g., "home", "user")
+	URL     string           // For HTMX lazy-load mode - the endpoint to fetch content
+	Content templ.Component  // For static mode - pre-rendered content
+	Active  bool             // Whether this tab is initially active
+}
+
+// TabsProps contains parameters for the Tabs component
+type TabsProps struct {
+	Tabs      []Tab  // List of tabs to render
+	ActiveTab string // ID of the initially active tab
+	Mode      string // "static" or "htmx" - determines loading behavior
+	PanelID   string // ID for the tab panel container (used as HTMX target)
+}
+
+// Tabs renders a complete tabbed interface with support for both static
+// and HTMX lazy-loading modes.
+//
+// Static Mode:
+//   All tab content is rendered upfront, Alpine.js handles switching visibility
+//
+// HTMX Mode:
+//   Tab content is lazy-loaded via HTMX when a tab is clicked
+//
+// Features:
+//   - ARIA tabs pattern for accessibility
+//   - Keyboard navigation (arrow keys, Home, End)
+//   - Active tab styling with Tailwind
+//   - Optional Heroicons support
+//   - Loading indicators for HTMX requests
+//
+// Example Static Usage:
+//   @Tabs(TabsProps{
+//       Tabs: []Tab{
+//           {ID: "overview", Label: "Overview", Content: overviewContent(), Active: true},
+//           {ID: "details", Label: "Details", Content: detailsContent()},
+//       },
+//       ActiveTab: "overview",
+//       Mode: "static",
+//       PanelID: "content-panel",
+//   })
+//
+// Example HTMX Usage:
+//   @Tabs(TabsProps{
+//       Tabs: []Tab{
+//           {ID: "overview", Label: "Overview", URL: "/api/jobs/123/overview", Active: true},
+//           {ID: "details", Label: "Details", URL: "/api/jobs/123/details"},
+//       },
+//       ActiveTab: "overview",
+//       Mode: "htmx",
+//       PanelID: "content-panel",
+//   })
+templ Tabs(props TabsProps) {
+	if props.Mode == "static" {
+		@staticTabs(props)
+	} else if props.Mode == "htmx" {
+		@htmxTabs(props)
+	}
+}
+
+// staticTabs renders tabs with all content loaded upfront.
+// Alpine.js manages the active tab state and visibility switching.
+templ staticTabs(props TabsProps) {
+	<div
+		x-data={ tabsAlpineData(props) }
+		class="tabs-container"
+	>
+		<!-- Tab List -->
+		@tabList(props, "static")
+		<!-- Tab Panels -->
+		<div id={ props.PanelID } class="tab-panels mt-4">
+			for _, tab := range props.Tabs {
+				<div
+					id={ "panel-" + tab.ID }
+					role="tabpanel"
+					aria-labelledby={ "tab-" + tab.ID }
+					x-show={ "activeTab === '" + tab.ID + "'" }
+					x-cloak
+					class="tab-panel"
+				>
+					if tab.Content != nil {
+						@tab.Content
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// htmxTabs renders tabs with lazy-loaded content via HTMX.
+// Only the active tab's content is loaded initially.
+templ htmxTabs(props TabsProps) {
+	<div
+		x-data={ tabsAlpineData(props) }
+		class="tabs-container"
+	>
+		<!-- Tab List -->
+		@tabList(props, "htmx")
+		<!-- Tab Panel Container -->
+		<div
+			id={ props.PanelID }
+			role="tabpanel"
+			class="tab-panel mt-4"
+			hx-indicator="#tab-loading"
+		>
+			<!-- Initial content for active tab -->
+			for _, tab := range props.Tabs {
+				if tab.Active && tab.Content != nil {
+					@tab.Content
+				}
+			}
+		</div>
+		<!-- Loading Indicator -->
+		<div id="tab-loading" class="htmx-indicator">
+			@loadingIndicator()
+		</div>
+	</div>
+}
+
+// tabList renders the horizontal list of tab buttons.
+// Supports both static and HTMX modes with appropriate attributes.
+templ tabList(props TabsProps, mode string) {
+	<div
+		role="tablist"
+		class="border-b border-neutral-200"
+		@keydown={ "handleKeydown($event, activeTab)" }
+	>
+		<nav class="-mb-px flex space-x-4" aria-label="Tabs">
+			for _, tab := range props.Tabs {
+				if mode == "static" {
+					@staticTabButton(tab, props.PanelID)
+				} else if mode == "htmx" {
+					@htmxTabButton(tab, props.PanelID)
+				}
+			}
+		</nav>
+	</div>
+}
+
+// staticTabButton renders a tab button for static mode.
+// Clicking changes Alpine.js state to show/hide panels.
+templ staticTabButton(tab Tab, panelID string) {
+	<button
+		id={ "tab-" + tab.ID }
+		type="button"
+		role="tab"
+		@click={ "setActive('" + tab.ID + "')" }
+		:aria-selected={ "activeTab === '" + tab.ID + "'" }
+		:tabindex={ "activeTab === '" + tab.ID + "' ? '0' : '-1'" }
+		aria-controls={ "panel-" + tab.ID }
+		:class={
+			`{
+				'border-primary-500 text-primary-600': activeTab === '` + tab.ID + `',
+				'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300': activeTab !== '` + tab.ID + `'
+			}`
+		}
+		class="group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+	>
+		if tab.Icon != "" {
+			@tabIcon(tab.Icon, tab.ID)
+		}
+		<span>{ tab.Label }</span>
+	</button>
+}
+
+// htmxTabButton renders a tab button for HTMX lazy-loading mode.
+// Clicking triggers an HTMX GET request to load content.
+templ htmxTabButton(tab Tab, panelID string) {
+	<button
+		id={ "tab-" + tab.ID }
+		type="button"
+		role="tab"
+		@click={ "setActive('" + tab.ID + "')" }
+		if tab.URL != "" {
+			hx-get={ tab.URL }
+			hx-target={ "#" + panelID }
+			hx-swap="innerHTML"
+			hx-trigger="click"
+		}
+		:aria-selected={ "activeTab === '" + tab.ID + "'" }
+		:tabindex={ "activeTab === '" + tab.ID + "' ? '0' : '-1'" }
+		aria-controls={ panelID }
+		:class={
+			`{
+				'border-primary-500 text-primary-600': activeTab === '` + tab.ID + `',
+				'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300': activeTab !== '` + tab.ID + `'
+			}`
+		}
+		class="group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+	>
+		if tab.Icon != "" {
+			@tabIcon(tab.Icon, tab.ID)
+		}
+		<span>{ tab.Label }</span>
+	</button>
+}
+
+// tabIcon renders a Heroicon SVG for the tab.
+// Icons are styled to match the tab's active/inactive state.
+templ tabIcon(iconName string, tabID string) {
+	<svg
+		:class={
+			`{
+				'text-primary-500': activeTab === '` + tabID + `',
+				'text-neutral-400 group-hover:text-neutral-500': activeTab !== '` + tabID + `'
+			}`
+		}
+		class="-ml-0.5 mr-2 h-5 w-5"
+		xmlns="http://www.w3.org/2000/svg"
+		fill="none"
+		viewBox="0 0 24 24"
+		stroke="currentColor"
+		aria-hidden="true"
+	>
+		// Common Heroicons - extend as needed
+		if iconName == "home" {
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+		} else if iconName == "user" {
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+		} else if iconName == "chart" {
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+		} else if iconName == "cog" {
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+		} else if iconName == "document" {
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+		} else if iconName == "clock" {
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+		} else {
+			// Default icon - information circle
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+		}
+	</svg>
+}
+
+// loadingIndicator shows a spinner during HTMX requests
+templ loadingIndicator() {
+	<div class="flex items-center justify-center py-8">
+		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+		<span class="ml-3 text-sm text-neutral-600">Loading...</span>
+	</div>
+}
+
+// tabsAlpineData generates the Alpine.js x-data attribute value for tabs
+func tabsAlpineData(props TabsProps) string {
+	// Extract tab IDs for the Alpine component
+	var tabIDs []string
+	for _, tab := range props.Tabs {
+		tabIDs = append(tabIDs, "'"+tab.ID+"'")
+	}
+
+	// Determine default active tab
+	activeTab := props.ActiveTab
+	if activeTab == "" && len(props.Tabs) > 0 {
+		activeTab = props.Tabs[0].ID
+	}
+
+	// Determine lazy load mode
+	lazyLoad := "false"
+	if props.Mode == "htmx" {
+		lazyLoad = "true"
+	}
+
+	// Generate Alpine.js configuration
+	// Uses the tabs() function from alpine-patterns.js
+	return "tabs([" + join(tabIDs, ", ") + "], { defaultTab: '" + activeTab + "', lazyLoad: " + lazyLoad + " })"
+}
+
+// join is a helper to concatenate strings (Go doesn't have a built-in slice join in templ)
+func join(strs []string, sep string) string {
+	result := ""
+	for i, s := range strs {
+		if i > 0 {
+			result += sep
+		}
+		result += s
+	}
+	return result
+}

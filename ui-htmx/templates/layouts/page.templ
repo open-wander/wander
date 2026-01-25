@@ -1,21 +1,19 @@
 package layouts
 
+import "github.com/open-wander/wander/ui-htmx/templates/components"
+
 // PageLayoutProps contains parameters for the page wrapper layout
 type PageLayoutProps struct {
-	Title       string
-	Description string
-	ActiveNav   string // Current active navigation item
-	Breadcrumbs []Breadcrumb
-}
-
-// Breadcrumb represents a navigation breadcrumb item
-type Breadcrumb struct {
-	Label string
-	URL   string
+	Title            string
+	Description      string
+	CurrentPath      string // Current page path for active navigation highlighting
+	Breadcrumbs      []components.Breadcrumb
+	User             *components.UserInfo // Optional user information
+	ExpandedSections []string             // Sidebar sections to expand by default
 }
 
 // PageLayout provides the full page structure with header, sidebar, and main content area.
-// This wraps BaseLayout and adds the application shell.
+// This wraps BaseLayout and adds the application shell using component composition.
 templ PageLayout(props PageLayoutProps, content templ.Component) {
 	@BaseLayout(BaseLayoutProps{
 		Title:       props.Title,
@@ -26,86 +24,21 @@ templ PageLayout(props PageLayoutProps, content templ.Component) {
 // pageContent is the inner content for PageLayout that gets passed to BaseLayout
 templ pageContent(props PageLayoutProps, content templ.Component) {
 	<div class="flex h-full">
-		<!-- Sidebar Placeholder -->
-		<aside
-			id="sidebar"
-			class="hidden lg:flex lg:flex-shrink-0"
-			aria-label="Sidebar navigation"
-		>
-			<div class="flex flex-col w-64 border-r border-neutral-200 bg-white">
-				<!-- Logo/Brand Area -->
-				<div class="flex items-center h-16 flex-shrink-0 px-4 border-b border-neutral-200">
-					<h1 class="text-xl font-semibold text-primary-600">Wander</h1>
-				</div>
-				<!-- Navigation will be added in future components -->
-				<nav class="flex-1 overflow-y-auto px-2 py-4" aria-label="Main navigation">
-					<div class="text-sm text-neutral-500 px-3 py-2">
-						Navigation components will be added here
-					</div>
-				</nav>
-			</div>
-		</aside>
+		<!-- Sidebar Component -->
+		@components.Sidebar(components.SidebarProps{
+			CurrentPath:      props.CurrentPath,
+			ExpandedSections: props.ExpandedSections,
+		})
 		<!-- Main Content Area -->
 		<div class="flex flex-col flex-1 overflow-hidden">
-			<!-- Header Placeholder -->
-			<header
-				id="header"
-				class="flex-shrink-0 border-b border-neutral-200 bg-white"
-				aria-label="Page header"
-			>
-				<div class="flex items-center justify-between h-16 px-4">
-					<!-- Mobile menu button -->
-					<button
-						type="button"
-						class="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-400 hover:text-neutral-500 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500"
-						aria-label="Open sidebar"
-					>
-						<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-						</svg>
-					</button>
-					<!-- Breadcrumbs -->
-					if len(props.Breadcrumbs) > 0 {
-						<nav class="flex" aria-label="Breadcrumb">
-							<ol class="flex items-center space-x-2">
-								for i, crumb := range props.Breadcrumbs {
-									<li class="flex items-center">
-										if i > 0 {
-											<svg class="flex-shrink-0 h-5 w-5 text-neutral-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-												<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
-											</svg>
-										}
-										if crumb.URL != "" {
-											<a href={ templ.SafeURL(crumb.URL) } class="text-sm font-medium text-neutral-500 hover:text-neutral-700">
-												{ crumb.Label }
-											</a>
-										} else {
-											<span class="text-sm font-medium text-neutral-900">
-												{ crumb.Label }
-											</span>
-										}
-									</li>
-								}
-							</ol>
-						</nav>
-					}
-					<!-- Header actions placeholder -->
-					<div class="flex items-center space-x-4">
-						<div class="text-sm text-neutral-500">
-							User menu will be added here
-						</div>
-					</div>
-				</div>
-			</header>
-			<!-- Main Content -->
-			<main
-				id="main-content"
-				class="flex-1 overflow-y-auto bg-neutral-50"
-				role="main"
-				tabindex="-1"
-			>
-				@content
-			</main>
+			<!-- Header Component -->
+			@components.Header(components.HeaderProps{
+				CurrentPath: props.CurrentPath,
+				User:        props.User,
+				Breadcrumbs: props.Breadcrumbs,
+			})
+			<!-- Main Content Component -->
+			@components.Main(components.MainProps{}, content)
 		</div>
 	</div>
 }
