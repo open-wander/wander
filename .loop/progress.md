@@ -260,6 +260,49 @@ Pattern: Keyboard shortcuts via Alpine.js/vanilla JS
 Files: .air.toml, cmd/dev/main.go, handlers/sse.go, components/select.templ, breadcrumbs.templ, nav_item.templ, search_bar.templ
 ---
 
+### 2026-01-25 - Tasks 13, 22, 35, 37, 39, 44: SSE, Forms, Jobs
+Batch of 6 tasks completed:
+
+**Task 13: SSE connection management**
+- Created handlers/sse_manager.go for centralized connection tracking
+- Topic-based pub/sub (e.g., "logs:alloc-123")
+- Auto-cleanup of dead connections
+- Created static/js/sse-client.js with auto-reconnect
+- Exponential backoff, HTMX/Alpine.js integration
+- Updated SSE_README.md with decision guide
+
+**Task 22: FormField wrapper**
+- FormField (vertical) and FormFieldHorizontal (horizontal)
+- Label with required indicator (*)
+- Error message and hint text display
+- Accepts children (input/select/textarea)
+
+**Task 35: Sidebar component**
+- Already complete from Task 23
+- Collapsible sections, navigation, mobile overlay
+
+**Task 37: Header component enhanced**
+- Region selector dropdown (HTMX integration)
+- User menu using Dropdown component
+- Mobile menu button
+
+**Task 39: Jobs list handler**
+- Created handlers/jobs.go with List() method
+- Jobs table with sortable columns
+- Status badges (running=green, pending=yellow, dead=gray)
+- Mock data for testing
+
+**Task 44: Job detail handler**
+- Detail() method for /ui/jobs/{id}
+- Tabs: Overview, Definition, Versions, Allocations, Evaluations
+- HTMX lazy-loading for tab content
+- Task groups summary in Overview
+
+Pattern: HTMX tabs with lazy-loading for large pages
+Pattern: SSE manager for scalable real-time connections
+Files: handlers/sse_manager.go, sse-client.js, form_field.templ, jobs.go, pages/jobs/list.templ, detail.templ, partials
+---
+
 ### 2026-01-25 - Task 3: Create base layout template
 - Created layouts/base.templ with HTML5 structure, meta tags, script loading
 - Created layouts/page.templ with responsive sidebar, header, main content

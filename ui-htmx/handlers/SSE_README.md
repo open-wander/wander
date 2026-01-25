@@ -418,6 +418,338 @@ func TestStreamHandler(t *testing.T) {
 }
 ```
 
+## SSE Connection Manager
+
+The `SSEManager` provides centralized connection tracking and broadcasting capabilities for managing multiple SSE connections efficiently.
+
+### Features
+
+- **Connection Tracking**: Track all active SSE connections in one place
+- **Topic Subscriptions**: Subscribe connections to specific topics for targeted broadcasting
+- **Automatic Cleanup**: Periodically remove dead connections
+- **Thread-Safe**: Safe for concurrent use across goroutines
+- **Broadcasting**: Send events to all connections or specific topic subscribers
+
+### Quick Start
+
+```go
+// Create a global manager
+var sseManager = handlers.NewSSEManager()
+
+// In your HTTP handler:
+func (h *Handler) StreamLogs(w http.ResponseWriter, r *http.Request) {
+    allocID := r.URL.Query().Get("alloc_id")
+    topic := fmt.Sprintf("logs:%s", allocID)
+
+    sse, err := handlers.NewSSEHandler(w, r)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    defer sse.Close()
+
+    // Register connection with manager
+    sseManager.Register(sse, topic)
+    defer sseManager.Unregister(sse)
+
+    // Wait for disconnection
+    <-sse.Done()
+}
+
+// Broadcast to topic from anywhere:
+func (h *Handler) OnLogEvent(allocID string, log LogEntry) {
+    topic := fmt.Sprintf("logs:%s", allocID)
+    sseManager.BroadcastJSONToTopic(topic, "log", log)
+}
+```
+
+### Broadcasting Patterns
+
+#### Broadcast to All Connections
+
+```go
+// Send to all active SSE connections
+sseManager.Broadcast("notification", "Server maintenance in 5 minutes")
+
+// Send JSON to all connections
+sseManager.BroadcastJSON("alert", map[string]string{
+    "level": "warning",
+    "message": "High memory usage detected",
+})
+```
+
+#### Topic-Based Broadcasting
+
+```go
+// Register connections with topics
+sseManager.Register(sse, "logs:alloc-123", "metrics:alloc-123")
+
+// Broadcast to specific topic
+sseManager.BroadcastToTopic("logs:alloc-123", "log", logMessage)
+sseManager.BroadcastJSONToTopic("metrics:alloc-123", "metric", metricData)
+```
+
+#### Dynamic Subscriptions
+
+```go
+// Add topics after registration
+err := sseManager.Subscribe(sse, "alerts", "notifications")
+
+// Remove topics
+err := sseManager.Unsubscribe(sse, "alerts")
+```
+
+### Manager Configuration
+
+```go
+config := &handlers.SSEManagerConfig{
+    CleanupInterval: 2 * time.Minute,  // How often to check for dead connections
+    EnableLogging:   true,              // Log cleanup operations
+}
+
+manager := handlers.NewSSEManagerWithConfig(config)
+defer manager.Shutdown()  // Always shutdown on application exit
+```
+
+### Monitoring Connections
+
+```go
+// Get connection counts
+total := sseManager.ConnectionCount()
+topics := sseManager.TopicCount()
+subscribers := sseManager.TopicSubscribers("logs:alloc-123")
+
+// Get active topics
+activeTopics := sseManager.Topics()
+for _, topic := range activeTopics {
+    count := sseManager.TopicSubscribers(topic)
+    log.Printf("Topic %s has %d subscribers", topic, count)
+}
+```
+
+### Topic Naming Conventions
+
+Use consistent topic naming for better organization:
+
+```go
+// Resource-based topics
+fmt.Sprintf("logs:%s", allocID)
+fmt.Sprintf("metrics:%s", allocID)
+fmt.Sprintf("events:%s", jobID)
+
+// Category-based topics
+"system:alerts"
+"system:notifications"
+"admin:audit"
+
+// User-specific topics
+fmt.Sprintf("user:%s:notifications", userID)
+```
+
+## Client-Side SSE Client
+
+The `SSEClient` JavaScript class provides automatic reconnection and integration with HTMX.
+
+### Features
+
+- **Auto-Reconnection**: Exponential backoff on connection failures
+- **State Management**: Track connection state (connecting, connected, disconnected, error)
+- **Event Handlers**: Register handlers for custom events
+- **HTMX Integration**: Declarative SSE via `hx-ext="sse"`
+- **Alpine.js Support**: Magic property for Alpine integration
+
+### Basic Usage
+
+```html
+<script src="/static/js/sse-client.js"></script>
+<script>
+    const client = new SSEClient('/stream/logs?alloc_id=123', {
+        debug: true,
+        maxRetries: 10,
+        onConnect: () => console.log('Connected!'),
+        onDisconnect: () => console.log('Disconnected'),
+    });
+
+    client.on('log', (data) => {
+        console.log('Log:', data);
+    });
+
+    client.connect();
+</script>
+```
+
+### HTMX Integration
+
+```html
+<!-- Include the SSE client -->
+<script src="/static/js/sse-client.js"></script>
+
+<!-- Declarative SSE connection -->
+<div hx-ext="sse" sse-connect="/stream/logs?alloc_id=123">
+    <div sse-swap="log" hx-swap="beforeend">
+        <!-- Log entries will be inserted here -->
+    </div>
+
+    <div sse-swap="error" hx-swap="innerHTML" class="error-container">
+        <!-- Errors will replace content here -->
+    </div>
+</div>
+```
+
+### Advanced Configuration
+
+```javascript
+const client = new SSEClient('/stream', {
+    // Reconnection settings
+    initialRetryDelay: 1000,        // Start with 1 second
+    maxRetryDelay: 30000,           // Max 30 seconds between retries
+    maxRetries: Infinity,           // Retry forever
+    backoffMultiplier: 2,           // Double delay each retry
+
+    // Lifecycle callbacks
+    onConnect: () => {
+        console.log('Stream connected');
+        statusIndicator.classList.add('connected');
+    },
+
+    onDisconnect: () => {
+        console.log('Stream disconnected');
+        statusIndicator.classList.remove('connected');
+    },
+
+    onError: (error) => {
+        console.error('Stream error:', error);
+    },
+
+    onMaxRetries: () => {
+        alert('Failed to connect after maximum retries');
+    },
+
+    // Debug and auth
+    debug: true,
+    withCredentials: true,  // Send cookies with request
+});
+
+// Register event handlers
+client
+    .on('log', handleLog)
+    .on('metric', handleMetric)
+    .on('alert', handleAlert);
+
+// Start connection
+client.connect();
+
+// Later: disconnect
+client.disconnect();
+```
+
+### Alpine.js Integration
+
+```html
+<div x-data="{ logs: [] }"
+     x-init="$sse('/stream/logs').on('log', (data) => logs.push(data))">
+    <template x-for="log in logs">
+        <div x-text="log.message"></div>
+    </template>
+</div>
+```
+
+### Connection State
+
+```javascript
+const client = new SSEClient('/stream');
+
+// Check current state
+console.log(client.getState()); // 'disconnected', 'connecting', 'connected', 'error'
+
+// React to state changes in lifecycle callbacks
+const client = new SSEClient('/stream', {
+    onConnect: () => updateUI('connected'),
+    onDisconnect: () => updateUI('disconnected'),
+    onError: () => updateUI('error'),
+});
+```
+
+## SSE vs HTMX Polling
+
+### When to Use SSE
+
+Use SSE when you need:
+
+- **Real-time updates**: Immediate notification of events (logs, metrics, alerts)
+- **Long-lived connections**: Continuous data streams (tailing logs, monitoring)
+- **Server-pushed updates**: Server needs to push data without client requests
+- **Multiple event types**: Different events on the same connection
+- **Low latency**: Updates within milliseconds of occurrence
+
+**Examples**:
+- Live log streaming
+- Real-time metrics dashboards
+- Job status updates
+- System notifications
+- Chat/messaging features
+
+```html
+<!-- SSE for real-time logs -->
+<div hx-ext="sse" sse-connect="/stream/logs?alloc_id=123">
+    <div sse-swap="log" hx-swap="beforeend" class="log-container"></div>
+</div>
+```
+
+### When to Use HTMX Polling
+
+Use HTMX polling when you need:
+
+- **Periodic updates**: Data changes infrequently (every few seconds+)
+- **Simple requests**: Standard HTTP GET requests suffice
+- **Resource efficiency**: Fewer concurrent connections
+- **Fallback compatibility**: Works without SSE support
+- **Controlled intervals**: Fixed refresh rates
+
+**Examples**:
+- Dashboard refresh every 30 seconds
+- Status checks
+- List updates
+- Simple counters
+
+```html
+<!-- Polling for periodic updates -->
+<div hx-get="/api/status"
+     hx-trigger="load, every 30s"
+     hx-swap="innerHTML">
+    Initial content
+</div>
+```
+
+### Comparison Table
+
+| Feature | SSE | HTMX Polling |
+|---------|-----|--------------|
+| Latency | <100ms | Depends on interval |
+| Server Load | 1 connection per client | 1 request per interval |
+| Client Load | Minimal | Minimal |
+| Browser Support | Modern browsers | All browsers |
+| Complexity | Moderate | Simple |
+| Best For | Real-time streams | Periodic updates |
+
+### Hybrid Approach
+
+Combine both for optimal UX:
+
+```html
+<!-- Real-time updates via SSE -->
+<div hx-ext="sse" sse-connect="/stream/live-updates">
+    <div sse-swap="update" hx-swap="beforeend"></div>
+</div>
+
+<!-- Periodic full refresh via polling -->
+<div hx-get="/api/full-state"
+     hx-trigger="load, every 5m"
+     hx-swap="outerHTML">
+    <!-- Fallback content -->
+</div>
+```
+
 ## Performance Considerations
 
 - **Memory**: Each connection holds a goroutine for heartbeats
@@ -427,7 +759,23 @@ func TestStreamHandler(t *testing.T) {
 For high-volume streaming, consider:
 - Batching events before writing
 - Increasing heartbeat interval
-- Using a dedicated streaming infrastructure (Redis Streams, etc.)
+- Using the SSEManager for efficient broadcasting
+- Topic-based subscriptions to avoid unnecessary broadcasts
+
+### SSE Manager Performance
+
+The SSEManager is optimized for:
+- **Concurrent Access**: Lock-free reads for broadcasting
+- **Dead Connection Cleanup**: Periodic cleanup prevents memory leaks
+- **Efficient Broadcasting**: Snapshot connections before sending to minimize lock time
+
+```go
+// Efficient broadcasting pattern
+config := &handlers.SSEManagerConfig{
+    CleanupInterval: 2 * time.Minute,  // Balance cleanup vs overhead
+    EnableLogging:   false,             // Disable in production
+}
+```
 
 ## Related
 

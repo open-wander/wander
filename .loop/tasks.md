@@ -23,7 +23,7 @@ Status: in-progress
 - [x] 10. Create ui-htmx handlers package with route registration (needs: 3, 5)
 - [x] 11. Configure air for Go hot-reload development workflow (needs: 10)
 - [x] 12. Create SSE handler utility for real-time log streaming (needs: 10)
-- [ ] 13. Implement SSE connection management and reconnection logic (needs: 12)
+- [x] 13. Implement SSE connection management and reconnection logic (needs: 12)
 
 ### Phase 2: Core Component Library
 
@@ -35,7 +35,7 @@ Status: in-progress
 - [x] 19. Create Textarea component with auto-resize option (needs: 8)
 - [x] 20. Create Select component with Alpine.js styling (needs: 9, 8)
 - [x] 21. Create Checkbox, Radio, and Toggle components (needs: 8)
-- [ ] 22. Create FormField wrapper with label and error message (needs: 18, 19, 20, 21)
+- [x] 22. Create FormField wrapper with label and error message (needs: 18, 19, 20, 21)
 - [x] 23. Create PageLayout component with header, sidebar, main areas (needs: 3)
 - [x] 24. Create Card component with header, body, footer slots (needs: 8)
 - [x] 25. Create Table component with sortable columns support (needs: 8)
@@ -48,19 +48,19 @@ Status: in-progress
 - [x] 32. Create EmptyState component (needs: 8)
 - [x] 33. Create LoadingSpinner and Skeleton loader components (needs: 8)
 - [x] 34. Create ProgressBar component (needs: 8)
-- [ ] 35. Create Sidebar component with collapsible sections (needs: 9, 23)
+- [x] 35. Create Sidebar component with collapsible sections (needs: 9, 23)
 - [x] 36. Create NavItem component with active state (needs: 16)
-- [ ] 37. Create Header component with user menu, region selector (needs: 27, 23)
+- [x] 37. Create Header component with user menu, region selector (needs: 27, 23)
 - [x] 38. Create SearchBar component with HTMX autocomplete (needs: 5, 18)
 
 ### Phase 3: Jobs Section
 
-- [ ] 39. Create Jobs list handler and route (needs: 10)
+- [x] 39. Create Jobs list handler and route (needs: 10)
 - [ ] 40. Create Jobs list page template with table (needs: 25, 39)
 - [ ] 41. Add Jobs list pagination with HTMX (needs: 40)
 - [ ] 42. Add Jobs list search/filter with debounced HTMX (needs: 38, 40)
 - [ ] 43. Add Jobs list sorting by column headers (needs: 40)
-- [ ] 44. Create Job detail handler and route (needs: 10)
+- [x] 44. Create Job detail handler and route (needs: 10)
 - [ ] 45. Create Job detail page with header and tabs (needs: 28, 44)
 - [ ] 46. Create Job Overview tab with task groups summary (needs: 45)
 - [ ] 47. Create Job Definition tab with CodeMirror 6 editor (needs: 45)

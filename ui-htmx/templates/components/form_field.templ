@@ -1,0 +1,168 @@
+package components
+
+import "strings"
+
+// FormFieldProps contains parameters for the FormField component
+type FormFieldProps struct {
+	Label    string // Label text
+	ID       string // for label's for attribute and linking to input
+	Required bool   // Show required indicator (*)
+	Error    string // Error message to display
+	Hint     string // Optional help text
+	Class    string // Additional CSS classes for the wrapper
+}
+
+// FormField renders a form field wrapper with label above and error/hint below.
+// This component accepts children (input, select, textarea, etc.) to be rendered
+// between the label and the error/hint text.
+//
+// Features:
+//   - Label with optional required indicator (*)
+//   - Error message display in red (form-error class)
+//   - Hint text in muted color (form-hint class)
+//   - Accepts children for flexible form element composition
+//   - Fully styled with Tailwind CSS and existing form styles
+//
+// Example Usage:
+//
+//	@FormField(FormFieldProps{
+//	    Label: "Email Address",
+//	    ID: "email",
+//	    Required: true,
+//	}) {
+//	    @Input(InputProps{
+//	        Type: "email",
+//	        ID: "email",
+//	        Name: "email",
+//	        Placeholder: "Enter your email",
+//	    })
+//	}
+//
+//	@FormField(FormFieldProps{
+//	    Label: "Description",
+//	    ID: "description",
+//	    Hint: "Provide a brief description of your request",
+//	    Error: "Description is too short",
+//	}) {
+//	    @Textarea(TextareaProps{
+//	        ID: "description",
+//	        Name: "description",
+//	        Rows: 4,
+//	    })
+//	}
+templ FormField(props FormFieldProps) {
+	<div class={ buildFormFieldClasses(props) }>
+		if props.Label != "" {
+			<label
+				if props.ID != "" {
+					for={ props.ID }
+				}
+				class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5"
+			>
+				{ props.Label }
+				if props.Required {
+					<span class="text-error-600 dark:text-error-400 ml-0.5">*</span>
+				}
+			</label>
+		}
+		{ children... }
+		if props.Error != "" {
+			<p class="form-error">{ props.Error }</p>
+		} else if props.Hint != "" {
+			<p class="form-hint">{ props.Hint }</p>
+		}
+	</div>
+}
+
+// FormFieldHorizontalProps contains parameters for the FormFieldHorizontal component
+type FormFieldHorizontalProps struct {
+	Label    string // Label text
+	ID       string // for label's for attribute and linking to input
+	Required bool   // Show required indicator (*)
+	Error    string // Error message to display
+	Hint     string // Optional help text
+	Class    string // Additional CSS classes for the wrapper
+}
+
+// FormFieldHorizontal renders a form field with label on the left and input on the right.
+// This layout is useful for compact forms or settings pages.
+//
+// Features:
+//   - Label positioned on the left side
+//   - Input/control on the right side
+//   - Error message and hint text display below the input
+//   - Responsive grid layout
+//   - Required indicator support
+//
+// Example Usage:
+//
+//	@FormFieldHorizontal(FormFieldHorizontalProps{
+//	    Label: "Email Address",
+//	    ID: "email",
+//	    Required: true,
+//	}) {
+//	    @Input(InputProps{
+//	        Type: "email",
+//	        ID: "email",
+//	        Name: "email",
+//	    })
+//	}
+//
+//	@FormFieldHorizontal(FormFieldHorizontalProps{
+//	    Label: "Notifications",
+//	    ID: "notifications",
+//	    Hint: "Receive email notifications",
+//	}) {
+//	    @Checkbox(CheckboxProps{
+//	        ID: "notifications",
+//	        Name: "notifications",
+//	    })
+//	}
+templ FormFieldHorizontal(props FormFieldHorizontalProps) {
+	<div class={ buildFormFieldClasses(props) }>
+		<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:items-start">
+			if props.Label != "" {
+				<label
+					if props.ID != "" {
+						for={ props.ID }
+					}
+					class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 sm:pt-2"
+				>
+					{ props.Label }
+					if props.Required {
+						<span class="text-error-600 dark:text-error-400 ml-0.5">*</span>
+					}
+				</label>
+			}
+			<div class="sm:col-span-2">
+				{ children... }
+				if props.Error != "" {
+					<p class="form-error">{ props.Error }</p>
+				} else if props.Hint != "" {
+					<p class="form-hint">{ props.Hint }</p>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// buildFormFieldClasses constructs the complete CSS class string for form field wrappers
+func buildFormFieldClasses(props interface{}) string {
+	classes := []string{"form-group"}
+
+	// Type assertion to get the Class property from either props type
+	var customClass string
+	switch p := props.(type) {
+	case FormFieldProps:
+		customClass = p.Class
+	case FormFieldHorizontalProps:
+		customClass = p.Class
+	}
+
+	// Add custom classes
+	if customClass != "" {
+		classes = append(classes, customClass)
+	}
+
+	return strings.Join(classes, " ")
+}

@@ -51,14 +51,12 @@ func (r *Router) registerRoutes() {
 }
 
 // registerJobsRoutes sets up routes for the jobs section.
-// Placeholder handlers will be replaced with actual implementations.
 func (r *Router) registerJobsRoutes() {
-	// Jobs list
-	r.mux.Handle("/ui/jobs", r.wrapMiddleware(placeholderHandler("Jobs List")))
+	jobsHandler := NewJobsHandler(r.handler)
 
-	// Job detail - this will need path parameter extraction
-	// For now, using a simple pattern. Will need proper routing later.
-	r.mux.Handle("/ui/jobs/", r.wrapMiddleware(placeholderHandler("Job Detail")))
+	// Jobs handler handles both list and detail pages
+	r.mux.Handle("/ui/jobs", r.wrapMiddleware(jobsHandler))
+	r.mux.Handle("/ui/jobs/", r.wrapMiddleware(jobsHandler))
 }
 
 // registerAllocationsRoutes sets up routes for the allocations section.

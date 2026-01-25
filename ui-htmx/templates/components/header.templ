@@ -2,9 +2,11 @@ package components
 
 // HeaderProps contains parameters for the page header component
 type HeaderProps struct {
-	CurrentPath string
-	User        *UserInfo // Optional user information
-	Breadcrumbs []Breadcrumb
+	CurrentPath    string
+	User           *UserInfo // Optional user information
+	Breadcrumbs    []Breadcrumb
+	CurrentRegion  string         // Current selected region/datacenter
+	AvailableRegions []RegionInfo // List of available regions
 }
 
 // UserInfo contains user details for display
@@ -17,6 +19,12 @@ type UserInfo struct {
 type Breadcrumb struct {
 	Label string
 	URL   string
+}
+
+// RegionInfo represents a region/datacenter option
+type RegionInfo struct {
+	ID   string // e.g., "us-east-1", "global"
+	Name string // e.g., "US East (N. Virginia)", "Global"
 }
 
 // Header provides the top navigation bar with breadcrumbs, mobile menu toggle, and user menu.
@@ -73,65 +81,95 @@ templ Header(props HeaderProps) {
 			</div>
 			<!-- Right: Region selector and user menu -->
 			<div class="flex items-center space-x-4 flex-shrink-0">
-				<!-- Region/Datacenter Selector Placeholder -->
-				<div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 text-sm">
-					<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-					</svg>
-					<span class="text-neutral-700 font-medium">Global</span>
-				</div>
-				<!-- User Menu Placeholder -->
-				<div class="relative" x-data="{ userMenuOpen: false }">
-					if props.User != nil {
-						<button
-							@click="userMenuOpen = !userMenuOpen"
-							@click.away="userMenuOpen = false"
-							type="button"
-							class="flex items-center space-x-2 p-2 rounded-md hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
-							aria-label="User menu"
-							aria-expanded="false"
-							:aria-expanded="userMenuOpen.toString()"
-						>
-							<div class="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm">
-								{ string(props.User.Name[0]) }
-							</div>
-							<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-							</svg>
-						</button>
-						<!-- User Menu Dropdown -->
-						<div
-							x-show="userMenuOpen"
-							x-cloak
-							x-transition:enter="transition ease-out duration-100"
-							x-transition:enter-start="transform opacity-0 scale-95"
-							x-transition:enter-end="transform opacity-100 scale-100"
-							x-transition:leave="transition ease-in duration-75"
-							x-transition:leave-start="transform opacity-100 scale-100"
-							x-transition:leave-end="transform opacity-0 scale-95"
-							class="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-neutral-100 z-50"
-							role="menu"
-							aria-orientation="vertical"
-						>
-							<div class="px-4 py-3">
+				<!-- Region/Datacenter Selector -->
+				if len(props.AvailableRegions) > 0 {
+					@Dropdown(DropdownProps{ID: "region-selector", Position: "right", Width: "md", Class: "hidden sm:inline-block"}) {
+						@DropdownTrigger() {
+							<button
+								type="button"
+								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+								aria-label="Select region"
+							>
+								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+								</svg>
+								<span class="text-neutral-700 font-medium">
+									if props.CurrentRegion != "" {
+										{ props.CurrentRegion }
+									} else {
+										Global
+									}
+								</span>
+								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
+							</button>
+						}
+						@DropdownMenu(DropdownProps{Position: "right", Width: "md"}) {
+							for _, region := range props.AvailableRegions {
+								@DropdownItemComponent(DropdownItem{
+									Label: region.Name,
+									HxPost: "/api/region/select",
+									HxTarget: "body",
+									HxSwap: "none",
+								})
+							}
+						}
+					}
+				} else {
+					<!-- Fallback: Static region badge when no regions configured -->
+					<div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 text-sm">
+						<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+						</svg>
+						<span class="text-neutral-700 font-medium">Global</span>
+					</div>
+				}
+				<!-- User Menu -->
+				if props.User != nil {
+					@Dropdown(DropdownProps{ID: "user-menu", Position: "right", Width: "md"}) {
+						@DropdownTrigger() {
+							<button
+								type="button"
+								class="flex items-center space-x-2 p-2 rounded-md hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
+								aria-label="User menu"
+							>
+								<div class="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm">
+									{ string(props.User.Name[0]) }
+								</div>
+								<svg class="h-4 w-4 text-neutral-500 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
+							</button>
+						}
+						@DropdownMenu(DropdownProps{Position: "right", Width: "md"}) {
+							<div class="px-4 py-3 border-b border-neutral-100">
 								<p class="text-sm font-medium text-neutral-900">{ props.User.Name }</p>
 								<p class="text-sm text-neutral-500 truncate">{ props.User.Email }</p>
 							</div>
-							<div class="py-1">
-								<a href="/settings" class="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100" role="menuitem">Settings</a>
-								<a href="/logout" class="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100" role="menuitem">Sign out</a>
-							</div>
-						</div>
-					} else {
-						<div class="flex items-center space-x-2">
-							<div class="h-8 w-8 rounded-full bg-neutral-200 flex items-center justify-center">
-								<svg class="h-5 w-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-								</svg>
-							</div>
-						</div>
+							@DropdownItemComponent(DropdownItem{
+								Label: "Settings",
+								Href:  "/settings",
+								Icon:  "settings",
+							})
+							@DropdownDividerItem()
+							@DropdownItemComponent(DropdownItem{
+								Label: "Sign out",
+								Href:  "/logout",
+								Icon:  "logout",
+							})
+						}
 					}
-				</div>
+				} else {
+					<!-- Not logged in: show placeholder user icon -->
+					<div class="flex items-center space-x-2">
+						<div class="h-8 w-8 rounded-full bg-neutral-200 flex items-center justify-center">
+							<svg class="h-5 w-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+							</svg>
+						</div>
+					</div>
+				}
 			</div>
 		</div>
 	</header>

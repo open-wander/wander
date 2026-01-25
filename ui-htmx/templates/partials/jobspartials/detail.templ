@@ -1,0 +1,103 @@
+package jobspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// JobDetail represents detailed information about a job
+type JobDetail struct {
+	ID          string
+	Name        string
+	Status      string
+	Type        string
+	Priority    int
+	Datacenters []string
+	TaskGroups  []TaskGroupSummary
+}
+
+// TaskGroupSummary represents a summary of a task group
+type TaskGroupSummary struct {
+	Name  string
+	Count int
+	Tasks []string
+}
+
+// DetailContent renders the job detail page content (without layout)
+templ DetailContent(job JobDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Job Header -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center space-x-4">
+					<h1 class="text-3xl font-bold text-neutral-900">{ job.Name }</h1>
+					@components.Badge(components.BadgeProps{
+						Variant: statusToBadgeVariant(job.Status),
+						Dot:     true,
+						Size:    "md",
+					}, job.Status)
+				</div>
+				<div class="flex items-center space-x-4">
+					<span class="text-sm text-neutral-600">Type: <span class="font-medium">{ job.Type }</span></span>
+					<span class="text-sm text-neutral-600">Priority: <span class="font-medium">{ fmt.Sprintf("%d", job.Priority) }</span></span>
+				</div>
+			</div>
+		</div>
+		<!-- Tabs -->
+		<div class="bg-white shadow rounded-lg p-6">
+			@components.Tabs(components.TabsProps{
+				Tabs: []components.Tab{
+					{
+						ID:      "overview",
+						Label:   "Overview",
+						Icon:    "home",
+						URL:     "/ui/jobs/" + job.ID + "/overview",
+						Content: OverviewTab(job),
+						Active:  true,
+					},
+					{
+						ID:      "definition",
+						Label:   "Definition",
+						Icon:    "document",
+						URL:     "/ui/jobs/" + job.ID + "/definition",
+					},
+					{
+						ID:      "versions",
+						Label:   "Versions",
+						Icon:    "clock",
+						URL:     "/ui/jobs/" + job.ID + "/versions",
+					},
+					{
+						ID:      "allocations",
+						Label:   "Allocations",
+						Icon:    "user",
+						URL:     "/ui/jobs/" + job.ID + "/allocations",
+					},
+					{
+						ID:      "evaluations",
+						Label:   "Evaluations",
+						Icon:    "chart",
+						URL:     "/ui/jobs/" + job.ID + "/evaluations",
+					},
+				},
+				ActiveTab: "overview",
+				Mode:      "htmx",
+				PanelID:   "job-detail-panel",
+			})
+		</div>
+	</div>
+}
+
+// statusToBadgeVariant maps job status to badge variant
+func statusToBadgeVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "dead":
+		return "neutral"
+	default:
+		return "info"
+	}
+}
