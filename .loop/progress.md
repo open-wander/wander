@@ -93,6 +93,20 @@
 - Files: components/tabs.templ, pages/tabs_demo.templ, partials/tabs_demo.templ, handlers/tabs_demo.go
 ---
 
+### 2026-01-25 - Task 8: Create base Tailwind styles
+- Added comprehensive typography layer (h1-h6, body, code, lists, blockquote)
+- Added form styles (inputs, select, checkbox, radio, validation states)
+- Added button components (.btn with variants: primary, secondary, danger, success, ghost, outline)
+- Added size variants (.btn-sm, .btn-lg, .input-sm, .input-lg)
+- Added form helpers (.form-group, .form-error, .input-group)
+- Added utility classes (.htmx-indicator, .skeleton, .scrollbar-thin)
+- Added animations (.fade-in, .slide-up, .slide-down)
+- Built CSS output: 46KB minified
+- Pattern: Consistent focus ring (ring-2 ring-primary-500 ring-offset-2)
+- Pattern: 150ms transitions for interactions
+- Files: static/css/input.css
+---
+
 ### 2026-01-25 - Task 3: Create base layout template
 - Created layouts/base.templ with HTML5 structure, meta tags, script loading
 - Created layouts/page.templ with responsive sidebar, header, main content

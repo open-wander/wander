@@ -2,116 +2,668 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base layer customizations */
+/* ============================================
+   BASE LAYER - Typography, Forms, Defaults
+   ============================================ */
 @layer base {
-  /* Improved default focus styles */
+  /* ----------------------------------------
+     Focus Styles
+     ---------------------------------------- */
   *:focus-visible {
     @apply outline-none ring-2 ring-primary-500 ring-offset-2;
   }
 
-  /* Smooth scrolling for anchor links */
+  .dark *:focus-visible {
+    @apply ring-offset-neutral-900;
+  }
+
+  /* ----------------------------------------
+     HTML & Body Defaults
+     ---------------------------------------- */
   html {
     scroll-behavior: smooth;
+    @apply text-base;
   }
 
-  /* Better default body styles */
   body {
     @apply bg-neutral-50 text-neutral-900 antialiased;
+    @apply font-sans leading-normal;
   }
 
-  /* Dark mode body styles */
   .dark body {
     @apply bg-neutral-900 text-neutral-100;
   }
 
-  /* Improved heading styles */
+  /* ----------------------------------------
+     Typography - Headings
+     ---------------------------------------- */
   h1 {
-    @apply text-3xl font-bold tracking-tight;
+    @apply text-3xl font-bold tracking-tight text-neutral-900 leading-tight;
+    @apply mb-4;
   }
 
   h2 {
-    @apply text-2xl font-semibold tracking-tight;
+    @apply text-2xl font-semibold tracking-tight text-neutral-900 leading-tight;
+    @apply mb-3;
   }
 
   h3 {
-    @apply text-xl font-semibold;
+    @apply text-xl font-semibold text-neutral-900 leading-snug;
+    @apply mb-2;
   }
 
   h4 {
-    @apply text-lg font-semibold;
+    @apply text-lg font-semibold text-neutral-900 leading-snug;
+    @apply mb-2;
   }
 
   h5 {
-    @apply text-base font-semibold;
+    @apply text-base font-semibold text-neutral-800;
+    @apply mb-1;
   }
 
   h6 {
-    @apply text-sm font-semibold;
+    @apply text-sm font-semibold text-neutral-700 uppercase tracking-wide;
+    @apply mb-1;
   }
 
-  /* Better link defaults */
+  .dark h1,
+  .dark h2,
+  .dark h3,
+  .dark h4 {
+    @apply text-neutral-100;
+  }
+
+  .dark h5 {
+    @apply text-neutral-200;
+  }
+
+  .dark h6 {
+    @apply text-neutral-300;
+  }
+
+  /* ----------------------------------------
+     Typography - Body Text
+     ---------------------------------------- */
+  p {
+    @apply text-base leading-relaxed text-neutral-700 mb-4;
+  }
+
+  .dark p {
+    @apply text-neutral-300;
+  }
+
+  small {
+    @apply text-sm text-neutral-500;
+  }
+
+  .dark small {
+    @apply text-neutral-400;
+  }
+
+  strong {
+    @apply font-semibold text-neutral-900;
+  }
+
+  .dark strong {
+    @apply text-neutral-100;
+  }
+
+  /* ----------------------------------------
+     Typography - Links
+     ---------------------------------------- */
   a {
-    @apply text-primary-600 hover:text-primary-700 transition-colors;
+    @apply text-primary-600 hover:text-primary-700 transition-colors duration-150;
+    @apply underline-offset-2 hover:underline;
   }
 
   .dark a {
     @apply text-primary-400 hover:text-primary-300;
   }
 
-  /* Code and pre blocks */
+  /* Link that looks like regular text */
+  a.link-subtle {
+    @apply text-neutral-700 hover:text-primary-600 no-underline;
+  }
+
+  .dark a.link-subtle {
+    @apply text-neutral-300 hover:text-primary-400;
+  }
+
+  /* ----------------------------------------
+     Typography - Code & Pre
+     ---------------------------------------- */
   code {
-    @apply bg-neutral-100 text-neutral-900 px-1.5 py-0.5 rounded text-sm font-mono;
+    @apply bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono;
+    @apply border border-neutral-200;
   }
 
   .dark code {
-    @apply bg-neutral-800 text-neutral-100;
+    @apply bg-neutral-800 text-neutral-200 border-neutral-700;
   }
 
   pre {
     @apply bg-neutral-900 text-neutral-100 p-4 rounded-lg overflow-x-auto;
+    @apply text-sm font-mono leading-relaxed;
+    @apply border border-neutral-800;
   }
 
   pre code {
-    @apply bg-transparent p-0;
+    @apply bg-transparent p-0 border-0 text-inherit;
+  }
+
+  kbd {
+    @apply inline-flex items-center justify-center px-2 py-0.5 text-xs font-mono font-medium;
+    @apply bg-neutral-100 text-neutral-700 border border-neutral-300 rounded shadow-sm;
+  }
+
+  .dark kbd {
+    @apply bg-neutral-800 text-neutral-300 border-neutral-600;
+  }
+
+  /* ----------------------------------------
+     Typography - Lists
+     ---------------------------------------- */
+  ul, ol {
+    @apply pl-6 mb-4 text-neutral-700;
+  }
+
+  .dark ul, .dark ol {
+    @apply text-neutral-300;
+  }
+
+  ul {
+    @apply list-disc;
+  }
+
+  ol {
+    @apply list-decimal;
+  }
+
+  li {
+    @apply mb-1;
+  }
+
+  /* ----------------------------------------
+     Typography - Blockquote
+     ---------------------------------------- */
+  blockquote {
+    @apply border-l-4 border-primary-500 pl-4 py-2 my-4;
+    @apply text-neutral-600 italic;
+  }
+
+  .dark blockquote {
+    @apply text-neutral-400 border-primary-400;
+  }
+
+  /* ----------------------------------------
+     Typography - Horizontal Rule
+     ---------------------------------------- */
+  hr {
+    @apply border-t border-neutral-200 my-6;
+  }
+
+  .dark hr {
+    @apply border-neutral-700;
+  }
+
+  /* ----------------------------------------
+     Form Elements - Labels
+     ---------------------------------------- */
+  label {
+    @apply block text-sm font-medium text-neutral-700 mb-1;
+  }
+
+  .dark label {
+    @apply text-neutral-300;
+  }
+
+  /* ----------------------------------------
+     Form Elements - Inputs & Textareas
+     ---------------------------------------- */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  textarea {
+    @apply block w-full px-3 py-2 text-base;
+    @apply bg-white border border-neutral-300 rounded-md shadow-sm;
+    @apply placeholder-neutral-400;
+    @apply transition-colors duration-150;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+  }
+
+  .dark input[type="text"],
+  .dark input[type="email"],
+  .dark input[type="password"],
+  .dark input[type="number"],
+  .dark input[type="search"],
+  .dark input[type="tel"],
+  .dark input[type="url"],
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"],
+  .dark textarea {
+    @apply bg-neutral-800 border-neutral-600 text-neutral-100 placeholder-neutral-500;
+    @apply focus:ring-primary-400 focus:border-primary-400;
+  }
+
+  textarea {
+    @apply min-h-[100px] resize-y;
+  }
+
+  /* ----------------------------------------
+     Form Elements - Select
+     ---------------------------------------- */
+  select {
+    @apply block w-full px-3 py-2 text-base;
+    @apply bg-white border border-neutral-300 rounded-md shadow-sm;
+    @apply transition-colors duration-150;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+    @apply cursor-pointer;
+  }
+
+  .dark select {
+    @apply bg-neutral-800 border-neutral-600 text-neutral-100;
+    @apply focus:ring-primary-400 focus:border-primary-400;
+  }
+
+  select[multiple] {
+    @apply py-2;
+  }
+
+  /* ----------------------------------------
+     Form Elements - Checkbox & Radio
+     ---------------------------------------- */
+  input[type="checkbox"],
+  input[type="radio"] {
+    @apply h-4 w-4 text-primary-600 border-neutral-300;
+    @apply focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply transition-colors duration-150;
+    @apply cursor-pointer;
+  }
+
+  .dark input[type="checkbox"],
+  .dark input[type="radio"] {
+    @apply border-neutral-600 bg-neutral-800;
+    @apply focus:ring-primary-400 focus:ring-offset-neutral-900;
+  }
+
+  input[type="checkbox"] {
+    @apply rounded;
+  }
+
+  input[type="radio"] {
+    @apply rounded-full;
+  }
+
+  /* Checkbox/radio with inline label */
+  input[type="checkbox"] + label,
+  input[type="radio"] + label {
+    @apply inline ml-2 mb-0 cursor-pointer;
+  }
+
+  /* ----------------------------------------
+     Form Elements - File Input
+     ---------------------------------------- */
+  input[type="file"] {
+    @apply block w-full text-sm text-neutral-500;
+    @apply file:mr-4 file:py-2 file:px-4;
+    @apply file:rounded-md file:border-0;
+    @apply file:text-sm file:font-medium;
+    @apply file:bg-primary-50 file:text-primary-700;
+    @apply hover:file:bg-primary-100;
+    @apply file:cursor-pointer file:transition-colors file:duration-150;
+  }
+
+  .dark input[type="file"] {
+    @apply text-neutral-400;
+    @apply file:bg-primary-900 file:text-primary-300;
+    @apply hover:file:bg-primary-800;
+  }
+
+  /* ----------------------------------------
+     Form Elements - Range/Slider
+     ---------------------------------------- */
+  input[type="range"] {
+    @apply w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer;
+  }
+
+  .dark input[type="range"] {
+    @apply bg-neutral-700;
+  }
+
+  /* ----------------------------------------
+     Form Elements - Disabled States
+     ---------------------------------------- */
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    @apply bg-neutral-100 text-neutral-500 cursor-not-allowed opacity-75;
+  }
+
+  .dark input:disabled,
+  .dark textarea:disabled,
+  .dark select:disabled {
+    @apply bg-neutral-800 text-neutral-500;
+  }
+
+  /* ----------------------------------------
+     Form Elements - Invalid/Error States
+     ---------------------------------------- */
+  input:invalid:not(:placeholder-shown),
+  textarea:invalid:not(:placeholder-shown),
+  select:invalid {
+    @apply border-error-500 focus:ring-error-500 focus:border-error-500;
+  }
+
+  /* ----------------------------------------
+     Form - Fieldset & Legend
+     ---------------------------------------- */
+  fieldset {
+    @apply border border-neutral-200 rounded-lg p-4 mb-4;
+  }
+
+  .dark fieldset {
+    @apply border-neutral-700;
+  }
+
+  legend {
+    @apply text-sm font-semibold text-neutral-700 px-2;
+  }
+
+  .dark legend {
+    @apply text-neutral-300;
+  }
+
+  /* ----------------------------------------
+     Tables (base styles)
+     ---------------------------------------- */
+  table {
+    @apply w-full text-sm text-left;
+  }
+
+  th {
+    @apply text-xs font-semibold text-neutral-500 uppercase tracking-wider;
+    @apply px-4 py-3 bg-neutral-50 border-b border-neutral-200;
+  }
+
+  .dark th {
+    @apply text-neutral-400 bg-neutral-800 border-neutral-700;
+  }
+
+  td {
+    @apply px-4 py-3 border-b border-neutral-100 text-neutral-700;
+  }
+
+  .dark td {
+    @apply border-neutral-800 text-neutral-300;
+  }
+
+  tr:hover td {
+    @apply bg-neutral-50;
+  }
+
+  .dark tr:hover td {
+    @apply bg-neutral-800/50;
   }
 }
 
-/* Component layer customizations */
+/* ============================================
+   COMPONENT LAYER - Reusable UI Components
+   ============================================ */
 @layer components {
-  /* Button base styles - can be extended in Templ components */
+  /* ----------------------------------------
+     Buttons - Base
+     ---------------------------------------- */
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2;
+    @apply px-4 py-2 rounded-md;
+    @apply text-sm font-medium leading-none;
+    @apply transition-all duration-150 ease-in-out;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none;
+    @apply select-none cursor-pointer;
   }
 
+  .dark .btn {
+    @apply focus:ring-offset-neutral-900;
+  }
+
+  /* ----------------------------------------
+     Buttons - Variants
+     ---------------------------------------- */
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+    @apply bg-primary-600 text-white;
+    @apply hover:bg-primary-700 active:bg-primary-800;
+    @apply focus:ring-primary-500;
   }
 
   .btn-secondary {
-    @apply bg-neutral-200 text-neutral-900 hover:bg-neutral-300 focus:ring-neutral-500;
+    @apply bg-neutral-200 text-neutral-900;
+    @apply hover:bg-neutral-300 active:bg-neutral-400;
+    @apply focus:ring-neutral-500;
+  }
+
+  .dark .btn-secondary {
+    @apply bg-neutral-700 text-neutral-100;
+    @apply hover:bg-neutral-600 active:bg-neutral-500;
   }
 
   .btn-danger {
-    @apply bg-error-600 text-white hover:bg-error-700 focus:ring-error-500;
+    @apply bg-error-600 text-white;
+    @apply hover:bg-error-700 active:bg-error-800;
+    @apply focus:ring-error-500;
   }
 
   .btn-success {
-    @apply bg-success-600 text-white hover:bg-success-700 focus:ring-success-500;
+    @apply bg-success-600 text-white;
+    @apply hover:bg-success-700 active:bg-success-800;
+    @apply focus:ring-success-500;
+  }
+
+  .btn-warning {
+    @apply bg-warning-500 text-white;
+    @apply hover:bg-warning-600 active:bg-warning-700;
+    @apply focus:ring-warning-500;
+  }
+
+  .btn-info {
+    @apply bg-info-600 text-white;
+    @apply hover:bg-info-700 active:bg-info-800;
+    @apply focus:ring-info-500;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-500;
+    @apply bg-transparent text-neutral-700;
+    @apply hover:bg-neutral-100 active:bg-neutral-200;
+    @apply focus:ring-neutral-500;
+  }
+
+  .dark .btn-ghost {
+    @apply text-neutral-300;
+    @apply hover:bg-neutral-800 active:bg-neutral-700;
+  }
+
+  /* ----------------------------------------
+     Buttons - Outline Variants
+     ---------------------------------------- */
+  .btn-outline {
+    @apply bg-transparent border-2;
+  }
+
+  .btn-outline-primary {
+    @apply btn-outline border-primary-600 text-primary-600;
+    @apply hover:bg-primary-50 active:bg-primary-100;
+    @apply focus:ring-primary-500;
+  }
+
+  .dark .btn-outline-primary {
+    @apply border-primary-400 text-primary-400;
+    @apply hover:bg-primary-900/30 active:bg-primary-900/50;
+  }
+
+  .btn-outline-danger {
+    @apply btn-outline border-error-600 text-error-600;
+    @apply hover:bg-error-50 active:bg-error-100;
+    @apply focus:ring-error-500;
+  }
+
+  .dark .btn-outline-danger {
+    @apply border-error-400 text-error-400;
+    @apply hover:bg-error-900/30 active:bg-error-900/50;
+  }
+
+  /* ----------------------------------------
+     Buttons - Size Variants
+     ---------------------------------------- */
+  .btn-xs {
+    @apply px-2 py-1 text-xs rounded;
   }
 
   .btn-sm {
-    @apply px-3 py-1.5 text-sm;
+    @apply px-3 py-1.5 text-sm rounded-md;
   }
 
   .btn-lg {
-    @apply px-6 py-3 text-lg;
+    @apply px-6 py-3 text-base rounded-lg;
   }
 
-  /* Card component base */
+  .btn-xl {
+    @apply px-8 py-4 text-lg rounded-lg;
+  }
+
+  /* ----------------------------------------
+     Buttons - Special Variants
+     ---------------------------------------- */
+  .btn-icon {
+    @apply p-2 rounded-md;
+  }
+
+  .btn-icon-sm {
+    @apply p-1.5 rounded;
+  }
+
+  .btn-icon-lg {
+    @apply p-3 rounded-lg;
+  }
+
+  /* Full width button */
+  .btn-block {
+    @apply w-full;
+  }
+
+  /* ----------------------------------------
+     Forms - Input Classes
+     ---------------------------------------- */
+  .input {
+    @apply block w-full px-3 py-2 text-base;
+    @apply bg-white border border-neutral-300 rounded-md shadow-sm;
+    @apply placeholder-neutral-400;
+    @apply transition-colors duration-150;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+  }
+
+  .dark .input {
+    @apply bg-neutral-800 border-neutral-600 text-neutral-100 placeholder-neutral-500;
+    @apply focus:ring-primary-400 focus:border-primary-400;
+  }
+
+  .input-sm {
+    @apply px-2.5 py-1.5 text-sm rounded;
+  }
+
+  .input-lg {
+    @apply px-4 py-3 text-lg rounded-lg;
+  }
+
+  .input-error {
+    @apply border-error-500 focus:ring-error-500 focus:border-error-500;
+  }
+
+  .input-success {
+    @apply border-success-500 focus:ring-success-500 focus:border-success-500;
+  }
+
+  /* ----------------------------------------
+     Forms - Form Group
+     ---------------------------------------- */
+  .form-group {
+    @apply mb-4;
+  }
+
+  .form-group label {
+    @apply block text-sm font-medium text-neutral-700 mb-1.5;
+  }
+
+  .dark .form-group label {
+    @apply text-neutral-300;
+  }
+
+  .form-hint {
+    @apply mt-1.5 text-sm text-neutral-500;
+  }
+
+  .dark .form-hint {
+    @apply text-neutral-400;
+  }
+
+  .form-error {
+    @apply mt-1.5 text-sm text-error-600;
+  }
+
+  .dark .form-error {
+    @apply text-error-400;
+  }
+
+  /* ----------------------------------------
+     Forms - Input Group (with addons)
+     ---------------------------------------- */
+  .input-group {
+    @apply flex items-stretch;
+  }
+
+  .input-group .input {
+    @apply flex-1 min-w-0 rounded-none first:rounded-l-md last:rounded-r-md;
+  }
+
+  .input-addon {
+    @apply inline-flex items-center px-3;
+    @apply bg-neutral-100 border border-neutral-300 text-neutral-500;
+    @apply first:rounded-l-md first:border-r-0 last:rounded-r-md last:border-l-0;
+  }
+
+  .dark .input-addon {
+    @apply bg-neutral-800 border-neutral-600 text-neutral-400;
+  }
+
+  /* ----------------------------------------
+     Forms - Inline Checkbox/Radio
+     ---------------------------------------- */
+  .checkbox-group,
+  .radio-group {
+    @apply flex items-center gap-2;
+  }
+
+  .checkbox-label,
+  .radio-label {
+    @apply inline-flex items-center gap-2 cursor-pointer;
+  }
+
+  .checkbox-label input,
+  .radio-label input {
+    @apply flex-shrink-0;
+  }
+
+  /* ----------------------------------------
+     Cards
+     ---------------------------------------- */
   .card {
     @apply bg-white rounded-lg shadow-md border border-neutral-200;
   }
@@ -120,7 +672,29 @@
     @apply bg-neutral-800 border-neutral-700;
   }
 
-  /* Badge component base */
+  .card-header {
+    @apply px-4 py-3 border-b border-neutral-200;
+  }
+
+  .dark .card-header {
+    @apply border-neutral-700;
+  }
+
+  .card-body {
+    @apply p-4;
+  }
+
+  .card-footer {
+    @apply px-4 py-3 border-t border-neutral-200 bg-neutral-50;
+  }
+
+  .dark .card-footer {
+    @apply border-neutral-700 bg-neutral-900/50;
+  }
+
+  /* ----------------------------------------
+     Badges
+     ---------------------------------------- */
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
@@ -129,27 +703,79 @@
     @apply bg-primary-100 text-primary-800;
   }
 
+  .dark .badge-primary {
+    @apply bg-primary-900/50 text-primary-300;
+  }
+
   .badge-success {
     @apply bg-success-100 text-success-800;
+  }
+
+  .dark .badge-success {
+    @apply bg-success-900/50 text-success-300;
   }
 
   .badge-warning {
     @apply bg-warning-100 text-warning-800;
   }
 
+  .dark .badge-warning {
+    @apply bg-warning-900/50 text-warning-300;
+  }
+
   .badge-error {
     @apply bg-error-100 text-error-800;
+  }
+
+  .dark .badge-error {
+    @apply bg-error-900/50 text-error-300;
   }
 
   .badge-info {
     @apply bg-info-100 text-info-800;
   }
 
+  .dark .badge-info {
+    @apply bg-info-900/50 text-info-300;
+  }
+
   .badge-neutral {
     @apply bg-neutral-100 text-neutral-800;
   }
 
-  /* Table base styles */
+  .dark .badge-neutral {
+    @apply bg-neutral-700 text-neutral-300;
+  }
+
+  /* Dot badge for status indicators */
+  .badge-dot {
+    @apply inline-flex items-center gap-1.5;
+  }
+
+  .badge-dot::before {
+    content: '';
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .badge-dot-success::before {
+    @apply bg-success-500;
+  }
+
+  .badge-dot-error::before {
+    @apply bg-error-500;
+  }
+
+  .badge-dot-warning::before {
+    @apply bg-warning-500;
+  }
+
+  .badge-dot-info::before {
+    @apply bg-info-500;
+  }
+
+  /* ----------------------------------------
+     Tables (component styles)
+     ---------------------------------------- */
   .table {
     @apply min-w-full divide-y divide-neutral-200;
   }
@@ -167,15 +793,19 @@
   }
 
   .table th {
-    @apply px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider;
+    @apply px-6 py-3 text-left text-xs font-semibold text-neutral-500 uppercase tracking-wider;
+  }
+
+  .dark .table th {
+    @apply text-neutral-400;
   }
 
   .table td {
-    @apply px-6 py-4 whitespace-nowrap text-sm text-neutral-900;
+    @apply px-6 py-4 whitespace-nowrap text-sm text-neutral-700;
   }
 
   .dark .table td {
-    @apply text-neutral-100;
+    @apply text-neutral-300;
   }
 
   .table tbody {
@@ -194,47 +824,335 @@
     @apply bg-neutral-800;
   }
 
-  /* Form input base styles */
-  .input {
-    @apply block w-full px-3 py-2 border border-neutral-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500;
+  /* Striped table variant */
+  .table-striped tbody tr:nth-child(odd) {
+    @apply bg-neutral-50;
   }
 
-  .dark .input {
-    @apply bg-neutral-800 border-neutral-600 text-neutral-100;
+  .dark .table-striped tbody tr:nth-child(odd) {
+    @apply bg-neutral-800/50;
   }
 
-  /* Alert component base */
+  /* Compact table variant */
+  .table-compact th,
+  .table-compact td {
+    @apply px-3 py-2;
+  }
+
+  /* ----------------------------------------
+     Alerts
+     ---------------------------------------- */
   .alert {
-    @apply p-4 rounded-md;
+    @apply p-4 rounded-md flex items-start gap-3;
+  }
+
+  .alert-icon {
+    @apply flex-shrink-0 w-5 h-5;
+  }
+
+  .alert-content {
+    @apply flex-1 min-w-0;
+  }
+
+  .alert-title {
+    @apply font-medium mb-1;
+  }
+
+  .alert-description {
+    @apply text-sm;
   }
 
   .alert-info {
     @apply bg-info-50 text-info-800 border border-info-200;
   }
 
+  .dark .alert-info {
+    @apply bg-info-900/30 text-info-300 border-info-800;
+  }
+
   .alert-success {
     @apply bg-success-50 text-success-800 border border-success-200;
+  }
+
+  .dark .alert-success {
+    @apply bg-success-900/30 text-success-300 border-success-800;
   }
 
   .alert-warning {
     @apply bg-warning-50 text-warning-800 border border-warning-200;
   }
 
+  .dark .alert-warning {
+    @apply bg-warning-900/30 text-warning-300 border-warning-800;
+  }
+
   .alert-error {
     @apply bg-error-50 text-error-800 border border-error-200;
   }
+
+  .dark .alert-error {
+    @apply bg-error-900/30 text-error-300 border-error-800;
+  }
+
+  /* ----------------------------------------
+     Dropdown Menu
+     ---------------------------------------- */
+  .dropdown-menu {
+    @apply absolute z-50 min-w-[12rem] py-1;
+    @apply bg-white border border-neutral-200 rounded-lg shadow-lg;
+    @apply origin-top-right;
+  }
+
+  .dark .dropdown-menu {
+    @apply bg-neutral-800 border-neutral-700;
+  }
+
+  .dropdown-item {
+    @apply block w-full px-4 py-2 text-sm text-left text-neutral-700;
+    @apply hover:bg-neutral-100 hover:text-neutral-900;
+    @apply transition-colors duration-100;
+  }
+
+  .dark .dropdown-item {
+    @apply text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100;
+  }
+
+  .dropdown-item-danger {
+    @apply text-error-600 hover:bg-error-50 hover:text-error-700;
+  }
+
+  .dark .dropdown-item-danger {
+    @apply text-error-400 hover:bg-error-900/30 hover:text-error-300;
+  }
+
+  .dropdown-divider {
+    @apply my-1 border-t border-neutral-200;
+  }
+
+  .dark .dropdown-divider {
+    @apply border-neutral-700;
+  }
+
+  /* ----------------------------------------
+     Modal / Dialog
+     ---------------------------------------- */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/50 z-40;
+  }
+
+  .modal {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  }
+
+  .modal-content {
+    @apply bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto;
+  }
+
+  .dark .modal-content {
+    @apply bg-neutral-800;
+  }
+
+  .modal-header {
+    @apply px-6 py-4 border-b border-neutral-200 flex items-center justify-between;
+  }
+
+  .dark .modal-header {
+    @apply border-neutral-700;
+  }
+
+  .modal-title {
+    @apply text-lg font-semibold text-neutral-900;
+  }
+
+  .dark .modal-title {
+    @apply text-neutral-100;
+  }
+
+  .modal-body {
+    @apply px-6 py-4;
+  }
+
+  .modal-footer {
+    @apply px-6 py-4 border-t border-neutral-200 flex items-center justify-end gap-3;
+  }
+
+  .dark .modal-footer {
+    @apply border-neutral-700;
+  }
+
+  /* ----------------------------------------
+     Tabs
+     ---------------------------------------- */
+  .tabs {
+    @apply flex border-b border-neutral-200;
+  }
+
+  .dark .tabs {
+    @apply border-neutral-700;
+  }
+
+  .tab {
+    @apply px-4 py-2 text-sm font-medium text-neutral-500;
+    @apply border-b-2 border-transparent -mb-px;
+    @apply hover:text-neutral-700 hover:border-neutral-300;
+    @apply transition-colors duration-150;
+  }
+
+  .dark .tab {
+    @apply text-neutral-400 hover:text-neutral-200 hover:border-neutral-600;
+  }
+
+  .tab-active {
+    @apply text-primary-600 border-primary-600;
+  }
+
+  .dark .tab-active {
+    @apply text-primary-400 border-primary-400;
+  }
+
+  /* ----------------------------------------
+     Tooltip
+     ---------------------------------------- */
+  .tooltip {
+    @apply relative inline-flex;
+  }
+
+  .tooltip-content {
+    @apply absolute z-50 px-2 py-1 text-xs font-medium text-white bg-neutral-900 rounded;
+    @apply whitespace-nowrap pointer-events-none;
+    @apply opacity-0 transition-opacity duration-150;
+  }
+
+  .tooltip:hover .tooltip-content {
+    @apply opacity-100;
+  }
+
+  .dark .tooltip-content {
+    @apply bg-neutral-700;
+  }
+
+  /* ----------------------------------------
+     Spinner / Loader
+     ---------------------------------------- */
+  .spinner {
+    @apply animate-spin h-5 w-5 border-2 border-neutral-300 border-t-primary-600 rounded-full;
+  }
+
+  .dark .spinner {
+    @apply border-neutral-600 border-t-primary-400;
+  }
+
+  .spinner-sm {
+    @apply h-4 w-4;
+  }
+
+  .spinner-lg {
+    @apply h-8 w-8 border-4;
+  }
+
+  /* ----------------------------------------
+     Progress Bar
+     ---------------------------------------- */
+  .progress {
+    @apply w-full bg-neutral-200 rounded-full overflow-hidden;
+    @apply h-2;
+  }
+
+  .dark .progress {
+    @apply bg-neutral-700;
+  }
+
+  .progress-bar {
+    @apply h-full bg-primary-600 rounded-full;
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .progress-bar-success {
+    @apply bg-success-600;
+  }
+
+  .progress-bar-warning {
+    @apply bg-warning-500;
+  }
+
+  .progress-bar-error {
+    @apply bg-error-600;
+  }
+
+  /* ----------------------------------------
+     Avatar
+     ---------------------------------------- */
+  .avatar {
+    @apply inline-flex items-center justify-center rounded-full bg-neutral-200 text-neutral-600;
+    @apply w-10 h-10 text-sm font-medium;
+  }
+
+  .dark .avatar {
+    @apply bg-neutral-700 text-neutral-300;
+  }
+
+  .avatar-sm {
+    @apply w-8 h-8 text-xs;
+  }
+
+  .avatar-lg {
+    @apply w-12 h-12 text-base;
+  }
+
+  .avatar-xl {
+    @apply w-16 h-16 text-lg;
+  }
+
+  /* ----------------------------------------
+     Divider
+     ---------------------------------------- */
+  .divider {
+    @apply flex items-center my-4;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    @apply flex-1 border-t border-neutral-200;
+  }
+
+  .dark .divider::before,
+  .dark .divider::after {
+    @apply border-neutral-700;
+  }
+
+  .divider-text {
+    @apply px-3 text-sm text-neutral-500;
+  }
+
+  .dark .divider-text {
+    @apply text-neutral-400;
+  }
 }
 
-/* Utility layer customizations */
+/* ============================================
+   UTILITY LAYER - Custom Utilities
+   ============================================ */
 @layer utilities {
-  /* Custom scrollbar styles */
+  /* ----------------------------------------
+     Scrollbar Styles
+     ---------------------------------------- */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.neutral.300') theme('colors.neutral.100');
+  }
+
+  .dark .scrollbar-thin {
+    scrollbar-color: theme('colors.neutral.600') theme('colors.neutral.800');
+  }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-neutral-100;
+    @apply bg-neutral-100 rounded;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
@@ -257,9 +1175,21 @@
     @apply bg-neutral-500;
   }
 
-  /* HTMX loading indicator */
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ----------------------------------------
+     HTMX Loading Indicators
+     ---------------------------------------- */
   .htmx-indicator {
-    @apply opacity-0 transition-opacity duration-300;
+    @apply opacity-0 transition-opacity duration-200;
   }
 
   .htmx-request .htmx-indicator {
@@ -270,12 +1200,206 @@
     @apply opacity-100;
   }
 
-  /* Skeleton loader for HTMX loading states */
+  /* Disable pointer events during HTMX request */
+  .htmx-request {
+    @apply pointer-events-none;
+  }
+
+  /* Swapping state (content being replaced) */
+  .htmx-swapping {
+    @apply opacity-50 transition-opacity duration-100;
+  }
+
+  /* Settling state (after swap, before complete) */
+  .htmx-settling {
+    @apply opacity-100;
+  }
+
+  /* Added class for elements entering */
+  .htmx-added {
+    @apply opacity-0;
+  }
+
+  /* ----------------------------------------
+     Skeleton Loaders
+     ---------------------------------------- */
   .skeleton {
     @apply animate-pulse bg-neutral-200 rounded;
   }
 
   .dark .skeleton {
     @apply bg-neutral-700;
+  }
+
+  .skeleton-text {
+    @apply skeleton h-4 w-full;
+  }
+
+  .skeleton-title {
+    @apply skeleton h-6 w-3/4;
+  }
+
+  .skeleton-avatar {
+    @apply skeleton rounded-full w-10 h-10;
+  }
+
+  .skeleton-button {
+    @apply skeleton h-10 w-24 rounded-md;
+  }
+
+  .skeleton-card {
+    @apply skeleton h-32 w-full rounded-lg;
+  }
+
+  /* ----------------------------------------
+     Text Utilities
+     ---------------------------------------- */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-info-600 bg-clip-text text-transparent;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Truncate with ellipsis */
+  .truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ----------------------------------------
+     Layout Utilities
+     ---------------------------------------- */
+  .stack {
+    @apply flex flex-col;
+  }
+
+  .stack > * + * {
+    @apply mt-4;
+  }
+
+  .stack-sm > * + * {
+    @apply mt-2;
+  }
+
+  .stack-lg > * + * {
+    @apply mt-6;
+  }
+
+  .cluster {
+    @apply flex flex-wrap gap-4;
+  }
+
+  .cluster-sm {
+    @apply flex flex-wrap gap-2;
+  }
+
+  /* Center content absolutely */
+  .center-absolute {
+    @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
+  }
+
+  /* ----------------------------------------
+     Interactive States
+     ---------------------------------------- */
+  .clickable {
+    @apply cursor-pointer transition-colors duration-150;
+    @apply hover:bg-neutral-100 active:bg-neutral-200;
+  }
+
+  .dark .clickable {
+    @apply hover:bg-neutral-800 active:bg-neutral-700;
+  }
+
+  .focusable {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  }
+
+  .dark .focusable {
+    @apply focus:ring-offset-neutral-900;
+  }
+
+  /* ----------------------------------------
+     Animation Utilities
+     ---------------------------------------- */
+  .fade-in {
+    animation: fadeIn 200ms ease-out;
+  }
+
+  .slide-up {
+    animation: slideUp 200ms ease-out;
+  }
+
+  .slide-down {
+    animation: slideDown 200ms ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ----------------------------------------
+     Aspect Ratio Utilities
+     ---------------------------------------- */
+  .aspect-video {
+    aspect-ratio: 16 / 9;
+  }
+
+  .aspect-square {
+    aspect-ratio: 1 / 1;
+  }
+
+  /* ----------------------------------------
+     Print Utilities
+     ---------------------------------------- */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+
+    .print-only {
+      display: block !important;
+    }
+  }
+
+  .print-only {
+    display: none;
   }
 }

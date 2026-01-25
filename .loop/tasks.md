@@ -18,7 +18,7 @@ Status: in-progress
 - [x] 5. Implement partial vs full page response logic (needs: 4)
 - [x] 6. Install Tailwind CLI and create tailwind.config.js (needs: 1)
 - [x] 7. Set up Tailwind CSS build pipeline with content paths (needs: 6)
-- [ ] 8. Create base Tailwind styles (typography, forms, buttons) (needs: 7)
+- [x] 8. Create base Tailwind styles (typography, forms, buttons) (needs: 7)
 - [x] 9. Add Alpine.js and create component patterns (dropdown, modal, tabs) (needs: 1)
 - [x] 10. Create ui-htmx handlers package with route registration (needs: 3, 5)
 - [ ] 11. Configure air for Go hot-reload development workflow (needs: 10)
