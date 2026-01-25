@@ -1,0 +1,25 @@
+package jobs
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/taskgrouppartials"
+)
+
+// TaskGroup renders the task group detail page with full page layout
+templ TaskGroup(jobID string, tg taskgrouppartials.TaskGroupDetail) {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       tg.Name + " - Task Group - Wander",
+			Description: "Task group detail for " + tg.Name,
+			CurrentPath: "/ui/jobs/" + jobID + "/taskgroups/" + tg.Name,
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "Jobs", URL: "/ui/jobs"},
+				{Label: jobID, URL: "/ui/jobs/" + jobID},
+				{Label: tg.Name, URL: ""},
+			},
+		},
+		taskgrouppartials.DetailContent(jobID, tg),
+	)
+}

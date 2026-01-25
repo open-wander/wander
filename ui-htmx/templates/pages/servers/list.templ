@@ -1,0 +1,33 @@
+package servers
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/serverspartials"
+)
+
+// ServerSummary represents a summary view of a server for list display.
+type ServerSummary struct {
+	Name    string
+	Address string
+	Status  string
+	Leader  bool
+	Region  string
+	Version string
+}
+
+// List renders the full servers list page with layout.
+templ List(serversList []ServerSummary, sortColumn string, sortDir string) {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       "Servers - Wander",
+			Description: "View and manage Nomad servers",
+			CurrentPath: "/ui/servers",
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "Servers", URL: ""},
+			},
+		},
+		serverspartials.ListContent(serversList, sortColumn, sortDir),
+	)
+}

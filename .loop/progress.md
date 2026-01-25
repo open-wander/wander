@@ -303,6 +303,52 @@ Pattern: SSE manager for scalable real-time connections
 Files: handlers/sse_manager.go, sse-client.js, form_field.templ, jobs.go, pages/jobs/list.templ, detail.templ, partials
 ---
 
+### 2026-01-25 - Tasks 40, 45, 55, 58, 61, 75, 83, 97: Pages & Charts
+Batch of 8 tasks completed:
+
+**Task 40: Jobs list page template**
+- Verified using Table component correctly
+- Status badges with colors, sortable columns
+
+**Task 45: Job detail page with tabs**
+- Verified header, tabs, breadcrumbs
+- HTMX lazy-loading for 5 tabs
+
+**Task 55: Task group detail page**
+- Created taskgroup.templ with breadcrumbs
+- Task list with resources, placement failures
+- Autoscaling config display
+
+**Task 58: Allocations list handler**
+- Created handlers/allocations.go
+- Table with ID, Job, Task Group, Node, Status
+- Status badges with health colors
+
+**Task 61: Allocation detail handler**
+- Detail() method with tabs
+- Tabs: Tasks, Logs, Files, Raw
+- Mock data with events timeline
+
+**Task 75: Clients list handler**
+- Created handlers/clients.go
+- Resource bars with color coding by usage %
+- Status indicators (ready, down, draining)
+
+**Task 83: Servers list handler**
+- Created handlers/servers.go
+- Leader badge highlighting
+- Raft peer status column
+
+**Task 97: D3 chart container**
+- Created chart.templ with ChartContainer
+- Created chart-utils.js with D3 helpers
+- HTMX afterSwap reinit, ResizeObserver
+- Dark mode color support
+
+Pattern: Resource bars with color thresholds (green <50%, yellow 50-75%, orange 75-90%, red ≥90%)
+Files: pages/jobs/taskgroup.templ, handlers/allocations.go, clients.go, servers.go, chart.templ, chart-utils.js
+---
+
 ### 2026-01-25 - Task 3: Create base layout template
 - Created layouts/base.templ with HTML5 structure, meta tags, script loading
 - Created layouts/page.templ with responsive sidebar, header, main content

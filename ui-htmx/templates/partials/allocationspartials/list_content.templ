@@ -1,0 +1,154 @@
+package allocationspartials
+
+import (
+	"time"
+	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// AllocationSummary represents a summary view of an allocation for list display.
+type AllocationSummary struct {
+	ID        string
+	JobID     string
+	TaskGroup string
+	NodeID    string
+	NodeName  string
+	Status    string
+	Created   time.Time
+}
+
+// ListContent renders the allocations table content for HTMX partial updates.
+templ ListContent(allocationsList []AllocationSummary) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Allocations</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					View and manage Nomad allocations
+				</p>
+			</div>
+			<div class="mt-4 sm:mt-0">
+				<div class="flex items-center space-x-2">
+					<input
+						type="text"
+						placeholder="Filter allocations..."
+						class="px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-800 dark:text-neutral-100"
+					/>
+				</div>
+			</div>
+		</div>
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "id", Label: "ID", Sortable: false, Align: "left", Width: "w-48"},
+					{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-1/4"},
+					{Key: "taskgroup", Label: "Task Group", Sortable: false, Align: "left", Width: "w-1/6"},
+					{Key: "node", Label: "Node", Sortable: false, Align: "left", Width: "w-1/4"},
+					{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-32"},
+				},
+				Striped:    true,
+				Hover:      true,
+			}) {
+				@components.TableBody() {
+					if len(allocationsList) == 0 {
+						@components.TableEmptyState("No allocations found", "There are no allocations to display")
+					} else {
+						for _, allocation := range allocationsList {
+							@allocationRow(allocation)
+						}
+					}
+				}
+			}
+		</div>
+	</div>
+}
+
+// allocationRow renders a single allocation row in the table
+templ allocationRow(allocation AllocationSummary) {
+	<tr class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+		@components.TableCell("left", "w-48") {
+			<div class="font-mono text-xs text-neutral-700 dark:text-neutral-300">
+				{ shortID(allocation.ID) }
+			</div>
+		}
+		@components.TableCell("left", "w-1/4") {
+			<div class="font-medium text-neutral-900 dark:text-neutral-100">
+				{ allocation.JobID }
+			</div>
+		}
+		@components.TableCell("left", "w-1/6") {
+			<span class="text-neutral-700 dark:text-neutral-300">
+				{ allocation.TaskGroup }
+			</span>
+		}
+		@components.TableCell("left", "w-1/4") {
+			<div class="text-neutral-900 dark:text-neutral-100">
+				{ allocation.NodeName }
+			</div>
+			<div class="text-xs font-mono text-neutral-500 dark:text-neutral-400">
+				{ shortID(allocation.NodeID) }
+			</div>
+		}
+		@components.TableCell("center", "w-32") {
+			@components.Badge(components.BadgeProps{
+				Variant: statusVariant(allocation.Status),
+				Dot:     true,
+			}) {
+				{ allocation.Status }
+			}
+		}
+	</tr>
+}
+
+// statusVariant maps allocation status to badge variant
+func statusVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "complete":
+		return "info"
+	case "failed":
+		return "danger"
+	case "lost":
+		return "danger"
+	default:
+		return "neutral"
+	}
+}
+
+// shortID truncates a UUID to show only the first 8 characters
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
+// formatTimeAgo formats a time.Time as a relative time string
+func formatTimeAgo(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+}

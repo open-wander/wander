@@ -60,33 +60,29 @@ func (r *Router) registerJobsRoutes() {
 }
 
 // registerAllocationsRoutes sets up routes for the allocations section.
-// Placeholder handlers will be replaced with actual implementations.
 func (r *Router) registerAllocationsRoutes() {
-	// Allocations list
-	r.mux.Handle("/ui/allocations", r.wrapMiddleware(placeholderHandler("Allocations List")))
+	allocationsHandler := NewAllocationsHandler(r.handler)
 
-	// Allocation detail
-	r.mux.Handle("/ui/allocations/", r.wrapMiddleware(placeholderHandler("Allocation Detail")))
+	// Allocations handler handles both list and detail pages
+	r.mux.Handle("/ui/allocations", r.wrapMiddleware(allocationsHandler))
+	r.mux.Handle("/ui/allocations/", r.wrapMiddleware(allocationsHandler))
 }
 
 // registerClientsRoutes sets up routes for the clients section.
-// Placeholder handlers will be replaced with actual implementations.
 func (r *Router) registerClientsRoutes() {
-	// Clients list
-	r.mux.Handle("/ui/clients", r.wrapMiddleware(placeholderHandler("Clients List")))
+	clientsHandler := NewClientsHandler(r.handler)
 
-	// Client detail
-	r.mux.Handle("/ui/clients/", r.wrapMiddleware(placeholderHandler("Client Detail")))
+	// Clients handler handles list page (detail pages to be implemented)
+	r.mux.Handle("/ui/clients", r.wrapMiddleware(clientsHandler))
 }
 
 // registerServersRoutes sets up routes for the servers section.
-// Placeholder handlers will be replaced with actual implementations.
 func (r *Router) registerServersRoutes() {
-	// Servers list
-	r.mux.Handle("/ui/servers", r.wrapMiddleware(placeholderHandler("Servers List")))
+	serversHandler := NewServersHandler(r.handler)
 
-	// Server detail
-	r.mux.Handle("/ui/servers/", r.wrapMiddleware(placeholderHandler("Server Detail")))
+	// Servers handler handles both list and detail pages
+	r.mux.Handle("/ui/servers", r.wrapMiddleware(serversHandler))
+	r.mux.Handle("/ui/servers/", r.wrapMiddleware(serversHandler))
 }
 
 // wrapMiddleware applies HTMX middleware and any other necessary middleware

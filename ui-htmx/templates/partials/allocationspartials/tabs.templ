@@ -1,0 +1,174 @@
+package allocationspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// TasksTab renders the tasks tab content
+templ TasksTab(alloc AllocationDetail) {
+	<div class="p-6">
+		<h3 class="text-lg font-medium text-neutral-900 mb-4">Tasks</h3>
+		<div class="space-y-4">
+			for _, task := range alloc.Tasks {
+				<div class="border border-neutral-200 rounded-lg p-4">
+					<div class="flex items-center justify-between mb-3">
+						<div class="flex items-center space-x-3">
+							<h4 class="text-base font-semibold text-neutral-900">{ task.Name }</h4>
+							@components.Badge(components.BadgeProps{
+								Variant: taskStateToBadgeVariant(task.State),
+								Dot:     true,
+								Size:    "sm",
+							}, task.State)
+						</div>
+					</div>
+					if len(task.Events) > 0 {
+						<div class="mt-3">
+							<h5 class="text-sm font-medium text-neutral-700 mb-2">Recent Events</h5>
+							<div class="space-y-2">
+								for _, event := range task.Events {
+									<div class="flex items-start space-x-3 text-sm">
+										<div class="flex-shrink-0 w-24 text-neutral-500">
+											{ event.Time.Format("15:04:05") }
+										</div>
+										<div class="flex-1">
+											<span class="font-medium text-neutral-900">{ event.Type }:</span>
+											<span class="text-neutral-600 ml-1">{ event.DisplayMsg }</span>
+										</div>
+									</div>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			}
+		</div>
+		<!-- Resources Section -->
+		<div class="mt-6 border-t border-neutral-200 pt-6">
+			<h3 class="text-lg font-medium text-neutral-900 mb-4">Resources</h3>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<div class="bg-neutral-50 rounded-lg p-4">
+					<div class="text-sm text-neutral-600 mb-1">CPU</div>
+					<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%d", alloc.Resources.CPU) } <span class="text-sm font-normal text-neutral-600">MHz</span></div>
+				</div>
+				<div class="bg-neutral-50 rounded-lg p-4">
+					<div class="text-sm text-neutral-600 mb-1">Memory</div>
+					<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%d", alloc.Resources.Memory) } <span class="text-sm font-normal text-neutral-600">MB</span></div>
+				</div>
+				<div class="bg-neutral-50 rounded-lg p-4">
+					<div class="text-sm text-neutral-600 mb-1">Disk</div>
+					<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%d", alloc.Resources.Disk) } <span class="text-sm font-normal text-neutral-600">MB</span></div>
+				</div>
+			</div>
+		</div>
+		<!-- Events Section -->
+		if len(alloc.Events) > 0 {
+			<div class="mt-6 border-t border-neutral-200 pt-6">
+				<h3 class="text-lg font-medium text-neutral-900 mb-4">Allocation Events</h3>
+				<div class="space-y-2">
+					for _, event := range alloc.Events {
+						<div class="flex items-start space-x-4 text-sm border-l-2 border-primary-500 pl-4 py-2">
+							<div class="flex-shrink-0 w-32 text-neutral-500">
+								{ event.Time.Format("Jan 2, 15:04:05") }
+							</div>
+							<div class="flex-1">
+								<span class="font-medium text-neutral-900">{ event.Type }:</span>
+								<span class="text-neutral-600 ml-1">{ event.Message }</span>
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// LogsTab renders the logs tab (placeholder)
+templ LogsTab() {
+	<div class="p-6">
+		<h3 class="text-lg font-medium text-neutral-900 mb-4">Logs</h3>
+		<div class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm">
+			<div class="text-green-400">[2026-01-25 12:00:00] Starting allocation...</div>
+			<div class="text-blue-400">[2026-01-25 12:00:01] Task 'nginx' is running</div>
+			<div class="text-blue-400">[2026-01-25 12:00:02] Task 'redis' is running</div>
+			<div class="text-neutral-400">[2026-01-25 12:00:03] Allocation healthy</div>
+		</div>
+		<p class="text-sm text-neutral-500 mt-4">Live log streaming will be implemented here.</p>
+	</div>
+}
+
+// FilesTab renders the files tab (placeholder)
+templ FilesTab() {
+	<div class="p-6">
+		<h3 class="text-lg font-medium text-neutral-900 mb-4">Files</h3>
+		<div class="border border-neutral-200 rounded-lg">
+			<div class="divide-y divide-neutral-200">
+				<div class="flex items-center justify-between p-3 hover:bg-neutral-50">
+					<div class="flex items-center space-x-3">
+						<svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+						</svg>
+						<span class="text-sm font-medium text-neutral-900">alloc/</span>
+					</div>
+				</div>
+				<div class="flex items-center justify-between p-3 hover:bg-neutral-50">
+					<div class="flex items-center space-x-3">
+						<svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+						</svg>
+						<span class="text-sm font-medium text-neutral-900">stdout.log</span>
+					</div>
+					<span class="text-xs text-neutral-500">1.2 KB</span>
+				</div>
+				<div class="flex items-center justify-between p-3 hover:bg-neutral-50">
+					<div class="flex items-center space-x-3">
+						<svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+						</svg>
+						<span class="text-sm font-medium text-neutral-900">stderr.log</span>
+					</div>
+					<span class="text-xs text-neutral-500">0 KB</span>
+				</div>
+			</div>
+		</div>
+		<p class="text-sm text-neutral-500 mt-4">File browser functionality will be implemented here.</p>
+	</div>
+}
+
+// RawTab renders the raw allocation data tab (placeholder)
+templ RawTab() {
+	<div class="p-6">
+		<h3 class="text-lg font-medium text-neutral-900 mb-4">Raw Allocation Data</h3>
+		<div class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm overflow-x-auto">
+			<pre>&#123;
+  "ID": "a1b2c3d4-e5f6-4a5b-9c8d-1e2f3a4b5c6d",
+  "JobID": "web-frontend",
+  "TaskGroup": "web",
+  "NodeID": "node-1234",
+  "Status": "running",
+  "Resources": &#123;
+    "CPU": 512,
+    "Memory": 1024,
+    "Disk": 2048
+  &#125;
+&#125;</pre>
+		</div>
+		<p class="text-sm text-neutral-500 mt-4">Full JSON allocation data from Nomad API will be displayed here.</p>
+	</div>
+}
+
+// taskStateToBadgeVariant maps task state to badge variant
+func taskStateToBadgeVariant(state string) string {
+	switch state {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "dead":
+		return "neutral"
+	case "failed":
+		return "danger"
+	default:
+		return "info"
+	}
+}

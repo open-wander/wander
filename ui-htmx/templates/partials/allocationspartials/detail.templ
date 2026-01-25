@@ -1,0 +1,143 @@
+package allocationspartials
+
+import (
+	"fmt"
+	"time"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// AllocationDetail represents detailed information about an allocation
+type AllocationDetail struct {
+	ID        string
+	JobID     string
+	TaskGroup string
+	NodeID    string
+	NodeName  string
+	Status    string
+	Created   time.Time
+	Modified  time.Time
+	Tasks     []TaskStatus
+	Resources ResourceUsage
+	Events    []AllocationEvent
+}
+
+// TaskStatus represents the status of a task within an allocation
+type TaskStatus struct {
+	Name   string
+	State  string
+	Failed bool
+	Events []TaskEvent
+}
+
+// TaskEvent represents an event in a task's lifecycle
+type TaskEvent struct {
+	Type       string
+	Time       time.Time
+	DisplayMsg string
+	FailsTask  bool
+}
+
+// ResourceUsage represents resource allocation and usage
+type ResourceUsage struct {
+	CPU    int
+	Memory int
+	Disk   int
+}
+
+// AllocationEvent represents an event in the allocation's lifecycle
+type AllocationEvent struct {
+	Type    string
+	Time    time.Time
+	Message string
+}
+
+// DetailContent renders the allocation detail page content (without layout)
+templ DetailContent(alloc AllocationDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Allocation Header -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6">
+			<div class="flex items-start justify-between">
+				<div class="flex-1">
+					<div class="flex items-center space-x-4 mb-4">
+						<h1 class="text-3xl font-bold text-neutral-900">{ alloc.ID[:8] }...</h1>
+						@components.Badge(components.BadgeProps{
+							Variant: statusToBadgeVariant(alloc.Status),
+							Dot:     true,
+							Size:    "md",
+						}, alloc.Status)
+					</div>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+						<div>
+							<span class="text-neutral-600">Job:</span>
+							<a href={ templ.URL("/ui/jobs/" + alloc.JobID) } class="font-medium text-primary-600 hover:text-primary-700 ml-2">
+								{ alloc.JobID }
+							</a>
+						</div>
+						<div>
+							<span class="text-neutral-600">Task Group:</span>
+							<span class="font-medium text-neutral-900 ml-2">{ alloc.TaskGroup }</span>
+						</div>
+						<div>
+							<span class="text-neutral-600">Node:</span>
+							<a href={ templ.URL("/ui/clients/" + alloc.NodeID) } class="font-medium text-primary-600 hover:text-primary-700 ml-2">
+								{ alloc.NodeName }
+							</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Tabs -->
+		<div class="bg-white shadow rounded-lg p-6">
+			@components.Tabs(components.TabsProps{
+				Tabs: []components.Tab{
+					{
+						ID:      "tasks",
+						Label:   "Tasks",
+						Icon:    "cube",
+						URL:     "/ui/allocations/" + alloc.ID + "/tasks",
+						Content: TasksTab(alloc),
+						Active:  true,
+					},
+					{
+						ID:    "logs",
+						Label: "Logs",
+						Icon:  "document",
+						URL:   "/ui/allocations/" + alloc.ID + "/logs",
+					},
+					{
+						ID:    "files",
+						Label: "Files",
+						Icon:  "folder",
+						URL:   "/ui/allocations/" + alloc.ID + "/files",
+					},
+					{
+						ID:    "raw",
+						Label: "Raw",
+						Icon:  "code",
+						URL:   "/ui/allocations/" + alloc.ID + "/raw",
+					},
+				},
+				ActiveTab: "tasks",
+				Mode:      "htmx",
+				PanelID:   "allocation-detail-panel",
+			})
+		</div>
+	</div>
+}
+
+// statusToBadgeVariant maps allocation status to badge variant
+func statusToBadgeVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "complete":
+		return "info"
+	case "failed":
+		return "danger"
+	default:
+		return "neutral"
+	}
+}

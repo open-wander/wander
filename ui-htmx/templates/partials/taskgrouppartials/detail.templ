@@ -1,0 +1,201 @@
+package taskgrouppartials
+
+import (
+	"fmt"
+	"time"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// TaskGroupDetail represents detailed information about a task group
+type TaskGroupDetail struct {
+	Name              string
+	Count             int
+	Tasks             []TaskDetail
+	Scaling           *ScalingConfig
+	PlacementFailures []PlacementFailure
+}
+
+// TaskDetail represents a task within a task group
+type TaskDetail struct {
+	Name      string
+	Driver    string
+	Resources ResourceConfig
+}
+
+// ResourceConfig represents resource requirements for a task
+type ResourceConfig struct {
+	CPU      int
+	Memory   int
+	DiskMB   int
+	Networks []NetworkResource
+}
+
+// NetworkResource represents network requirements
+type NetworkResource struct {
+	MBits int
+}
+
+// ScalingConfig represents autoscaling configuration
+type ScalingConfig struct {
+	Enabled bool
+	Min     int
+	Max     int
+	Policy  ScalingPolicy
+}
+
+// ScalingPolicy represents scaling policy parameters
+type ScalingPolicy struct {
+	Cooldown            string
+	EvaluationInterval  string
+	TargetCPUPercent    int
+	TargetMemoryPercent int
+}
+
+// PlacementFailure represents a failed placement attempt
+type PlacementFailure struct {
+	Node      string
+	Reason    string
+	Timestamp time.Time
+}
+
+// DetailContent renders the task group detail page content (without layout)
+templ DetailContent(jobID string, tg TaskGroupDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Task Group Header -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center space-x-4">
+					<h1 class="text-3xl font-bold text-neutral-900">{ tg.Name }</h1>
+					<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
+						{ fmt.Sprintf("%d instances", tg.Count) }
+					</span>
+				</div>
+			</div>
+		</div>
+		<!-- Placement Failures -->
+		if len(tg.PlacementFailures) > 0 {
+			<div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+				<div class="flex items-start">
+					<div class="flex-shrink-0">
+						@components.Icon(components.IconProps{Name: "exclamation-triangle", Size: "md", Class: "text-red-600"})
+					</div>
+					<div class="ml-3 flex-1">
+						<h3 class="text-sm font-medium text-red-800 mb-2">Placement Failures</h3>
+						<div class="space-y-2">
+							for _, failure := range tg.PlacementFailures {
+								<div class="bg-white rounded p-3 border border-red-200">
+									<div class="flex items-start justify-between mb-1">
+										<span class="text-sm font-medium text-neutral-900">{ failure.Node }</span>
+										<span class="text-xs text-neutral-500">{ formatTime(failure.Timestamp) }</span>
+									</div>
+									<p class="text-sm text-neutral-700">{ failure.Reason }</p>
+								</div>
+							}
+						</div>
+					</div>
+				</div>
+			</div>
+		}
+		<!-- Scaling Configuration -->
+		if tg.Scaling != nil && tg.Scaling.Enabled {
+			<div class="bg-white shadow rounded-lg p-6 mb-6">
+				<h3 class="text-lg font-semibold text-neutral-900 mb-4">Autoscaling Configuration</h3>
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">Min Instances</dt>
+						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Min) }</dd>
+					</div>
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">Max Instances</dt>
+						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Max) }</dd>
+					</div>
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">CPU Target</dt>
+						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d%%", tg.Scaling.Policy.TargetCPUPercent) }</dd>
+					</div>
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">Memory Target</dt>
+						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d%%", tg.Scaling.Policy.TargetMemoryPercent) }</dd>
+					</div>
+				</div>
+				<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">Cooldown Period</dt>
+						<dd class="mt-1 text-sm text-neutral-900">{ tg.Scaling.Policy.Cooldown }</dd>
+					</div>
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">Evaluation Interval</dt>
+						<dd class="mt-1 text-sm text-neutral-900">{ tg.Scaling.Policy.EvaluationInterval }</dd>
+					</div>
+				</div>
+			</div>
+		}
+		<!-- Tasks List -->
+		<div class="bg-white shadow rounded-lg p-6">
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Tasks</h3>
+			<div class="space-y-4">
+				for _, task := range tg.Tasks {
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-6">
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center space-x-3">
+								<h4 class="text-lg font-medium text-neutral-900">{ task.Name }</h4>
+								@components.Badge(components.BadgeProps{
+									Variant: "info",
+									Size:    "sm",
+								}, task.Driver)
+							</div>
+						</div>
+						<!-- Resource Requirements -->
+						<div>
+							<h5 class="text-sm font-medium text-neutral-700 mb-3">Resource Requirements</h5>
+							<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+								<div class="bg-white border border-neutral-200 rounded p-3">
+									<dt class="text-xs font-medium text-neutral-500 uppercase">CPU</dt>
+									<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</dd>
+								</div>
+								<div class="bg-white border border-neutral-200 rounded p-3">
+									<dt class="text-xs font-medium text-neutral-500 uppercase">Memory</dt>
+									<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</dd>
+								</div>
+								<div class="bg-white border border-neutral-200 rounded p-3">
+									<dt class="text-xs font-medium text-neutral-500 uppercase">Disk</dt>
+									<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d MB", task.Resources.DiskMB) }</dd>
+								</div>
+								if len(task.Resources.Networks) > 0 {
+									<div class="bg-white border border-neutral-200 rounded p-3">
+										<dt class="text-xs font-medium text-neutral-500 uppercase">Network</dt>
+										<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d Mbps", task.Resources.Networks[0].MBits) }</dd>
+									</div>
+								}
+							</div>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// formatTime formats a time.Time for display
+func formatTime(t time.Time) string {
+	now := time.Now()
+	diff := now.Sub(t)
+
+	if diff < time.Minute {
+		return "just now"
+	} else if diff < time.Hour {
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	} else if diff < 24*time.Hour {
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	}
+
+	return t.Format("Jan 2, 2006 3:04 PM")
+}

@@ -1,0 +1,36 @@
+package clients
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/clientspartials"
+)
+
+// ClientSummary represents a summary view of a client for list display.
+type ClientSummary struct {
+	ID          string
+	Name        string
+	Status      string
+	Datacenter  string
+	Allocations int
+	CPUUsed     int
+	CPUTotal    int
+	MemUsed     int64
+	MemTotal    int64
+}
+
+// List renders the full clients list page with layout.
+templ List(clientsList []ClientSummary) {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       "Clients - Wander",
+			Description: "View and manage Nomad client nodes",
+			CurrentPath: "/ui/clients",
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "Clients", URL: ""},
+			},
+		},
+		clientspartials.ListContent(clientsList),
+	)
+}

@@ -56,12 +56,12 @@ Status: in-progress
 ### Phase 3: Jobs Section
 
 - [x] 39. Create Jobs list handler and route (needs: 10)
-- [ ] 40. Create Jobs list page template with table (needs: 25, 39)
+- [x] 40. Create Jobs list page template with table (needs: 25, 39)
 - [ ] 41. Add Jobs list pagination with HTMX (needs: 40)
 - [ ] 42. Add Jobs list search/filter with debounced HTMX (needs: 38, 40)
 - [ ] 43. Add Jobs list sorting by column headers (needs: 40)
 - [x] 44. Create Job detail handler and route (needs: 10)
-- [ ] 45. Create Job detail page with header and tabs (needs: 28, 44)
+- [x] 45. Create Job detail page with header and tabs (needs: 28, 44)
 - [ ] 46. Create Job Overview tab with task groups summary (needs: 45)
 - [ ] 47. Create Job Definition tab with CodeMirror 6 editor (needs: 45)
 - [ ] 48. Set up CodeMirror 6 with HCL/JSON syntax highlighting (needs: 47)
@@ -71,16 +71,16 @@ Status: in-progress
 - [ ] 52. Add revert to version action (needs: 51)
 - [ ] 53. Create Job Allocations tab with table (needs: 45)
 - [ ] 54. Add real-time allocation updates via HTMX polling (needs: 53)
-- [ ] 55. Create Task group detail page (needs: 44)
+- [x] 55. Create Task group detail page (needs: 44)
 - [ ] 56. Add scaling controls to Task group page (needs: 55)
 - [ ] 57. Add Job action buttons (Start, Stop, Run) with confirmation modals (needs: 26, 45)
 
 ### Phase 4: Allocations Section
 
-- [ ] 58. Create Allocations list handler and route (needs: 10)
+- [x] 58. Create Allocations list handler and route (needs: 10)
 - [ ] 59. Create Allocations list page with filters (needs: 25, 58)
 - [ ] 60. Add Allocations search by ID prefix (needs: 59)
-- [ ] 61. Create Allocation detail handler and route (needs: 10)
+- [x] 61. Create Allocation detail handler and route (needs: 10)
 - [ ] 62. Create Allocation detail page with tabs (needs: 28, 61)
 - [ ] 63. Create Allocation Tasks tab with status list (needs: 62)
 - [ ] 64. Create Allocation Logs tab with SSE streaming (needs: 12, 13, 62)
@@ -97,7 +97,7 @@ Status: in-progress
 
 ### Phase 5: Clients & Servers
 
-- [ ] 75. Create Clients list handler and route (needs: 10)
+- [x] 75. Create Clients list handler and route (needs: 10)
 - [ ] 76. Create Clients list page with resource bars (needs: 25, 34, 75)
 - [ ] 77. Add Clients filtering by status, datacenter (needs: 76)
 - [ ] 78. Create Client detail handler and route (needs: 10)
@@ -105,7 +105,7 @@ Status: in-progress
 - [ ] 80. Add resource utilization charts to Client detail (needs: 79)
 - [ ] 81. Add allocations list to Client detail (needs: 79)
 - [ ] 82. Add drain controls to Client detail (needs: 79)
-- [ ] 83. Create Servers list handler and route (needs: 10)
+- [x] 83. Create Servers list handler and route (needs: 10)
 - [ ] 84. Create Servers list page with leader badge (needs: 25, 15, 83)
 
 ### Phase 6: Additional Sections
@@ -125,7 +125,7 @@ Status: in-progress
 
 ### Phase 7: Charts & Visualizations
 
-- [ ] 97. Create D3 chart container Templ component (needs: 8)
+- [x] 97. Create D3 chart container Templ component (needs: 8)
 - [ ] 98. Implement LineChart component for time-series data (needs: 97)
 - [ ] 99. Implement GaugeChart component for resource utilization (needs: 97)
 - [ ] 100. Implement BarChart component for comparisons (needs: 97)

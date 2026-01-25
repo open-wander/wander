@@ -7,6 +7,7 @@ import (
 
 	"github.com/open-wander/wander/ui-htmx/templates/pages/jobs"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/jobspartials"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/taskgrouppartials"
 )
 
 // JobSummary represents a summary view of a job for list display.
@@ -47,6 +48,12 @@ func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Handle /ui/jobs exactly (list page)
 	if path == "/ui/jobs" {
 		h.List(w, r)
+		return
+	}
+
+	// Handle /ui/jobs/{id}/taskgroups/{tgname} (task group detail page)
+	if strings.Contains(path, "/taskgroups/") {
+		h.TaskGroup(w, r)
 		return
 	}
 
@@ -104,6 +111,11 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	actualJobID := parts[0]
 	tabName := ""
 	if len(parts) > 1 {
+		// Check if this is a task group URL - should have been handled earlier
+		if parts[1] == "taskgroups" {
+			http.NotFound(w, r)
+			return
+		}
 		tabName = parts[1]
 	}
 
@@ -261,4 +273,102 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		h.handler.logger.Error("failed to render tab content", "tab", tabName, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// TaskGroup handles the task group detail page
+func (h *JobsHandler) TaskGroup(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID and task group name from path
+	// Expected format: /ui/jobs/{jobID}/taskgroups/{tgName}
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+	parts := strings.Split(path, "/taskgroups/")
+	if len(parts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+
+	jobID := parts[0]
+	tgName := strings.TrimSuffix(parts[1], "/")
+
+	// Log the request
+	h.handler.logger.Debug("task group detail request", "jobID", jobID, "taskGroup", tgName, "htmx", IsHTMXFromRequest(r))
+
+	// Get mock task group data
+	taskGroup := h.getTaskGroupDetail(jobID, tgName)
+
+	// Render full page or partial based on HTMX request
+	err := Render(w, r,
+		jobs.TaskGroup(jobID, taskGroup),                       // Full page with layout
+		taskgrouppartials.DetailContent(jobID, taskGroup), // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render task group detail", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// getTaskGroupDetail returns mock task group detail data.
+// This will be replaced with actual Nomad API calls in the future.
+func (h *JobsHandler) getTaskGroupDetail(jobID, tgName string) taskgrouppartials.TaskGroupDetail {
+	// Base task group data
+	tg := taskgrouppartials.TaskGroupDetail{
+		Name:  tgName,
+		Count: 3,
+		Tasks: []taskgrouppartials.TaskDetail{
+			{
+				Name:   "nginx",
+				Driver: "docker",
+				Resources: taskgrouppartials.ResourceConfig{
+					CPU:      500,
+					Memory:   256,
+					DiskMB:   300,
+					Networks: []taskgrouppartials.NetworkResource{{MBits: 10}},
+				},
+			},
+			{
+				Name:   "redis",
+				Driver: "docker",
+				Resources: taskgrouppartials.ResourceConfig{
+					CPU:      250,
+					Memory:   128,
+					DiskMB:   100,
+					Networks: []taskgrouppartials.NetworkResource{{MBits: 5}},
+				},
+			},
+		},
+	}
+
+	// Add placement failures for demonstration if task group is "cache"
+	if tgName == "cache" {
+		tg.PlacementFailures = []taskgrouppartials.PlacementFailure{
+			{
+				Node:      "node-1",
+				Reason:    "Constraint \"${attr.kernel.name} = linux\" filtered 0 nodes",
+				Timestamp: time.Now().Add(-10 * time.Minute),
+			},
+			{
+				Node:      "node-2",
+				Reason:    "Resources exhausted on 1 nodes",
+				Timestamp: time.Now().Add(-5 * time.Minute),
+			},
+		}
+	}
+
+	// Add scaling config for service jobs
+	if tgName == "web" {
+		tg.Scaling = &taskgrouppartials.ScalingConfig{
+			Enabled: true,
+			Min:     1,
+			Max:     10,
+			Policy: taskgrouppartials.ScalingPolicy{
+				Cooldown:            "30s",
+				EvaluationInterval:  "10s",
+				TargetCPUPercent:    80,
+				TargetMemoryPercent: 85,
+			},
+		}
+	}
+
+	return tg
 }
