@@ -1,0 +1,127 @@
+package components
+
+import (
+	"strconv"
+	"strings"
+)
+
+// TextareaProps contains parameters for the Textarea component
+type TextareaProps struct {
+	Name        string // Name attribute for form submission
+	ID          string // Optional ID attribute
+	Value       string // Initial value
+	Placeholder string // Placeholder text
+	Rows        int    // Number of visible text rows (default: 3)
+	Required    bool   // Whether the textarea is required
+	Disabled    bool   // Whether the textarea is disabled
+	ReadOnly    bool   // Whether the textarea is read-only
+	AutoResize  bool   // Enable Alpine.js auto-resize (grows with content)
+	Size        string // "sm", "md", "lg" - defaults to "md"
+	Error       string // Error message to display
+	Class       string // Additional CSS classes
+}
+
+// Textarea renders a textarea component with support for auto-resize, error states, and size variants.
+//
+// Features:
+//   - Standard textarea with configurable rows
+//   - Auto-resize using Alpine.js (grows with content when enabled)
+//   - Error state display with red border and error message
+//   - Size variants: sm, md (default), lg
+//   - Disabled and read-only states
+//   - Full integration with Tailwind CSS and Alpine.js
+//
+// Example Usage:
+//
+//	@Textarea(TextareaProps{
+//	    Name: "description",
+//	    Placeholder: "Enter description...",
+//	    Rows: 4,
+//	})
+//
+//	@Textarea(TextareaProps{
+//	    Name: "bio",
+//	    Value: "Current bio text",
+//	    AutoResize: true,
+//	    Size: "lg",
+//	})
+//
+//	@Textarea(TextareaProps{
+//	    Name: "comment",
+//	    Required: true,
+//	    Error: "Comment is required",
+//	})
+templ Textarea(props TextareaProps) {
+	<div class="w-full">
+		<textarea
+			if props.ID != "" {
+				id={ props.ID }
+			}
+			if props.Name != "" {
+				name={ props.Name }
+			}
+			class={ buildTextareaClasses(props) }
+			if props.Placeholder != "" {
+				placeholder={ props.Placeholder }
+			}
+			if props.Required {
+				required
+			}
+			if props.Disabled {
+				disabled
+			}
+			if props.ReadOnly {
+				readonly
+			}
+			rows={ textareaRows(props.Rows) }
+			if props.AutoResize {
+				x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'; } }"
+				x-init="resize()"
+				@input="resize"
+			}
+		>{ props.Value }</textarea>
+		if props.Error != "" {
+			<p class="form-error">{ props.Error }</p>
+		}
+	</div>
+}
+
+// buildTextareaClasses constructs the complete CSS class string for a textarea
+func buildTextareaClasses(props TextareaProps) string {
+	classes := []string{"input"}
+
+	// Add size class
+	size := props.Size
+	if size == "sm" {
+		classes = append(classes, "input-sm")
+	} else if size == "lg" {
+		classes = append(classes, "input-lg")
+	}
+
+	// Add error state
+	if props.Error != "" {
+		classes = append(classes, "input-error")
+	}
+
+	// Add resize control - only show resize handle if not auto-resizing
+	if props.AutoResize {
+		classes = append(classes, "resize-none")
+	} else {
+		classes = append(classes, "resize-y")
+	}
+
+	// Add custom classes
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// textareaRows returns the rows attribute value, defaulting to 3 if not specified
+func textareaRows(rows int) string {
+	if rows <= 0 {
+		return "3"
+	}
+	return strconv.Itoa(rows)
+}

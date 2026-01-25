@@ -165,6 +165,57 @@ Pattern: Helper functions for CSS class generation
 Files: components/button.templ, badge.templ, link.templ, icon.templ, card.templ, table.templ, modal.templ, dropdown.templ + examples and docs
 ---
 
+### 2026-01-25 - Tasks 18-21, 30-34: Form & Feedback Components
+Batch of 8 component tasks completed:
+
+**Task 18: Input component**
+- Types: text, number, password, search, email, url
+- Sizes: sm, md, lg with error states
+- Search icon for search type
+- HTMX integration for live validation
+
+**Task 19: Textarea component**
+- Auto-resize with Alpine.js
+- Configurable rows and sizes
+- Error state display
+
+**Task 21: Checkbox/Radio/Toggle components**
+- Checkbox with label and HTMX support
+- Radio and RadioGroup for option selection
+- Toggle (iOS-style) with 3 sizes
+
+**Task 30: Alert component**
+- Variants: info, success, warning, error
+- Optional title, icon, dismissible
+- Alpine.js for dismiss functionality
+
+**Task 31: Toast notification system**
+- Global Alpine.js store for toast management
+- Auto-dismiss with progress bar
+- HTMX triggering via HX-Trigger header
+- 4 positions, stacked toasts, animations
+
+**Task 32: EmptyState component**
+- Large icon, title, description
+- Optional action button
+- Fixed table.templ naming conflict (TableEmptyState)
+
+**Task 33: LoadingSpinner/Skeleton components**
+- Spinner with size/color variants
+- Skeleton types: text, title, avatar, button, card
+- SkeletonText for multi-line, SkeletonCard
+
+**Task 34: ProgressBar component**
+- Value/max percentage display
+- Colors: primary, success, warning, error
+- Sizes: sm, md, lg
+- Optional label and striped animation
+
+Pattern: Alpine.js global stores for cross-component state (toasts)
+Pattern: HTMX trigger headers for server-initiated UI updates
+Files: components/input.templ, textarea.templ, checkbox.templ, alert.templ, toast.templ, empty_state.templ, loading.templ, progress.templ + examples
+---
+
 ### 2026-01-25 - Task 3: Create base layout template
 - Created layouts/base.templ with HTML5 structure, meta tags, script loading
 - Created layouts/page.templ with responsive sidebar, header, main content

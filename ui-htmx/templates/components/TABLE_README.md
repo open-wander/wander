@@ -98,7 +98,7 @@ Displays a message when the table has no data.
 
 ```go
 @TableBody() {
-    @EmptyState("No jobs found", "Try adjusting your filters")
+    @TableEmptyState("No jobs found", "Try adjusting your filters")
 }
 ```
 
@@ -254,7 +254,7 @@ From `input.css`:
 @Table(props) {
     @TableBody() {
         if len(items) == 0 {
-            @EmptyState("No items found", "Try adjusting your search")
+            @TableEmptyState("No items found", "Try adjusting your search")
         } else {
             for _, item := range items {
                 @TableRow(true) { ... }

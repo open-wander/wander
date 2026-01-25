@@ -1,0 +1,225 @@
+package components
+
+import "strings"
+
+// InputProps contains parameters for the Input component
+type InputProps struct {
+	Type        string // "text", "number", "password", "search", "email", "url"
+	Name        string
+	ID          string
+	Value       string
+	Placeholder string
+	Required    bool
+	Disabled    bool
+	ReadOnly    bool
+	Size        string // "sm", "md", "lg"
+	Error       string // error message
+	Class       string
+	// HTMX
+	HxGet     string
+	HxPost    string
+	HxTarget  string
+	HxTrigger string // e.g., "keyup changed delay:500ms"
+}
+
+// Input renders an input field component with support for various types, sizes, error states,
+// and HTMX attributes for dynamic behavior.
+//
+// Features:
+//   - Multiple input types: text, number, password, search, email, url
+//   - Size variants: sm, md (default), lg
+//   - Error state with message display
+//   - Search icon for search type inputs
+//   - Full HTMX attribute support for live search/validation
+//   - Disabled and read-only states
+//   - Required field support
+//
+// Example Usage:
+//
+//	@Input(InputProps{
+//	    Type: "text",
+//	    Name: "username",
+//	    ID: "username",
+//	    Placeholder: "Enter your username",
+//	    Required: true,
+//	})
+//
+//	@Input(InputProps{
+//	    Type: "search",
+//	    Name: "query",
+//	    Placeholder: "Search...",
+//	    Size: "sm",
+//	    HxGet: "/api/search",
+//	    HxTarget: "#search-results",
+//	    HxTrigger: "keyup changed delay:500ms",
+//	})
+//
+//	@Input(InputProps{
+//	    Type: "email",
+//	    Name: "email",
+//	    Error: "Invalid email address",
+//	    Value: "user@example.com",
+//	})
+templ Input(props InputProps) {
+	<div class="w-full">
+		if props.Type == "search" {
+			<div class="relative">
+				<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+					@searchIcon(props.Size)
+				</div>
+				<input
+					if props.ID != "" {
+						id={ props.ID }
+					}
+					if props.Name != "" {
+						name={ props.Name }
+					}
+					type={ inputType(props.Type) }
+					class={ buildInputClasses(props, true) }
+					if props.Value != "" {
+						value={ props.Value }
+					}
+					if props.Placeholder != "" {
+						placeholder={ props.Placeholder }
+					}
+					if props.Required {
+						required
+					}
+					if props.Disabled {
+						disabled
+					}
+					if props.ReadOnly {
+						readonly
+					}
+					if props.HxGet != "" {
+						hx-get={ props.HxGet }
+					}
+					if props.HxPost != "" {
+						hx-post={ props.HxPost }
+					}
+					if props.HxTarget != "" {
+						hx-target={ props.HxTarget }
+					}
+					if props.HxTrigger != "" {
+						hx-trigger={ props.HxTrigger }
+					}
+				/>
+			</div>
+		} else {
+			<input
+				if props.ID != "" {
+					id={ props.ID }
+				}
+				if props.Name != "" {
+					name={ props.Name }
+				}
+				type={ inputType(props.Type) }
+				class={ buildInputClasses(props, false) }
+				if props.Value != "" {
+					value={ props.Value }
+				}
+				if props.Placeholder != "" {
+					placeholder={ props.Placeholder }
+				}
+				if props.Required {
+					required
+				}
+				if props.Disabled {
+					disabled
+				}
+				if props.ReadOnly {
+					readonly
+				}
+				if props.HxGet != "" {
+					hx-get={ props.HxGet }
+				}
+				if props.HxPost != "" {
+					hx-post={ props.HxPost }
+				}
+				if props.HxTarget != "" {
+					hx-target={ props.HxTarget }
+				}
+				if props.HxTrigger != "" {
+					hx-trigger={ props.HxTrigger }
+				}
+			/>
+		}
+		if props.Error != "" {
+			<p class="form-error">{ props.Error }</p>
+		}
+	</div>
+}
+
+// inputType returns the appropriate input type attribute value
+func inputType(t string) string {
+	// Validate type and return, defaulting to "text" for invalid types
+	switch t {
+	case "number", "password", "search", "email", "url":
+		return t
+	default:
+		return "text"
+	}
+}
+
+// buildInputClasses constructs the complete CSS class string for an input
+func buildInputClasses(props InputProps, hasIcon bool) string {
+	classes := []string{"input"}
+
+	// Add size class
+	size := props.Size
+	if size == "sm" {
+		classes = append(classes, "input-sm")
+	} else if size == "lg" {
+		classes = append(classes, "input-lg")
+	}
+
+	// Add error state class
+	if props.Error != "" {
+		classes = append(classes, "input-error")
+	}
+
+	// Add left padding for search icon
+	if hasIcon {
+		if size == "sm" {
+			classes = append(classes, "pl-8")
+		} else if size == "lg" {
+			classes = append(classes, "pl-12")
+		} else {
+			classes = append(classes, "pl-10")
+		}
+	}
+
+	// Add custom classes
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// searchIcon renders a magnifying glass icon for search inputs
+templ searchIcon(size string) {
+	<svg
+		class={ searchIconSize(size) }
+		xmlns="http://www.w3.org/2000/svg"
+		fill="none"
+		viewBox="0 0 24 24"
+		stroke-width="1.5"
+		stroke="currentColor"
+		aria-hidden="true"
+	>
+		<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
+	</svg>
+}
+
+// searchIconSize returns the appropriate size classes for the search icon
+func searchIconSize(size string) string {
+	switch size {
+	case "sm":
+		return "h-4 w-4 text-neutral-400"
+	case "lg":
+		return "h-6 w-6 text-neutral-400"
+	default:
+		return "h-5 w-5 text-neutral-400"
+	}
+}

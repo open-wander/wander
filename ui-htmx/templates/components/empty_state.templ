@@ -1,0 +1,105 @@
+package components
+
+import "strings"
+
+// EmptyStateProps contains parameters for the EmptyState component
+type EmptyStateProps struct {
+	Icon        string // icon name (e.g., "briefcase", "folder", "search")
+	Title       string // main title text
+	Description string // descriptive text
+	ActionLabel string // optional button text
+	ActionURL   string // optional button URL (used with HTMX)
+	Class       string // additional CSS classes
+}
+
+// EmptyState renders a centered no-data state component with an icon, title, description,
+// and optional action button.
+//
+// Features:
+//   - Large centered icon with subtle styling
+//   - Clear title and description text
+//   - Optional action button with HTMX support
+//   - Fully centered and responsive layout
+//   - Dark mode support
+//
+// Example Basic Usage:
+//
+//	@EmptyState(EmptyStateProps{
+//	    Icon: "briefcase",
+//	    Title: "No jobs found",
+//	    Description: "There are no jobs matching your criteria. Try adjusting your filters.",
+//	})
+//
+// Example with Action Button:
+//
+//	@EmptyState(EmptyStateProps{
+//	    Icon: "folder",
+//	    Title: "No allocations",
+//	    Description: "This job doesn't have any allocations yet.",
+//	    ActionLabel: "View All Jobs",
+//	    ActionURL: "/jobs",
+//	})
+//
+// Common Use Cases:
+//   - No jobs found
+//   - No allocations
+//   - Empty search results
+//   - No data available
+templ EmptyState(props EmptyStateProps) {
+	<div class={ emptyStateClasses(props) }>
+		<div class="text-center">
+			<!-- Large Icon -->
+			if props.Icon != "" {
+				<div class="mx-auto h-16 w-16 text-neutral-400 dark:text-neutral-500 mb-4">
+					@Icon(IconProps{
+						Name:  props.Icon,
+						Size:  "xl",
+						Class: "mx-auto h-16 w-16",
+					})
+				</div>
+			}
+			<!-- Title -->
+			if props.Title != "" {
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+					{ props.Title }
+				</h3>
+			}
+			<!-- Description -->
+			if props.Description != "" {
+				<p class="text-sm text-neutral-500 dark:text-neutral-400 max-w-md mx-auto mb-6">
+					{ props.Description }
+				</p>
+			}
+			<!-- Optional Action Button -->
+			if props.ActionLabel != "" && props.ActionURL != "" {
+				<div class="mt-6">
+					@Button(ButtonProps{
+						Variant: "primary",
+						Size:    "md",
+						HxGet:   props.ActionURL,
+						HxTarget: "#main-content",
+						HxSwap:   "innerHTML",
+					}, props.ActionLabel)
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// emptyStateClasses generates the CSS classes for the empty state container
+func emptyStateClasses(props EmptyStateProps) string {
+	classes := []string{
+		"flex",
+		"items-center",
+		"justify-center",
+		"min-h-[400px]",
+		"py-12",
+		"px-4",
+	}
+
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}

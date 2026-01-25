@@ -560,6 +560,179 @@ document.addEventListener('htmx:afterRequest', (event) => {
 });
 
 /**
+ * TOAST NOTIFICATION STORE
+ *
+ * Global Alpine.js store for managing toast notifications.
+ *
+ * Features:
+ * - Add toasts with auto-dismiss
+ * - Manual dismiss
+ * - Progress bar animation
+ * - Stacking with proper spacing
+ * - HTMX integration via HX-Trigger
+ *
+ * Usage from Alpine components:
+ * ```html
+ * <button @click="$store.toasts.add({
+ *   variant: 'success',
+ *   title: 'Success',
+ *   message: 'Operation completed',
+ *   duration: 3000
+ * })">Show Toast</button>
+ * ```
+ *
+ * Usage from JavaScript:
+ * ```js
+ * window.toastStore.add({
+ *   variant: 'error',
+ *   title: 'Error',
+ *   message: 'Something went wrong',
+ *   duration: 5000
+ * });
+ * ```
+ *
+ * Usage from HTMX (server response header):
+ * ```
+ * HX-Trigger: {"showToast": {"variant": "info", "title": "Info", "message": "Data loaded", "duration": 3000}}
+ * ```
+ *
+ * Variants: "info", "success", "warning", "error"
+ * Duration: milliseconds (0 = manual dismiss only)
+ */
+document.addEventListener('alpine:init', () => {
+    Alpine.store('toasts', {
+        list: [],
+        counter: 0,
+
+        /**
+         * Add a new toast notification
+         * @param {Object} toast - Toast configuration
+         * @param {string} toast.variant - Toast type: "info", "success", "warning", "error"
+         * @param {string} toast.title - Toast title (optional)
+         * @param {string} toast.message - Toast message (optional)
+         * @param {number} toast.duration - Auto-dismiss duration in ms (0 = manual only)
+         * @returns {number} Toast ID
+         */
+        add(toast) {
+            const id = ++this.counter;
+            const duration = toast.duration || 0;
+
+            const newToast = {
+                id,
+                variant: toast.variant || 'info',
+                title: toast.title || '',
+                message: toast.message || '',
+                duration,
+                remaining: duration,
+                visible: true,
+                timerId: null,
+                intervalId: null
+            };
+
+            this.list.push(newToast);
+
+            // Auto-dismiss if duration is set
+            if (duration > 0) {
+                this.startAutoDismiss(id, duration);
+            }
+
+            return id;
+        },
+
+        /**
+         * Remove a toast by ID
+         * @param {number} id - Toast ID
+         */
+        remove(id) {
+            const index = this.list.findIndex(t => t.id === id);
+            if (index === -1) return;
+
+            const toast = this.list[index];
+
+            // Clear timers
+            if (toast.timerId) clearTimeout(toast.timerId);
+            if (toast.intervalId) clearInterval(toast.intervalId);
+
+            // Hide with animation, then remove from list
+            toast.visible = false;
+
+            // Remove from list after animation completes
+            setTimeout(() => {
+                const currentIndex = this.list.findIndex(t => t.id === id);
+                if (currentIndex !== -1) {
+                    this.list.splice(currentIndex, 1);
+                }
+            }, 300); // Match animation duration
+        },
+
+        /**
+         * Start auto-dismiss timer for a toast
+         * @param {number} id - Toast ID
+         * @param {number} duration - Duration in ms
+         */
+        startAutoDismiss(id, duration) {
+            const toast = this.list.find(t => t.id === id);
+            if (!toast) return;
+
+            // Update progress bar every 50ms
+            const updateInterval = 50;
+            toast.intervalId = setInterval(() => {
+                toast.remaining = Math.max(0, toast.remaining - updateInterval);
+            }, updateInterval);
+
+            // Auto-dismiss after duration
+            toast.timerId = setTimeout(() => {
+                this.remove(id);
+            }, duration);
+        },
+
+        /**
+         * Remove all toasts
+         */
+        clear() {
+            // Clear all timers
+            this.list.forEach(toast => {
+                if (toast.timerId) clearTimeout(toast.timerId);
+                if (toast.intervalId) clearInterval(toast.intervalId);
+            });
+            this.list = [];
+        }
+    });
+});
+
+// Make toast store available globally for JavaScript access
+if (typeof window !== 'undefined') {
+    // Wait for Alpine to initialize
+    document.addEventListener('alpine:init', () => {
+        window.toastStore = Alpine.store('toasts');
+    });
+}
+
+// HTMX integration: Listen for showToast events
+document.addEventListener('htmx:afterRequest', (event) => {
+    // Check if the response has a showToast trigger
+    const xhr = event.detail.xhr;
+    const triggerHeader = xhr.getResponseHeader('HX-Trigger');
+
+    if (!triggerHeader) return;
+
+    try {
+        const triggers = JSON.parse(triggerHeader);
+
+        // Handle showToast trigger
+        if (triggers.showToast) {
+            // Dispatch custom event that ToastContainer listens to
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: triggers.showToast
+            }));
+        }
+    } catch (e) {
+        // Trigger header might be a simple string, not JSON
+        // In that case, we ignore it for toast purposes
+    }
+});
+
+/**
  * GLOBAL ALPINE CONFIGURATION
  *
  * Make patterns available globally if Alpine is loaded.

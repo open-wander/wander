@@ -1,0 +1,400 @@
+package components
+
+import "strings"
+
+// CheckboxProps contains parameters for the Checkbox component
+type CheckboxProps struct {
+	Name     string // Name attribute for form submission
+	ID       string // ID attribute for the checkbox
+	Value    string // Value attribute when checked
+	Checked  bool   // Whether the checkbox is checked
+	Disabled bool   // Whether the checkbox is disabled
+	Label    string // Label text displayed next to checkbox
+	Class    string // Additional CSS classes
+	// HTMX attributes
+	HxPost    string // HTMX hx-post attribute
+	HxGet     string // HTMX hx-get attribute
+	HxPut     string // HTMX hx-put attribute
+	HxTarget  string // HTMX hx-target attribute
+	HxSwap    string // HTMX hx-swap attribute
+	HxTrigger string // HTMX hx-trigger attribute (defaults to "change")
+}
+
+// RadioProps contains parameters for the Radio component
+type RadioProps struct {
+	Name     string // Name attribute for form submission (should be same for all radios in group)
+	ID       string // ID attribute for the radio button
+	Value    string // Value attribute when selected
+	Checked  bool   // Whether the radio is checked
+	Disabled bool   // Whether the radio is disabled
+	Label    string // Label text displayed next to radio
+	Class    string // Additional CSS classes
+	// HTMX attributes
+	HxPost    string // HTMX hx-post attribute
+	HxGet     string // HTMX hx-get attribute
+	HxPut     string // HTMX hx-put attribute
+	HxTarget  string // HTMX hx-target attribute
+	HxSwap    string // HTMX hx-swap attribute
+	HxTrigger string // HTMX hx-trigger attribute (defaults to "change")
+}
+
+// ToggleProps contains parameters for the Toggle component
+type ToggleProps struct {
+	Name     string // Name attribute for form submission
+	ID       string // ID attribute for the toggle
+	Checked  bool   // Whether the toggle is on
+	Disabled bool   // Whether the toggle is disabled
+	Label    string // Label text displayed next to toggle
+	Size     string // "sm", "md", "lg" - defaults to "md"
+	Class    string // Additional CSS classes
+	// HTMX attributes
+	HxPost    string // HTMX hx-post attribute
+	HxGet     string // HTMX hx-get attribute
+	HxPut     string // HTMX hx-put attribute
+	HxTarget  string // HTMX hx-target attribute
+	HxSwap    string // HTMX hx-swap attribute
+	HxTrigger string // HTMX hx-trigger attribute (defaults to "change")
+}
+
+// RadioGroupOption represents a single radio button option in a group
+type RadioGroupOption struct {
+	Value    string // Value attribute
+	Label    string // Label text
+	Disabled bool   // Whether this option is disabled
+}
+
+// RadioGroupProps contains parameters for the RadioGroup component
+type RadioGroupProps struct {
+	Name      string             // Name attribute shared by all radios in group
+	Options   []RadioGroupOption // List of radio options
+	Selected  string             // Currently selected value
+	Direction string             // "horizontal" or "vertical" - defaults to "vertical"
+	Class     string             // Additional CSS classes
+	// HTMX attributes
+	HxPost    string // HTMX hx-post attribute (applied to all radios)
+	HxGet     string // HTMX hx-get attribute
+	HxPut     string // HTMX hx-put attribute
+	HxTarget  string // HTMX hx-target attribute
+	HxSwap    string // HTMX hx-swap attribute
+	HxTrigger string // HTMX hx-trigger attribute (defaults to "change")
+}
+
+// Checkbox renders a checkbox input with label.
+//
+// Features:
+//   - Standard checkbox with label support
+//   - Disabled state styling
+//   - HTMX integration for dynamic behavior
+//   - Accessible with proper label association
+//
+// Example Usage:
+//
+//	@Checkbox(CheckboxProps{
+//	    Name: "terms",
+//	    ID: "terms-checkbox",
+//	    Value: "accepted",
+//	    Label: "I agree to the terms and conditions",
+//	    HxPost: "/api/accept-terms",
+//	})
+templ Checkbox(props CheckboxProps) {
+	<div class={ buildCheckboxWrapperClasses(props.Class) }>
+		<input
+			type="checkbox"
+			if props.ID != "" {
+				id={ props.ID }
+			}
+			if props.Name != "" {
+				name={ props.Name }
+			}
+			if props.Value != "" {
+				value={ props.Value }
+			}
+			if props.Checked {
+				checked
+			}
+			if props.Disabled {
+				disabled
+			}
+			class="form-checkbox h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-700 dark:checked:bg-primary-600"
+			if props.HxPost != "" {
+				hx-post={ props.HxPost }
+			}
+			if props.HxGet != "" {
+				hx-get={ props.HxGet }
+			}
+			if props.HxPut != "" {
+				hx-put={ props.HxPut }
+			}
+			if props.HxTarget != "" {
+				hx-target={ props.HxTarget }
+			}
+			if props.HxSwap != "" {
+				hx-swap={ props.HxSwap }
+			}
+			if props.HxTrigger != "" {
+				hx-trigger={ props.HxTrigger }
+			} else if props.HxPost != "" || props.HxGet != "" || props.HxPut != "" {
+				hx-trigger="change"
+			}
+		/>
+		if props.Label != "" {
+			<label
+				if props.ID != "" {
+					for={ props.ID }
+				}
+				class="ml-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 select-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+			>
+				{ props.Label }
+			</label>
+		}
+	</div>
+}
+
+// Radio renders a radio button input with label.
+//
+// Features:
+//   - Standard radio button with label support
+//   - Disabled state styling
+//   - HTMX integration for dynamic behavior
+//   - Accessible with proper label association
+//
+// Example Usage:
+//
+//	@Radio(RadioProps{
+//	    Name: "size",
+//	    ID: "size-small",
+//	    Value: "small",
+//	    Label: "Small",
+//	    Checked: true,
+//	})
+templ Radio(props RadioProps) {
+	<div class={ buildRadioWrapperClasses(props.Class) }>
+		<input
+			type="radio"
+			if props.ID != "" {
+				id={ props.ID }
+			}
+			if props.Name != "" {
+				name={ props.Name }
+			}
+			if props.Value != "" {
+				value={ props.Value }
+			}
+			if props.Checked {
+				checked
+			}
+			if props.Disabled {
+				disabled
+			}
+			class="form-radio h-4 w-4 border-neutral-300 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-700 dark:checked:bg-primary-600"
+			if props.HxPost != "" {
+				hx-post={ props.HxPost }
+			}
+			if props.HxGet != "" {
+				hx-get={ props.HxGet }
+			}
+			if props.HxPut != "" {
+				hx-put={ props.HxPut }
+			}
+			if props.HxTarget != "" {
+				hx-target={ props.HxTarget }
+			}
+			if props.HxSwap != "" {
+				hx-swap={ props.HxSwap }
+			}
+			if props.HxTrigger != "" {
+				hx-trigger={ props.HxTrigger }
+			} else if props.HxPost != "" || props.HxGet != "" || props.HxPut != "" {
+				hx-trigger="change"
+			}
+		/>
+		if props.Label != "" {
+			<label
+				if props.ID != "" {
+					for={ props.ID }
+				}
+				class="ml-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 select-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+			>
+				{ props.Label }
+			</label>
+		}
+	</div>
+}
+
+// RadioGroup renders a group of radio buttons.
+//
+// Features:
+//   - Vertical or horizontal layout
+//   - Shared name attribute for proper radio group behavior
+//   - Disabled state per option
+//   - HTMX integration applied to all radios
+//   - Accessible with proper label association
+//
+// Example Usage:
+//
+//	@RadioGroup(RadioGroupProps{
+//	    Name: "size",
+//	    Options: []RadioGroupOption{
+//	        {Value: "small", Label: "Small"},
+//	        {Value: "medium", Label: "Medium"},
+//	        {Value: "large", Label: "Large"},
+//	    },
+//	    Selected: "medium",
+//	    Direction: "horizontal",
+//	    HxPost: "/api/update-size",
+//	})
+templ RadioGroup(props RadioGroupProps) {
+	<div class={ buildRadioGroupClasses(props) }>
+		for _, option := range props.Options {
+			@Radio(RadioProps{
+				Name:      props.Name,
+				ID:        props.Name + "-" + option.Value,
+				Value:     option.Value,
+				Label:     option.Label,
+				Checked:   option.Value == props.Selected,
+				Disabled:  option.Disabled,
+				HxPost:    props.HxPost,
+				HxGet:     props.HxGet,
+				HxPut:     props.HxPut,
+				HxTarget:  props.HxTarget,
+				HxSwap:    props.HxSwap,
+				HxTrigger: props.HxTrigger,
+			})
+		}
+	</div>
+}
+
+// Toggle renders an iOS-style toggle switch.
+//
+// Features:
+//   - iOS-style animated toggle switch
+//   - Three size variants: sm, md, lg
+//   - Disabled state styling
+//   - HTMX integration for dynamic behavior
+//   - Accessible with proper label association
+//   - Dark mode support
+//
+// Example Usage:
+//
+//	@Toggle(ToggleProps{
+//	    Name: "notifications",
+//	    ID: "notifications-toggle",
+//	    Checked: true,
+//	    Label: "Enable notifications",
+//	    Size: "md",
+//	    HxPost: "/api/toggle-notifications",
+//	})
+templ Toggle(props ToggleProps) {
+	<div class={ buildToggleWrapperClasses(props.Class) }>
+		<label class="inline-flex items-center cursor-pointer">
+			<input
+				type="checkbox"
+				if props.ID != "" {
+					id={ props.ID }
+				}
+				if props.Name != "" {
+					name={ props.Name }
+				}
+				value="on"
+				if props.Checked {
+					checked
+				}
+				if props.Disabled {
+					disabled
+				}
+				class="sr-only peer"
+				if props.HxPost != "" {
+					hx-post={ props.HxPost }
+				}
+				if props.HxGet != "" {
+					hx-get={ props.HxGet }
+				}
+				if props.HxPut != "" {
+					hx-put={ props.HxPut }
+				}
+				if props.HxTarget != "" {
+					hx-target={ props.HxTarget }
+				}
+				if props.HxSwap != "" {
+					hx-swap={ props.HxSwap }
+				}
+				if props.HxTrigger != "" {
+					hx-trigger={ props.HxTrigger }
+				} else if props.HxPost != "" || props.HxGet != "" || props.HxPut != "" {
+					hx-trigger="change"
+				}
+			/>
+			<div class={ buildToggleSliderClasses(props) }></div>
+			if props.Label != "" {
+				<span class="ml-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+					{ props.Label }
+				</span>
+			}
+		</label>
+	</div>
+}
+
+// buildCheckboxWrapperClasses constructs the wrapper classes for checkbox
+func buildCheckboxWrapperClasses(customClass string) string {
+	classes := []string{"flex", "items-center"}
+	if customClass != "" {
+		classes = append(classes, customClass)
+	}
+	return strings.Join(classes, " ")
+}
+
+// buildRadioWrapperClasses constructs the wrapper classes for radio
+func buildRadioWrapperClasses(customClass string) string {
+	classes := []string{"flex", "items-center"}
+	if customClass != "" {
+		classes = append(classes, customClass)
+	}
+	return strings.Join(classes, " ")
+}
+
+// buildRadioGroupClasses constructs the wrapper classes for radio group
+func buildRadioGroupClasses(props RadioGroupProps) string {
+	classes := []string{"flex"}
+
+	if props.Direction == "horizontal" {
+		classes = append(classes, "flex-row", "gap-4")
+	} else {
+		classes = append(classes, "flex-col", "gap-2")
+	}
+
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// buildToggleWrapperClasses constructs the wrapper classes for toggle
+func buildToggleWrapperClasses(customClass string) string {
+	classes := []string{"inline-block"}
+	if customClass != "" {
+		classes = append(classes, customClass)
+	}
+	return strings.Join(classes, " ")
+}
+
+// buildToggleSliderClasses constructs the slider classes for toggle based on size
+func buildToggleSliderClasses(props ToggleProps) string {
+	baseClasses := "relative rounded-full transition-colors duration-200 ease-in-out peer-focus:ring-2 peer-focus:ring-primary-500 peer-focus:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
+
+	// Background colors
+	bgClasses := "bg-neutral-300 dark:bg-neutral-600 peer-checked:bg-primary-600"
+
+	// Size-specific classes
+	var sizeClasses string
+	switch props.Size {
+	case "sm":
+		sizeClasses = "w-9 h-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"
+	case "lg":
+		sizeClasses = "w-14 h-8 after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:after:translate-x-6"
+	default: // md
+		sizeClasses = "w-11 h-6 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"
+	}
+
+	return baseClasses + " " + bgClasses + " " + sizeClasses
+}

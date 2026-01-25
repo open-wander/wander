@@ -181,14 +181,14 @@ templ TableCell(align string, width string) {
 	</td>
 }
 
-// EmptyState renders a message when the table has no data.
+// TableEmptyState renders a message when the table has no data.
 // Should be used inside TableBody.
 //
 // Example:
 //   @TableBody() {
-//       @EmptyState("No jobs found", "Try adjusting your filters")
+//       @TableEmptyState("No jobs found", "Try adjusting your filters")
 //   }
-templ EmptyState(title string, description string) {
+templ TableEmptyState(title string, description string) {
 	<tr>
 		<td colspan="100" class="px-6 py-12 text-center">
 			<div class="flex flex-col items-center justify-center gap-2">

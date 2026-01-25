@@ -1,0 +1,94 @@
+package components
+
+// TextareaExample demonstrates various configurations of the Textarea component
+templ TextareaExample() {
+	<div class="space-y-6 p-6">
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Basic Textarea</h3>
+			<label for="basic-textarea" class="block text-sm font-medium mb-2">Description</label>
+			@Textarea(TextareaProps{
+				ID:          "basic-textarea",
+				Name:        "description",
+				Placeholder: "Enter your description here...",
+				Rows:        4,
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Auto-Resize Textarea</h3>
+			<label for="auto-resize-textarea" class="block text-sm font-medium mb-2">Bio (Auto-resizes)</label>
+			@Textarea(TextareaProps{
+				ID:          "auto-resize-textarea",
+				Name:        "bio",
+				Placeholder: "Type your bio and watch it grow...",
+				Rows:        3,
+				AutoResize:  true,
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Small Size</h3>
+			<label for="small-textarea" class="block text-sm font-medium mb-2">Short Note</label>
+			@Textarea(TextareaProps{
+				ID:          "small-textarea",
+				Name:        "note",
+				Placeholder: "Small textarea...",
+				Size:        "sm",
+				Rows:        2,
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Large Size</h3>
+			<label for="large-textarea" class="block text-sm font-medium mb-2">Article Content</label>
+			@Textarea(TextareaProps{
+				ID:          "large-textarea",
+				Name:        "content",
+				Placeholder: "Write your article...",
+				Size:        "lg",
+				Rows:        6,
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">With Error</h3>
+			<label for="error-textarea" class="block text-sm font-medium mb-2">Comment *</label>
+			@Textarea(TextareaProps{
+				ID:       "error-textarea",
+				Name:     "comment",
+				Required: true,
+				Error:    "Comment is required and must be at least 10 characters",
+				Rows:     3,
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Disabled</h3>
+			<label for="disabled-textarea" class="block text-sm font-medium mb-2">Disabled Field</label>
+			@Textarea(TextareaProps{
+				ID:       "disabled-textarea",
+				Name:     "disabled",
+				Value:    "This field is disabled",
+				Disabled: true,
+				Rows:     2,
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Read-Only</h3>
+			<label for="readonly-textarea" class="block text-sm font-medium mb-2">Terms and Conditions</label>
+			@Textarea(TextareaProps{
+				ID:       "readonly-textarea",
+				Name:     "terms",
+				Value:    "These are the terms and conditions. This field is read-only and cannot be edited.",
+				ReadOnly: true,
+				Rows:     3,
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Auto-Resize with Pre-filled Value</h3>
+			<label for="prefilled-textarea" class="block text-sm font-medium mb-2">Feedback</label>
+			@Textarea(TextareaProps{
+				ID:         "prefilled-textarea",
+				Name:       "feedback",
+				Value:      "This is a pre-filled textarea with auto-resize enabled.\nNotice how it adjusts to the content height automatically.\nTry adding more lines!",
+				AutoResize: true,
+				Rows:       1,
+			})
+		</div>
+	</div>
+}
