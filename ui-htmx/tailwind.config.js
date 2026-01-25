@@ -4,6 +4,7 @@ module.exports = {
     "./templates/**/*.templ",
     "./templates/**/*.go",
     "./handlers/**/*.go",
+    "./static/js/**/*.js",
   ],
   darkMode: 'class', // Enable class-based dark mode for future support
   theme: {

@@ -1,8 +1,9 @@
-.PHONY: help install-tailwind build-css watch-css clean
+.PHONY: help install-tailwind build-css watch-css clean ui-generate ui-watch
 
 TAILWIND_BIN := ./bin/tailwindcss
 INPUT_CSS := static/css/input.css
 OUTPUT_CSS := static/css/output.css
+TEMPL_BIN := templ
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -46,6 +47,15 @@ check-deps: ## Check if Tailwind plugins are installed
 	else \
 		echo "✓ All plugin dependencies installed"; \
 	fi
+
+ui-generate: ## Generate Go code from Templ templates
+	@echo "Generating Go code from Templ templates..."
+	@$(TEMPL_BIN) generate
+	@echo "✓ Templates generated successfully"
+
+ui-watch: ## Watch Templ templates and regenerate on changes
+	@echo "Watching Templ templates for changes..."
+	@$(TEMPL_BIN) generate --watch
 
 setup: install-tailwind check-deps build-css-dev ## Complete setup: install CLI, check deps, build CSS
 	@echo ""

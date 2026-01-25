@@ -1,0 +1,40 @@
+package layouts
+
+// BaseLayoutProps contains parameters for the base HTML layout
+type BaseLayoutProps struct {
+	Title       string
+	Description string
+}
+
+// BaseLayout provides the fundamental HTML structure with head and body.
+// This is the root template that all pages should use.
+templ BaseLayout(props BaseLayoutProps, content templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+			if props.Description != "" {
+				<meta name="description" content={ props.Description }/>
+			}
+			<title>{ props.Title }</title>
+			<!-- Tailwind CSS -->
+			<link rel="stylesheet" href="/static/css/output.css"/>
+			<!-- HTMX - Dynamic interactions without full page reloads -->
+			<script src="/static/js/htmx.min.js"></script>
+			<!-- Alpine.js - Client-side state management -->
+			<script src="/static/js/alpine.min.js" defer></script>
+			<!-- Alpine patterns - Reusable Alpine.js components -->
+			<script src="/static/js/alpine-patterns.js"></script>
+		</head>
+		<body class="h-full bg-neutral-50 text-neutral-900 antialiased" hx-ext="head-support">
+			<!-- HTMX Configuration -->
+			<meta name="htmx-config" content='{"historyCacheSize":20,"defaultSwapStyle":"innerHTML","defaultSwapDelay":0,"timeout":30000}'/>
+			<!-- Main Content Container -->
+			<div id="app" class="h-full">
+				@content
+			</div>
+		</body>
+	</html>
+}

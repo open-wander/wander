@@ -50,6 +50,14 @@ The following files are auto-generated and should not be committed:
 
 ### First Time Setup
 
+You can run setup from the project root or from the ui-htmx directory.
+
+**From project root:**
+```bash
+make ui-setup
+```
+
+**From ui-htmx directory:**
 1. **Install Tailwind CSS CLI**:
    ```bash
    cd ui-htmx
@@ -75,6 +83,19 @@ make setup
 
 ### Development Workflow
 
+**From project root:**
+```bash
+# Terminal 1: Watch and rebuild Templ templates
+make ui-watch
+
+# Terminal 2: Watch and rebuild CSS
+make ui-css-watch
+
+# Terminal 3: Run the Go server
+make dev
+```
+
+**From ui-htmx directory:**
 ```bash
 # Terminal 1: Watch and rebuild Templ templates
 templ generate --watch
@@ -82,8 +103,8 @@ templ generate --watch
 # Terminal 2: Watch and rebuild CSS
 make watch-css
 
-# Terminal 3: Run the Go server
-go run main.go
+# Terminal 3: Run the Go server (from project root)
+cd .. && go run main.go
 ```
 
 ## Build Commands
@@ -100,6 +121,22 @@ templ generate --watch
 
 ### Tailwind CSS
 
+**From project root:**
+```bash
+# Development build (not minified)
+make ui-css-dev
+
+# Production build (minified)
+make ui-css
+
+# Watch for changes
+make ui-css-watch
+
+# Complete setup (install + build)
+make ui-setup
+```
+
+**From ui-htmx directory:**
 ```bash
 # Development build (not minified)
 make build-css-dev
@@ -119,8 +156,20 @@ make verify-config
 
 ### Available Make Targets
 
-Run `make help` to see all available targets:
+**Root Makefile targets:**
+```
+make ui-setup          # Setup UI dependencies (Tailwind CLI + npm packages)
+make ui-css            # Build production CSS (minified)
+make ui-css-dev        # Build development CSS (not minified)
+make ui-css-watch      # Watch and rebuild CSS on changes
+make ui-generate       # Generate Templ templates once
+make ui-watch          # Watch and regenerate Templ templates
+make ui-fmt            # Format Templ template files
+```
 
+**ui-htmx/Makefile targets (run from ui-htmx directory):**
+
+Run `make help` from ui-htmx directory to see all available targets:
 ```
 make help              # Show help
 make install-tailwind  # Install Tailwind CSS CLI

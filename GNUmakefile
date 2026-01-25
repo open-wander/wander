@@ -410,6 +410,26 @@ ui-fmt: ## Format templ template files
 	@echo "==> Formatting templ templates..."
 	@cd ui-htmx/templates && templ fmt .
 
+.PHONY: ui-css
+ui-css: ## Build Tailwind CSS for production (minified)
+	@echo "==> Building production CSS..."
+	@cd ui-htmx && $(MAKE) build-css
+
+.PHONY: ui-css-dev
+ui-css-dev: ## Build Tailwind CSS for development (not minified)
+	@echo "==> Building development CSS..."
+	@cd ui-htmx && $(MAKE) build-css-dev
+
+.PHONY: ui-css-watch
+ui-css-watch: ## Watch and rebuild Tailwind CSS on changes
+	@echo "==> Watching CSS files for changes..."
+	@cd ui-htmx && $(MAKE) watch-css
+
+.PHONY: ui-setup
+ui-setup: ## Setup UI dependencies (Tailwind CLI + npm packages)
+	@echo "==> Setting up UI dependencies..."
+	@cd ui-htmx && $(MAKE) setup
+
 .PHONY: version
 version: ## Lookup the current build version
 ifneq (,$(wildcard version/version_ent.go))

@@ -61,3 +61,34 @@
 - Pattern: Auto-reinit after HTMX swaps via x-init
 - Files: static/js/alpine.min.js, static/js/alpine-patterns.js, static/js/README-ALPINE.md
 ---
+
+### 2026-01-25 - Task 3: Create base layout template
+- Created layouts/base.templ with HTML5 structure, meta tags, script loading
+- Created layouts/page.templ with responsive sidebar, header, main content
+- Created pages/example.templ demonstrating layout usage
+- Created templates/README.md and PATTERNS.md documentation
+- Pattern: Two-layer composition (BaseLayout → PageLayout → Page content)
+- Pattern: Props pattern with struct for parameters + templ.Component for nested content
+- Files: templates/layouts/base.templ, page.templ, pages/example.templ
+---
+
+### 2026-01-25 - Task 5: Implement partial vs full page logic
+- Created handlers/render.go with Render(), RenderPartial(), RenderFullPage()
+- Automatic HTMX detection for partial vs full rendering
+- Created response header helpers (SetHXPushURL, SetHXRedirect, SetHXTrigger, etc.)
+- Created handlers/example.go demonstrating usage patterns
+- Created handlers/render_test.go with 18 test functions
+- Updated go.mod with templ dependency
+- Pattern: Clean separation of full page and partial templates
+- Files: handlers/render.go, example.go, render_test.go, go.mod
+---
+
+### 2026-01-25 - Task 7: Set up Tailwind CSS build pipeline
+- Integrated Tailwind build into root GNUmakefile (ui-css, ui-css-dev, ui-css-watch)
+- Updated tailwind.config.js content paths to include static/js/*.js
+- Created tests/tailwind_test.go with 6 tests for build verification
+- Created BUILD_SYSTEM.md with complete documentation
+- Pattern: Tailwind purges unused classes; custom classes need template references
+- Pattern: npm needed for plugins even with standalone CLI
+- Files: GNUmakefile, tailwind.config.js, tests/tailwind_test.go, BUILD_SYSTEM.md
+---
