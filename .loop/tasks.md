@@ -12,14 +12,14 @@ Status: in-progress
 ### Phase 1: Infrastructure Setup
 
 - [x] 1. Create ui-htmx directory structure and install Templ CLI
-- [ ] 2. Configure templ generate in Makefile with watch mode (needs: 1)
+- [x] 2. Configure templ generate in Makefile with watch mode (needs: 1)
 - [ ] 3. Create base layout template with HTML head/body structure (needs: 2)
-- [ ] 4. Add HTMX library and create request detection middleware (needs: 1)
+- [x] 4. Add HTMX library and create request detection middleware (needs: 1)
 - [ ] 5. Implement partial vs full page response logic (needs: 4)
-- [ ] 6. Install Tailwind CLI and create tailwind.config.js (needs: 1)
+- [x] 6. Install Tailwind CLI and create tailwind.config.js (needs: 1)
 - [ ] 7. Set up Tailwind CSS build pipeline with content paths (needs: 6)
 - [ ] 8. Create base Tailwind styles (typography, forms, buttons) (needs: 7)
-- [ ] 9. Add Alpine.js and create component patterns (dropdown, modal, tabs) (needs: 1)
+- [x] 9. Add Alpine.js and create component patterns (dropdown, modal, tabs) (needs: 1)
 - [ ] 10. Create ui-htmx handlers package with route registration (needs: 3, 5)
 - [ ] 11. Configure air for Go hot-reload development workflow (needs: 10)
 - [ ] 12. Create SSE handler utility for real-time log streaming (needs: 10)

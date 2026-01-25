@@ -395,6 +395,21 @@ ui-screenshots-local: ## Collect UI screenshots (local)
 	@echo "==> Collecting UI screenshots (local)..."
 	@cd scripts/screenshots/src && SCREENSHOTS_DIR="../screenshots" node index.js
 
+.PHONY: ui-generate
+ui-generate: ## Generate Go code from templ templates
+	@echo "==> Generating templ templates..."
+	@cd ui-htmx/templates && templ generate
+
+.PHONY: ui-watch
+ui-watch: ## Watch and regenerate templ templates on changes
+	@echo "==> Watching templ templates for changes..."
+	@cd ui-htmx/templates && templ generate --watch
+
+.PHONY: ui-fmt
+ui-fmt: ## Format templ template files
+	@echo "==> Formatting templ templates..."
+	@cd ui-htmx/templates && templ fmt .
+
 .PHONY: version
 version: ## Lookup the current build version
 ifneq (,$(wildcard version/version_ent.go))

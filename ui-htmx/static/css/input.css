@@ -1,0 +1,281 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base layer customizations */
+@layer base {
+  /* Improved default focus styles */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+  }
+
+  /* Smooth scrolling for anchor links */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Better default body styles */
+  body {
+    @apply bg-neutral-50 text-neutral-900 antialiased;
+  }
+
+  /* Dark mode body styles */
+  .dark body {
+    @apply bg-neutral-900 text-neutral-100;
+  }
+
+  /* Improved heading styles */
+  h1 {
+    @apply text-3xl font-bold tracking-tight;
+  }
+
+  h2 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply text-xl font-semibold;
+  }
+
+  h4 {
+    @apply text-lg font-semibold;
+  }
+
+  h5 {
+    @apply text-base font-semibold;
+  }
+
+  h6 {
+    @apply text-sm font-semibold;
+  }
+
+  /* Better link defaults */
+  a {
+    @apply text-primary-600 hover:text-primary-700 transition-colors;
+  }
+
+  .dark a {
+    @apply text-primary-400 hover:text-primary-300;
+  }
+
+  /* Code and pre blocks */
+  code {
+    @apply bg-neutral-100 text-neutral-900 px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+
+  .dark code {
+    @apply bg-neutral-800 text-neutral-100;
+  }
+
+  pre {
+    @apply bg-neutral-900 text-neutral-100 p-4 rounded-lg overflow-x-auto;
+  }
+
+  pre code {
+    @apply bg-transparent p-0;
+  }
+}
+
+/* Component layer customizations */
+@layer components {
+  /* Button base styles - can be extended in Templ components */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+
+  .btn-secondary {
+    @apply bg-neutral-200 text-neutral-900 hover:bg-neutral-300 focus:ring-neutral-500;
+  }
+
+  .btn-danger {
+    @apply bg-error-600 text-white hover:bg-error-700 focus:ring-error-500;
+  }
+
+  .btn-success {
+    @apply bg-success-600 text-white hover:bg-success-700 focus:ring-success-500;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-500;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  /* Card component base */
+  .card {
+    @apply bg-white rounded-lg shadow-md border border-neutral-200;
+  }
+
+  .dark .card {
+    @apply bg-neutral-800 border-neutral-700;
+  }
+
+  /* Badge component base */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-primary {
+    @apply bg-primary-100 text-primary-800;
+  }
+
+  .badge-success {
+    @apply bg-success-100 text-success-800;
+  }
+
+  .badge-warning {
+    @apply bg-warning-100 text-warning-800;
+  }
+
+  .badge-error {
+    @apply bg-error-100 text-error-800;
+  }
+
+  .badge-info {
+    @apply bg-info-100 text-info-800;
+  }
+
+  .badge-neutral {
+    @apply bg-neutral-100 text-neutral-800;
+  }
+
+  /* Table base styles */
+  .table {
+    @apply min-w-full divide-y divide-neutral-200;
+  }
+
+  .dark .table {
+    @apply divide-neutral-700;
+  }
+
+  .table thead {
+    @apply bg-neutral-50;
+  }
+
+  .dark .table thead {
+    @apply bg-neutral-800;
+  }
+
+  .table th {
+    @apply px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider;
+  }
+
+  .table td {
+    @apply px-6 py-4 whitespace-nowrap text-sm text-neutral-900;
+  }
+
+  .dark .table td {
+    @apply text-neutral-100;
+  }
+
+  .table tbody {
+    @apply bg-white divide-y divide-neutral-200;
+  }
+
+  .dark .table tbody {
+    @apply bg-neutral-900 divide-neutral-700;
+  }
+
+  .table tbody tr:hover {
+    @apply bg-neutral-50;
+  }
+
+  .dark .table tbody tr:hover {
+    @apply bg-neutral-800;
+  }
+
+  /* Form input base styles */
+  .input {
+    @apply block w-full px-3 py-2 border border-neutral-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500;
+  }
+
+  .dark .input {
+    @apply bg-neutral-800 border-neutral-600 text-neutral-100;
+  }
+
+  /* Alert component base */
+  .alert {
+    @apply p-4 rounded-md;
+  }
+
+  .alert-info {
+    @apply bg-info-50 text-info-800 border border-info-200;
+  }
+
+  .alert-success {
+    @apply bg-success-50 text-success-800 border border-success-200;
+  }
+
+  .alert-warning {
+    @apply bg-warning-50 text-warning-800 border border-warning-200;
+  }
+
+  .alert-error {
+    @apply bg-error-50 text-error-800 border border-error-200;
+  }
+}
+
+/* Utility layer customizations */
+@layer utilities {
+  /* Custom scrollbar styles */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-neutral-100;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400;
+  }
+
+  .dark .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-neutral-800;
+  }
+
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-neutral-600;
+  }
+
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-500;
+  }
+
+  /* HTMX loading indicator */
+  .htmx-indicator {
+    @apply opacity-0 transition-opacity duration-300;
+  }
+
+  .htmx-request .htmx-indicator {
+    @apply opacity-100;
+  }
+
+  .htmx-request.htmx-indicator {
+    @apply opacity-100;
+  }
+
+  /* Skeleton loader for HTMX loading states */
+  .skeleton {
+    @apply animate-pulse bg-neutral-200 rounded;
+  }
+
+  .dark .skeleton {
+    @apply bg-neutral-700;
+  }
+}

@@ -44,20 +44,93 @@ The following files are auto-generated and should not be committed:
 
 - Go 1.25.5+
 - Templ CLI: `go install github.com/a-h/templ/cmd/templ@latest`
-- Tailwind CSS CLI
-- Node.js (for frontend dependencies)
+- Node.js 18+ (for Tailwind CSS plugins)
+
+## Setup
+
+### First Time Setup
+
+1. **Install Tailwind CSS CLI**:
+   ```bash
+   cd ui-htmx
+   make install-tailwind
+   ```
+   This downloads the standalone Tailwind CLI binary to `./bin/tailwindcss`.
+
+2. **Install Node Dependencies** (for Tailwind plugins):
+   ```bash
+   npm install
+   ```
+   This installs `@tailwindcss/forms` and `@tailwindcss/typography` plugins.
+
+3. **Build CSS**:
+   ```bash
+   make build-css-dev
+   ```
+
+Or run all setup steps at once:
+```bash
+make setup
+```
+
+### Development Workflow
+
+```bash
+# Terminal 1: Watch and rebuild Templ templates
+templ generate --watch
+
+# Terminal 2: Watch and rebuild CSS
+make watch-css
+
+# Terminal 3: Run the Go server
+go run main.go
+```
 
 ## Build Commands
 
+### Templ Templates
+
 ```bash
-# Generate Templ files
+# Generate Templ files once
 templ generate
 
 # Watch for changes (development)
 templ generate --watch
+```
 
-# Build Tailwind CSS
-# (command TBD based on setup)
+### Tailwind CSS
+
+```bash
+# Development build (not minified)
+make build-css-dev
+
+# Production build (minified)
+make build-css
+
+# Watch for changes
+make watch-css
+
+# Clean generated files
+make clean
+
+# Verify configuration
+make verify-config
+```
+
+### Available Make Targets
+
+Run `make help` to see all available targets:
+
+```
+make help              # Show help
+make install-tailwind  # Install Tailwind CSS CLI
+make build-css         # Build production CSS (minified)
+make build-css-dev     # Build development CSS
+make watch-css         # Watch and rebuild on changes
+make clean             # Remove generated CSS
+make verify-config     # Verify Tailwind config
+make check-deps        # Check npm dependencies
+make setup             # Complete setup
 ```
 
 ## Architecture Notes
