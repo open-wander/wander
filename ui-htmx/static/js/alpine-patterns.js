@@ -776,10 +776,18 @@ function logViewer(allocId, initialTask, initialLogType) {
         isAtBottom: true,
         showTimestamps: false,
         lastUpdate: null,
+        ansiParser: null,
 
         // Computed
         get bufferedCount() {
             return this.bufferedLogs.length;
+        },
+
+        // Initialize ANSI parser
+        init() {
+            if (typeof AnsiParser !== 'undefined') {
+                this.ansiParser = new AnsiParser();
+            }
         },
 
         // Build SSE URL
@@ -868,9 +876,15 @@ function logViewer(allocId, initialTask, initialLogType) {
 
         // Handle incoming log line
         handleLogLine(data) {
+            const rawMessage = data.message || data;
+            const parsedMessage = this.ansiParser
+                ? this.ansiParser.parse(rawMessage)
+                : this.escapeHtml(rawMessage);
+
             const line = {
                 timestamp: data.timestamp || this.formatTimestamp(new Date()),
-                message: data.message || data,
+                message: parsedMessage,
+                rawMessage: rawMessage, // Keep raw for downloading
                 level: data.level || null
             };
 
@@ -881,6 +895,18 @@ function logViewer(allocId, initialTask, initialLogType) {
             } else {
                 this.appendLine(line);
             }
+        },
+
+        // Escape HTML for safety when ANSI parser is unavailable
+        escapeHtml(text) {
+            const htmlEscapes = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            };
+            return String(text).replace(/[&<>"']/g, char => htmlEscapes[char]);
         },
 
         // Append line to logs
@@ -960,10 +986,15 @@ function logViewer(allocId, initialTask, initialLogType) {
         // Download logs as text file
         downloadLogs() {
             const lines = this.logs.map(line => {
+                // Use raw message if available (to strip ANSI codes), otherwise strip from parsed
+                const plainMessage = line.rawMessage
+                    ? (typeof AnsiParser !== 'undefined' ? AnsiParser.strip(line.rawMessage) : line.rawMessage)
+                    : line.message.replace(/<[^>]*>/g, ''); // Strip HTML tags as fallback
+
                 if (this.showTimestamps && line.timestamp) {
-                    return `${line.timestamp} ${line.message}`;
+                    return `${line.timestamp} ${plainMessage}`;
                 }
-                return line.message;
+                return plainMessage;
             });
 
             const content = lines.join('\n');
