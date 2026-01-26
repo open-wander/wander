@@ -798,6 +798,9 @@ func (h *AllocationsHandler) FilesListHandler(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// MaxPreviewSize is the maximum number of bytes to show in file preview (100KB)
+const MaxPreviewSize int64 = 100 * 1024
+
 // FilesPreviewHandler handles requests for previewing file contents
 func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.Request, allocID string) {
 	task := r.URL.Query().Get("task")
@@ -817,7 +820,52 @@ func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.
 		}
 	}
 
-	err := RenderPartial(w, r, allocationspartials.FilePreview(fileName, content, isText, size))
+	// Check for binary files
+	if !isText {
+		props := allocationspartials.FilePreviewProps{
+			FileName:    fileName,
+			Path:        path,
+			Content:     content,
+			IsText:      false,
+			Size:        size,
+			IsTruncated: false,
+			MaxSize:     MaxPreviewSize,
+		}
+		err := RenderPartial(w, r, allocationspartials.FilePreviewEnhanced(props))
+		if err != nil {
+			h.handler.logger.Error("failed to render file preview", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Handle large files by truncating content
+	isTruncated := false
+	displayContent := content
+	if int64(len(content)) > MaxPreviewSize {
+		isTruncated = true
+		displayContent = content[:MaxPreviewSize]
+		// Try to cut at a newline to avoid breaking mid-line
+		for i := len(displayContent) - 1; i > int(MaxPreviewSize)-1000 && i >= 0; i-- {
+			if displayContent[i] == '\n' {
+				displayContent = displayContent[:i+1]
+				break
+			}
+		}
+		h.handler.logger.Debug("truncated large file for preview", "path", path, "originalSize", size, "truncatedTo", len(displayContent))
+	}
+
+	props := allocationspartials.FilePreviewProps{
+		FileName:    fileName,
+		Path:        path,
+		Content:     displayContent,
+		IsText:      true,
+		Size:        size,
+		IsTruncated: isTruncated,
+		MaxSize:     MaxPreviewSize,
+	}
+
+	err := RenderPartial(w, r, allocationspartials.FilePreviewEnhanced(props))
 	if err != nil {
 		h.handler.logger.Error("failed to render file preview", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -831,6 +879,13 @@ func (h *AllocationsHandler) FilesDownloadHandler(w http.ResponseWriter, r *http
 
 	h.handler.logger.Debug("files download request", "allocID", allocID, "task", task, "path", path)
 
+	// Validate required parameters
+	if path == "" {
+		h.handler.logger.Warn("file download missing path parameter", "allocID", allocID)
+		http.Error(w, "Missing required parameter: path", http.StatusBadRequest)
+		return
+	}
+
 	// Get file name from path
 	fileName := path
 	for i := len(path) - 1; i >= 0; i-- {
@@ -841,17 +896,99 @@ func (h *AllocationsHandler) FilesDownloadHandler(w http.ResponseWriter, r *http
 	}
 
 	// Get mock file content
-	content, _, isText := h.getMockFileContent(path)
+	content, size, isText := h.getMockFileContent(path)
+
+	// Check if file exists (in production, this would check the actual filesystem)
+	if content == "File content not available" && size == 0 {
+		h.handler.logger.Warn("file not found", "allocID", allocID, "path", path)
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	// Determine Content-Type based on file extension
+	contentType := getContentTypeForFile(fileName, isText)
 
 	// Set headers for download
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
-	if isText {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	} else {
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
 
 	w.Write([]byte(content))
+}
+
+// getContentTypeForFile determines the appropriate MIME type based on file extension
+func getContentTypeForFile(fileName string, isText bool) string {
+	// Get extension
+	ext := ""
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			ext = strings.ToLower(fileName[i+1:])
+			break
+		}
+	}
+
+	// Map common extensions to MIME types
+	mimeTypes := map[string]string{
+		// Text files
+		"txt":    "text/plain; charset=utf-8",
+		"log":    "text/plain; charset=utf-8",
+		"out":    "text/plain; charset=utf-8",
+		"err":    "text/plain; charset=utf-8",
+		"stdout": "text/plain; charset=utf-8",
+		"stderr": "text/plain; charset=utf-8",
+		"md":     "text/markdown; charset=utf-8",
+
+		// Config files
+		"json":  "application/json",
+		"yaml":  "application/x-yaml",
+		"yml":   "application/x-yaml",
+		"toml":  "application/toml",
+		"xml":   "application/xml",
+		"ini":   "text/plain; charset=utf-8",
+		"conf":  "text/plain; charset=utf-8",
+		"cfg":   "text/plain; charset=utf-8",
+		"env":   "text/plain; charset=utf-8",
+		"hcl":   "text/plain; charset=utf-8",
+		"tf":    "text/plain; charset=utf-8",
+		"nomad": "text/plain; charset=utf-8",
+
+		// Scripts
+		"sh":   "application/x-sh",
+		"bash": "application/x-sh",
+		"py":   "text/x-python",
+		"rb":   "text/x-ruby",
+		"js":   "application/javascript",
+		"ts":   "application/typescript",
+		"go":   "text/x-go",
+		"rs":   "text/x-rust",
+
+		// Web files
+		"html": "text/html; charset=utf-8",
+		"css":  "text/css; charset=utf-8",
+
+		// Certificates
+		"pem": "application/x-pem-file",
+		"crt": "application/x-x509-ca-cert",
+		"key": "application/x-pem-file",
+
+		// Binary
+		"db":  "application/octet-stream",
+		"exe": "application/octet-stream",
+		"bin": "application/octet-stream",
+		"so":  "application/octet-stream",
+		"dll": "application/octet-stream",
+		"a":   "application/octet-stream",
+	}
+
+	if contentType, ok := mimeTypes[ext]; ok {
+		return contentType
+	}
+
+	// Default based on text detection
+	if isText {
+		return "text/plain; charset=utf-8"
+	}
+	return "application/octet-stream"
 }
 
 // getTaskNames extracts task names from allocation detail

@@ -1583,4 +1583,83 @@
   .ansi-bg-bright-white {
     background-color: #ffffff;
   }
+
+  /* ----------------------------------------
+     Log File Syntax Highlighting
+     ---------------------------------------- */
+  .cm-log-error {
+    color: #f87171;
+    background-color: rgba(239, 68, 68, 0.1);
+  }
+
+  .cm-log-warn {
+    color: #fbbf24;
+    background-color: rgba(251, 191, 36, 0.1);
+  }
+
+  .cm-log-info {
+    color: #60a5fa;
+  }
+
+  .cm-log-debug {
+    color: #9ca3af;
+  }
+
+  .cm-log-timestamp {
+    color: #a78bfa;
+  }
+
+  /* File preview editor container styles */
+  .file-preview-container {
+    @apply w-full;
+  }
+
+  .file-preview-editor .wander-editor-wrapper {
+    @apply border border-neutral-700;
+  }
+
+  .file-preview-editor .wander-line-numbers {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .file-preview-editor .wander-highlighted-code {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* Syntax highlighting colors for dark theme (matching WanderEditor) */
+  .file-preview-editor .cm-keyword {
+    color: #c586c0;
+    font-weight: 500;
+  }
+
+  .file-preview-editor .cm-string {
+    color: #6a9955;
+  }
+
+  .file-preview-editor .cm-number {
+    color: #b5cea8;
+  }
+
+  .file-preview-editor .cm-comment {
+    color: #6a9955;
+    font-style: italic;
+  }
+
+  .file-preview-editor .cm-operator {
+    color: #d4d4d4;
+  }
+
+  .file-preview-editor .cm-punctuation {
+    color: #d4d4d4;
+  }
+
+  .file-preview-editor .cm-identifier {
+    color: #9cdcfe;
+  }
+
+  .file-preview-editor .cm-attribute {
+    color: #9cdcfe;
+  }
 }
