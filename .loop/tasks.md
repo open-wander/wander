@@ -3,7 +3,7 @@
 > Complete UI rewrite from Ember.js 3.28 + HDS + Bulma to Go Templ + HTMX + Alpine.js + Tailwind CSS
 
 Started: 2026-01-25
-Status: in-progress
+Status: completed
 
 ---
 
@@ -158,10 +158,10 @@ Status: in-progress
 - [x] 121. Measure TTFB, FCP, TTI performance metrics (needs: 117)
 - [x] 122. Run load test with concurrent users (needs: 117)
 - [x] 123. Update CHANGELOG with migration notes (needs: 117)
-- [ ] 124. Remove Ember.js /ui/ directory (needs: 122, 116)
-- [ ] 125. Remove package.json and node_modules (needs: 124)
-- [ ] 126. Update CI to not build Ember (needs: 124)
-- [ ] 127. Update documentation (needs: 126)
+- [x] 124. Remove Ember.js /ui/ directory (needs: 122, 116)
+- [x] 125. Remove package.json and node_modules (needs: 124)
+- [x] 126. Update CI to not build Ember (needs: 124)
+- [x] 127. Update documentation (needs: 126)
 
 ---
 
