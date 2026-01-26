@@ -826,6 +826,11 @@
       currentValue: initialValue || '',
       hasChanges: false,
       isSaving: false,
+      isPlanning: false,
+      isRunning: false,
+      showPlanModal: false,
+      showRunModal: false,
+      planResult: {},
       error: null,
 
       init() {
@@ -953,6 +958,117 @@
             }
           }));
         });
+      },
+
+      async planJob() {
+        if (this.isPlanning || this.isRunning) return;
+
+        this.isPlanning = true;
+        this.error = null;
+
+        try {
+          const response = await fetch(`/ui/jobs/${this.jobId}/plan`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              definition: this.currentValue,
+              format: this.format
+            })
+          });
+
+          const result = await response.json();
+
+          if (!response.ok || result.error) {
+            throw new Error(result.error || 'Failed to plan job');
+          }
+
+          this.planResult = result;
+          this.showPlanModal = true;
+
+        } catch (err) {
+          this.error = err.message;
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to plan job: ' + err.message,
+              type: 'error'
+            }
+          }));
+        } finally {
+          this.isPlanning = false;
+        }
+      },
+
+      closePlanModal() {
+        this.showPlanModal = false;
+        this.planResult = {};
+      },
+
+      showRunConfirm() {
+        this.showRunModal = true;
+      },
+
+      closeRunModal() {
+        this.showRunModal = false;
+      },
+
+      async runJob() {
+        if (this.isRunning) return;
+
+        this.isRunning = true;
+        this.error = null;
+
+        try {
+          const response = await fetch(`/ui/jobs/${this.jobId}/run`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              definition: this.currentValue,
+              format: this.format
+            })
+          });
+
+          const result = await response.json();
+
+          if (!response.ok || result.error) {
+            throw new Error(result.error || 'Failed to run job');
+          }
+
+          // Close the modal
+          this.closeRunModal();
+
+          // Update original value since job was submitted
+          this.originalValue = this.currentValue;
+          this.hasChanges = false;
+
+          // Show success message
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: `Job submitted successfully. Evaluation ID: ${result.evalId}`,
+              type: 'success'
+            }
+          }));
+
+          // Optionally exit edit mode
+          this.isEditing = false;
+          if (this.editor) {
+            this.editor.setReadOnly(true);
+          }
+
+        } catch (err) {
+          this.error = err.message;
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to run job: ' + err.message,
+              type: 'error'
+            }
+          }));
+        } finally {
+          this.isRunning = false;
+        }
       }
     };
   };

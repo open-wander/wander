@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"math"
 	"math/rand"
 	"net/http"
@@ -98,6 +99,26 @@ func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.TaskGroup(w, r)
+		return
+	}
+
+	// Handle /ui/jobs/{id}/plan (plan job)
+	if strings.HasSuffix(path, "/plan") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.PlanJob(w, r)
+		return
+	}
+
+	// Handle /ui/jobs/{id}/run (run job)
+	if strings.HasSuffix(path, "/run") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.RunJob(w, r)
 		return
 	}
 
@@ -1207,52 +1228,154 @@ func generateMockID(r *rand.Rand) string {
 	return string(id)
 }
 
-// ScaleTaskGroup handles POST requests to scale a task group.
-// This is a stub that will be implemented with actual Nomad API calls.
-func (h *JobsHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request) {
-	// Extract job ID and task group name from path
-	// Expected format: /ui/jobs/{jobID}/taskgroups/{tgName}/scale
+// PlanJobRequest represents the request body for plan endpoint
+type PlanJobRequest struct {
+	Definition string `json:"definition"`
+	Format     string `json:"format"`
+}
+
+// PlanJobResponse represents the response from plan endpoint
+type PlanJobResponse struct {
+	Created   int      `json:"created"`
+	Updated   int      `json:"updated"`
+	Destroyed int      `json:"destroyed"`
+	Diff      string   `json:"diff"`
+	Warnings  []string `json:"warnings,omitempty"`
+	Error     string   `json:"error,omitempty"`
+}
+
+// RunJobRequest represents the request body for run endpoint
+type RunJobRequest struct {
+	Definition string `json:"definition"`
+	Format     string `json:"format"`
+}
+
+// RunJobResponse represents the response from run endpoint
+type RunJobResponse struct {
+	EvalID    string   `json:"evalId"`
+	JobID     string   `json:"jobId"`
+	Warnings  []string `json:"warnings,omitempty"`
+	Error     string   `json:"error,omitempty"`
+}
+
+// PlanJob handles POST requests to plan a job (dry run).
+// Route: POST /ui/jobs/{id}/plan
+func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID from path: /ui/jobs/{id}/plan
 	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
-	path = strings.TrimSuffix(path, "/scale")
-	parts := strings.Split(path, "/taskgroups/")
-	if len(parts) != 2 {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
+	path = strings.TrimSuffix(path, "/plan")
+	jobID := path
+
+	// Log the request
+	h.handler.logger.Info("plan job request", "jobID", jobID)
+
+	// Parse the request body
+	var req PlanJobRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.handler.logger.Error("failed to decode plan request", "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: "Invalid request body"})
 		return
 	}
 
-	jobID := parts[0]
-	tgName := parts[1]
+	// TODO: In a real implementation, this would:
+	// 1. Parse the job definition (HCL or JSON)
+	// 2. Call the Nomad API: client.Jobs().Plan(job, true, nil)
+	// 3. Return the actual plan result
 
-	// Parse the new count from form data
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+	// Mock plan result for demonstration
+	response := PlanJobResponse{
+		Created:   1,
+		Updated:   2,
+		Destroyed: 0,
+		Diff: `+/- Job: "` + jobID + `"
++/- Task Group: "web" (2 create, 1 in-place update)
+  +/- Task: "nginx" (forces create/destroy update)
+    +/- Resources {
+      +/- CPU:    500 => 750
+      +/- Memory: 256 => 512
+    }
++ Task Group: "cache" (1 create)
+  + Task: "redis"
+    + Resources {
+      + CPU:    250
+      + Memory: 128
+    }`,
+		Warnings: []string{},
+	}
+
+	// Add a warning if the definition is very long (mock example)
+	if len(req.Definition) > 5000 {
+		response.Warnings = append(response.Warnings, "Large job definition may take longer to deploy")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.handler.logger.Error("failed to encode plan response", "error", err)
+	}
+}
+
+// RunJob handles POST requests to run/submit a job.
+// Route: POST /ui/jobs/{id}/run
+func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID from path: /ui/jobs/{id}/run
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+	path = strings.TrimSuffix(path, "/run")
+	jobID := path
+
+	// Log the request
+	h.handler.logger.Info("run job request", "jobID", jobID)
+
+	// Parse the request body
+	var req RunJobRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.handler.logger.Error("failed to decode run request", "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: "Invalid request body"})
 		return
 	}
 
-	countStr := r.FormValue("count")
-	count, err := strconv.Atoi(countStr)
-	if err != nil || count < 0 {
-		http.Error(w, "Invalid count", http.StatusBadRequest)
-		return
+	// TODO: In a real implementation, this would:
+	// 1. Parse the job definition (HCL or JSON)
+	// 2. Call the Nomad API: client.Jobs().Register(job, nil)
+	// 3. Return the actual evaluation ID
+
+	// Mock run result for demonstration
+	// Generate a mock evaluation ID
+	mockEvalID := generateMockEvalID()
+
+	response := RunJobResponse{
+		EvalID:   mockEvalID,
+		JobID:    jobID,
+		Warnings: []string{},
 	}
 
-	// Log the scale request
-	h.handler.logger.Info("scale task group request",
+	h.handler.logger.Info("job submitted successfully",
 		"jobID", jobID,
-		"taskGroup", tgName,
-		"newCount", count,
+		"evalID", mockEvalID,
 	)
 
-	// TODO: Implement actual Nomad API call to scale the task group
-	// For now, just return success
-
-	// Return the updated task group content
-	taskGroup := h.getTaskGroupDetail(jobID, tgName)
-	taskGroup.Count = count
-
-	err = RenderPartial(w, r, taskgrouppartials.DetailContent(jobID, taskGroup))
-	if err != nil {
-		h.handler.logger.Error("failed to render task group after scale", "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.handler.logger.Error("failed to encode run response", "error", err)
 	}
+}
+
+// generateMockEvalID generates a mock evaluation ID for testing.
+func generateMockEvalID() string {
+	const chars = "0123456789abcdef"
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	id := make([]byte, 36)
+	for i := range id {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			id[i] = '-'
+		} else {
+			id[i] = chars[r.Intn(len(chars))]
+		}
+	}
+	return string(id)
 }
