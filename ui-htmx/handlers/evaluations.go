@@ -2,25 +2,9 @@ package handlers
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/open-wander/wander/ui-htmx/templates/partials/evaluationspartials"
 )
-
-// EvaluationSummary represents a summary view of an evaluation.
-// This structure will eventually be populated from the Nomad API.
-type EvaluationSummary struct {
-	ID          string
-	ShortID     string // First 8 chars of ID
-	JobID       string
-	JobName     string
-	Status      string // pending, complete, failed, blocked, canceled
-	Type        string // service, batch, system
-	TriggeredBy string // job-register, periodic, node-update, etc.
-	Priority    int
-	CreateTime  time.Time
-	TimeAgo     string // Human-readable time ago
-}
 
 // EvaluationsHandler handles requests for the evaluations panel.
 type EvaluationsHandler struct {
@@ -65,10 +49,8 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // getEvaluationsList returns mock evaluation data.
 // This will be replaced with actual Nomad API calls in the future.
-func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
-	now := time.Now()
-
-	return []EvaluationSummary{
+func (h *EvaluationsHandler) getEvaluationsList() []evaluationspartials.EvaluationSummary {
+	return []evaluationspartials.EvaluationSummary{
 		{
 			ID:          "a1b2c3d4-e5f6-7890-1234-567890abcdef",
 			ShortID:     "a1b2c3d4",
@@ -78,7 +60,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "service",
 			TriggeredBy: "job-register",
 			Priority:    50,
-			CreateTime:  now.Add(-5 * time.Minute),
 			TimeAgo:     "5m ago",
 		},
 		{
@@ -90,7 +71,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "service",
 			TriggeredBy: "scaling",
 			Priority:    50,
-			CreateTime:  now.Add(-2 * time.Minute),
 			TimeAgo:     "2m ago",
 		},
 		{
@@ -102,7 +82,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "batch",
 			TriggeredBy: "periodic",
 			Priority:    30,
-			CreateTime:  now.Add(-15 * time.Minute),
 			TimeAgo:     "15m ago",
 		},
 		{
@@ -114,7 +93,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "batch",
 			TriggeredBy: "job-register",
 			Priority:    40,
-			CreateTime:  now.Add(-30 * time.Minute),
 			TimeAgo:     "30m ago",
 		},
 		{
@@ -126,7 +104,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "service",
 			TriggeredBy: "node-update",
 			Priority:    50,
-			CreateTime:  now.Add(-1 * time.Hour),
 			TimeAgo:     "1h ago",
 		},
 		{
@@ -138,7 +115,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "system",
 			TriggeredBy: "deployment-watcher",
 			Priority:    50,
-			CreateTime:  now.Add(-2 * time.Hour),
 			TimeAgo:     "2h ago",
 		},
 		{
@@ -150,7 +126,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "service",
 			TriggeredBy: "job-register",
 			Priority:    50,
-			CreateTime:  now.Add(-3 * time.Hour),
 			TimeAgo:     "3h ago",
 		},
 		{
@@ -162,7 +137,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "service",
 			TriggeredBy: "job-deregister",
 			Priority:    50,
-			CreateTime:  now.Add(-5 * time.Hour),
 			TimeAgo:     "5h ago",
 		},
 		{
@@ -174,7 +148,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "service",
 			TriggeredBy: "alloc-stop",
 			Priority:    50,
-			CreateTime:  now.Add(-6 * time.Hour),
 			TimeAgo:     "6h ago",
 		},
 		{
@@ -186,7 +159,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "service",
 			TriggeredBy: "periodic",
 			Priority:    50,
-			CreateTime:  now.Add(-12 * time.Hour),
 			TimeAgo:     "12h ago",
 		},
 		{
@@ -198,7 +170,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "batch",
 			TriggeredBy: "periodic",
 			Priority:    20,
-			CreateTime:  now.Add(-18 * time.Hour),
 			TimeAgo:     "18h ago",
 		},
 		{
@@ -210,7 +181,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "system",
 			TriggeredBy: "node-drain",
 			Priority:    50,
-			CreateTime:  now.Add(-24 * time.Hour),
 			TimeAgo:     "1d ago",
 		},
 		{
@@ -222,7 +192,6 @@ func (h *EvaluationsHandler) getEvaluationsList() []EvaluationSummary {
 			Type:        "batch",
 			TriggeredBy: "periodic",
 			Priority:    30,
-			CreateTime:  now.Add(-48 * time.Hour),
 			TimeAgo:     "2d ago",
 		},
 	}

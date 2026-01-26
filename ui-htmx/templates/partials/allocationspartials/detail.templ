@@ -75,7 +75,9 @@ templ DetailContent(alloc AllocationDetail) {
 							Variant: statusToBadgeVariant(alloc.Status),
 							Dot:     true,
 							Size:    "md",
-						}, alloc.Status)
+						}) {
+							{ alloc.Status }
+						}
 					</div>
 					<div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
 						<div>

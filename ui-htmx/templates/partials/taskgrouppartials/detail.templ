@@ -144,7 +144,9 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 								@components.Badge(components.BadgeProps{
 									Variant: "info",
 									Size:    "sm",
-								}, task.Driver)
+								}) {
+									{ task.Driver }
+								}
 							</div>
 						</div>
 						<!-- Resource Requirements -->

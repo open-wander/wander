@@ -3,7 +3,6 @@ package variablespartials
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 )
@@ -40,9 +39,7 @@ templ DetailContent(variable VariableDetail) {
 						Size:        "sm",
 						Icon:        "trash",
 						AlpineClick: "deleteModal = true",
-					}) {
-						Delete
-					}
+					}, "Delete")
 				</div>
 			</div>
 			<!-- Metadata -->

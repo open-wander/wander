@@ -35,7 +35,9 @@ templ DetailContent(job JobDetail) {
 						Variant: statusToBadgeVariant(job.Status),
 						Dot:     true,
 						Size:    "md",
-					}, job.Status)
+					}) {
+						{ job.Status }
+					}
 				</div>
 				<div class="flex items-center space-x-4">
 					<span class="text-sm text-neutral-600">Type: <span class="font-medium">{ job.Type }</span></span>

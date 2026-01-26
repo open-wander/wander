@@ -564,53 +564,6 @@ func memoryBarColor(used int64, total int64) string {
 	return "bg-green-500 dark:bg-green-600"
 }
 
-// calculatePercentage calculates the usage percentage for CPU
-func calculatePercentage(used int, total int) int {
-	if total == 0 {
-		return 0
-	}
-	return (used * 100) / total
-}
-
-// calculateMemoryPercentage calculates the usage percentage for memory
-func calculateMemoryPercentage(used int64, total int64) int {
-	if total == 0 {
-		return 0
-	}
-	return int((used * 100) / total)
-}
-
-// formatMemory formats bytes into human-readable format
-func formatMemory(bytes int64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-		TB = GB * 1024
-	)
-
-	switch {
-	case bytes >= TB:
-		return fmt.Sprintf("%.1f TB", float64(bytes)/float64(TB))
-	case bytes >= GB:
-		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
-	case bytes >= MB:
-		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
-	case bytes >= KB:
-		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
-	default:
-		return fmt.Sprintf("%d B", bytes)
-	}
-}
-
-// truncateID truncates a client ID to show first 8 characters
-func truncateID(id string) string {
-	if len(id) <= 8 {
-		return id
-	}
-	return id[:8]
-}
-
 // sortedKeys returns keys of a map in sorted order
 func sortedKeys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))

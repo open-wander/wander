@@ -90,7 +90,7 @@ func StartTestServer(config TestServerConfig) (*TestServer, func()) {
 	}
 
 	// Create context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
+	_, cancel := context.WithCancel(context.Background())
 
 	testServer := &TestServer{
 		server:   srv,

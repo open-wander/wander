@@ -255,7 +255,7 @@ func (h *ExecHandler) handleMockInput(session *ExecSession, input string) {
 		case '\r', '\n':
 			// Enter pressed - process command
 			h.sendOutput(session, "\r\n")
-			h.processMockCommand(session, "")
+			h.processMockCommand(session)
 		case '\x03':
 			// Ctrl+C
 			h.sendOutput(session, "^C\r\n")

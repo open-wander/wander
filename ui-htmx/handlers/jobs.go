@@ -15,25 +15,6 @@ import (
 	"github.com/open-wander/wander/ui-htmx/templates/partials/taskgrouppartials"
 )
 
-// JobSummary represents a summary view of a job for list display.
-// This structure will eventually be populated from the Nomad API.
-type JobSummary struct {
-	ID        string
-	Name      string
-	Status    string
-	Type      string
-	Priority  int
-	Submitted time.Time
-}
-
-// PaginationMeta holds pagination metadata for list views.
-type PaginationMeta struct {
-	Page       int // Current page (1-indexed)
-	PerPage    int // Items per page
-	Total      int // Total number of items
-	TotalPages int // Total number of pages
-}
-
 // JobsHandler handles requests for the jobs list page.
 type JobsHandler struct {
 	handler *Handler
@@ -182,7 +163,7 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	total := len(jobsList)
 
 	// Calculate pagination metadata
-	pagination := PaginationMeta{
+	pagination := jobspartials.PaginationMeta{
 		Page:       page,
 		PerPage:    perPage,
 		Total:      total,
@@ -251,10 +232,10 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // getJobsList returns mock job data.
 // This will be replaced with actual Nomad API calls in the future.
-func (h *JobsHandler) getJobsList() []JobSummary {
+func (h *JobsHandler) getJobsList() []jobspartials.JobSummary {
 	now := time.Now()
 
-	return []JobSummary{
+	return []jobspartials.JobSummary{
 		{
 			ID:        "web-frontend",
 			Name:      "web-frontend",
@@ -308,13 +289,13 @@ func (h *JobsHandler) getJobsList() []JobSummary {
 
 // filterJobs filters the jobs list based on search query.
 // The search is case-insensitive and matches against job ID and name.
-func (h *JobsHandler) filterJobs(jobsList []JobSummary, query string) []JobSummary {
+func (h *JobsHandler) filterJobs(jobsList []jobspartials.JobSummary, query string) []jobspartials.JobSummary {
 	if query == "" {
 		return jobsList
 	}
 
 	query = strings.ToLower(query)
-	filtered := make([]JobSummary, 0, len(jobsList))
+	filtered := make([]jobspartials.JobSummary, 0, len(jobsList))
 
 	for _, job := range jobsList {
 		// Match against ID or Name (case-insensitive)
@@ -328,7 +309,7 @@ func (h *JobsHandler) filterJobs(jobsList []JobSummary, query string) []JobSumma
 }
 
 // sortJobs sorts the jobs list based on the specified column and direction.
-func (h *JobsHandler) sortJobs(jobsList []JobSummary, sortColumn, sortDir string) {
+func (h *JobsHandler) sortJobs(jobsList []jobspartials.JobSummary, sortColumn, sortDir string) {
 	sort.Slice(jobsList, func(i, j int) bool {
 		var less bool
 
@@ -1066,10 +1047,10 @@ func parsePerPage(perPageStr string) int {
 
 // paginateJobs returns a slice of jobs for the requested page.
 // Returns an empty slice if the page is beyond available data.
-func paginateJobs(jobs []JobSummary, page, perPage int) []JobSummary {
+func paginateJobs(jobs []jobspartials.JobSummary, page, perPage int) []jobspartials.JobSummary {
 	start := (page - 1) * perPage
 	if start >= len(jobs) {
-		return []JobSummary{}
+		return []jobspartials.JobSummary{}
 	}
 
 	end := start + perPage

@@ -774,8 +774,6 @@ func highlightLog(content string) string {
 	i := 0
 
 	for i < len(content) {
-		lineStart := i
-
 		// Find end of line
 		lineEnd := i
 		for lineEnd < len(content) && content[lineEnd] != '\n' {

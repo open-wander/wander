@@ -177,10 +177,10 @@ func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, p
 
 // getPoliciesList returns mock policy data.
 // This will be replaced with actual Nomad API calls in the future.
-func (h *PoliciesHandler) getPoliciesList() []policies.PolicySummary {
+func (h *PoliciesHandler) getPoliciesList() []policiespartials.PolicySummary {
 	now := time.Now()
 
-	return []policies.PolicySummary{
+	return []policiespartials.PolicySummary{
 		{
 			Name:        "admin",
 			Description: "Full administrative access to all Nomad resources",
@@ -431,13 +431,13 @@ operator {
 
 // filterPolicies filters the policies list based on search query.
 // The search is case-insensitive and matches against policy name and description.
-func (h *PoliciesHandler) filterPolicies(policiesList []policies.PolicySummary, query string) []policies.PolicySummary {
+func (h *PoliciesHandler) filterPolicies(policiesList []policiespartials.PolicySummary, query string) []policiespartials.PolicySummary {
 	if query == "" {
 		return policiesList
 	}
 
 	query = strings.ToLower(query)
-	filtered := make([]policies.PolicySummary, 0, len(policiesList))
+	filtered := make([]policiespartials.PolicySummary, 0, len(policiesList))
 
 	for _, policy := range policiesList {
 		// Match against Name or Description (case-insensitive)
@@ -451,7 +451,7 @@ func (h *PoliciesHandler) filterPolicies(policiesList []policies.PolicySummary, 
 }
 
 // sortPolicies sorts the policies list based on the specified column and direction.
-func (h *PoliciesHandler) sortPolicies(policiesList []policies.PolicySummary, sortColumn, sortDir string) {
+func (h *PoliciesHandler) sortPolicies(policiesList []policiespartials.PolicySummary, sortColumn, sortDir string) {
 	sort.Slice(policiesList, func(i, j int) bool {
 		var less bool
 

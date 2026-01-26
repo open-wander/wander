@@ -13,7 +13,7 @@ import (
 // This allows for easy testing and future replacement with real API calls.
 type DataProvider interface {
 	// Jobs
-	GetJobs() []handlers.JobSummary
+	GetJobs() []jobspartials.JobSummary
 	GetJobDetail(jobID string) jobspartials.JobDetail
 	GetJobVersions(jobID string) []jobspartials.JobVersion
 	GetJobDefinition(jobID string) jobspartials.JobDefinition

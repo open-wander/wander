@@ -1,24 +1,13 @@
 package jobs
 
 import (
-	"time"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/jobspartials"
 )
 
-// JobSummary represents a summary view of a job for list display.
-type JobSummary struct {
-	ID        string
-	Name      string
-	Status    string
-	Type      string
-	Priority  int
-	Submitted time.Time
-}
-
 // List renders the full jobs list page with layout.
-templ List(jobsList []JobSummary, sortColumn string, sortDir string, searchQuery string, pagination jobspartials.PaginationMeta) {
+templ List(jobsList []jobspartials.JobSummary, sortColumn string, sortDir string, searchQuery string, pagination jobspartials.PaginationMeta) {
 	@layouts.PageLayout(
 		layouts.PageLayoutProps{
 			Title:       "Jobs - Wander",

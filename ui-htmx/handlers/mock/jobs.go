@@ -6,15 +6,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/open-wander/wander/ui-htmx/handlers"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/jobspartials"
 )
 
 // GetJobs returns mock job summary data.
-func (p *Provider) GetJobs() []handlers.JobSummary {
+func (p *Provider) GetJobs() []jobspartials.JobSummary {
 	now := time.Now()
 
-	return []handlers.JobSummary{
+	return []jobspartials.JobSummary{
 		{
 			ID:        "web-frontend",
 			Name:      "web-frontend",

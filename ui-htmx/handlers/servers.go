@@ -7,19 +7,6 @@ import (
 	"github.com/open-wander/wander/ui-htmx/templates/partials/serverspartials"
 )
 
-// ServerSummary represents a summary view of a server for list display.
-// This structure will eventually be populated from the Nomad API.
-type ServerSummary struct {
-	Name       string
-	Address    string
-	Status     string
-	Leader     bool
-	Region     string
-	Datacenter string
-	RaftVoter  bool
-	Version    string
-}
-
 // ServersHandler handles requests for the servers list page.
 type ServersHandler struct {
 	handler *Handler
@@ -86,8 +73,8 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // getServersList returns mock server data.
 // This will be replaced with actual Nomad API calls in the future.
-func (h *ServersHandler) getServersList() []ServerSummary {
-	return []ServerSummary{
+func (h *ServersHandler) getServersList() []serverspartials.ServerSummary {
+	return []serverspartials.ServerSummary{
 		{
 			Name:       "nomad-server-1",
 			Address:    "10.0.1.10:4647",

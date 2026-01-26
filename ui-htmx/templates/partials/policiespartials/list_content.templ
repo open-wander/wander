@@ -28,16 +28,12 @@ templ ListContent(policiesList []PolicySummary, sortColumn string, sortDir strin
 				</p>
 			</div>
 			<div class="mt-4 sm:mt-0">
-				@components.Button(components.ButtonProps{
-					Variant: "primary",
-					Size:    "md",
-					Href:    "/ui/policies/new",
-				}) {
+				<a href="/ui/policies/new" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
 					<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
 					</svg>
 					Create Policy
-				}
+				</a>
 			</div>
 		</div>
 		<!-- Search Bar -->

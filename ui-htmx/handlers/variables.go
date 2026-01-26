@@ -112,7 +112,7 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	total := len(variablesList)
 
 	// Calculate pagination metadata
-	pagination := PaginationMeta{
+	pagination := variablespartials.PaginationMeta{
 		Page:       page,
 		PerPage:    perPage,
 		Total:      total,

@@ -1,4 +1,4 @@
-.PHONY: help install-tailwind build-css watch-css clean ui-generate ui-watch
+.PHONY: help install-tailwind build-css watch-css clean ui-generate ui-watch generate all
 
 TAILWIND_BIN := ./bin/tailwindcss
 INPUT_CSS := static/css/input.css
@@ -65,3 +65,7 @@ dev: ## Run development server with hot-reload (air)
 	@echo "Starting development server with hot-reload..."
 	@echo "Server will be available at http://localhost:3000/ui/"
 	@air
+
+generate: ui-generate ## Alias for ui-generate
+
+all: ui-generate build-css ## Generate templates and build CSS
