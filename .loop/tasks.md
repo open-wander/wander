@@ -101,6 +101,32 @@ Status: in-progress
 
 ## Notes
 
+### Reference Codebase (IMPORTANT)
+The old Ember.js UI is available at `../wander-old/ui/` for feature parity reference:
+```
+../wander-old/ui/
+├── app/
+│   ├── routes/          # Route logic (jobs/, clients/, allocations/, etc.)
+│   ├── controllers/     # Controller logic with query params, actions
+│   ├── components/      # 123 components with behaviors
+│   ├── templates/       # HBS templates showing UI structure
+│   ├── models/          # Data models (55 models)
+│   ├── adapters/        # API adapters
+│   └── services/        # Services (token, system, etc.)
+```
+
+**When implementing a feature, check the old codebase:**
+1. `../wander-old/ui/app/routes/{feature}/` - Route logic
+2. `../wander-old/ui/app/controllers/{feature}.js` - Actions, query params
+3. `../wander-old/ui/app/templates/{feature}/` - UI structure
+4. `../wander-old/ui/app/components/` - Reusable behaviors
+
+**Key files for common features:**
+- Jobs: `routes/jobs/`, `controllers/jobs/`, `templates/jobs/`
+- Allocations: `routes/allocations/`, `templates/allocations/`
+- Clients: `routes/clients/`, `templates/clients/`
+- ACL/Token: `services/token.js`, `routes/settings.js`
+
 ### API Client Access
 The Nomad API client is available via the Handler struct. Each handler receives access through dependency injection:
 ```go
