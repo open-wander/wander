@@ -42,3 +42,16 @@
 - Pattern: Lazy init with sync.Once, temporary client for validation
 - Files: auth.go (368 lines), auth_test.go (186 lines), context.go
 ---
+
+### 2026-01-26 - Task 3: Store permissions in request context
+- Created UserPermissions struct with capability checking methods
+- Fast paths: Management tokens and ACL-disabled bypass all checks
+- Job capabilities: CanListJobs, CanReadJob, CanSubmitJob, CanScaleJob
+- Alloc capabilities: CanReadLogs, CanReadFS, CanExec
+- Variable capabilities: CanListVariables, CanReadVariables, CanWriteVariables, CanDestroyVariables
+- CSI capabilities: CanReadCSI, CanWriteCSI, CanListCSI
+- Namespace pattern matching with wildcard support (prod-*, *)
+- Lazy policy loading via LoadPolicies() to avoid latency
+- Pattern: Most specific wildcard wins, "deny" takes precedence
+- Files: permissions.go (386 lines), permissions_test.go, permissions_example_test.go, PERMISSIONS.md
+---

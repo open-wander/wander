@@ -146,3 +146,10 @@ func GetACLTokenInfoFromRequest(r *http.Request) *ACLTokenInfo {
 	info, _ := GetACLTokenInfoFromContext(r.Context())
 	return info
 }
+
+// GetUserPermissionsFromRequest is a convenience function that retrieves the
+// UserPermissions from the request context.
+// Returns nil if TokenValidationMiddleware has not been applied.
+func GetUserPermissionsFromRequest(r *http.Request) *UserPermissions {
+	return GetPermissionsFromRequest(r)
+}

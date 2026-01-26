@@ -263,6 +263,10 @@ func (h *Handler) TokenValidationMiddleware(next http.Handler) http.Handler {
 		// Store validation result in context for handlers
 		ctx = context.WithValue(ctx, aclTokenInfoKey, tokenInfo)
 
+		// Create and store user permissions for easy capability checking
+		permissions := NewUserPermissions(tokenInfo)
+		ctx = WithPermissions(ctx, permissions)
+
 		// Log validation result for debugging
 		if tokenInfo.IsValid {
 			if tokenInfo.Token != nil {

@@ -13,7 +13,7 @@ Status: in-progress
 
 - [x] 1. Create ACL middleware to validate X-Nomad-Token header on all requests
 - [x] 2. Integrate token validation with Nomad ACL API (client.ACLTokens().Self())
-- [ ] 3. Store user permissions in request context for downstream handlers
+- [x] 3. Store user permissions in request context for downstream handlers
 - [ ] 4. Add per-handler permission checks with proper 403 Forbidden responses
 - [ ] 5. Implement token expiration handling and refresh logic
 - [ ] 6. Wire up Settings page to real token management (store/clear token)
