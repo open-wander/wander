@@ -138,3 +138,11 @@ func GetTokenFromRequest(r *http.Request) string {
 	// Fall back to checking headers and cookies directly
 	return extractToken(r)
 }
+
+// GetACLTokenInfoFromRequest is a convenience function that retrieves the
+// validated ACL token info from the request context.
+// Returns nil if TokenValidationMiddleware has not been applied.
+func GetACLTokenInfoFromRequest(r *http.Request) *ACLTokenInfo {
+	info, _ := GetACLTokenInfoFromContext(r.Context())
+	return info
+}

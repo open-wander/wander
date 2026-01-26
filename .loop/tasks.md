@@ -12,7 +12,7 @@ Status: in-progress
 ### Phase 1: ACL & Authentication (Foundation)
 
 - [x] 1. Create ACL middleware to validate X-Nomad-Token header on all requests
-- [ ] 2. Integrate token validation with Nomad ACL API (client.ACLTokens().Self())
+- [x] 2. Integrate token validation with Nomad ACL API (client.ACLTokens().Self())
 - [ ] 3. Store user permissions in request context for downstream handlers
 - [ ] 4. Add per-handler permission checks with proper 403 Forbidden responses
 - [ ] 5. Implement token expiration handling and refresh logic

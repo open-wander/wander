@@ -31,3 +31,14 @@
 - Pattern: Non-validating middleware - just extracts, doesn't validate
 - Files: context.go, middleware.go, middleware_test.go, router.go
 ---
+
+### 2026-01-26 - Task 2: Token validation with Nomad ACL API
+- Created auth.go with ValidateToken() calling client.ACLTokens().Self()
+- Added TokenCache with 2-min TTL, background cleanup goroutine
+- Handles: no token (anon), valid, invalid/expired, ACL disabled
+- Created TokenValidationMiddleware (optional) and RequireToken (enforcing)
+- Uses temporary client per request to avoid concurrency issues
+- Added comprehensive auth_test.go with all scenarios
+- Pattern: Lazy init with sync.Once, temporary client for validation
+- Files: auth.go (368 lines), auth_test.go (186 lines), context.go
+---

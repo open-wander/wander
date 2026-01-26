@@ -206,6 +206,20 @@ func (r *Router) registerAPIRoutes() {
 
 // wrapMiddleware applies HTMX middleware and any other necessary middleware
 // to the provided handler.
+//
+// Current middleware chain:
+// 1. ACLMiddleware - extracts and stores token from headers/cookies
+// 2. HTMXMiddleware - adds HTMX request context
+//
+// Optional middleware available but not enabled by default:
+// - TokenValidationMiddleware - validates tokens via Nomad API (adds latency)
+// - RequireToken - enforces authentication (blocks unauthenticated requests)
+//
+// To enable token validation, modify this function to:
+//   return ACLMiddleware(r.handler.TokenValidationMiddleware(HTMXMiddleware(h)))
+//
+// To enforce authentication on specific routes, wrap them with:
+//   r.handler.RequireToken(handler)
 func (r *Router) wrapMiddleware(h http.Handler) http.Handler {
 	// Apply middleware in order:
 	// 1. ACL middleware extracts and stores token from headers/cookies
