@@ -67,14 +67,21 @@ func (r *Router) registerJobsRoutes() {
 func (r *Router) registerAllocationsRoutes() {
 	allocationsHandler := NewAllocationsHandler(r.handler)
 	logsHandler := NewAllocationLogsHandler(r.handler)
+	execHandler := NewExecHandler(r.handler)
 
 	// Allocations handler handles both list and detail pages
 	r.mux.Handle("/ui/allocations", r.wrapMiddleware(allocationsHandler))
 
-	// Log streaming route must be registered before the general allocations route
-	// to ensure it takes precedence for log-related paths
+	// Log streaming and exec WebSocket routes must be registered before the general allocations route
+	// to ensure they take precedence for their respective paths
 	r.mux.HandleFunc("/ui/allocations/", func(w http.ResponseWriter, req *http.Request) {
 		path := req.URL.Path
+		// Route exec WebSocket requests to the exec handler
+		// WebSocket connections should NOT have HTMX middleware applied
+		if strings.Contains(path, "/exec/ws") {
+			execHandler.ServeHTTP(w, req)
+			return
+		}
 		// Route log-related requests to the logs handler
 		if strings.Contains(path, "/logs") {
 			r.wrapMiddleware(logsHandler).ServeHTTP(w, req)

@@ -1074,6 +1074,8 @@ function execTerminal(allocId, initialTask, initialCommand) {
         websocket: null,
         connectionState: 'disconnected', // disconnected, connecting, connected, error
         resizeObserver: null,
+        resizeTimeout: null, // For debouncing resize events
+        lastSentDims: { cols: 0, rows: 0 }, // Track last sent dimensions to avoid duplicates
 
         // Initialize xterm.js terminal
         init() {
@@ -1153,10 +1155,22 @@ function execTerminal(allocId, initialTask, initialCommand) {
                 try {
                     this.fitAddon.fit();
 
-                    // Send resize to server if connected
+                    // Debounce resize events to server to avoid flooding
                     if (this.connectionState === 'connected' && this.websocket) {
-                        const dims = { cols: this.terminal.cols, rows: this.terminal.rows };
-                        this.sendResize(dims);
+                        // Clear any pending resize
+                        if (this.resizeTimeout) {
+                            clearTimeout(this.resizeTimeout);
+                        }
+
+                        // Debounce: wait 100ms before sending resize
+                        this.resizeTimeout = setTimeout(() => {
+                            const dims = { cols: this.terminal.cols, rows: this.terminal.rows };
+                            // Only send if dimensions actually changed
+                            if (dims.cols !== this.lastSentDims.cols || dims.rows !== this.lastSentDims.rows) {
+                                this.sendResize(dims);
+                                this.lastSentDims = dims;
+                            }
+                        }, 100);
                     }
                 } catch (e) {
                     console.warn('Failed to fit terminal:', e);
@@ -1216,8 +1230,10 @@ function execTerminal(allocId, initialTask, initialCommand) {
                     // Focus terminal
                     this.terminal.focus();
 
-                    // Send initial resize
-                    this.sendResize({ cols: this.terminal.cols, rows: this.terminal.rows });
+                    // Send initial resize with current dimensions
+                    const initialDims = { cols: this.terminal.cols, rows: this.terminal.rows };
+                    this.sendResize(initialDims);
+                    this.lastSentDims = initialDims;
                 };
 
                 this.websocket.onmessage = (event) => {
@@ -1291,6 +1307,12 @@ function execTerminal(allocId, initialTask, initialCommand) {
 
         // Disconnect from exec session
         disconnect() {
+            // Clear any pending resize timeout
+            if (this.resizeTimeout) {
+                clearTimeout(this.resizeTimeout);
+                this.resizeTimeout = null;
+            }
+
             if (this.websocket) {
                 // Send close message if possible
                 if (this.websocket.readyState === WebSocket.OPEN) {
@@ -1304,6 +1326,7 @@ function execTerminal(allocId, initialTask, initialCommand) {
                 this.websocket = null;
             }
             this.connectionState = 'disconnected';
+            this.lastSentDims = { cols: 0, rows: 0 };
         },
 
         // Cleanup on destroy
