@@ -376,7 +376,7 @@ func escapeForJS(s string) string {
 
 // VersionsTab renders the job versions tab with version history table
 templ VersionsTab(versions []JobVersion, jobID string) {
-	<div class="p-6">
+	<div class="p-6" x-data="{ revertModalOpen: false, revertVersion: 0 }">
 		<div class="flex items-center justify-between mb-4">
 			<h3 class="text-lg font-medium text-neutral-900">Version History</h3>
 			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d versions", len(versions)) }</span>
@@ -386,7 +386,7 @@ templ VersionsTab(versions []JobVersion, jobID string) {
 				{Key: "version", Label: "Version", Sortable: false, Align: "left", Width: "w-24"},
 				{Key: "stable", Label: "Stable", Sortable: false, Align: "center", Width: "w-24"},
 				{Key: "submitted", Label: "Submitted", Sortable: false, Align: "left"},
-				{Key: "actions", Label: "Actions", Sortable: false, Align: "right", Width: "w-32"},
+				{Key: "actions", Label: "Actions", Sortable: false, Align: "right", Width: "w-48"},
 			},
 			Striped: true,
 			Hover:   true,
@@ -401,6 +401,8 @@ templ VersionsTab(versions []JobVersion, jobID string) {
 				}
 			}
 		}
+		<!-- Revert Confirmation Modal -->
+		@revertConfirmModal(jobID)
 	</div>
 }
 
@@ -437,7 +439,7 @@ templ versionRow(version JobVersion, jobID string) {
 		@components.TableCell("left", "") {
 			<span class="text-neutral-700">{ formatSubmitTime(version.SubmitTime) }</span>
 		}
-		@components.TableCell("right", "w-32") {
+		@components.TableCell("right", "w-48") {
 			<div class="flex items-center justify-end gap-2">
 				if version.Version > 0 {
 					<button
@@ -458,6 +460,16 @@ templ versionRow(version JobVersion, jobID string) {
 						disabled
 					>
 						Diff
+					</button>
+				}
+				if !version.Active {
+					<button
+						type="button"
+						class="text-sm text-warning-600 hover:text-warning-800 font-medium"
+						title={ fmt.Sprintf("Revert to version %d", version.Version) }
+						@click={ fmt.Sprintf("revertVersion = %d; revertModalOpen = true", version.Version) }
+					>
+						Revert
 					</button>
 				}
 			</div>
@@ -501,6 +513,124 @@ func formatSubmitTime(t time.Time) string {
 	}
 	// For older versions, show the full date
 	return t.Format("Jan 2, 2006 at 3:04 PM")
+}
+
+// revertConfirmModal renders the confirmation modal for reverting to a previous version
+templ revertConfirmModal(jobID string) {
+	<div
+		x-show="revertModalOpen"
+		x-cloak
+		@keydown.escape.window="revertModalOpen = false"
+		class="fixed inset-0 z-50 overflow-y-auto"
+		x-transition:enter="transition ease-out duration-300"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-200"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="revert-modal-title"
+	>
+		<!-- Backdrop -->
+		<div
+			@click="revertModalOpen = false"
+			class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+			aria-hidden="true"
+		></div>
+		<!-- Modal positioning container -->
+		<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+			<!-- Modal content -->
+			<div
+				@click.stop
+				class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md"
+				x-transition:enter="transition ease-out duration-300"
+				x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+				x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave="transition ease-in duration-200"
+				x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+			>
+				<!-- Modal Header -->
+				<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+					<div class="flex items-center justify-between">
+						<h3
+							id="revert-modal-title"
+							class="text-lg font-semibold leading-6 text-neutral-900"
+						>
+							Revert Job Version
+						</h3>
+						<button
+							type="button"
+							@click="revertModalOpen = false"
+							class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+							aria-label="Close"
+						>
+							<span class="sr-only">Close</span>
+							<svg
+								class="h-6 w-6"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								aria-hidden="true"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+						</button>
+					</div>
+				</div>
+				<!-- Modal Body -->
+				<div class="px-6 py-4">
+					<div class="flex items-start">
+						<div class="flex-shrink-0">
+							<svg class="h-6 w-6 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+							</svg>
+						</div>
+						<div class="ml-3">
+							<p class="text-sm text-neutral-700">
+								Are you sure you want to revert this job to version <span class="font-mono font-semibold" x-text="revertVersion"></span>?
+							</p>
+							<p class="mt-2 text-sm text-neutral-500">
+								This will create a new job submission using the configuration from version <span class="font-mono" x-text="revertVersion"></span>.
+								The current version will remain in the history.
+							</p>
+							<p class="mt-2 text-sm text-neutral-500">
+								Job ID: <span class="font-mono font-medium">{ jobID }</span>
+							</p>
+						</div>
+					</div>
+				</div>
+				<!-- Modal Footer -->
+				<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+					<div class="flex justify-end space-x-3">
+						<button
+							type="button"
+							@click="revertModalOpen = false"
+							class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-warning-600 border border-transparent rounded-md hover:bg-warning-700 focus:outline-none focus:ring-2 focus:ring-warning-500 focus:ring-offset-2"
+							:hx-post={ `'/ui/jobs/${jobID}/versions/' + revertVersion + '/revert'` }
+							hx-target="body"
+							hx-swap="none"
+							@click="revertModalOpen = false"
+							@htmx:after-request="if(event.detail.successful) { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Job reverted to version ' + revertVersion, type: 'success' } })); setTimeout(() => window.location.reload(), 500); } else { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Failed to revert job', type: 'error' } })); }"
+						>
+							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+							</svg>
+							Revert to Version
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 }
 
 // EvaluationsTab renders the job evaluations tab (placeholder)

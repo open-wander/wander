@@ -72,6 +72,16 @@ func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle /ui/jobs/{id}/versions/{version}/revert (revert to version)
+	if strings.Contains(path, "/versions/") && strings.HasSuffix(path, "/revert") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.RevertToVersion(w, r)
+		return
+	}
+
 	// Handle /ui/jobs/{id}/versions/{v1}/diff/{v2} (version diff view)
 	if strings.Contains(path, "/versions/") && strings.Contains(path, "/diff/") {
 		if r.Method != http.MethodGet {
@@ -1378,4 +1388,76 @@ func generateMockEvalID() string {
 		}
 	}
 	return string(id)
+}
+
+// RevertToVersionResponse represents the response from the revert endpoint
+type RevertToVersionResponse struct {
+	EvalID   string `json:"evalId"`
+	JobID    string `json:"jobId"`
+	Version  int    `json:"version"`
+	Error    string `json:"error,omitempty"`
+}
+
+// RevertToVersion handles POST requests to revert a job to a previous version.
+// Route: POST /ui/jobs/{id}/versions/{version}/revert
+func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID and version from path: /ui/jobs/{id}/versions/{version}/revert
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+	path = strings.TrimSuffix(path, "/revert")
+
+	// Split by /versions/
+	parts := strings.Split(path, "/versions/")
+	if len(parts) != 2 {
+		h.handler.logger.Error("invalid revert path", "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{Error: "Invalid path"})
+		return
+	}
+
+	jobID := parts[0]
+	versionStr := parts[1]
+
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		h.handler.logger.Error("invalid version number", "version", versionStr, "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{Error: "Invalid version number"})
+		return
+	}
+
+	// Log the revert operation
+	h.handler.logger.Info("revert job request",
+		"jobID", jobID,
+		"version", version,
+	)
+
+	// TODO: In a real implementation, this would:
+	// 1. Fetch the job definition for the specified version from Nomad API
+	//    using client.Jobs().Versions(jobID, false, nil)
+	// 2. Find the version in the returned list
+	// 3. Re-submit the job with that version's configuration
+	//    using client.Jobs().Register(job, nil)
+
+	// Mock revert result for demonstration
+	mockEvalID := generateMockEvalID()
+
+	response := RevertToVersionResponse{
+		EvalID:  mockEvalID,
+		JobID:   jobID,
+		Version: version,
+	}
+
+	h.handler.logger.Info("job reverted successfully",
+		"jobID", jobID,
+		"version", version,
+		"evalID", mockEvalID,
+	)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.handler.logger.Error("failed to encode revert response", "error", err)
+	}
 }
