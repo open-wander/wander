@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/settings"
@@ -55,8 +57,7 @@ func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("settings page request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
-	// Get current token info from cookie/session if exists
-	// For now, we'll use mock data
+	// Get current token info from actual validation
 	tokenInfo := h.getTokenInfo(r)
 
 	// Build layout props
@@ -86,6 +87,8 @@ func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
 // UpdateToken handles POST requests to update the ACL token
 // Route: POST /ui/settings/token
 func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	// Parse the form data
 	if err := r.ParseForm(); err != nil {
 		h.handler.logger.Error("failed to parse form", "error", err)
@@ -109,14 +112,18 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{
 			Name:   "nomad_token",
 			Value:  "",
-			Path:   "/",
+			Path:   "/ui/",
 			MaxAge: -1,
 		})
 
-		// Return updated token form (signed out state)
-		tokenInfo := settingspartials.TokenInfo{
-			IsAuthenticated: false,
+		// Clear the token from cache if present
+		cache := getTokenCache()
+		if cookie, err := r.Cookie("nomad_token"); err == nil && cookie.Value != "" {
+			cache.Delete(cookie.Value)
 		}
+
+		// Return updated token form (signed out state)
+		tokenInfo := h.getTokenInfo(r) // This will detect ACL disabled if needed
 		err := RenderPartial(w, r, settingspartials.TokenFormContent(tokenInfo))
 		if err != nil {
 			h.handler.logger.Error("failed to render token form", "error", err)
@@ -134,16 +141,21 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: In a real implementation, this would:
-	// 1. Call the Nomad API: client.ACLTokens().Self(&api.QueryOptions{AuthToken: secretID})
-	// 2. Validate the token and get its policies
-	// 3. Store the token in a secure cookie/session
+	// Validate the token via Nomad API
+	tokenInfo := h.validateToken(ctx, secretID)
 
-	// Mock token validation for demonstration
-	tokenInfo := h.validateToken(secretID)
+	// Handle ACL disabled case
+	if tokenInfo.ACLDisabled {
+		err := RenderPartial(w, r, settingspartials.TokenError("ACL is disabled on this cluster"))
+		if err != nil {
+			h.handler.logger.Error("failed to render error", "error", err)
+		}
+		return
+	}
 
+	// Handle invalid token
 	if !tokenInfo.IsAuthenticated {
-		err := RenderPartial(w, r, settingspartials.TokenError("Token failed to authenticate"))
+		err := RenderPartial(w, r, settingspartials.TokenError("Token failed to authenticate. Please check your Secret ID and try again."))
 		if err != nil {
 			h.handler.logger.Error("failed to render error", "error", err)
 		}
@@ -151,15 +163,21 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the token cookie
+	// Path is /ui/ to match the UI routes
 	http.SetCookie(w, &http.Cookie{
 		Name:     "nomad_token",
 		Value:    secretID,
-		Path:     "/",
+		Path:     "/ui/",
 		HttpOnly: true,
 		Secure:   false, // Set to true in production with HTTPS
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   86400 * 7, // 7 days
 	})
+
+	h.handler.logger.Info("token authenticated successfully",
+		"name", tokenInfo.Name,
+		"type", tokenInfo.Type,
+		"has_expiration", tokenInfo.ExpirationTime != "")
 
 	// Return success with updated token info
 	err := RenderPartial(w, r, settingspartials.TokenSuccess(tokenInfo))
@@ -169,56 +187,97 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // getTokenInfo retrieves token information from the request.
-// This checks for a token in cookies and validates it.
+// This checks for a token in cookies and validates it via the Nomad API.
 func (h *SettingsHandler) getTokenInfo(r *http.Request) settingspartials.TokenInfo {
+	ctx := r.Context()
+
 	// Try to get token from cookie
 	cookie, err := r.Cookie("nomad_token")
 	if err != nil || cookie.Value == "" {
+		// No token provided - check if ACL is disabled
+		// We can only know this if we try to validate with no token
+		aclInfo := h.handler.ValidateToken(ctx, "")
+		if !aclInfo.ACLEnabled {
+			return settingspartials.TokenInfo{
+				IsAuthenticated: false,
+				ACLDisabled:     true,
+			}
+		}
 		return settingspartials.TokenInfo{
 			IsAuthenticated: false,
+			ACLDisabled:     false,
 		}
 	}
 
-	// TODO: In a real implementation, validate the token with Nomad API
-	// For now, return mock authenticated state
-	return h.validateToken(cookie.Value)
+	// Validate the token with Nomad API
+	return h.validateToken(ctx, cookie.Value)
 }
 
 // validateToken validates a token secret and returns token information.
-// This is a mock implementation that will be replaced with actual Nomad API calls.
-func (h *SettingsHandler) validateToken(secretID string) settingspartials.TokenInfo {
-	// Mock validation - any token starting with "valid-" is considered valid
-	if !strings.HasPrefix(secretID, "valid-") {
+// This uses the actual Nomad API to validate tokens.
+func (h *SettingsHandler) validateToken(ctx context.Context, secretID string) settingspartials.TokenInfo {
+	// Validate the token with Nomad API
+	aclInfo := h.handler.ValidateToken(ctx, secretID)
+
+	// Handle ACL disabled case
+	if !aclInfo.ACLEnabled {
 		return settingspartials.TokenInfo{
-			IsAuthenticated: false,
+			IsAuthenticated: true,
+			ACLDisabled:     true,
 		}
 	}
 
-	// Mock successful authentication
-	tokenInfo := settingspartials.TokenInfo{
+	// Handle invalid token
+	if !aclInfo.IsValid {
+		return settingspartials.TokenInfo{
+			IsAuthenticated: false,
+			ACLDisabled:     false,
+		}
+	}
+
+	// Handle valid token - extract token information
+	token := aclInfo.Token
+	if token == nil {
+		// This shouldn't happen if IsValid is true, but handle defensively
+		return settingspartials.TokenInfo{
+			IsAuthenticated: false,
+			ACLDisabled:     false,
+		}
+	}
+
+	// Build policies list
+	policies := make([]settingspartials.TokenPolicy, 0, len(token.Policies))
+	for _, policyName := range token.Policies {
+		policies = append(policies, settingspartials.TokenPolicy{
+			Name:        policyName,
+			Description: "", // Policy descriptions require separate API call
+		})
+	}
+
+	// Format expiration time if present
+	expirationTime := ""
+	expiresSoon := false
+	if token.ExpirationTime != nil {
+		expirationTime = token.ExpirationTime.Format("2006-01-02 15:04:05 MST")
+		// Check if token expires within 10 minutes (matching Ember UI)
+		expiresSoon = IsTokenExpiringSoon(aclInfo, 10*time.Minute)
+	}
+
+	// Truncate accessor ID for display (show first 8 chars)
+	accessorID := token.AccessorID
+	if len(accessorID) > 8 {
+		accessorID = accessorID[:8] + "..."
+	}
+
+	return settingspartials.TokenInfo{
 		IsAuthenticated: true,
-		Name:            "Development Token",
-		AccessorID:      "12345678-1234-1234-1234-123456789012",
+		ACLDisabled:     false,
+		Name:            token.Name,
+		AccessorID:      accessorID,
 		SecretID:        secretID,
-		Type:            "client",
-		Policies: []settingspartials.TokenPolicy{
-			{
-				Name:        "read-only",
-				Description: "Read-only access to all resources",
-			},
-			{
-				Name:        "submit-job",
-				Description: "Ability to submit and manage jobs",
-			},
-		},
+		Type:            token.Type,
+		ExpirationTime:  expirationTime,
+		ExpiresSoon:     expiresSoon,
+		Policies:        policies,
 	}
-
-	// Mock management token
-	if strings.Contains(secretID, "management") {
-		tokenInfo.Type = "management"
-		tokenInfo.Name = "Management Token"
-		tokenInfo.Policies = nil
-	}
-
-	return tokenInfo
 }

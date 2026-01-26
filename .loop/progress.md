@@ -81,3 +81,15 @@
 - Pattern: 5-minute warning threshold, cache half remaining lifetime
 - Files: auth.go, auth_test.go, router.go
 ---
+
+### 2026-01-26 - Task 6: Settings page real token management
+- Wired Show() handler to use real ValidateToken() from auth.go
+- Sign in validates token via Nomad API before setting cookie
+- Sign out clears cookie AND clears token from cache
+- Cookie: nomad_token, path=/ui/, HttpOnly, SameSite=Lax
+- Three-state display: ACL disabled, authenticated, unauthenticated
+- Shows token name, accessor ID (truncated), type, policies, expiration
+- Expiration warning banner when token expires within 10 minutes
+- Pattern: Cookie path matches UI routes for proper scoping
+- Files: settings.go, settingspartials/token_form.templ
+---
