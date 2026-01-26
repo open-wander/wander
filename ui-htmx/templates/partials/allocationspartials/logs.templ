@@ -1,0 +1,289 @@
+package allocationspartials
+
+import (
+	"fmt"
+)
+
+// LogsTabProps contains configuration for the logs tab
+type LogsTabProps struct {
+	AllocID      string
+	Tasks        []string
+	SelectedTask string
+	LogType      string // "stdout" or "stderr"
+}
+
+// LogsTab renders the allocation logs tab with SSE streaming
+// This component provides:
+// - Task selector dropdown (when multiple tasks exist)
+// - stdout/stderr toggle
+// - Log output container with auto-scroll
+// - Pause/resume scrolling control
+// - Clear button
+// - SSE connection status indicator
+templ LogsTabContent(props LogsTabProps) {
+	<div
+		x-data={ logViewerData(props) }
+		x-init="connect()"
+		x-on:beforeunload.window="disconnect()"
+		class="p-6"
+	>
+		<!-- Header with controls -->
+		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+			<div class="flex items-center gap-4">
+				<h3 class="text-lg font-medium text-neutral-900">Logs</h3>
+				<!-- Connection Status Indicator -->
+				<div class="flex items-center gap-2">
+					<span
+						:class="{
+							'bg-success-500': connectionState === 'connected',
+							'bg-warning-500': connectionState === 'connecting',
+							'bg-error-500': connectionState === 'error',
+							'bg-neutral-400': connectionState === 'disconnected'
+						}"
+						class="w-2 h-2 rounded-full"
+					></span>
+					<span
+						x-text="connectionState"
+						class="text-xs text-neutral-500 capitalize"
+					></span>
+				</div>
+			</div>
+
+			<!-- Controls -->
+			<div class="flex flex-wrap items-center gap-3">
+				<!-- Task Selector -->
+				if len(props.Tasks) > 1 {
+					<div class="relative">
+						<label for="task-select" class="sr-only">Select Task</label>
+						<select
+							id="task-select"
+							x-model="selectedTask"
+							@change="switchTask()"
+							class="block w-full pl-3 pr-10 py-2 text-sm border border-neutral-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white"
+						>
+							for _, task := range props.Tasks {
+								<option value={ task }>{ task }</option>
+							}
+						</select>
+					</div>
+				}
+
+				<!-- Log Type Toggle (stdout/stderr) -->
+				<div class="inline-flex rounded-md shadow-sm" role="group">
+					<button
+						type="button"
+						@click="setLogType('stdout')"
+						:class="{
+							'bg-primary-600 text-white border-primary-600': logType === 'stdout',
+							'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': logType !== 'stdout'
+						}"
+						class="px-3 py-2 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					>
+						stdout
+					</button>
+					<button
+						type="button"
+						@click="setLogType('stderr')"
+						:class="{
+							'bg-primary-600 text-white border-primary-600': logType === 'stderr',
+							'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': logType !== 'stderr'
+						}"
+						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					>
+						stderr
+					</button>
+				</div>
+
+				<!-- Pause/Resume Button -->
+				<button
+					type="button"
+					@click="togglePause()"
+					:class="{
+						'bg-warning-100 text-warning-700 border-warning-300': isPaused,
+						'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': !isPaused
+					}"
+					class="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+				>
+					<template x-if="isPaused">
+						<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+						</svg>
+					</template>
+					<template x-if="!isPaused">
+						<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+						</svg>
+					</template>
+					<span x-text="isPaused ? 'Resume' : 'Pause'"></span>
+				</button>
+
+				<!-- Clear Button -->
+				<button
+					type="button"
+					@click="clearLogs()"
+					class="inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+				>
+					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+					</svg>
+					Clear
+				</button>
+
+				<!-- Download Button -->
+				<button
+					type="button"
+					@click="downloadLogs()"
+					class="inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+				>
+					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+					</svg>
+					Download
+				</button>
+			</div>
+		</div>
+
+		<!-- Paused Banner -->
+		<div
+			x-show="isPaused"
+			x-cloak
+			class="mb-4 p-3 bg-warning-50 border border-warning-200 rounded-md flex items-center justify-between"
+		>
+			<div class="flex items-center">
+				<svg class="w-5 h-5 text-warning-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+				</svg>
+				<span class="text-sm text-warning-700">
+					Auto-scroll paused. <span x-text="bufferedCount"></span> new lines buffered.
+				</span>
+			</div>
+			<button
+				type="button"
+				@click="togglePause()"
+				class="text-sm font-medium text-warning-700 hover:text-warning-800"
+			>
+				Resume
+			</button>
+		</div>
+
+		<!-- Log Output Container -->
+		<div
+			x-ref="logContainer"
+			@scroll="handleScroll()"
+			class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm overflow-auto h-[600px] relative"
+		>
+			<!-- Empty State -->
+			<div
+				x-show="logs.length === 0 && connectionState === 'connected'"
+				x-cloak
+				class="absolute inset-0 flex items-center justify-center text-neutral-500"
+			>
+				<div class="text-center">
+					<svg class="mx-auto h-12 w-12 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+					</svg>
+					<p class="mt-2">Waiting for log output...</p>
+				</div>
+			</div>
+
+			<!-- Connecting State -->
+			<div
+				x-show="connectionState === 'connecting'"
+				x-cloak
+				class="absolute inset-0 flex items-center justify-center text-neutral-500"
+			>
+				<div class="text-center">
+					<svg class="animate-spin mx-auto h-8 w-8 text-neutral-500" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<p class="mt-2">Connecting to log stream...</p>
+				</div>
+			</div>
+
+			<!-- Error State -->
+			<div
+				x-show="connectionState === 'error'"
+				x-cloak
+				class="absolute inset-0 flex items-center justify-center text-neutral-500"
+			>
+				<div class="text-center">
+					<svg class="mx-auto h-12 w-12 text-error-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+					</svg>
+					<p class="mt-2 text-error-400">Connection lost</p>
+					<button
+						@click="connect()"
+						class="mt-2 text-sm text-primary-400 hover:text-primary-300"
+					>
+						Click to reconnect
+					</button>
+				</div>
+			</div>
+
+			<!-- Log Lines -->
+			<div x-ref="logContent">
+				<template x-for="(line, index) in logs" :key="index">
+					<div
+						:class="{
+							'text-error-400': line.level === 'error',
+							'text-warning-400': line.level === 'warn',
+							'text-success-400': line.level === 'info',
+							'text-neutral-400': line.level === 'debug',
+							'text-neutral-100': !line.level
+						}"
+						class="whitespace-pre-wrap break-all leading-relaxed hover:bg-neutral-800 px-1 -mx-1"
+					>
+						<span x-show="showTimestamps" class="text-neutral-500 mr-2" x-text="line.timestamp"></span>
+						<span x-text="line.message"></span>
+					</div>
+				</template>
+			</div>
+
+			<!-- Scroll to Bottom Button -->
+			<button
+				x-show="!isAtBottom && logs.length > 0"
+				x-cloak
+				@click="scrollToBottom()"
+				class="absolute bottom-4 right-4 bg-primary-600 text-white p-2 rounded-full shadow-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-opacity"
+			>
+				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+				</svg>
+			</button>
+		</div>
+
+		<!-- Footer with stats -->
+		<div class="mt-3 flex items-center justify-between text-sm text-neutral-500">
+			<div class="flex items-center gap-4">
+				<span>Lines: <span x-text="logs.length" class="font-medium"></span></span>
+				<label class="flex items-center gap-2 cursor-pointer">
+					<input
+						type="checkbox"
+						x-model="showTimestamps"
+						class="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+					/>
+					<span>Show timestamps</span>
+				</label>
+			</div>
+			<div x-show="lastUpdate" class="text-neutral-400">
+				Last update: <span x-text="formatTime(lastUpdate)"></span>
+			</div>
+		</div>
+	</div>
+}
+
+// logViewerData generates the Alpine.js x-data configuration for the log viewer
+func logViewerData(props LogsTabProps) string {
+	selectedTask := props.SelectedTask
+	if selectedTask == "" && len(props.Tasks) > 0 {
+		selectedTask = props.Tasks[0]
+	}
+	logType := props.LogType
+	if logType == "" {
+		logType = "stdout"
+	}
+
+	return fmt.Sprintf(`logViewer('%s', '%s', '%s')`, props.AllocID, selectedTask, logType)
+}

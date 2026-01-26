@@ -261,16 +261,27 @@ templ versionRow(version JobVersion, jobID string) {
 		}
 		@components.TableCell("right", "w-32") {
 			<div class="flex items-center justify-end gap-2">
-				<button
-					type="button"
-					class="text-sm text-primary-600 hover:text-primary-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-					title="View diff between this version and the previous"
-					if version.Version == 0 {
+				if version.Version > 0 {
+					<button
+						type="button"
+						class="text-sm text-primary-600 hover:text-primary-800 font-medium"
+						title="View diff between this version and the previous"
+						hx-get={ fmt.Sprintf("/ui/jobs/%s/versions/%d/diff/%d", jobID, version.Version, version.Version-1) }
+						hx-target="body"
+						hx-swap="beforeend"
+					>
+						Diff
+					</button>
+				} else {
+					<button
+						type="button"
+						class="text-sm text-primary-600 hover:text-primary-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+						title="No previous version to compare"
 						disabled
-					}
-				>
-					Diff
-				</button>
+					>
+						Diff
+					</button>
+				}
 			</div>
 		}
 	</tr>

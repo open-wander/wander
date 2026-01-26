@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 )
 
 // Router wraps http.ServeMux and provides route registration for the UI.
@@ -65,10 +66,23 @@ func (r *Router) registerJobsRoutes() {
 // registerAllocationsRoutes sets up routes for the allocations section.
 func (r *Router) registerAllocationsRoutes() {
 	allocationsHandler := NewAllocationsHandler(r.handler)
+	logsHandler := NewAllocationLogsHandler(r.handler)
 
 	// Allocations handler handles both list and detail pages
 	r.mux.Handle("/ui/allocations", r.wrapMiddleware(allocationsHandler))
-	r.mux.Handle("/ui/allocations/", r.wrapMiddleware(allocationsHandler))
+
+	// Log streaming route must be registered before the general allocations route
+	// to ensure it takes precedence for log-related paths
+	r.mux.HandleFunc("/ui/allocations/", func(w http.ResponseWriter, req *http.Request) {
+		path := req.URL.Path
+		// Route log-related requests to the logs handler
+		if strings.Contains(path, "/logs") {
+			r.wrapMiddleware(logsHandler).ServeHTTP(w, req)
+			return
+		}
+		// All other allocation requests go to the main handler
+		r.wrapMiddleware(allocationsHandler).ServeHTTP(w, req)
+	})
 }
 
 // registerClientsRoutes sets up routes for the clients section.

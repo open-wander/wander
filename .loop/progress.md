@@ -432,3 +432,65 @@ Pattern: Color thresholds for resource bars: green <50%, yellow 50-90%, red >=90
 Pattern: Modal confirmation for destructive actions (scaling)
 Files: codemirror-bundle.js, jobspartials/tabs.templ, allocations.templ, taskgrouppartials/detail.templ, allocationspartials/list_content.templ, tabs.templ, clientspartials/list_content.templ, serverspartials/list_content.templ, handlers/jobs.go, allocations.go, clients.go, servers.go
 ---
+
+### 2026-01-26 - Tasks 48, 51, 54, 60, 64, 68, 77, 79: Editor, Diff, Logs, Files
+Batch of 8 tasks completed:
+
+**Task 48: CodeMirror HCL/JSON syntax**
+- Enhanced codemirror-bundle.js with bracket matching
+- highlightMatchingBracket() detects brackets at cursor
+- findMatchingBracket() with string/comment skip logic
+- Green highlight for matches, red for unmatched
+
+**Task 51: Job version diff view**
+- Created version_diff.templ with modal diff display
+- LCS-based diff algorithm in handlers/diff.go
+- Green additions, red deletions, line numbers
+- HTMX lazy-load diff on button click
+
+**Task 54: Allocation polling updates**
+- Added hx-trigger="every 5s" with visibility check
+- AllocationsTableBody component for efficient updates
+- Last updated timestamp with relative time
+- Loading indicator during refresh
+
+**Task 60: Allocations ID prefix search**
+- Enhanced filterAllocations with ID prefix priority
+- Short ID (8 char) prefix matching support
+- Visual highlighting of matched prefix
+- Updated search placeholder with hint
+
+**Task 64: Allocation Logs SSE tab**
+- Created logs.templ with SSE streaming
+- Task selector, stdout/stderr toggle
+- Auto-scroll with pause/resume
+- Connection status indicator
+- Download logs button
+- Alpine.js logViewer component
+
+**Task 68: Allocation Files tab**
+- Created files.templ with directory tree
+- HTMX lazy-load directory contents on expand
+- File icons by type (log, config, script, binary)
+- File preview panel for text files
+- Download button, size/time display
+
+**Task 77: Clients filtering**
+- Status, datacenter, node class dropdowns
+- Dynamic options from client list
+- Clear filters button with active count
+- URL state preservation
+
+**Task 79: Client detail page**
+- Tabbed interface: Overview, Allocations, Events
+- Resource usage with progress bars
+- Drivers section with health badges
+- Node/Meta attributes (sorted)
+- Events timeline with color-coded types
+
+Pattern: LCS algorithm for line-by-line diff computation
+Pattern: HTMX visibility-based polling stops when tab not visible
+Pattern: SSE + Alpine.js for real-time log streaming with auto-reconnect
+Pattern: HTMX lazy-load with hx-trigger="load" for directory expansion
+Files: codemirror-bundle.js, version_diff.templ, diff.go, allocations.templ, logs.templ, files.templ, allocation_logs.go, clientspartials/list_content.templ, detail.templ
+---

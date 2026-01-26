@@ -127,17 +127,23 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	paginatedAllocations := filteredAllocations[startIdx:endIdx]
 
+	// Normalize search query for ID prefix matching detection
+	searchNormalized := strings.ToLower(strings.TrimSpace(searchQuery))
+
 	// Convert to partial type
 	allocationsList := make([]allocationspartials.AllocationSummary, len(paginatedAllocations))
 	for i, a := range paginatedAllocations {
+		idPrefixMatch, matchedPrefix := h.isIDPrefixMatch(a.ID, searchNormalized)
 		allocationsList[i] = allocationspartials.AllocationSummary{
-			ID:        a.ID,
-			JobID:     a.JobID,
-			TaskGroup: a.TaskGroup,
-			NodeID:    a.NodeID,
-			NodeName:  a.NodeName,
-			Status:    a.Status,
-			Created:   a.Created,
+			ID:            a.ID,
+			JobID:         a.JobID,
+			TaskGroup:     a.TaskGroup,
+			NodeID:        a.NodeID,
+			NodeName:      a.NodeName,
+			Status:        a.Status,
+			Created:       a.Created,
+			IDPrefixMatch: idPrefixMatch,
+			MatchedPrefix: matchedPrefix,
 		}
 	}
 
@@ -233,9 +239,11 @@ func (h *AllocationsHandler) extractFilterOptions(allocs []AllocationSummary) Fi
 	}
 }
 
-// filterAllocations applies filters to the allocations list
+// filterAllocations applies filters to the allocations list.
+// When searching, ID prefix matches are prioritized over other matches.
 func (h *AllocationsHandler) filterAllocations(allocs []AllocationSummary, status, job, node, search string) []AllocationSummary {
-	filtered := make([]AllocationSummary, 0, len(allocs))
+	// Apply non-search filters first
+	preFiltered := make([]AllocationSummary, 0, len(allocs))
 
 	for _, a := range allocs {
 		// Status filter
@@ -253,22 +261,83 @@ func (h *AllocationsHandler) filterAllocations(allocs []AllocationSummary, statu
 			continue
 		}
 
-		// Search filter (case-insensitive)
-		if search != "" {
-			searchLower := strings.ToLower(search)
-			if !strings.Contains(strings.ToLower(a.ID), searchLower) &&
-				!strings.Contains(strings.ToLower(a.JobID), searchLower) &&
-				!strings.Contains(strings.ToLower(a.TaskGroup), searchLower) &&
-				!strings.Contains(strings.ToLower(a.NodeName), searchLower) &&
-				!strings.Contains(strings.ToLower(a.NodeID), searchLower) {
-				continue
-			}
-		}
-
-		filtered = append(filtered, a)
+		preFiltered = append(preFiltered, a)
 	}
 
-	return filtered
+	// If no search query, return pre-filtered results
+	if search == "" {
+		return preFiltered
+	}
+
+	// Apply search filter with ID prefix prioritization
+	searchLower := strings.ToLower(strings.TrimSpace(search))
+
+	// Separate into ID prefix matches (exact start) and other matches
+	idPrefixMatches := make([]AllocationSummary, 0)
+	otherMatches := make([]AllocationSummary, 0)
+
+	for _, a := range preFiltered {
+		idLower := strings.ToLower(a.ID)
+
+		// Check if search matches ID prefix (supports short ID search)
+		// This matches both full UUID prefix and short ID (first 8 chars)
+		if strings.HasPrefix(idLower, searchLower) {
+			idPrefixMatches = append(idPrefixMatches, a)
+			continue
+		}
+
+		// Check if search matches the short ID prefix (first 8 chars of UUID)
+		shortID := idLower
+		if len(shortID) > 8 {
+			shortID = shortID[:8]
+		}
+		if strings.HasPrefix(shortID, searchLower) {
+			idPrefixMatches = append(idPrefixMatches, a)
+			continue
+		}
+
+		// Check other fields for matches
+		if strings.Contains(idLower, searchLower) ||
+			strings.Contains(strings.ToLower(a.JobID), searchLower) ||
+			strings.Contains(strings.ToLower(a.TaskGroup), searchLower) ||
+			strings.Contains(strings.ToLower(a.NodeName), searchLower) ||
+			strings.Contains(strings.ToLower(a.NodeID), searchLower) {
+			otherMatches = append(otherMatches, a)
+		}
+	}
+
+	// Combine results with ID prefix matches first
+	result := make([]AllocationSummary, 0, len(idPrefixMatches)+len(otherMatches))
+	result = append(result, idPrefixMatches...)
+	result = append(result, otherMatches...)
+
+	return result
+}
+
+// isIDPrefixMatch checks if the search query matches the allocation ID as a prefix.
+// Returns true and the matched prefix if it's an ID prefix match.
+func (h *AllocationsHandler) isIDPrefixMatch(allocID, search string) (bool, string) {
+	if search == "" {
+		return false, ""
+	}
+
+	idLower := strings.ToLower(allocID)
+
+	// Check if search matches full ID prefix
+	if strings.HasPrefix(idLower, search) {
+		return true, search
+	}
+
+	// Check if search matches short ID prefix (first 8 chars)
+	shortID := idLower
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+	if strings.HasPrefix(shortID, search) {
+		return true, search
+	}
+
+	return false, ""
 }
 
 // sortAllocations sorts the allocations list by the specified column
@@ -427,12 +496,31 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(allocID, "/")
 	actualAllocID := parts[0]
 	tabName := ""
+	subAction := ""
 	if len(parts) > 1 {
 		tabName = parts[1]
 	}
+	if len(parts) > 2 {
+		subAction = parts[2]
+	}
 
 	// Log the request
-	h.handler.logger.Debug("allocation detail request", "allocID", actualAllocID, "tab", tabName, "htmx", IsHTMXFromRequest(r))
+	h.handler.logger.Debug("allocation detail request", "allocID", actualAllocID, "tab", tabName, "subAction", subAction, "htmx", IsHTMXFromRequest(r))
+
+	// Handle files sub-routes (list, preview, download)
+	if tabName == "files" && subAction != "" {
+		switch subAction {
+		case "list":
+			h.FilesListHandler(w, r, actualAllocID)
+			return
+		case "preview":
+			h.FilesPreviewHandler(w, r, actualAllocID)
+			return
+		case "download":
+			h.FilesDownloadHandler(w, r, actualAllocID)
+			return
+		}
+	}
 
 	// If this is a tab content request, return just the tab partial
 	if tabName != "" && IsHTMXFromRequest(r) {
@@ -643,9 +731,32 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 	case "tasks":
 		err = RenderPartial(w, r, allocationspartials.TasksTab(allocDetail))
 	case "logs":
-		err = RenderPartial(w, r, allocationspartials.LogsTab())
+		// Render the logs tab with SSE streaming support
+		task := r.URL.Query().Get("task")
+		logType := r.URL.Query().Get("type")
+		if logType == "" {
+			logType = "stdout"
+		}
+		tasks := h.getTasksForAllocation(allocID)
+		if task == "" && len(tasks) > 0 {
+			task = tasks[0]
+		}
+		props := allocationspartials.LogsTabProps{
+			AllocID:      allocID,
+			Tasks:        tasks,
+			SelectedTask: task,
+			LogType:      logType,
+		}
+		err = RenderPartial(w, r, allocationspartials.LogsTabContent(props))
 	case "files":
-		err = RenderPartial(w, r, allocationspartials.FilesTab())
+		// Get task list and file data
+		tasks := h.getTaskNames(allocDetail)
+		selectedTask := r.URL.Query().Get("task")
+		if selectedTask == "" && len(tasks) > 0 {
+			selectedTask = tasks[0]
+		}
+		files := h.getMockFiles(allocID, selectedTask, "/")
+		err = RenderPartial(w, r, allocationspartials.FilesTab(allocID, tasks, selectedTask, files))
 	case "raw":
 		err = RenderPartial(w, r, allocationspartials.RawTab())
 	default:
@@ -656,5 +767,317 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		h.handler.logger.Error("failed to render tab content", "tab", tabName, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// FilesListHandler handles requests for listing directory contents
+func (h *AllocationsHandler) FilesListHandler(w http.ResponseWriter, r *http.Request, allocID string) {
+	task := r.URL.Query().Get("task")
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		path = "/"
+	}
+
+	h.handler.logger.Debug("files list request", "allocID", allocID, "task", task, "path", path)
+
+	// Get directory contents
+	files := h.getMockFiles(allocID, task, path)
+
+	// Determine depth based on path
+	depth := 0
+	for _, c := range path {
+		if c == '/' {
+			depth++
+		}
+	}
+
+	err := RenderPartial(w, r, allocationspartials.DirectoryListing(files, allocID, task, depth))
+	if err != nil {
+		h.handler.logger.Error("failed to render directory listing", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// FilesPreviewHandler handles requests for previewing file contents
+func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.Request, allocID string) {
+	task := r.URL.Query().Get("task")
+	path := r.URL.Query().Get("path")
+
+	h.handler.logger.Debug("files preview request", "allocID", allocID, "task", task, "path", path)
+
+	// Get mock file content
+	content, size, isText := h.getMockFileContent(path)
+
+	// Get file name from path
+	fileName := path
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '/' {
+			fileName = path[i+1:]
+			break
+		}
+	}
+
+	err := RenderPartial(w, r, allocationspartials.FilePreview(fileName, content, isText, size))
+	if err != nil {
+		h.handler.logger.Error("failed to render file preview", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// FilesDownloadHandler handles file download requests
+func (h *AllocationsHandler) FilesDownloadHandler(w http.ResponseWriter, r *http.Request, allocID string) {
+	task := r.URL.Query().Get("task")
+	path := r.URL.Query().Get("path")
+
+	h.handler.logger.Debug("files download request", "allocID", allocID, "task", task, "path", path)
+
+	// Get file name from path
+	fileName := path
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '/' {
+			fileName = path[i+1:]
+			break
+		}
+	}
+
+	// Get mock file content
+	content, _, isText := h.getMockFileContent(path)
+
+	// Set headers for download
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
+	if isText {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+
+	w.Write([]byte(content))
+}
+
+// getTaskNames extracts task names from allocation detail
+func (h *AllocationsHandler) getTaskNames(alloc allocationspartials.AllocationDetail) []string {
+	tasks := make([]string, len(alloc.Tasks))
+	for i, task := range alloc.Tasks {
+		tasks[i] = task.Name
+	}
+	return tasks
+}
+
+// getTasksForAllocation returns the list of tasks for an allocation.
+// In production, this would query the Nomad API.
+func (h *AllocationsHandler) getTasksForAllocation(allocID string) []string {
+	// Mock task list - in production, query Nomad API
+	return []string{"nginx", "redis", "sidecar"}
+}
+
+// getMockFiles returns mock file entries for testing
+func (h *AllocationsHandler) getMockFiles(allocID, task, path string) []allocationspartials.FileEntry {
+	now := time.Now()
+
+	// Root level files
+	if path == "/" {
+		return []allocationspartials.FileEntry{
+			{
+				Name:    "alloc",
+				Path:    "/alloc",
+				IsDir:   true,
+				ModTime: now.Add(-2 * time.Hour),
+			},
+			{
+				Name:    "local",
+				Path:    "/local",
+				IsDir:   true,
+				ModTime: now.Add(-2 * time.Hour),
+			},
+			{
+				Name:    "secrets",
+				Path:    "/secrets",
+				IsDir:   true,
+				ModTime: now.Add(-2 * time.Hour),
+			},
+		}
+	}
+
+	// /alloc directory
+	if path == "/alloc" {
+		return []allocationspartials.FileEntry{
+			{
+				Name:    "logs",
+				Path:    "/alloc/logs",
+				IsDir:   true,
+				ModTime: now.Add(-1 * time.Hour),
+			},
+			{
+				Name:    "data",
+				Path:    "/alloc/data",
+				IsDir:   true,
+				ModTime: now.Add(-30 * time.Minute),
+			},
+		}
+	}
+
+	// /alloc/logs directory
+	if path == "/alloc/logs" {
+		return []allocationspartials.FileEntry{
+			{
+				Name:    task + ".stdout.0",
+				Path:    "/alloc/logs/" + task + ".stdout.0",
+				IsDir:   false,
+				Size:    4523,
+				ModTime: now.Add(-5 * time.Minute),
+			},
+			{
+				Name:    task + ".stderr.0",
+				Path:    "/alloc/logs/" + task + ".stderr.0",
+				IsDir:   false,
+				Size:    1256,
+				ModTime: now.Add(-5 * time.Minute),
+			},
+		}
+	}
+
+	// /alloc/data directory
+	if path == "/alloc/data" {
+		return []allocationspartials.FileEntry{
+			{
+				Name:    "cache",
+				Path:    "/alloc/data/cache",
+				IsDir:   true,
+				ModTime: now.Add(-15 * time.Minute),
+			},
+			{
+				Name:    "state.json",
+				Path:    "/alloc/data/state.json",
+				IsDir:   false,
+				Size:    892,
+				ModTime: now.Add(-10 * time.Minute),
+			},
+		}
+	}
+
+	// /alloc/data/cache directory
+	if path == "/alloc/data/cache" {
+		return []allocationspartials.FileEntry{
+			{
+				Name:    "index.db",
+				Path:    "/alloc/data/cache/index.db",
+				IsDir:   false,
+				Size:    102400,
+				ModTime: now.Add(-8 * time.Minute),
+			},
+		}
+	}
+
+	// /local directory
+	if path == "/local" {
+		return []allocationspartials.FileEntry{
+			{
+				Name:    "config.json",
+				Path:    "/local/config.json",
+				IsDir:   false,
+				Size:    2048,
+				ModTime: now.Add(-2 * time.Hour),
+			},
+			{
+				Name:    "run.sh",
+				Path:    "/local/run.sh",
+				IsDir:   false,
+				Size:    512,
+				ModTime: now.Add(-2 * time.Hour),
+			},
+		}
+	}
+
+	// /secrets directory
+	if path == "/secrets" {
+		return []allocationspartials.FileEntry{
+			{
+				Name:    "api_key",
+				Path:    "/secrets/api_key",
+				IsDir:   false,
+				Size:    64,
+				ModTime: now.Add(-2 * time.Hour),
+			},
+			{
+				Name:    "cert.pem",
+				Path:    "/secrets/cert.pem",
+				IsDir:   false,
+				Size:    1824,
+				ModTime: now.Add(-2 * time.Hour),
+			},
+		}
+	}
+
+	// Empty for unknown paths
+	return []allocationspartials.FileEntry{}
+}
+
+// getMockFileContent returns mock file content for testing
+func (h *AllocationsHandler) getMockFileContent(path string) (content string, size int64, isText bool) {
+	switch {
+	case strings.HasSuffix(path, ".stdout.0"):
+		return `[2026-01-26 10:00:00] Starting application...
+[2026-01-26 10:00:01] Loading configuration from /local/config.json
+[2026-01-26 10:00:01] Configuration loaded successfully
+[2026-01-26 10:00:02] Initializing database connection
+[2026-01-26 10:00:02] Database connected: localhost:5432
+[2026-01-26 10:00:03] Starting HTTP server on :8080
+[2026-01-26 10:00:03] Server is ready to accept connections
+[2026-01-26 10:05:15] GET /health - 200 OK (2ms)
+[2026-01-26 10:05:30] GET /api/v1/users - 200 OK (45ms)
+[2026-01-26 10:06:00] POST /api/v1/tasks - 201 Created (123ms)`, 4523, true
+
+	case strings.HasSuffix(path, ".stderr.0"):
+		return `[WARN] 2026-01-26 10:00:02 - Connection pool size not specified, using default: 10
+[WARN] 2026-01-26 10:05:45 - Slow query detected: SELECT * FROM tasks (took 234ms)
+[ERROR] 2026-01-26 10:07:12 - Failed to parse request body: invalid JSON`, 1256, true
+
+	case strings.HasSuffix(path, "config.json"):
+		return `{
+  "app": {
+    "name": "web-frontend",
+    "version": "1.2.3",
+    "environment": "production"
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "timeout": "30s"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "appdb"
+  }
+}`, 2048, true
+
+	case strings.HasSuffix(path, "run.sh"):
+		return `#!/bin/bash
+set -e
+
+echo "Starting application..."
+exec /usr/local/bin/app serve --config /local/config.json`, 512, true
+
+	case strings.HasSuffix(path, "state.json"):
+		return `{
+  "status": "healthy",
+  "last_check": "2026-01-26T10:05:00Z",
+  "uptime_seconds": 7200
+}`, 892, true
+
+	case strings.HasSuffix(path, "api_key"):
+		return `sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`, 64, true
+
+	case strings.HasSuffix(path, "cert.pem"):
+		return `-----BEGIN CERTIFICATE-----
+MIIDazCCAlOgAwIBAgIUXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+...certificate content...
+-----END CERTIFICATE-----`, 1824, true
+
+	case strings.HasSuffix(path, "index.db"):
+		return "[binary data]", 102400, false
+
+	default:
+		return "File content not available", 0, true
 	}
 }

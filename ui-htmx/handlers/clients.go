@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/open-wander/wander/ui-htmx/templates/pages/clients"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/clientspartials"
@@ -52,13 +54,27 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("clients list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Parse filter query parameters
+	filters := clientspartials.ClientFilters{
+		Status:     r.URL.Query().Get("status"),
+		Datacenter: r.URL.Query().Get("datacenter"),
+		NodeClass:  r.URL.Query().Get("nodeclass"),
+		Search:     r.URL.Query().Get("search"),
+	}
+
 	// Get mock client data
-	clientsList := h.getClientsList()
+	allClients := h.getClientsList()
+
+	// Extract filter options from all clients (before filtering)
+	filterOptions := h.extractFilterOptions(allClients)
+
+	// Apply filters
+	filteredClients := h.applyFilters(allClients, filters)
 
 	// Render the clients list page
 	err := Render(w, r,
-		clients.List(clientsList),                       // Full page with layout
-		clientspartials.ListContent(clientsList), // Partial content for HTMX requests
+		clients.List(filteredClients, filters, filterOptions),      // Full page with layout
+		clientspartials.ListContent(filteredClients, filters, filterOptions), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -66,6 +82,76 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+// extractFilterOptions extracts unique datacenters and node classes from the client list.
+func (h *ClientsHandler) extractFilterOptions(clientsList []clientspartials.ClientSummary) clientspartials.ClientFilterOptions {
+	dcSet := make(map[string]struct{})
+	ncSet := make(map[string]struct{})
+
+	for _, client := range clientsList {
+		if client.Datacenter != "" {
+			dcSet[client.Datacenter] = struct{}{}
+		}
+		if client.NodeClass != "" {
+			ncSet[client.NodeClass] = struct{}{}
+		}
+	}
+
+	// Convert sets to sorted slices
+	datacenters := make([]string, 0, len(dcSet))
+	for dc := range dcSet {
+		datacenters = append(datacenters, dc)
+	}
+	sort.Strings(datacenters)
+
+	nodeClasses := make([]string, 0, len(ncSet))
+	for nc := range ncSet {
+		nodeClasses = append(nodeClasses, nc)
+	}
+	sort.Strings(nodeClasses)
+
+	return clientspartials.ClientFilterOptions{
+		Datacenters: datacenters,
+		NodeClasses: nodeClasses,
+	}
+}
+
+// applyFilters filters the client list based on the provided filters.
+func (h *ClientsHandler) applyFilters(clientsList []clientspartials.ClientSummary, filters clientspartials.ClientFilters) []clientspartials.ClientSummary {
+	filtered := make([]clientspartials.ClientSummary, 0, len(clientsList))
+
+	for _, client := range clientsList {
+		// Status filter
+		if filters.Status != "" && client.Status != filters.Status {
+			continue
+		}
+
+		// Datacenter filter
+		if filters.Datacenter != "" && client.Datacenter != filters.Datacenter {
+			continue
+		}
+
+		// Node class filter
+		if filters.NodeClass != "" && client.NodeClass != filters.NodeClass {
+			continue
+		}
+
+		// Search filter (matches name, address, datacenter, or ID)
+		if filters.Search != "" {
+			searchLower := strings.ToLower(filters.Search)
+			if !strings.Contains(strings.ToLower(client.Name), searchLower) &&
+				!strings.Contains(strings.ToLower(client.Address), searchLower) &&
+				!strings.Contains(strings.ToLower(client.Datacenter), searchLower) &&
+				!strings.Contains(strings.ToLower(client.ID), searchLower) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, client)
+	}
+
+	return filtered
 }
 
 // Detail handles the client detail page
@@ -193,6 +279,7 @@ func (h *ClientsHandler) getClientsList() []clientspartials.ClientSummary {
 // getClientDetail returns mock client detail data.
 // This will be replaced with actual Nomad API calls in the future.
 func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.ClientDetail {
+	now := time.Now()
 	return clientspartials.ClientDetail{
 		ID:         clientID,
 		Name:       "client-node-1",
@@ -201,12 +288,15 @@ func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.Client
 		Address:    "192.168.1.100:4646",
 		Version:    "1.7.2",
 		Uptime:     "5d 12h 30m",
+		NodeClass:  "compute",
+		Drain:      false,
+		Eligible:   true,
 		Resources: clientspartials.ClientResources{
-			CPUUsed:  2400,
-			CPUTotal: 8000,
-			MemUsed:  8589934592,  // 8 GB in bytes
-			MemTotal: 17179869184, // 16 GB in bytes
-			DiskUsed: 53687091200, // 50 GB in bytes
+			CPUUsed:   2400,
+			CPUTotal:  8000,
+			MemUsed:   8589934592,   // 8 GB in bytes
+			MemTotal:  17179869184,  // 16 GB in bytes
+			DiskUsed:  53687091200,  // 50 GB in bytes
 			DiskTotal: 107374182400, // 100 GB in bytes
 		},
 		Allocations: []clientspartials.AllocationSummary{
@@ -252,26 +342,80 @@ func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.Client
 			},
 		},
 		Attributes: map[string]string{
-			"kernel.name":           "linux",
-			"kernel.version":        "5.15.0-91-generic",
-			"os.name":               "ubuntu",
-			"os.version":            "22.04",
-			"cpu.arch":              "amd64",
-			"cpu.numcores":          "8",
-			"cpu.totalcompute":      "8000",
-			"memory.totalbytes":     "17179869184",
-			"unique.hostname":       "client-node-1",
-			"unique.network.ip-address": "192.168.1.100",
-			"driver.docker":         "1",
-			"driver.docker.version": "24.0.7",
-			"driver.raw_exec":       "1",
+			"kernel.name":                "linux",
+			"kernel.version":             "5.15.0-91-generic",
+			"os.name":                    "ubuntu",
+			"os.version":                 "22.04",
+			"cpu.arch":                   "amd64",
+			"cpu.numcores":               "8",
+			"cpu.totalcompute":           "8000",
+			"memory.totalbytes":          "17179869184",
+			"unique.hostname":            "client-node-1",
+			"unique.network.ip-address":  "192.168.1.100",
+			"driver.docker":              "1",
+			"driver.docker.version":      "24.0.7",
+			"driver.raw_exec":            "1",
 		},
 		Meta: map[string]string{
-			"environment": "production",
-			"region":      "us-west-2",
-			"zone":        "us-west-2a",
-			"instance_type": "m5.2xlarge",
+			"environment":    "production",
+			"region":         "us-west-2",
+			"zone":           "us-west-2a",
+			"instance_type":  "m5.2xlarge",
 			"cloud_provider": "aws",
+		},
+		Drivers: map[string]clientspartials.DriverInfo{
+			"docker": {
+				Detected: true,
+				Healthy:  true,
+				Version:  "24.0.7",
+			},
+			"raw_exec": {
+				Detected: true,
+				Healthy:  true,
+				Version:  "",
+			},
+			"exec": {
+				Detected: true,
+				Healthy:  true,
+				Version:  "",
+			},
+			"java": {
+				Detected: false,
+				Healthy:  false,
+				Version:  "",
+			},
+		},
+		Events: []clientspartials.ClientEvent{
+			{
+				Time:    now.Add(-5 * time.Minute),
+				Type:    "Allocation placed",
+				Message: "Allocation e5f6g7h8 placed on node",
+			},
+			{
+				Time:    now.Add(-2 * time.Hour),
+				Type:    "Allocation placed",
+				Message: "Allocation d4e5f6g7 placed on node",
+			},
+			{
+				Time:    now.Add(-1 * 24 * time.Hour),
+				Type:    "Node eligibility changed",
+				Message: "Node eligibility set to eligible",
+			},
+			{
+				Time:    now.Add(-3 * 24 * time.Hour),
+				Type:    "Node drain complete",
+				Message: "Drain completed successfully",
+			},
+			{
+				Time:    now.Add(-3*24*time.Hour - 30*time.Minute),
+				Type:    "Node drain started",
+				Message: "Drain initiated for maintenance",
+			},
+			{
+				Time:    now.Add(-5 * 24 * time.Hour),
+				Type:    "Node registered",
+				Message: "Node successfully registered with cluster",
+			},
 		},
 	}
 }

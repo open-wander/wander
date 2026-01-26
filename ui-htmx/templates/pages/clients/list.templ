@@ -7,7 +7,7 @@ import (
 )
 
 // List renders the full clients list page with layout.
-templ List(clientsList []clientspartials.ClientSummary) {
+templ List(clientsList []clientspartials.ClientSummary, filters clientspartials.ClientFilters, options clientspartials.ClientFilterOptions) {
 	@layouts.PageLayout(
 		layouts.PageLayoutProps{
 			Title:       "Clients - Wander",
@@ -18,6 +18,6 @@ templ List(clientsList []clientspartials.ClientSummary) {
 				{Label: "Clients", URL: ""},
 			},
 		},
-		clientspartials.ListContent(clientsList),
+		clientspartials.ListContent(clientsList, filters, options),
 	)
 }

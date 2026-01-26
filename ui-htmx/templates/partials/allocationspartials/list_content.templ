@@ -9,13 +9,15 @@ import (
 
 // AllocationSummary represents a summary view of an allocation for list display.
 type AllocationSummary struct {
-	ID        string
-	JobID     string
-	TaskGroup string
-	NodeID    string
-	NodeName  string
-	Status    string
-	Created   time.Time
+	ID            string
+	JobID         string
+	TaskGroup     string
+	NodeID        string
+	NodeName      string
+	Status        string
+	Created       time.Time
+	IDPrefixMatch bool   // True if this allocation matched by ID prefix search
+	MatchedPrefix string // The search term that matched the ID prefix (for highlighting)
 }
 
 // FilterOptions contains the available options for each filter.
@@ -68,7 +70,7 @@ templ ListContent(props ListProps) {
 			<div>
 				@components.SearchBar(components.SearchBarProps{
 					Name:        "search",
-					Placeholder: "Search allocations by ID, job, or node...",
+					Placeholder: "Search by ID prefix (e.g. a1b2c3d4), job, or node...",
 					Value:       props.Filters.Search,
 					SearchURL:   buildAllocationsURL(props.Filters.Status, props.Filters.Job, props.Filters.Node, "", props.SortColumn, props.SortDir),
 					ResultsID:   "allocations-table-container",
@@ -201,7 +203,11 @@ templ allocationRow(allocation AllocationSummary) {
 	>
 		@components.TableCell("left", "w-32") {
 			<div class="font-mono text-sm text-primary-600 dark:text-primary-400 hover:underline">
-				{ shortID(allocation.ID) }
+				if allocation.IDPrefixMatch && allocation.MatchedPrefix != "" {
+					@highlightedShortID(allocation.ID, allocation.MatchedPrefix)
+				} else {
+					{ shortID(allocation.ID) }
+				}
 			</div>
 		}
 		@components.TableCell("left", "w-1/5") {
@@ -396,6 +402,20 @@ func shortID(id string) string {
 		return id[:8]
 	}
 	return id
+}
+
+// highlightedShortID renders a short ID with the matched prefix highlighted
+templ highlightedShortID(id string, matchedPrefix string) {
+	{{
+		short := shortID(id)
+		prefixLen := len(matchedPrefix)
+		if prefixLen > len(short) {
+			prefixLen = len(short)
+		}
+		matchedPart := short[:prefixLen]
+		remainingPart := short[prefixLen:]
+	}}
+	<span class="bg-warning-100 dark:bg-warning-900/50 text-warning-800 dark:text-warning-200 rounded px-0.5">{ matchedPart }</span>{ remainingPart }
 }
 
 // formatTimeAgo formats a time.Time as a relative time string

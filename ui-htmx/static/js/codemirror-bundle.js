@@ -6,11 +6,13 @@
  *
  * Features:
  * - Basic editor with syntax highlighting
- * - Line numbers
+ * - Line numbers with gutter
  * - Read-only mode toggle
  * - HCL and JSON language support (basic highlighting)
- * - Search functionality
- * - Fold code
+ * - Bracket matching (highlights matching brackets)
+ * - Tab key support
+ * - Ctrl/Cmd+S save shortcut
+ * - Light and dark themes
  */
 
 // Since CodeMirror 6 is designed as ES modules, we'll create a lightweight
@@ -487,6 +489,15 @@
         }
       });
 
+      // Bracket matching on cursor position change
+      this.textarea.addEventListener('click', () => this.highlightMatchingBracket());
+      this.textarea.addEventListener('keyup', (e) => {
+        // Update bracket matching on navigation keys
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) {
+          this.highlightMatchingBracket();
+        }
+      });
+
       // Sync scroll
       this.wrapper.addEventListener('scroll', () => {
         if (this.lineNumbers) {
@@ -538,6 +549,140 @@
       if (!this.options.readOnly) {
         this.textarea.focus();
       }
+    }
+
+    highlightMatchingBracket() {
+      const pos = this.textarea.selectionStart;
+      const text = this.value;
+      const brackets = { '(': ')', '[': ']', '{': '}' };
+      const closingBrackets = { ')': '(', ']': '[', '}': '{' };
+
+      // Clear previous bracket highlights
+      this.clearBracketHighlights();
+
+      // Check character at cursor and before cursor
+      const charAtCursor = text[pos];
+      const charBeforeCursor = pos > 0 ? text[pos - 1] : '';
+
+      let bracketPos = -1;
+      let matchPos = -1;
+
+      // Check if cursor is on or after a bracket
+      if (brackets[charAtCursor]) {
+        bracketPos = pos;
+        matchPos = this.findMatchingBracket(text, pos, charAtCursor, brackets[charAtCursor], 1);
+      } else if (closingBrackets[charAtCursor]) {
+        bracketPos = pos;
+        matchPos = this.findMatchingBracket(text, pos, charAtCursor, closingBrackets[charAtCursor], -1);
+      } else if (brackets[charBeforeCursor]) {
+        bracketPos = pos - 1;
+        matchPos = this.findMatchingBracket(text, pos - 1, charBeforeCursor, brackets[charBeforeCursor], 1);
+      } else if (closingBrackets[charBeforeCursor]) {
+        bracketPos = pos - 1;
+        matchPos = this.findMatchingBracket(text, pos - 1, charBeforeCursor, closingBrackets[charBeforeCursor], -1);
+      }
+
+      if (bracketPos >= 0 && matchPos >= 0) {
+        this.applyBracketHighlight(bracketPos, matchPos);
+      } else if (bracketPos >= 0 && matchPos === -1) {
+        // Unmatched bracket - highlight as error
+        this.applyBracketHighlight(bracketPos, -1, true);
+      }
+    }
+
+    findMatchingBracket(text, startPos, openBracket, closeBracket, direction) {
+      let depth = 1;
+      let pos = startPos + direction;
+      const len = text.length;
+
+      // Skip content inside strings and comments
+      let inString = false;
+      let inComment = false;
+      let inMultiComment = false;
+
+      while (pos >= 0 && pos < len && depth > 0) {
+        const char = text[pos];
+        const prevChar = pos > 0 ? text[pos - 1] : '';
+        const nextChar = pos < len - 1 ? text[pos + 1] : '';
+
+        // Handle string detection
+        if (char === '"' && prevChar !== '\\' && !inComment && !inMultiComment) {
+          inString = !inString;
+        }
+
+        // Handle single-line comment
+        if (!inString && !inMultiComment && (char === '#' || (char === '/' && nextChar === '/'))) {
+          if (direction === 1) {
+            // Skip to end of line
+            while (pos < len && text[pos] !== '\n') pos++;
+          }
+        }
+
+        // Handle multi-line comment
+        if (!inString && char === '/' && nextChar === '*') {
+          inMultiComment = true;
+        }
+        if (inMultiComment && char === '*' && nextChar === '/') {
+          inMultiComment = false;
+          pos += direction;
+        }
+
+        if (!inString && !inComment && !inMultiComment) {
+          if (char === openBracket) {
+            depth++;
+          } else if (char === closeBracket) {
+            depth--;
+          }
+        }
+
+        if (depth > 0) {
+          pos += direction;
+        }
+      }
+
+      return depth === 0 ? pos : -1;
+    }
+
+    clearBracketHighlights() {
+      const highlights = this.highlightedCode.querySelectorAll('.cm-bracket-match, .cm-bracket-error');
+      highlights.forEach(el => {
+        el.classList.remove('cm-bracket-match', 'cm-bracket-error');
+      });
+    }
+
+    applyBracketHighlight(pos1, pos2, isError = false) {
+      // Re-render with bracket highlighting
+      const tokenizer = this.options.language === 'json' ? tokenizeJSON : tokenizeHCL;
+      const tokens = tokenizer(this.value);
+
+      // Build HTML with bracket highlighting
+      let currentPos = 0;
+      const parts = [];
+
+      for (const token of tokens) {
+        const tokenStart = currentPos;
+        const tokenEnd = currentPos + token.value.length;
+        const escaped = escapeHtml(token.value);
+
+        if (token.type === 'whitespace') {
+          parts.push(escaped);
+        } else {
+          let className = `cm-${token.type}`;
+
+          // Check if this token contains a bracket that should be highlighted
+          if (token.type === TokenType.PUNCTUATION) {
+            if (tokenStart === pos1 || tokenStart === pos2) {
+              className += isError && pos2 === -1 ? ' cm-bracket-error' : ' cm-bracket-match';
+            }
+          }
+
+          parts.push(`<span class="${className}">${escaped}</span>`);
+        }
+
+        currentPos = tokenEnd;
+      }
+
+      this.highlightedCode.innerHTML = parts.join('');
     }
 
     destroy() {
@@ -632,6 +777,29 @@
 
     .wander-highlighted-code {
       color: var(--text-color, #1f2937);
+    }
+
+    /* Bracket matching */
+    .wander-editor .cm-bracket-match {
+      background-color: rgba(34, 197, 94, 0.3);
+      border-radius: 2px;
+      outline: 1px solid rgba(34, 197, 94, 0.5);
+    }
+
+    .wander-editor .cm-bracket-error {
+      background-color: rgba(239, 68, 68, 0.3);
+      border-radius: 2px;
+      outline: 1px solid rgba(239, 68, 68, 0.5);
+    }
+
+    .wander-editor-wrapper.theme-dark .cm-bracket-match {
+      background-color: rgba(34, 197, 94, 0.4);
+      outline: 1px solid rgba(34, 197, 94, 0.6);
+    }
+
+    .wander-editor-wrapper.theme-dark .cm-bracket-error {
+      background-color: rgba(239, 68, 68, 0.4);
+      outline: 1px solid rgba(239, 68, 68, 0.6);
     }
   `;
   document.head.appendChild(styles);

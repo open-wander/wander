@@ -61,6 +61,26 @@ func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle /ui/jobs/{id}/allocations/poll (polling endpoint for allocations table)
+	if strings.HasSuffix(path, "/allocations/poll") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.AllocationsPoll(w, r)
+		return
+	}
+
+	// Handle /ui/jobs/{id}/versions/{v1}/diff/{v2} (version diff view)
+	if strings.Contains(path, "/versions/") && strings.Contains(path, "/diff/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.VersionDiff(w, r)
+		return
+	}
+
 	// Handle /ui/jobs/{id}/taskgroups/{tgname}/scale (scale action)
 	if strings.Contains(path, "/taskgroups/") && strings.HasSuffix(path, "/scale") {
 		if r.Method != http.MethodPost {
@@ -350,6 +370,7 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		page := parsePage(r.URL.Query().Get("page"))
 		perPage := parsePerPage(r.URL.Query().Get("per_page"))
 		allocData := h.getJobAllocations(jobID, page, perPage)
+		allocData.LastUpdated = time.Now()
 		err = RenderPartial(w, r, jobspartials.AllocationsTabWithData(allocData))
 	case "evaluations":
 		err = RenderPartial(w, r, jobspartials.EvaluationsTab())
@@ -556,6 +577,250 @@ EOF
 		Format:   "hcl",
 		Version:  4,
 		ReadOnly: false,
+	}
+}
+
+// VersionDiff handles requests for version diff view
+// Route: GET /ui/jobs/{id}/versions/{v1}/diff/{v2}
+func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID and version numbers from path
+	// Expected format: /ui/jobs/{jobID}/versions/{v1}/diff/{v2}
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+
+	// Split by /versions/
+	parts := strings.Split(path, "/versions/")
+	if len(parts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+
+	jobID := parts[0]
+	versionPart := parts[1]
+
+	// Split by /diff/
+	versionParts := strings.Split(versionPart, "/diff/")
+	if len(versionParts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+
+	newVersionStr := versionParts[0]
+	oldVersionStr := strings.TrimSuffix(versionParts[1], "/")
+
+	newVersion, err := strconv.Atoi(newVersionStr)
+	if err != nil {
+		http.Error(w, "Invalid new version number", http.StatusBadRequest)
+		return
+	}
+
+	oldVersion, err := strconv.Atoi(oldVersionStr)
+	if err != nil {
+		http.Error(w, "Invalid old version number", http.StatusBadRequest)
+		return
+	}
+
+	h.handler.logger.Debug("version diff request",
+		"jobID", jobID,
+		"newVersion", newVersion,
+		"oldVersion", oldVersion,
+		"htmx", IsHTMXFromRequest(r),
+	)
+
+	// Get mock definitions for both versions
+	oldDef := h.getJobDefinitionForVersion(jobID, oldVersion)
+	newDef := h.getJobDefinitionForVersion(jobID, newVersion)
+
+	// Compute the diff
+	diffLines := computeDiff(oldDef, newDef)
+	added, removed := countDiffStats(diffLines)
+
+	diff := jobspartials.VersionDiff{
+		JobID:        jobID,
+		OldVersion:   oldVersion,
+		NewVersion:   newVersion,
+		Lines:        diffLines,
+		TotalAdded:   added,
+		TotalRemoved: removed,
+	}
+
+	// Render the diff modal
+	err = RenderPartial(w, r, jobspartials.VersionDiffModal(diff))
+	if err != nil {
+		h.handler.logger.Error("failed to render version diff", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// getJobDefinitionForVersion returns mock job definition for a specific version.
+// This simulates version differences for demonstration purposes.
+func (h *JobsHandler) getJobDefinitionForVersion(jobID string, version int) string {
+	// Base definition
+	base := `job "` + jobID + `" {
+  region      = "global"
+  datacenters = ["dc1", "dc2"]
+  type        = "service"
+  priority    = 50
+
+  update {
+    max_parallel      = 1
+    min_healthy_time  = "10s"
+    healthy_deadline  = "3m"
+    progress_deadline = "10m"
+    auto_revert       = true
+    canary            = 0
+  }
+
+  group "web" {
+    count = 3
+
+    network {
+      port "http" {
+        to = 8080
+      }
+    }
+
+    task "nginx" {
+      driver = "docker"
+
+      config {
+        image = "nginx:1.21-alpine"
+        ports = ["http"]
+      }
+
+      resources {
+        cpu    = 500
+        memory = 256
+      }
+    }
+  }
+}`
+
+	// Simulate changes based on version
+	switch version {
+	case 0:
+		// Initial version - minimal config
+		return `job "` + jobID + `" {
+  region      = "global"
+  datacenters = ["dc1"]
+  type        = "service"
+  priority    = 50
+
+  group "web" {
+    count = 1
+
+    task "nginx" {
+      driver = "docker"
+
+      config {
+        image = "nginx:1.20-alpine"
+      }
+
+      resources {
+        cpu    = 256
+        memory = 128
+      }
+    }
+  }
+}`
+	case 1:
+		// Version 1 - added network config
+		return `job "` + jobID + `" {
+  region      = "global"
+  datacenters = ["dc1"]
+  type        = "service"
+  priority    = 50
+
+  group "web" {
+    count = 2
+
+    network {
+      port "http" {
+        to = 8080
+      }
+    }
+
+    task "nginx" {
+      driver = "docker"
+
+      config {
+        image = "nginx:1.20-alpine"
+        ports = ["http"]
+      }
+
+      resources {
+        cpu    = 256
+        memory = 128
+      }
+    }
+  }
+}`
+	case 2:
+		// Version 2 - increased resources
+		return `job "` + jobID + `" {
+  region      = "global"
+  datacenters = ["dc1"]
+  type        = "service"
+  priority    = 50
+
+  group "web" {
+    count = 2
+
+    network {
+      port "http" {
+        to = 8080
+      }
+    }
+
+    task "nginx" {
+      driver = "docker"
+
+      config {
+        image = "nginx:1.21-alpine"
+        ports = ["http"]
+      }
+
+      resources {
+        cpu    = 500
+        memory = 256
+      }
+    }
+  }
+}`
+	case 3:
+		// Version 3 - added second datacenter
+		return `job "` + jobID + `" {
+  region      = "global"
+  datacenters = ["dc1", "dc2"]
+  type        = "service"
+  priority    = 50
+
+  group "web" {
+    count = 2
+
+    network {
+      port "http" {
+        to = 8080
+      }
+    }
+
+    task "nginx" {
+      driver = "docker"
+
+      config {
+        image = "nginx:1.21-alpine"
+        ports = ["http"]
+      }
+
+      resources {
+        cpu    = 500
+        memory = 256
+      }
+    }
+  }
+}`
+	default:
+		// Latest version (4+) - added update stanza and increased count
+		return base
 	}
 }
 
@@ -822,6 +1087,33 @@ func (h *JobsHandler) getJobAllocations(jobID string, page, perPage int) jobspar
 			Total:      total,
 			TotalPages: totalPages,
 		},
+	}
+}
+
+// AllocationsPoll handles the polling endpoint for allocations table body.
+// This returns just the table body for efficient HTMX updates.
+func (h *JobsHandler) AllocationsPoll(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID from path: /ui/jobs/{id}/allocations/poll
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+	path = strings.TrimSuffix(path, "/allocations/poll")
+	jobID := path
+
+	// Log the polling request
+	h.handler.logger.Debug("allocations poll request", "jobID", jobID)
+
+	// Parse pagination parameters
+	page := parsePage(r.URL.Query().Get("page"))
+	perPage := parsePerPage(r.URL.Query().Get("per_page"))
+
+	// Get allocation data
+	allocData := h.getJobAllocations(jobID, page, perPage)
+	allocData.LastUpdated = time.Now()
+
+	// Render just the table body partial
+	err := RenderPartial(w, r, jobspartials.AllocationsTableBody(allocData))
+	if err != nil {
+		h.handler.logger.Error("failed to render allocations poll", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 

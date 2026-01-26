@@ -2,6 +2,8 @@ package clientspartials
 
 import (
 	"fmt"
+	"sort"
+	"time"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 )
 
@@ -14,10 +16,29 @@ type ClientDetail struct {
 	Address     string
 	Version     string
 	Uptime      string
+	NodeClass   string
+	Drain       bool
+	Eligible    bool
 	Resources   ClientResources
 	Allocations []AllocationSummary
 	Attributes  map[string]string
 	Meta        map[string]string
+	Events      []ClientEvent
+	Drivers     map[string]DriverInfo
+}
+
+// ClientEvent represents an event in the client's lifecycle
+type ClientEvent struct {
+	Time    time.Time
+	Type    string
+	Message string
+}
+
+// DriverInfo represents driver information on a client
+type DriverInfo struct {
+	Detected bool
+	Healthy  bool
+	Version  string
 }
 
 // ClientResources represents resource allocation and usage for a client
@@ -44,50 +65,120 @@ type AllocationSummary struct {
 templ DetailContent(client ClientDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Client Header -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
-			<div class="flex items-start justify-between">
-				<div class="flex-1">
-					<div class="flex items-center space-x-4 mb-4">
-						<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ client.Name }</h1>
-						@components.Badge(components.BadgeProps{
-							Variant: statusToBadgeVariant(client.Status),
-							Dot:     true,
-							Size:    "md",
-						}) {
-							{ client.Status }
-						}
-					</div>
-					<div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-						<div>
-							<span class="text-neutral-600 dark:text-neutral-400">ID:</span>
-							<span class="font-mono text-xs text-neutral-700 dark:text-neutral-300 ml-2">{ truncateID(client.ID) }</span>
+		@components.Card(components.CardProps{
+			Shadow: true,
+			Border: false,
+			Class:  "mb-6",
+		}) {
+			@components.CardBody() {
+				<div class="flex items-start justify-between">
+					<div class="flex-1">
+						<div class="flex items-center space-x-4 mb-4">
+							<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ client.Name }</h1>
+							@components.Badge(components.BadgeProps{
+								Variant: statusToBadgeVariant(client.Status),
+								Dot:     true,
+								Size:    "md",
+							}) {
+								{ client.Status }
+							}
+							if client.Drain {
+								@components.Badge(components.BadgeProps{
+									Variant: "warning",
+									Size:    "md",
+								}) {
+									draining
+								}
+							}
+							if !client.Eligible {
+								@components.Badge(components.BadgeProps{
+									Variant: "neutral",
+									Size:    "md",
+								}) {
+									ineligible
+								}
+							}
 						</div>
-						<div>
-							<span class="text-neutral-600 dark:text-neutral-400">Datacenter:</span>
-							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Datacenter }</span>
+						<div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">ID:</span>
+								<span class="font-mono text-xs text-neutral-700 dark:text-neutral-300 ml-2" title={ client.ID }>{ truncateID(client.ID) }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Datacenter:</span>
+								<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Datacenter }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Address:</span>
+								<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Address }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Version:</span>
+								<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Version }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Node Class:</span>
+								if client.NodeClass != "" {
+									<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.NodeClass }</span>
+								} else {
+									<span class="text-neutral-400 dark:text-neutral-500 ml-2 italic">none</span>
+								}
+							</div>
 						</div>
-						<div>
-							<span class="text-neutral-600 dark:text-neutral-400">Address:</span>
-							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Address }</span>
+						<div class="mt-2 text-sm">
+							<span class="text-neutral-600 dark:text-neutral-400">Uptime:</span>
+							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Uptime }</span>
 						</div>
-						<div>
-							<span class="text-neutral-600 dark:text-neutral-400">Version:</span>
-							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Version }</span>
-						</div>
-					</div>
-					<div class="mt-2 text-sm">
-						<span class="text-neutral-600 dark:text-neutral-400">Uptime:</span>
-						<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Uptime }</span>
 					</div>
 				</div>
-			</div>
-		</div>
-		<!-- Resource Usage -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
-			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Usage</h2>
+			}
+		}
+		<!-- Tabs Section -->
+		@components.Card(components.CardProps{
+			Shadow: true,
+			Border: false,
+		}) {
+			@components.CardBody() {
+				@components.Tabs(components.TabsProps{
+					Tabs: []components.Tab{
+						{
+							ID:      "overview",
+							Label:   "Overview",
+							Icon:    "chart",
+							Content: OverviewTab(client),
+							Active:  true,
+						},
+						{
+							ID:      "allocations",
+							Label:   fmt.Sprintf("Allocations (%d)", len(client.Allocations)),
+							Icon:    "cube",
+							Content: AllocationsTab(client),
+						},
+						{
+							ID:      "events",
+							Label:   fmt.Sprintf("Events (%d)", len(client.Events)),
+							Icon:    "clock",
+							Content: EventsTab(client),
+						},
+					},
+					ActiveTab: "overview",
+					Mode:      "static",
+					PanelID:   "client-detail-panel",
+				})
+			}
+		}
+	</div>
+}
+
+// OverviewTab renders the overview tab with resources, attributes, meta, and drivers
+templ OverviewTab(client ClientDetail) {
+	<div class="space-y-6 pt-4">
+		<!-- Resource Usage Section -->
+		<div>
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Usage</h3>
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 				<!-- CPU Usage -->
-				<div>
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
 					<div class="flex items-center justify-between text-sm mb-2">
 						<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU</span>
 						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
@@ -95,12 +186,12 @@ templ DetailContent(client ClientDetail) {
 						</span>
 					</div>
 					@resourceBar(client.Resources.CPUUsed, client.Resources.CPUTotal)
-					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
 						{ fmt.Sprintf("%d%% utilized", calculatePercentage(client.Resources.CPUUsed, client.Resources.CPUTotal)) }
 					</div>
 				</div>
 				<!-- Memory Usage -->
-				<div>
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
 					<div class="flex items-center justify-between text-sm mb-2">
 						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory</span>
 						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
@@ -108,12 +199,12 @@ templ DetailContent(client ClientDetail) {
 						</span>
 					</div>
 					@memoryBar(client.Resources.MemUsed, client.Resources.MemTotal)
-					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
 						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.MemUsed, client.Resources.MemTotal)) }
 					</div>
 				</div>
 				<!-- Disk Usage -->
-				<div>
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
 					<div class="flex items-center justify-between text-sm mb-2">
 						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk</span>
 						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
@@ -121,74 +212,159 @@ templ DetailContent(client ClientDetail) {
 						</span>
 					</div>
 					@memoryBar(client.Resources.DiskUsed, client.Resources.DiskTotal)
-					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
 						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
 					</div>
 				</div>
 			</div>
 		</div>
-		<!-- Allocations -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
-			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
-				Allocations ({ fmt.Sprintf("%d", len(client.Allocations)) })
-			</h2>
-			if len(client.Allocations) == 0 {
-				<div class="text-center py-8">
-					<p class="text-neutral-500 dark:text-neutral-400">No allocations running on this client</p>
-				</div>
-			} else {
-				<div class="overflow-hidden">
-					@components.Table(components.TableProps{
-						Columns: []components.Column{
-							{Key: "id", Label: "ID", Sortable: false, Align: "left", Width: "w-32"},
-							{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-1/4"},
-							{Key: "taskgroup", Label: "Task Group", Sortable: false, Align: "left", Width: "w-1/4"},
-							{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-32"},
-							{Key: "resources", Label: "Resources", Sortable: false, Align: "left"},
-						},
-						SortColumn: "",
-						SortDir:    "",
-						Striped:    true,
-						Hover:      true,
-						SortURL:    "",
-					}) {
-						@components.TableBody() {
-							for _, alloc := range client.Allocations {
-								@allocationRow(alloc)
-							}
-						}
+		<!-- Drivers Section -->
+		if len(client.Drivers) > 0 {
+			<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Drivers</h3>
+				<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+					for name, driver := range client.Drivers {
+						<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3 flex items-center justify-between">
+							<div>
+								<div class="font-medium text-neutral-900 dark:text-neutral-100 text-sm">{ name }</div>
+								if driver.Version != "" {
+									<div class="text-xs text-neutral-500 dark:text-neutral-400">v{ driver.Version }</div>
+								}
+							</div>
+							<div class="flex items-center space-x-2">
+								if driver.Detected {
+									@components.Badge(components.BadgeProps{
+										Variant: driverHealthVariant(driver.Healthy),
+										Dot:     true,
+										Size:    "sm",
+									}) {
+										if driver.Healthy {
+											healthy
+										} else {
+											unhealthy
+										}
+									}
+								} else {
+									@components.Badge(components.BadgeProps{
+										Variant: "neutral",
+										Size:    "sm",
+									}) {
+										not detected
+									}
+								}
+							</div>
+						</div>
 					}
 				</div>
-			}
-		</div>
-		<!-- Node Attributes -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
-			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Node Attributes</h2>
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-				for key, value := range client.Attributes {
-					<div class="flex items-start border-b border-neutral-200 dark:border-neutral-700 pb-2">
-						<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2">{ key }</span>
-						<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2 font-mono">{ value }</span>
-					</div>
-				}
 			</div>
-		</div>
-		<!-- Meta Attributes -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
-			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Meta Attributes</h2>
-			if len(client.Meta) == 0 {
-				<p class="text-neutral-500 dark:text-neutral-400">No meta attributes defined</p>
+		}
+		<!-- Node Attributes Section -->
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Node Attributes</h3>
+			if len(client.Attributes) == 0 {
+				<p class="text-neutral-500 dark:text-neutral-400 text-sm">No attributes defined</p>
 			} else {
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					for key, value := range client.Meta {
-						<div class="flex items-start border-b border-neutral-200 dark:border-neutral-700 pb-2">
-							<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2">{ key }</span>
-							<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2">{ value }</span>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+					for _, key := range sortedKeys(client.Attributes) {
+						<div class="flex items-start py-2 border-b border-neutral-100 dark:border-neutral-800">
+							<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2 break-all">{ key }</span>
+							<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2 font-mono break-all">{ client.Attributes[key] }</span>
 						</div>
 					}
 				</div>
 			}
 		</div>
+		<!-- Meta Attributes Section -->
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Meta Attributes</h3>
+			if len(client.Meta) == 0 {
+				<p class="text-neutral-500 dark:text-neutral-400 text-sm">No meta attributes defined</p>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+					for _, key := range sortedKeys(client.Meta) {
+						<div class="flex items-start py-2 border-b border-neutral-100 dark:border-neutral-800">
+							<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2">{ key }</span>
+							<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2">{ client.Meta[key] }</span>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// AllocationsTab renders the allocations tab with a table of allocations on this client
+templ AllocationsTab(client ClientDetail) {
+	<div class="pt-4">
+		if len(client.Allocations) == 0 {
+			<div class="text-center py-12 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+				<svg class="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No allocations</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">There are no allocations running on this client.</p>
+			</div>
+		} else {
+			<div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
+				@components.Table(components.TableProps{
+					Columns: []components.Column{
+						{Key: "id", Label: "ID", Sortable: false, Align: "left", Width: "w-32"},
+						{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-1/4"},
+						{Key: "taskgroup", Label: "Task Group", Sortable: false, Align: "left", Width: "w-1/4"},
+						{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-32"},
+						{Key: "resources", Label: "Resources", Sortable: false, Align: "left"},
+					},
+					SortColumn: "",
+					SortDir:    "",
+					Striped:    true,
+					Hover:      true,
+					SortURL:    "",
+				}) {
+					@components.TableBody() {
+						for _, alloc := range client.Allocations {
+							@allocationRow(alloc)
+						}
+					}
+				}
+			</div>
+		}
+	</div>
+}
+
+// EventsTab renders the events tab with a timeline of client events
+templ EventsTab(client ClientDetail) {
+	<div class="pt-4">
+		if len(client.Events) == 0 {
+			<div class="text-center py-12 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+				<svg class="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No events</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">No events recorded for this client.</p>
+			</div>
+		} else {
+			<div class="relative">
+				<!-- Timeline line -->
+				<div class="absolute left-4 top-0 bottom-0 w-0.5 bg-neutral-200 dark:bg-neutral-700"></div>
+				<div class="space-y-4">
+					for i, event := range client.Events {
+						<div class="relative flex items-start pl-10">
+							<!-- Timeline dot -->
+							<div class={ eventDotClasses(event.Type, i == 0) }></div>
+							<div class="flex-1 min-w-0 bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+								<div class="flex items-center justify-between mb-1">
+									<span class={ eventTypeTextClasses(event.Type) }>{ event.Type }</span>
+									<span class="text-xs text-neutral-500 dark:text-neutral-400">{ event.Time.Format("Jan 2, 2006 15:04:05") }</span>
+								</div>
+								if event.Message != "" {
+									<p class="text-sm text-neutral-600 dark:text-neutral-300">{ event.Message }</p>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+		}
 	</div>
 }
 
@@ -368,4 +544,55 @@ func truncateID(id string) string {
 		return id
 	}
 	return id[:8]
+}
+
+// sortedKeys returns keys of a map in sorted order
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// driverHealthVariant maps driver health to badge variant
+func driverHealthVariant(healthy bool) string {
+	if healthy {
+		return "success"
+	}
+	return "error"
+}
+
+// eventDotClasses returns CSS classes for timeline event dots
+func eventDotClasses(eventType string, isFirst bool) string {
+	base := "absolute left-2 w-4 h-4 rounded-full border-2 border-white dark:border-neutral-900 -translate-x-1/2 "
+	switch eventType {
+	case "Node registered", "Node up":
+		return base + "bg-green-500"
+	case "Node down", "Node lost", "Node drain started":
+		return base + "bg-red-500"
+	case "Node drain complete", "Node eligibility changed":
+		return base + "bg-yellow-500"
+	default:
+		if isFirst {
+			return base + "bg-primary-500"
+		}
+		return base + "bg-neutral-300 dark:bg-neutral-600"
+	}
+}
+
+// eventTypeTextClasses returns CSS classes for event type text
+func eventTypeTextClasses(eventType string) string {
+	base := "text-sm font-medium "
+	switch eventType {
+	case "Node registered", "Node up":
+		return base + "text-green-600 dark:text-green-400"
+	case "Node down", "Node lost", "Node drain started":
+		return base + "text-red-600 dark:text-red-400"
+	case "Node drain complete", "Node eligibility changed":
+		return base + "text-yellow-600 dark:text-yellow-400"
+	default:
+		return base + "text-neutral-900 dark:text-neutral-100"
+	}
 }

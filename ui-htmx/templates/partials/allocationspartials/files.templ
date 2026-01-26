@@ -1,0 +1,397 @@
+package allocationspartials
+
+import (
+	"fmt"
+	"time"
+)
+
+// FileEntry represents a file or directory in the allocation filesystem
+type FileEntry struct {
+	Name     string      // File or directory name
+	Path     string      // Full path within the allocation
+	IsDir    bool        // True if this is a directory
+	Size     int64       // File size in bytes (0 for directories)
+	ModTime  time.Time   // Last modification time
+	Children []FileEntry // Child entries (for directories)
+}
+
+// FilesTabProps contains all data needed for the Files tab
+type FilesTabProps struct {
+	AllocID      string      // Allocation ID
+	Tasks        []string    // List of task names for the selector
+	SelectedTask string      // Currently selected task
+	Files        []FileEntry // Root-level file entries
+}
+
+// FilesTabFull renders the full files tab content with task selector and tree view
+templ FilesTabFull(props FilesTabProps) {
+	<div class="p-6" x-data="fileExplorer()">
+		<!-- Header with Task Selector -->
+		<div class="flex items-center justify-between mb-6">
+			<h3 class="text-lg font-medium text-neutral-900">Files</h3>
+			<div class="flex items-center space-x-4">
+				<!-- Task Selector -->
+				<div class="flex items-center space-x-2">
+					<label for="task-select" class="text-sm font-medium text-neutral-700">Task:</label>
+					<select
+						id="task-select"
+						name="task"
+						class="block w-48 pl-3 pr-10 py-2 text-sm border-neutral-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 rounded-md"
+						hx-get={ "/ui/allocations/" + props.AllocID + "/files" }
+						hx-target="#files-container"
+						hx-include="[name='task']"
+						hx-swap="innerHTML"
+					>
+						for _, task := range props.Tasks {
+							<option
+								value={ task }
+								if task == props.SelectedTask {
+									selected
+								}
+							>
+								{ task }
+							</option>
+						}
+					</select>
+				</div>
+				<!-- Refresh Button -->
+				<button
+					type="button"
+					class="inline-flex items-center px-3 py-2 border border-neutral-300 shadow-sm text-sm font-medium rounded-md text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					hx-get={ "/ui/allocations/" + props.AllocID + "/files?task=" + props.SelectedTask }
+					hx-target="#files-container"
+					hx-swap="innerHTML"
+				>
+					<svg class="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+					</svg>
+					Refresh
+				</button>
+			</div>
+		</div>
+		<!-- File Browser Container -->
+		<div id="files-container" class="flex gap-6">
+			<!-- File Tree Panel -->
+			<div class="flex-1 min-w-0">
+				<div class="border border-neutral-200 rounded-lg bg-white overflow-hidden">
+					<!-- Tree Header -->
+					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200">
+						<div class="flex items-center justify-between text-xs font-medium text-neutral-500 uppercase tracking-wide">
+							<span>Name</span>
+							<div class="flex items-center space-x-8">
+								<span class="w-20 text-right">Size</span>
+								<span class="w-32 text-right">Modified</span>
+							</div>
+						</div>
+					</div>
+					<!-- Tree Content -->
+					<div class="divide-y divide-neutral-100">
+						if len(props.Files) == 0 {
+							<div class="px-4 py-8 text-center">
+								<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+								</svg>
+								<p class="mt-2 text-sm text-neutral-600">No files found for this task</p>
+							</div>
+						} else {
+							for _, entry := range props.Files {
+								@fileTreeNode(entry, props.AllocID, props.SelectedTask, 0)
+							}
+						}
+					</div>
+				</div>
+			</div>
+			<!-- File Preview Panel -->
+			<div
+				id="file-preview-panel"
+				class="w-96 flex-shrink-0"
+				x-show="previewOpen"
+				x-cloak
+			>
+				<div class="border border-neutral-200 rounded-lg bg-white overflow-hidden h-full">
+					<!-- Preview Header -->
+					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+						<div class="flex items-center space-x-2 min-w-0">
+							<svg class="h-4 w-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+							</svg>
+							<span class="text-sm font-medium text-neutral-900 truncate" x-text="previewFileName">file.txt</span>
+						</div>
+						<div class="flex items-center space-x-2">
+							<a
+								:href="previewDownloadUrl"
+								class="inline-flex items-center px-2 py-1 text-xs font-medium text-primary-600 hover:text-primary-700"
+								download
+							>
+								<svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+								</svg>
+								Download
+							</a>
+							<button
+								type="button"
+								class="text-neutral-400 hover:text-neutral-500"
+								@click="closePreview()"
+							>
+								<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<!-- Preview Content -->
+					<div id="file-preview-content" class="p-4 overflow-auto max-h-96">
+						<div class="text-sm text-neutral-500 text-center py-8">
+							Select a file to preview
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Alpine.js file explorer state -->
+		<script type="text/javascript">
+			function fileExplorer() {
+				return {
+					previewOpen: false,
+					previewFileName: '',
+					previewDownloadUrl: '',
+					expandedDirs: {},
+
+					toggleDir(path) {
+						this.expandedDirs[path] = !this.expandedDirs[path];
+					},
+
+					isDirExpanded(path) {
+						return this.expandedDirs[path] === true;
+					},
+
+					openPreview(fileName, downloadUrl) {
+						this.previewOpen = true;
+						this.previewFileName = fileName;
+						this.previewDownloadUrl = downloadUrl;
+					},
+
+					closePreview() {
+						this.previewOpen = false;
+						this.previewFileName = '';
+						this.previewDownloadUrl = '';
+					}
+				}
+			}
+		</script>
+	</div>
+}
+
+// fileTreeNode renders a single file or directory node in the tree
+templ fileTreeNode(entry FileEntry, allocID, task string, depth int) {
+	if entry.IsDir {
+		@directoryNode(entry, allocID, task, depth)
+	} else {
+		@fileNode(entry, allocID, task, depth)
+	}
+}
+
+// directoryNode renders an expandable directory in the tree
+templ directoryNode(entry FileEntry, allocID, task string, depth int) {
+	<div class="file-tree-node" x-data={ fmt.Sprintf("{ expanded: false, loaded: false }") }>
+		<!-- Directory Row -->
+		<div
+			class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
+			style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20) }
+			@click="expanded = !expanded; if (expanded && !loaded) { loaded = true; htmx.trigger($refs.dirContent, 'load'); }"
+		>
+			<div class="flex items-center space-x-2 min-w-0">
+				<!-- Expand/Collapse Icon -->
+				<svg
+					class="h-4 w-4 text-neutral-400 transition-transform duration-200"
+					:class="{ 'rotate-90': expanded }"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+				</svg>
+				<!-- Folder Icon -->
+				<svg class="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+				</svg>
+				<!-- Directory Name -->
+				<span class="text-sm font-medium text-neutral-900 truncate">{ entry.Name }</span>
+			</div>
+			<div class="flex items-center space-x-8 text-xs text-neutral-500">
+				<span class="w-20 text-right">--</span>
+				<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
+			</div>
+		</div>
+		<!-- Children Container -->
+		<div
+			x-ref="dirContent"
+			x-show="expanded"
+			x-collapse
+			class="border-l border-neutral-200"
+			style={ fmt.Sprintf("margin-left: %dpx", 16+depth*20+8) }
+			hx-get={ "/ui/allocations/" + allocID + "/files/list?task=" + task + "&path=" + entry.Path }
+			hx-trigger="load"
+			hx-swap="innerHTML"
+		>
+			<!-- Loading placeholder -->
+			<div class="px-4 py-2 text-sm text-neutral-500">
+				<div class="flex items-center space-x-2">
+					<svg class="animate-spin h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span>Loading...</span>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// fileNode renders a file entry in the tree
+templ fileNode(entry FileEntry, allocID, task string, depth int) {
+	<div
+		class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
+		style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20+24) }
+		hx-get={ "/ui/allocations/" + allocID + "/files/preview?task=" + task + "&path=" + entry.Path }
+		hx-target="#file-preview-content"
+		hx-swap="innerHTML"
+		@click={ fmt.Sprintf("openPreview('%s', '/ui/allocations/%s/files/download?task=%s&path=%s')", entry.Name, allocID, task, entry.Path) }
+	>
+		<div class="flex items-center space-x-2 min-w-0">
+			<!-- File Icon -->
+			@fileIcon(entry.Name)
+			<!-- File Name -->
+			<span class="text-sm text-neutral-700 truncate group-hover:text-neutral-900">{ entry.Name }</span>
+		</div>
+		<div class="flex items-center space-x-8 text-xs text-neutral-500">
+			<span class="w-20 text-right">{ formatFileSize(entry.Size) }</span>
+			<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
+		</div>
+	</div>
+}
+
+// DirectoryListing renders the children of a directory (for HTMX lazy loading)
+templ DirectoryListing(entries []FileEntry, allocID, task string, depth int) {
+	if len(entries) == 0 {
+		<div class="px-4 py-2 text-sm text-neutral-500 italic">
+			Empty directory
+		</div>
+	} else {
+		for _, entry := range entries {
+			@fileTreeNode(entry, allocID, task, depth)
+		}
+	}
+}
+
+// FilePreview renders the file preview content
+templ FilePreview(fileName string, content string, isText bool, size int64) {
+	if isText {
+		<div class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-xs overflow-x-auto">
+			<pre class="whitespace-pre-wrap break-words">{ content }</pre>
+		</div>
+	} else {
+		<div class="text-center py-8">
+			<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+			</svg>
+			<p class="mt-2 text-sm text-neutral-600">Binary file ({ formatFileSize(size) })</p>
+			<p class="mt-1 text-xs text-neutral-500">Preview not available</p>
+		</div>
+	}
+}
+
+// fileIcon renders an appropriate icon based on file extension
+templ fileIcon(fileName string) {
+	switch getFileType(fileName) {
+		case "log":
+			<svg class="h-5 w-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+			</svg>
+		case "config":
+			<svg class="h-5 w-5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+			</svg>
+		case "script":
+			<svg class="h-5 w-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+			</svg>
+		case "binary":
+			<svg class="h-5 w-5 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+			</svg>
+		default:
+			<svg class="h-5 w-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+			</svg>
+	}
+}
+
+// getFileType returns a file type category based on extension
+func getFileType(fileName string) string {
+	// Get extension
+	ext := ""
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			ext = fileName[i+1:]
+			break
+		}
+	}
+
+	switch ext {
+	case "log", "out", "err":
+		return "log"
+	case "json", "yaml", "yml", "toml", "ini", "conf", "cfg", "env":
+		return "config"
+	case "sh", "bash", "py", "rb", "js", "go", "rs":
+		return "script"
+	case "exe", "bin", "so", "dll", "a":
+		return "binary"
+	default:
+		return "text"
+	}
+}
+
+// formatFileSize formats bytes into human readable size
+func formatFileSize(bytes int64) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%d B", bytes)
+	} else if bytes < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
+	} else if bytes < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
+	}
+	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
+}
+
+// formatFileTime formats a time for display
+func formatFileTime(t time.Time) string {
+	if t.IsZero() {
+		return "--"
+	}
+	return t.Format("Jan 2, 15:04")
+}
+
+// isTextFile determines if a file is likely text based on extension
+func IsTextFile(fileName string) bool {
+	ext := ""
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			ext = fileName[i+1:]
+			break
+		}
+	}
+
+	textExts := map[string]bool{
+		"txt": true, "log": true, "md": true, "json": true,
+		"yaml": true, "yml": true, "toml": true, "xml": true,
+		"html": true, "css": true, "js": true, "ts": true,
+		"go": true, "py": true, "rb": true, "sh": true,
+		"bash": true, "conf": true, "cfg": true, "ini": true,
+		"env": true, "out": true, "err": true, "stdout": true,
+		"stderr": true, "hcl": true, "tf": true, "nomad": true,
+	}
+
+	return textExts[ext]
+}

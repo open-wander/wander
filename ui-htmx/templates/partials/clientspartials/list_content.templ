@@ -2,6 +2,7 @@ package clientspartials
 
 import (
 	"fmt"
+	"net/url"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 )
 
@@ -22,8 +23,22 @@ type ClientSummary struct {
 	DiskTotal   int64
 }
 
+// ClientFilters holds the current filter values for the clients list.
+type ClientFilters struct {
+	Status     string
+	Datacenter string
+	NodeClass  string
+	Search     string
+}
+
+// ClientFilterOptions holds the available options for each filter.
+type ClientFilterOptions struct {
+	Datacenters []string
+	NodeClasses []string
+}
+
 // ListContent renders the clients table content for HTMX partial updates.
-templ ListContent(clientsList []ClientSummary) {
+templ ListContent(clientsList []ClientSummary, filters ClientFilters, options ClientFilterOptions) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="sm:flex sm:items-center sm:justify-between mb-6">
 			<div>
@@ -33,17 +48,91 @@ templ ListContent(clientsList []ClientSummary) {
 				</p>
 			</div>
 		</div>
-		<!-- Search Bar -->
-		<div class="mb-6">
-			@components.SearchBar(components.SearchBarProps{
-				Name:        "search",
-				Placeholder: "Search clients by name, address, or datacenter...",
-				Value:       "",
-				SearchURL:   "/ui/clients",
-				ResultsID:   "clients-table-container",
-				Debounce:    300,
-				MinChars:    0,
-			})
+		<!-- Search and Filters -->
+		<div class="mb-6 space-y-4">
+			<!-- Search Bar -->
+			<div id="clients-search-container">
+				@components.SearchBar(components.SearchBarProps{
+					Name:        "search",
+					Placeholder: "Search clients by name, address, or datacenter...",
+					Value:       filters.Search,
+					SearchURL:   buildClientsFilterURL(filters, ""),
+					ResultsID:   "clients-table-container",
+					Debounce:    300,
+					MinChars:    0,
+				})
+			</div>
+			<!-- Filter Dropdowns -->
+			<div class="flex flex-wrap items-center gap-3">
+				<!-- Status Filter -->
+				<div class="w-40">
+					@components.Select(components.SelectProps{
+						Name:        "status",
+						ID:          "filter-status",
+						Placeholder: "All Statuses",
+						Selected:    filters.Status,
+						Options: []components.SelectOption{
+							{Value: "ready", Label: "Ready"},
+							{Value: "down", Label: "Down"},
+							{Value: "draining", Label: "Draining"},
+							{Value: "ineligible", Label: "Ineligible"},
+						},
+						Size:      "sm",
+						HxGet:     buildClientsFilterURL(filters, "status"),
+						HxTarget:  "#clients-table-container",
+						HxTrigger: "change",
+					})
+				</div>
+				<!-- Datacenter Filter -->
+				<div class="w-40">
+					@components.Select(components.SelectProps{
+						Name:        "datacenter",
+						ID:          "filter-datacenter",
+						Placeholder: "All DCs",
+						Selected:    filters.Datacenter,
+						Options:     buildDatacenterOptions(options.Datacenters),
+						Size:        "sm",
+						HxGet:       buildClientsFilterURL(filters, "datacenter"),
+						HxTarget:    "#clients-table-container",
+						HxTrigger:   "change",
+					})
+				</div>
+				<!-- Node Class Filter -->
+				<div class="w-40">
+					@components.Select(components.SelectProps{
+						Name:        "nodeclass",
+						ID:          "filter-nodeclass",
+						Placeholder: "All Classes",
+						Selected:    filters.NodeClass,
+						Options:     buildNodeClassOptions(options.NodeClasses),
+						Size:        "sm",
+						HxGet:       buildClientsFilterURL(filters, "nodeclass"),
+						HxTarget:    "#clients-table-container",
+						HxTrigger:   "change",
+					})
+				</div>
+				<!-- Clear Filters Button -->
+				if hasActiveFilters(filters) {
+					<button
+						type="button"
+						class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-md transition-colors"
+						hx-get="/ui/clients"
+						hx-target="#clients-table-container"
+						hx-push-url="true"
+					>
+						<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+						</svg>
+						Clear filters
+					</button>
+				}
+				<!-- Active filter count -->
+				if countActiveFilters(filters) > 0 {
+					<span class="text-sm text-neutral-500 dark:text-neutral-400">
+						{ fmt.Sprintf("%d filter(s) active", countActiveFilters(filters)) }
+					</span>
+				}
+			</div>
 		</div>
 		<!-- Clients Table Container -->
 		<div id="clients-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
@@ -258,4 +347,73 @@ func truncateID(id string) string {
 		return id
 	}
 	return id[:8]
+}
+
+// buildClientsFilterURL constructs the URL for filter requests.
+// The excludeParam allows excluding a specific parameter so the select can add its new value.
+func buildClientsFilterURL(filters ClientFilters, excludeParam string) string {
+	params := url.Values{}
+
+	if filters.Status != "" && excludeParam != "status" {
+		params.Add("status", filters.Status)
+	}
+	if filters.Datacenter != "" && excludeParam != "datacenter" {
+		params.Add("datacenter", filters.Datacenter)
+	}
+	if filters.NodeClass != "" && excludeParam != "nodeclass" {
+		params.Add("nodeclass", filters.NodeClass)
+	}
+	if filters.Search != "" && excludeParam != "search" {
+		params.Add("search", filters.Search)
+	}
+
+	baseURL := "/ui/clients"
+	if len(params) > 0 {
+		return baseURL + "?" + params.Encode()
+	}
+	return baseURL
+}
+
+// buildDatacenterOptions converts a list of datacenter names to SelectOptions.
+func buildDatacenterOptions(datacenters []string) []components.SelectOption {
+	options := make([]components.SelectOption, len(datacenters))
+	for i, dc := range datacenters {
+		options[i] = components.SelectOption{
+			Value: dc,
+			Label: dc,
+		}
+	}
+	return options
+}
+
+// buildNodeClassOptions converts a list of node class names to SelectOptions.
+func buildNodeClassOptions(nodeClasses []string) []components.SelectOption {
+	options := make([]components.SelectOption, len(nodeClasses))
+	for i, nc := range nodeClasses {
+		options[i] = components.SelectOption{
+			Value: nc,
+			Label: nc,
+		}
+	}
+	return options
+}
+
+// hasActiveFilters returns true if any filter is active.
+func hasActiveFilters(filters ClientFilters) bool {
+	return filters.Status != "" || filters.Datacenter != "" || filters.NodeClass != ""
+}
+
+// countActiveFilters returns the number of active filters.
+func countActiveFilters(filters ClientFilters) int {
+	count := 0
+	if filters.Status != "" {
+		count++
+	}
+	if filters.Datacenter != "" {
+		count++
+	}
+	if filters.NodeClass != "" {
+		count++
+	}
+	return count
 }

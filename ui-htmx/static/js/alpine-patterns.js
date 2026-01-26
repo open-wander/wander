@@ -733,6 +733,274 @@ document.addEventListener('htmx:afterRequest', (event) => {
 });
 
 /**
+ * LOG VIEWER PATTERN
+ *
+ * Real-time log streaming via SSE with auto-scroll, pause/resume, and download.
+ *
+ * Features:
+ * - SSE connection with auto-reconnect
+ * - Auto-scroll to bottom (can be paused)
+ * - Line buffering when paused
+ * - Download logs as text file
+ * - Clear logs
+ * - Timestamp toggle
+ * - Connection state indicator
+ *
+ * Usage in Templ:
+ * ```html
+ * <div x-data="logViewer('alloc-123', 'nginx', 'stdout')"
+ *      x-init="connect()"
+ *      x-on:beforeunload.window="disconnect()">
+ *   <div x-ref="logContainer" @scroll="handleScroll()" class="overflow-auto h-96">
+ *     <template x-for="(line, index) in logs" :key="index">
+ *       <div x-text="line.message"></div>
+ *     </template>
+ *   </div>
+ * </div>
+ * ```
+ */
+function logViewer(allocId, initialTask, initialLogType) {
+    return {
+        // Configuration
+        allocId: allocId,
+        selectedTask: initialTask || '',
+        logType: initialLogType || 'stdout',
+        maxLines: 10000,
+
+        // State
+        logs: [],
+        bufferedLogs: [],
+        sseClient: null,
+        connectionState: 'disconnected', // disconnected, connecting, connected, error
+        isPaused: false,
+        isAtBottom: true,
+        showTimestamps: false,
+        lastUpdate: null,
+
+        // Computed
+        get bufferedCount() {
+            return this.bufferedLogs.length;
+        },
+
+        // Build SSE URL
+        buildUrl() {
+            const params = new URLSearchParams({
+                task: this.selectedTask,
+                type: this.logType,
+            });
+            return `/ui/allocations/${this.allocId}/logs/stream?${params.toString()}`;
+        },
+
+        // Connect to SSE stream
+        connect() {
+            this.disconnect();
+            this.connectionState = 'connecting';
+
+            const url = this.buildUrl();
+
+            if (typeof SSEClient !== 'undefined') {
+                // Use SSEClient class if available
+                this.sseClient = new SSEClient(url, {
+                    debug: false,
+                    maxRetries: 10,
+                    onConnect: () => {
+                        this.connectionState = 'connected';
+                    },
+                    onDisconnect: () => {
+                        if (this.connectionState === 'connected') {
+                            this.connectionState = 'error';
+                        }
+                    },
+                    onError: () => {
+                        this.connectionState = 'error';
+                    },
+                    onMaxRetries: () => {
+                        this.connectionState = 'disconnected';
+                    }
+                });
+
+                // Listen for log events
+                this.sseClient.on('log', (data) => {
+                    this.handleLogLine(data);
+                });
+
+                // Listen for error events
+                this.sseClient.on('error', (data) => {
+                    console.error('Log stream error:', data);
+                });
+
+                this.sseClient.connect();
+            } else {
+                // Fallback to raw EventSource
+                this.sseClient = new EventSource(url);
+
+                this.sseClient.onopen = () => {
+                    this.connectionState = 'connected';
+                };
+
+                this.sseClient.onerror = () => {
+                    this.connectionState = 'error';
+                };
+
+                this.sseClient.addEventListener('log', (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        this.handleLogLine(data);
+                    } catch (e) {
+                        this.handleLogLine({ message: event.data });
+                    }
+                });
+            }
+        },
+
+        // Disconnect from SSE stream
+        disconnect() {
+            if (this.sseClient) {
+                if (this.sseClient.disconnect) {
+                    this.sseClient.disconnect();
+                } else if (this.sseClient.close) {
+                    this.sseClient.close();
+                }
+                this.sseClient = null;
+            }
+            this.connectionState = 'disconnected';
+        },
+
+        // Handle incoming log line
+        handleLogLine(data) {
+            const line = {
+                timestamp: data.timestamp || this.formatTimestamp(new Date()),
+                message: data.message || data,
+                level: data.level || null
+            };
+
+            this.lastUpdate = new Date();
+
+            if (this.isPaused) {
+                this.bufferedLogs.push(line);
+            } else {
+                this.appendLine(line);
+            }
+        },
+
+        // Append line to logs
+        appendLine(line) {
+            this.logs.push(line);
+
+            // Trim old logs if exceeding max
+            if (this.logs.length > this.maxLines) {
+                this.logs.splice(0, this.logs.length - this.maxLines);
+            }
+
+            // Auto-scroll if at bottom
+            if (this.isAtBottom) {
+                this.$nextTick(() => {
+                    this.scrollToBottom();
+                });
+            }
+        },
+
+        // Switch task
+        switchTask() {
+            this.clearLogs();
+            this.connect();
+        },
+
+        // Set log type (stdout/stderr)
+        setLogType(type) {
+            if (this.logType !== type) {
+                this.logType = type;
+                this.clearLogs();
+                this.connect();
+            }
+        },
+
+        // Toggle pause state
+        togglePause() {
+            this.isPaused = !this.isPaused;
+
+            if (!this.isPaused) {
+                // Flush buffered logs
+                this.bufferedLogs.forEach(line => this.appendLine(line));
+                this.bufferedLogs = [];
+            }
+        },
+
+        // Clear all logs
+        clearLogs() {
+            this.logs = [];
+            this.bufferedLogs = [];
+        },
+
+        // Handle scroll events
+        handleScroll() {
+            const container = this.$refs.logContainer;
+            if (!container) return;
+
+            const threshold = 50; // pixels from bottom
+            const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+
+            this.isAtBottom = atBottom;
+
+            // Auto-resume when user scrolls to bottom
+            if (atBottom && this.isPaused && this.bufferedLogs.length > 0) {
+                this.togglePause();
+            }
+        },
+
+        // Scroll to bottom
+        scrollToBottom() {
+            const container = this.$refs.logContainer;
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+                this.isAtBottom = true;
+            }
+        },
+
+        // Download logs as text file
+        downloadLogs() {
+            const lines = this.logs.map(line => {
+                if (this.showTimestamps && line.timestamp) {
+                    return `${line.timestamp} ${line.message}`;
+                }
+                return line.message;
+            });
+
+            const content = lines.join('\n');
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${this.allocId.substring(0, 8)}-${this.selectedTask}-${this.logType}.log`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+
+        // Format timestamp for display
+        formatTimestamp(date) {
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+                   `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        },
+
+        // Format time for "last update" display
+        formatTime(date) {
+            if (!date) return '';
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+
+            if (diff < 5) return 'just now';
+            if (diff < 60) return `${diff}s ago`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+            return date.toLocaleTimeString();
+        }
+    };
+}
+
+/**
  * GLOBAL ALPINE CONFIGURATION
  *
  * Make patterns available globally if Alpine is loaded.
@@ -745,6 +1013,7 @@ if (typeof window !== 'undefined') {
         toggle,
         accordion,
         formValidation,
-        validators
+        validators,
+        logViewer
     };
 }

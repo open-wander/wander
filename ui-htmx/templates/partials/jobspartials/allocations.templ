@@ -36,6 +36,7 @@ type AllocationsTabData struct {
 	JobID       string
 	Allocations []JobAllocation
 	Pagination  JobAllocationsPagination
+	LastUpdated time.Time
 }
 
 // AllocationsTabWithData renders the job allocations tab with actual data.
@@ -43,11 +44,30 @@ templ AllocationsTabWithData(data AllocationsTabData) {
 	<div class="p-6">
 		<div class="flex items-center justify-between mb-4">
 			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Allocations</h3>
-			<div class="text-sm text-neutral-500 dark:text-neutral-400">
-				{ fmt.Sprintf("%d allocations", data.Pagination.Total) }
+			<div class="flex items-center gap-4">
+				<div
+					id="allocations-last-updated"
+					class="text-xs text-neutral-400 dark:text-neutral-500"
+					title={ data.LastUpdated.Format("2006-01-02 15:04:05") }
+				>
+					Updated { formatRelativeTime(data.LastUpdated) }
+				</div>
+				<div class="text-sm text-neutral-500 dark:text-neutral-400">
+					{ fmt.Sprintf("%d allocations", data.Pagination.Total) }
+				</div>
 			</div>
 		</div>
-		<div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
+		<div class="relative bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
+			<!-- Loading indicator positioned over the table -->
+			<div id="allocations-loading" class="htmx-indicator absolute top-2 right-2 z-10">
+				<div class="flex items-center gap-1.5 px-2 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-xs rounded-full shadow-sm">
+					<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span>Refreshing</span>
+				</div>
+			</div>
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "id", Label: "Short ID", Sortable: false, Align: "left", Width: "w-24"},
@@ -55,21 +75,13 @@ templ AllocationsTabWithData(data AllocationsTabData) {
 					{Key: "node", Label: "Node", Sortable: false, Align: "left", Width: "w-1/5"},
 					{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-28"},
 					{Key: "cpu", Label: "CPU", Sortable: false, Align: "right", Width: "w-28"},
-					{Key: "memory", Label: "Memory", Sortable: false, Align: "right", Width: "w-28"},
+					{Key: "memory", Label: "Memory", Sortable: false, Align: "right", Width: "w-32"},
 					{Key: "created", Label: "Created", Sortable: false, Align: "right", Width: "w-32"},
 				},
 				Striped: true,
 				Hover:   true,
 			}) {
-				@components.TableBody() {
-					if len(data.Allocations) == 0 {
-						@components.TableEmptyState("No allocations found", "This job has no allocations")
-					} else {
-						for _, alloc := range data.Allocations {
-							@jobAllocationRow(data.JobID, alloc)
-						}
-					}
-				}
+				@AllocationsTableBody(data)
 			}
 			if data.Pagination.TotalPages > 1 {
 				@components.Pagination(components.PaginationProps{
@@ -83,6 +95,28 @@ templ AllocationsTabWithData(data AllocationsTabData) {
 			}
 		</div>
 	</div>
+}
+
+// AllocationsTableBody renders just the table body with HTMX polling support.
+// This is used both for initial render and for polling updates.
+// The loading indicator (#allocations-loading) is defined in the parent container.
+templ AllocationsTableBody(data AllocationsTabData) {
+	<tbody
+		id="allocations-table-body"
+		class="bg-white divide-y divide-neutral-200 dark:bg-neutral-900 dark:divide-neutral-700"
+		hx-get={ fmt.Sprintf("/ui/jobs/%s/allocations/poll?page=%d&per_page=%d", data.JobID, data.Pagination.Page, data.Pagination.PerPage) }
+		hx-trigger="every 5s [document.visibilityState === 'visible']"
+		hx-swap="outerHTML"
+		hx-indicator="#allocations-loading"
+	>
+		if len(data.Allocations) == 0 {
+			@components.TableEmptyState("No allocations found", "This job has no allocations")
+		} else {
+			for _, alloc := range data.Allocations {
+				@jobAllocationRow(data.JobID, alloc)
+			}
+		}
+	</tbody>
 }
 
 // jobAllocationRow renders a single allocation row in the job allocations table.
