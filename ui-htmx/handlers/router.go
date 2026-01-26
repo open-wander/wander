@@ -56,6 +56,9 @@ func (r *Router) registerRoutes() {
 	// Variables routes
 	r.registerVariablesRoutes()
 
+	// Namespaces routes
+	r.registerNamespacesRoutes()
+
 	// Policies routes
 	r.registerPoliciesRoutes()
 
@@ -145,6 +148,14 @@ func (r *Router) registerVariablesRoutes() {
 	r.mux.Handle("/ui/variables/", r.wrapMiddleware(variablesHandler))
 }
 
+// registerNamespacesRoutes sets up routes for the namespaces section.
+func (r *Router) registerNamespacesRoutes() {
+	namespacesHandler := NewNamespacesHandler(r.handler)
+
+	// Namespaces handler handles the namespaces list page
+	r.mux.Handle("/ui/namespaces", r.wrapMiddleware(namespacesHandler))
+}
+
 // registerPoliciesRoutes sets up routes for the ACL policies section.
 func (r *Router) registerPoliciesRoutes() {
 	policiesHandler := NewPoliciesHandler(r.handler)
@@ -184,16 +195,22 @@ func (r *Router) registerEvaluationsRoutes() {
 // registerAPIRoutes sets up API routes for HTMX actions.
 func (r *Router) registerAPIRoutes() {
 	jobsAPIHandler := NewJobsAPIHandler(r.handler)
+	namespaceAPIHandler := NewNamespaceAPIHandler(r.handler)
 
 	// Job action endpoints
 	r.mux.Handle("/api/jobs/", r.wrapMiddleware(jobsAPIHandler))
+
+	// Namespace API endpoints
+	r.mux.Handle("/api/namespace/", r.wrapMiddleware(namespaceAPIHandler))
 }
 
 // wrapMiddleware applies HTMX middleware and any other necessary middleware
 // to the provided handler.
 func (r *Router) wrapMiddleware(h http.Handler) http.Handler {
-	// Apply HTMX middleware to add request context
-	return HTMXMiddleware(h)
+	// Apply middleware in order:
+	// 1. ACL middleware extracts and stores token from headers/cookies
+	// 2. HTMX middleware adds HTMX request context
+	return ACLMiddleware(HTMXMiddleware(h))
 }
 
 // ServeHTTP implements http.Handler, allowing Router to be used as an HTTP handler.

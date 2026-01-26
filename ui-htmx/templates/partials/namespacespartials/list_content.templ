@@ -1,0 +1,100 @@
+package namespacespartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// NamespaceSummary represents a summary view of a namespace for list display.
+type NamespaceSummary struct {
+	Name        string
+	Description string
+	Quota       string
+	JobCount    int
+	CreateIndex uint64
+	ModifyIndex uint64
+}
+
+// ListContent renders the namespaces table content for HTMX partial updates.
+templ ListContent(namespacesList []NamespaceSummary) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Namespaces</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					View and manage Nomad namespaces
+				</p>
+			</div>
+		</div>
+		<!-- Namespaces Table Container -->
+		<div id="namespaces-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "name", Label: "Name", Sortable: false, Align: "left", Width: "w-48"},
+					{Key: "description", Label: "Description", Sortable: false, Align: "left"},
+					{Key: "quota", Label: "Quota", Sortable: false, Align: "left", Width: "w-32"},
+					{Key: "jobs", Label: "Jobs", Sortable: false, Align: "center", Width: "w-24"},
+				},
+				Striped:    true,
+				Hover:      true,
+			}) {
+				@components.TableBody() {
+					if len(namespacesList) == 0 {
+						@components.TableEmptyState("No namespaces found", "There are no namespaces to display")
+					} else {
+						for _, ns := range namespacesList {
+							@namespaceRow(ns)
+						}
+					}
+				}
+			}
+		</div>
+	</div>
+}
+
+// namespaceRow renders a single namespace row in the table
+templ namespaceRow(ns NamespaceSummary) {
+	<tr class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+		@components.TableCell("left", "w-48") {
+			<div class="font-medium text-neutral-900 dark:text-neutral-100">
+				{ ns.Name }
+			</div>
+			<div class="text-xs text-neutral-500 dark:text-neutral-400">
+				Index: { fmt.Sprintf("%d", ns.CreateIndex) }
+			</div>
+		}
+		@components.TableCell("left", "") {
+			if ns.Description != "" {
+				<span class="text-neutral-700 dark:text-neutral-300">
+					{ ns.Description }
+				</span>
+			} else {
+				<span class="text-neutral-400 dark:text-neutral-600 italic">No description</span>
+			}
+		}
+		@components.TableCell("left", "w-32") {
+			if ns.Quota != "" {
+				@components.Badge(components.BadgeProps{
+					Variant: "primary",
+					Size:    "sm",
+				}) {
+					{ ns.Quota }
+				}
+			} else {
+				<span class="text-neutral-400 dark:text-neutral-600">-</span>
+			}
+		}
+		@components.TableCell("center", "w-24") {
+			<a
+				href={ templ.SafeURL("/ui/jobs?namespace=" + ns.Name) }
+				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+				hx-get={ fmt.Sprintf("/ui/jobs?namespace=%s", ns.Name) }
+				hx-target="#main-content"
+				hx-swap="innerHTML"
+				hx-push-url="true"
+			>
+				{ fmt.Sprintf("%d", ns.JobCount) }
+			</a>
+		}
+	</tr>
+}

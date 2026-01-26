@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/policies"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/policiespartials"
 )
@@ -80,9 +81,21 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Sort the policies list based on parameters
 	h.sortPolicies(policiesList, sortColumn, sortDir)
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"ACL Policies - Wander",
+		"View and manage Nomad ACL policies",
+		"/ui/policies",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Access Control", URL: ""},
+			{Label: "Policies", URL: ""},
+		},
+	)
+
 	// Render the policies list page
 	err := Render(w, r,
-		policies.List(policiesList, sortColumn, sortDir, searchQuery),                // Full page with layout
+		policies.List(layoutProps, policiesList, sortColumn, sortDir, searchQuery),                // Full page with layout
 		policiespartials.ListContent(policiesList, sortColumn, sortDir, searchQuery), // Partial content for HTMX requests
 	)
 
@@ -124,9 +137,21 @@ func (h *PoliciesHandler) showDetail(w http.ResponseWriter, r *http.Request, pol
 		return
 	}
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		policy.Name+" - ACL Policy - Wander",
+		"View and edit ACL policy: "+policy.Name,
+		"/ui/policies/"+policyName,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "ACL Policies", URL: "/ui/policies"},
+			{Label: policy.Name, URL: ""},
+		},
+	)
+
 	// Render the policy detail page
 	err := Render(w, r,
-		policies.Detail(policy),                       // Full page with layout
+		policies.Detail(layoutProps, policy),                       // Full page with layout
 		policiespartials.DetailContent(policy),        // Partial content for HTMX requests
 	)
 

@@ -225,3 +225,213 @@ func TestGetHTMXInfo(t *testing.T) {
 	w := httptest.NewRecorder()
 	wrapped.ServeHTTP(w, req)
 }
+
+// TestACLMiddleware_ExtractTokenFromHeader verifies that the ACL middleware
+// correctly extracts tokens from the X-Nomad-Token header.
+func TestACLMiddleware_ExtractTokenFromHeader(t *testing.T) {
+	tests := []struct {
+		name          string
+		headerValue   string
+		expectedToken string
+	}{
+		{
+			name:          "valid token in header",
+			headerValue:   "test-token-123",
+			expectedToken: "test-token-123",
+		},
+		{
+			name:          "empty header",
+			headerValue:   "",
+			expectedToken: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test handler that checks the context
+			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				token, ok := GetTokenFromContext(r.Context())
+				if tt.expectedToken == "" {
+					if ok {
+						t.Errorf("expected no token in context, but found: %s", token)
+					}
+				} else {
+					if !ok {
+						t.Errorf("expected token in context, but none found")
+						return
+					}
+					if token != tt.expectedToken {
+						t.Errorf("expected token %q, got %q", tt.expectedToken, token)
+					}
+				}
+				w.WriteHeader(http.StatusOK)
+			})
+
+			// Wrap with ACL middleware
+			handler := ACLMiddleware(testHandler)
+
+			// Create test request
+			req := httptest.NewRequest("GET", "/test", nil)
+			if tt.headerValue != "" {
+				req.Header.Set(XNomadToken, tt.headerValue)
+			}
+			w := httptest.NewRecorder()
+
+			// Execute request
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status 200, got %d", w.Code)
+			}
+		})
+	}
+}
+
+// TestACLMiddleware_ExtractTokenFromCookie verifies that the ACL middleware
+// correctly extracts tokens from the nomad_token cookie.
+func TestACLMiddleware_ExtractTokenFromCookie(t *testing.T) {
+	tests := []struct {
+		name          string
+		cookieValue   string
+		expectedToken string
+	}{
+		{
+			name:          "valid token in cookie",
+			cookieValue:   "cookie-token-456",
+			expectedToken: "cookie-token-456",
+		},
+		{
+			name:          "empty cookie",
+			cookieValue:   "",
+			expectedToken: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test handler that checks the context
+			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				token, ok := GetTokenFromContext(r.Context())
+				if tt.expectedToken == "" {
+					if ok {
+						t.Errorf("expected no token in context, but found: %s", token)
+					}
+				} else {
+					if !ok {
+						t.Errorf("expected token in context, but none found")
+						return
+					}
+					if token != tt.expectedToken {
+						t.Errorf("expected token %q, got %q", tt.expectedToken, token)
+					}
+				}
+				w.WriteHeader(http.StatusOK)
+			})
+
+			// Wrap with ACL middleware
+			handler := ACLMiddleware(testHandler)
+
+			// Create test request
+			req := httptest.NewRequest("GET", "/test", nil)
+			if tt.cookieValue != "" {
+				req.AddCookie(&http.Cookie{
+					Name:  NomadTokenCookie,
+					Value: tt.cookieValue,
+				})
+			}
+			w := httptest.NewRecorder()
+
+			// Execute request
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Errorf("expected status 200, got %d", w.Code)
+			}
+		})
+	}
+}
+
+// TestACLMiddleware_HeaderPrecedence verifies that the X-Nomad-Token header
+// takes precedence over the cookie when both are present.
+func TestACLMiddleware_HeaderPrecedence(t *testing.T) {
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, ok := GetTokenFromContext(r.Context())
+		if !ok {
+			t.Error("expected token in context, but none found")
+			return
+		}
+		// Header should take precedence
+		if token != "header-token" {
+			t.Errorf("expected header token to take precedence, got: %s", token)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := ACLMiddleware(testHandler)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set(XNomadToken, "header-token")
+	req.AddCookie(&http.Cookie{
+		Name:  NomadTokenCookie,
+		Value: "cookie-token",
+	})
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+}
+
+// TestGetTokenFromRequest verifies the convenience function that extracts
+// tokens from either context or directly from the request.
+func TestGetTokenFromRequest(t *testing.T) {
+	tests := []struct {
+		name          string
+		headerValue   string
+		cookieValue   string
+		expectedToken string
+	}{
+		{
+			name:          "token in header",
+			headerValue:   "header-token",
+			expectedToken: "header-token",
+		},
+		{
+			name:          "token in cookie",
+			cookieValue:   "cookie-token",
+			expectedToken: "cookie-token",
+		},
+		{
+			name:          "header takes precedence over cookie",
+			headerValue:   "header-token",
+			cookieValue:   "cookie-token",
+			expectedToken: "header-token",
+		},
+		{
+			name:          "no token",
+			expectedToken: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/test", nil)
+			if tt.headerValue != "" {
+				req.Header.Set(XNomadToken, tt.headerValue)
+			}
+			if tt.cookieValue != "" {
+				req.AddCookie(&http.Cookie{
+					Name:  NomadTokenCookie,
+					Value: tt.cookieValue,
+				})
+			}
+
+			token := GetTokenFromRequest(req)
+			if token != tt.expectedToken {
+				t.Errorf("expected token %q, got %q", tt.expectedToken, token)
+			}
+		})
+	}
+}

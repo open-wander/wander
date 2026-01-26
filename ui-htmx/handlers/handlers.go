@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"github.com/hashicorp/go-hclog"
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 )
 
 // Handler holds shared dependencies for all HTTP handlers.
@@ -9,10 +12,19 @@ import (
 // for easier testing and dependency injection.
 type Handler struct {
 	logger hclog.Logger
-	// Additional dependencies can be added here as needed:
-	// - config *Config
-	// - nomadClient *api.Client
-	// - db *sql.DB
+	// App context for shared state
+	appContext *AppContext
+	// Nomad API client for making API calls
+	nomadClient *api.Client
+	// Track if we've done the initial namespace fetch
+	namespacesRefreshed bool
+}
+
+// AppContext holds shared application state like current namespace and user info
+type AppContext struct {
+	CurrentNamespace    string
+	AvailableNamespaces []components.NamespaceInfo
+	User                *components.UserInfo
 }
 
 // Config contains configuration options for the handler.
@@ -26,18 +38,116 @@ type Config struct {
 
 // NewHandler creates a new Handler with the provided dependencies.
 // This constructor ensures all handlers have consistent initialization.
+// It creates a Nomad API client using default configuration from environment variables.
+// Note: API calls are deferred until first request to avoid blocking during server startup.
 func NewHandler(logger hclog.Logger) *Handler {
 	if logger == nil {
 		logger = hclog.NewNullLogger()
 	}
 
-	return &Handler{
-		logger: logger,
+	// Create Nomad API client with default config (reads from WANDER_* or NOMAD_* env vars)
+	nomadConfig := api.DefaultConfig()
+	nomadClient, err := api.NewClient(nomadConfig)
+	if err != nil {
+		logger.Error("failed to create Nomad API client", "error", err)
+		// Continue without client - handlers will use mock data
+		nomadClient = nil
+	} else {
+		logger.Info("Nomad API client initialized", "address", nomadConfig.Address)
 	}
+
+	h := &Handler{
+		logger:      logger,
+		nomadClient: nomadClient,
+		appContext: &AppContext{
+			CurrentNamespace: "default",
+			AvailableNamespaces: []components.NamespaceInfo{
+				{Name: "default", Description: "Default namespace"},
+			},
+			User: &components.UserInfo{
+				Name:  "Anonymous",
+				Email: "",
+			},
+		},
+	}
+
+	// NOTE: Do NOT call refreshNamespaces() here - it would block during server startup
+	// because the HTTP server isn't ready yet. Namespace refresh happens lazily on first request.
+
+	return h
+}
+
+// refreshNamespaces fetches the list of namespaces from Nomad and updates the app context.
+func (h *Handler) refreshNamespaces() {
+	if h.nomadClient == nil {
+		return
+	}
+
+	namespaces, _, err := h.nomadClient.Namespaces().List(nil)
+	if err != nil {
+		h.logger.Warn("failed to fetch namespaces from Nomad", "error", err)
+		return
+	}
+
+	h.appContext.AvailableNamespaces = make([]components.NamespaceInfo, 0, len(namespaces))
+	for _, ns := range namespaces {
+		h.appContext.AvailableNamespaces = append(h.appContext.AvailableNamespaces, components.NamespaceInfo{
+			Name:        ns.Name,
+			Description: ns.Description,
+		})
+	}
+
+	h.logger.Debug("fetched namespaces from Nomad", "count", len(namespaces))
 }
 
 // Logger returns the handler's logger instance.
 // This allows handlers to access the logger for request logging.
 func (h *Handler) Logger() hclog.Logger {
 	return h.logger
+}
+
+// NomadClient returns the Nomad API client.
+// Returns nil if the client is not configured or failed to initialize.
+func (h *Handler) NomadClient() *api.Client {
+	return h.nomadClient
+}
+
+// HasNomadClient returns true if a Nomad API client is available.
+func (h *Handler) HasNomadClient() bool {
+	return h.nomadClient != nil
+}
+
+// AppContext returns the shared application context.
+func (h *Handler) AppContext() *AppContext {
+	return h.appContext
+}
+
+// SetCurrentNamespace updates the current namespace in the app context.
+func (h *Handler) SetCurrentNamespace(ns string) {
+	h.appContext.CurrentNamespace = ns
+	// Also update the Nomad client's namespace
+	if h.nomadClient != nil {
+		h.nomadClient.SetNamespace(ns)
+	}
+}
+
+// BaseLayoutProps returns PageLayoutProps with common fields pre-filled from app context.
+// Handlers should use this and then fill in page-specific fields.
+// On first call, it lazily fetches namespaces from Nomad if a client is available.
+func (h *Handler) BaseLayoutProps(title, description, currentPath string, breadcrumbs []components.Breadcrumb) layouts.PageLayoutProps {
+	// Lazy refresh namespaces on first request
+	if !h.namespacesRefreshed && h.nomadClient != nil {
+		h.refreshNamespaces()
+		h.namespacesRefreshed = true
+	}
+
+	return layouts.PageLayoutProps{
+		Title:               title,
+		Description:         description,
+		CurrentPath:         currentPath,
+		Breadcrumbs:         breadcrumbs,
+		User:                h.appContext.User,
+		CurrentNamespace:    h.appContext.CurrentNamespace,
+		AvailableNamespaces: h.appContext.AvailableNamespaces,
+	}
 }

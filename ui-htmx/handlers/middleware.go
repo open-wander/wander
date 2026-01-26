@@ -29,6 +29,15 @@ const (
 	HXTrigger = "HX-Trigger"
 )
 
+// Nomad ACL headers and cookies
+const (
+	// XNomadToken is the HTTP header for Nomad ACL tokens
+	XNomadToken = "X-Nomad-Token"
+
+	// NomadTokenCookie is the cookie name for storing Nomad ACL tokens
+	NomadTokenCookie = "nomad_token"
+)
+
 // IsHTMXRequest checks if the request is an HTMX AJAX request by checking
 // for the HX-Request header. Returns true if the header is set to "true".
 func IsHTMXRequest(r *http.Request) bool {
@@ -101,6 +110,47 @@ func HTMXMiddleware(next http.Handler) http.Handler {
 		}
 		if triggerName := GetTriggerName(r); triggerName != "" {
 			ctx = context.WithValue(ctx, htmxTriggerNameKey, triggerName)
+		}
+
+		// Call the next handler with the updated context
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// extractToken extracts the Nomad ACL token from the request.
+// It first checks the X-Nomad-Token header, then falls back to checking
+// the nomad_token cookie. Returns empty string if no token is found.
+func extractToken(r *http.Request) string {
+	// Check X-Nomad-Token header first (preferred method for API calls)
+	if token := r.Header.Get(XNomadToken); token != "" {
+		return token
+	}
+
+	// Fall back to cookie (used for browser-based authentication)
+	cookie, err := r.Cookie(NomadTokenCookie)
+	if err == nil && cookie.Value != "" {
+		return cookie.Value
+	}
+
+	return ""
+}
+
+// ACLMiddleware extracts the Nomad ACL token from the request and stores it
+// in the request context for downstream handlers to use.
+// The token is extracted from either:
+// 1. The X-Nomad-Token HTTP header (preferred for API calls)
+// 2. The nomad_token cookie (used for browser-based authentication)
+//
+// Note: This middleware does NOT validate the token - it only extracts and stores it.
+// Token validation should be performed by downstream handlers or a separate middleware.
+func ACLMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		// Extract token from headers or cookies
+		if token := extractToken(r); token != "" {
+			// Store token in context for downstream handlers
+			ctx = context.WithValue(ctx, nomadTokenKey, token)
 		}
 
 		// Call the next handler with the updated context

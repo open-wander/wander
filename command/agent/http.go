@@ -38,6 +38,7 @@ import (
 	"github.com/open-wander/wander/nomad"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
+	uihandlers "github.com/open-wander/wander/ui-htmx/handlers"
 )
 
 const (
@@ -506,8 +507,15 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	uiConfigEnabled := agentConfig.UI != nil && agentConfig.UI.Enabled
 
 	if uiEnabled && uiConfigEnabled {
-		s.mux.Handle("/ui/", http.StripPrefix("/ui/", s.handleUI(agentConfig.UI.ContentSecurityPolicy, http.FileServer(&UIAssetWrapper{FileSystem: assetFS()}))))
-		s.logger.Debug("UI is enabled")
+		// Create the HTMX UI router
+		htmxHandler := uihandlers.NewHandler(s.logger)
+		uiRouter := uihandlers.NewRouter(htmxHandler)
+
+		// Register the HTMX UI router at /ui/
+		// The router handles all /ui/* routes including /ui/static/
+		s.mux.Handle("/ui/", uiRouter)
+
+		s.logger.Debug("HTMX UI is enabled")
 	} else {
 		// Write the stubHTML
 		s.mux.HandleFunc("/ui/", func(w http.ResponseWriter, r *http.Request) {

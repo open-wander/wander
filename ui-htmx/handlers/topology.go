@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/topology"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/topologypartials"
 )
@@ -58,9 +59,21 @@ func (h *TopologyHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Get mock topology data
 	topologyData := h.getTopologyData()
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"Topology - Wander",
+		"View cluster topology visualization",
+		"/ui/topology",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Cluster", URL: ""},
+			{Label: "Topology", URL: ""},
+		},
+	)
+
 	// Render the topology page
 	err := Render(w, r,
-		topology.List(topologyData),                // Full page with layout
+		topology.List(layoutProps, topologyData),                // Full page with layout
 		topologypartials.ListContent(topologyData), // Partial content for HTMX requests
 	)
 

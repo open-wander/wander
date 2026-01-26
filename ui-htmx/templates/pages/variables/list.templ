@@ -1,23 +1,11 @@
 package variables
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/variablespartials"
 )
 
 // List renders the full variables list page with layout.
-templ List(variablesList []variablespartials.VariableSummary, sortColumn string, sortDir string, searchQuery string, pagination variablespartials.PaginationMeta) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       "Variables - Wander",
-			Description: "View and manage Nomad variables",
-			CurrentPath: "/ui/variables",
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "Variables", URL: ""},
-			},
-		},
-		variablespartials.ListContent(variablesList, sortColumn, sortDir, searchQuery, pagination),
-	)
+templ List(layoutProps layouts.PageLayoutProps, variablesList []variablespartials.VariableSummary, sortColumn string, sortDir string, searchQuery string, pagination variablespartials.PaginationMeta) {
+	@layouts.PageLayout(layoutProps, variablespartials.ListContent(variablesList, sortColumn, sortDir, searchQuery, pagination))
 }

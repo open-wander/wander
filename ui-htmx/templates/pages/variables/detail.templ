@@ -1,24 +1,11 @@
 package variables
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/variablespartials"
 )
 
 // Detail renders the variable detail/edit page with full page layout
-templ Detail(variable variablespartials.VariableDetail) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       variable.Path + " - Variable - Wander",
-			Description: "View and edit variable " + variable.Path,
-			CurrentPath: "/ui/variables/" + variable.Path,
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "Variables", URL: "/ui/variables"},
-				{Label: variable.Path, URL: ""},
-			},
-		},
-		variablespartials.DetailContent(variable),
-	)
+templ Detail(layoutProps layouts.PageLayoutProps, variable variablespartials.VariableDetail) {
+	@layouts.PageLayout(layoutProps, variablespartials.DetailContent(variable))
 }

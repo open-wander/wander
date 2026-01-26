@@ -1,23 +1,11 @@
 package policies
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/policiespartials"
 )
 
 // List renders the full ACL policies list page with layout.
-templ List(policiesList []policiespartials.PolicySummary, sortColumn string, sortDir string, searchQuery string) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       "ACL Policies - Wander",
-			Description: "View and manage Nomad ACL policies",
-			CurrentPath: "/ui/policies",
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "ACL Policies", URL: ""},
-			},
-		},
-		policiespartials.ListContent(policiesList, sortColumn, sortDir, searchQuery),
-	)
+templ List(layoutProps layouts.PageLayoutProps, policiesList []policiespartials.PolicySummary, sortColumn string, sortDir string, searchQuery string) {
+	@layouts.PageLayout(layoutProps, policiespartials.ListContent(policiesList, sortColumn, sortDir, searchQuery))
 }

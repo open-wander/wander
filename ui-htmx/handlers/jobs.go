@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/jobs"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/jobspartials"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/taskgrouppartials"
@@ -173,9 +174,20 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Paginate the jobs list
 	jobsList = paginateJobs(jobsList, page, perPage)
 
+	// Build layout props with app context
+	layoutProps := h.handler.BaseLayoutProps(
+		"Jobs - Wander",
+		"View and manage Nomad jobs",
+		"/ui/jobs",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Jobs", URL: ""},
+		},
+	)
+
 	// Render the jobs list page
 	err := Render(w, r,
-		jobs.List(jobsList, sortColumn, sortDir, searchQuery, pagination),                // Full page with layout
+		jobs.List(layoutProps, jobsList, sortColumn, sortDir, searchQuery, pagination),   // Full page with layout
 		jobspartials.ListContent(jobsList, sortColumn, sortDir, searchQuery, pagination), // Partial content for HTMX requests
 	)
 
@@ -217,9 +229,21 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Mock job detail data
 	jobDetail := h.getJobDetail(actualJobID)
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		jobDetail.Name+" - Job Detail - Wander",
+		"Job detail for "+jobDetail.Name,
+		"/ui/jobs/"+actualJobID,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Jobs", URL: "/ui/jobs"},
+			{Label: jobDetail.Name, URL: ""},
+		},
+	)
+
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		jobs.Detail(jobDetail),                // Full page with layout
+		jobs.Detail(layoutProps, jobDetail),                // Full page with layout
 		jobspartials.DetailContent(jobDetail), // Partial content for HTMX requests
 	)
 
@@ -230,61 +254,41 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getJobsList returns mock job data.
-// This will be replaced with actual Nomad API calls in the future.
+// getJobsList fetches jobs from the Nomad API.
+// Falls back to empty list if API is unavailable.
 func (h *JobsHandler) getJobsList() []jobspartials.JobSummary {
-	now := time.Now()
-
-	return []jobspartials.JobSummary{
-		{
-			ID:        "web-frontend",
-			Name:      "web-frontend",
-			Status:    "running",
-			Type:      "service",
-			Priority:  50,
-			Submitted: now.Add(-24 * time.Hour),
-		},
-		{
-			ID:        "api-gateway",
-			Name:      "api-gateway",
-			Status:    "running",
-			Type:      "service",
-			Priority:  75,
-			Submitted: now.Add(-48 * time.Hour),
-		},
-		{
-			ID:        "data-processor",
-			Name:      "data-processor",
-			Status:    "pending",
-			Type:      "batch",
-			Priority:  30,
-			Submitted: now.Add(-1 * time.Hour),
-		},
-		{
-			ID:        "cache-service",
-			Name:      "cache-service",
-			Status:    "running",
-			Type:      "service",
-			Priority:  60,
-			Submitted: now.Add(-72 * time.Hour),
-		},
-		{
-			ID:        "backup-job",
-			Name:      "backup-job",
-			Status:    "dead",
-			Type:      "batch",
-			Priority:  20,
-			Submitted: now.Add(-120 * time.Hour),
-		},
-		{
-			ID:        "metrics-collector",
-			Name:      "metrics-collector",
-			Status:    "running",
-			Type:      "system",
-			Priority:  80,
-			Submitted: now.Add(-96 * time.Hour),
-		},
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty job list")
+		return []jobspartials.JobSummary{}
 	}
+
+	// Fetch jobs from the API
+	jobs, _, err := client.Jobs().List(nil)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch jobs from Nomad API", "error", err)
+		return []jobspartials.JobSummary{}
+	}
+
+	// Convert API response to our summary type
+	result := make([]jobspartials.JobSummary, 0, len(jobs))
+	for _, job := range jobs {
+		submitted := time.Time{}
+		if job.SubmitTime > 0 {
+			submitted = time.Unix(0, job.SubmitTime)
+		}
+
+		result = append(result, jobspartials.JobSummary{
+			ID:        job.ID,
+			Name:      job.Name,
+			Status:    job.Status,
+			Type:      job.Type,
+			Priority:  job.Priority,
+			Submitted: submitted,
+		})
+	}
+
+	return result
 }
 
 // filterJobs filters the jobs list based on search query.

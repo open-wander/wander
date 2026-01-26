@@ -1,24 +1,11 @@
 package policies
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/policiespartials"
 )
 
 // Detail renders the full ACL policy detail page with layout.
-templ Detail(policy policiespartials.PolicyDetail) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       policy.Name + " - ACL Policy - Wander",
-			Description: "View and edit ACL policy: " + policy.Name,
-			CurrentPath: "/ui/policies/" + policy.Name,
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "ACL Policies", URL: "/ui/policies"},
-				{Label: policy.Name, URL: ""},
-			},
-		},
-		policiespartials.DetailContent(policy),
-	)
+templ Detail(layoutProps layouts.PageLayoutProps, policy policiespartials.PolicyDetail) {
+	@layouts.PageLayout(layoutProps, policiespartials.DetailContent(policy))
 }

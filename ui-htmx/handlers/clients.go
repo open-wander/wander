@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/clients"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/clientspartials"
 )
@@ -93,9 +94,20 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Apply filters
 	filteredClients := h.applyFilters(allClients, filters)
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"Clients - Wander",
+		"View and manage Nomad client nodes",
+		"/ui/clients",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Clients", URL: ""},
+		},
+	)
+
 	// Render the clients list page
 	err := Render(w, r,
-		clients.List(filteredClients, filters, filterOptions),      // Full page with layout
+		clients.List(layoutProps, filteredClients, filters, filterOptions),      // Full page with layout
 		clientspartials.ListContent(filteredClients, filters, filterOptions), // Partial content for HTMX requests
 	)
 
@@ -188,9 +200,21 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Mock client detail data
 	clientDetail := h.getClientDetail(clientID)
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		clientDetail.Name+" - Client Detail - Wander",
+		"Client detail for "+clientDetail.Name,
+		"/ui/clients/"+clientID,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Clients", URL: "/ui/clients"},
+			{Label: clientDetail.Name, URL: ""},
+		},
+	)
+
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		clients.Detail(clientDetail),                // Full page with layout
+		clients.Detail(layoutProps, clientDetail),                // Full page with layout
 		clientspartials.DetailContent(clientDetail), // Partial content for HTMX requests
 	)
 
@@ -249,101 +273,80 @@ func (h *ClientsHandler) CancelDrain(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// getClientsList returns mock client data.
-// This will be replaced with actual Nomad API calls in the future.
+// getClientsList fetches client nodes from the Nomad API.
+// Falls back to empty list if API is unavailable.
 func (h *ClientsHandler) getClientsList() []clientspartials.ClientSummary {
-	return []clientspartials.ClientSummary{
-		{
-			ID:          "c1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o",
-			Name:        "client-node-1",
-			Address:     "192.168.1.100:4646",
-			Status:      "ready",
-			Datacenter:  "dc1",
-			NodeClass:   "compute",
-			Allocations: 5,
-			CPUUsed:     2400,
-			CPUTotal:    8000,
-			MemUsed:     8589934592,   // 8 GB in bytes
-			MemTotal:    17179869184,  // 16 GB in bytes
-			DiskUsed:    32212254720,  // 30 GB in bytes
-			DiskTotal:   107374182400, // 100 GB in bytes
-		},
-		{
-			ID:          "d2e3f4g5-h6i7-8j9k-0l1m-2n3o4p5q6r7s",
-			Name:        "client-node-2",
-			Address:     "192.168.1.101:4646",
-			Status:      "ready",
-			Datacenter:  "dc1",
-			NodeClass:   "compute",
-			Allocations: 3,
-			CPUUsed:     4200,
-			CPUTotal:    8000,
-			MemUsed:     12884901888,  // 12 GB in bytes
-			MemTotal:    17179869184,  // 16 GB in bytes
-			DiskUsed:    53687091200,  // 50 GB in bytes
-			DiskTotal:   107374182400, // 100 GB in bytes
-		},
-		{
-			ID:          "e3f4g5h6-i7j8-9k0l-1m2n-3o4p5q6r7s8t",
-			Name:        "client-node-3",
-			Address:     "192.168.2.100:4646",
-			Status:      "down",
-			Datacenter:  "dc2",
-			NodeClass:   "storage",
-			Allocations: 0,
-			CPUUsed:     0,
-			CPUTotal:    8000,
-			MemUsed:     0,
-			MemTotal:    17179869184, // 16 GB in bytes
-			DiskUsed:    0,
-			DiskTotal:   214748364800, // 200 GB in bytes
-		},
-		{
-			ID:          "f4g5h6i7-j8k9-0l1m-2n3o-4p5q6r7s8t9u",
-			Name:        "client-node-4",
-			Address:     "192.168.1.102:4646",
-			Status:      "ready",
-			Datacenter:  "dc1",
-			NodeClass:   "high-memory",
-			Allocations: 8,
-			CPUUsed:     6800,
-			CPUTotal:    16000,
-			MemUsed:     25769803776,  // 24 GB in bytes
-			MemTotal:    34359738368,  // 32 GB in bytes
-			DiskUsed:    96636764160,  // 90 GB in bytes
-			DiskTotal:   107374182400, // 100 GB in bytes
-		},
-		{
-			ID:          "g5h6i7j8-k9l0-1m2n-3o4p-5q6r7s8t9u0v",
-			Name:        "client-node-5",
-			Address:     "192.168.2.101:4646",
-			Status:      "draining",
-			Datacenter:  "dc2",
-			NodeClass:   "compute",
-			Allocations: 2,
-			CPUUsed:     1200,
-			CPUTotal:    8000,
-			MemUsed:     4294967296,  // 4 GB in bytes
-			MemTotal:    17179869184, // 16 GB in bytes
-			DiskUsed:    21474836480, // 20 GB in bytes
-			DiskTotal:   107374182400, // 100 GB in bytes
-		},
-		{
-			ID:          "h6i7j8k9-l0m1-2n3o-4p5q-6r7s8t9u0v1w",
-			Name:        "client-node-6",
-			Address:     "192.168.2.102:4646",
-			Status:      "ready",
-			Datacenter:  "dc2",
-			NodeClass:   "gpu",
-			Allocations: 6,
-			CPUUsed:     5400,
-			CPUTotal:    8000,
-			MemUsed:     10737418240,  // 10 GB in bytes
-			MemTotal:    17179869184,  // 16 GB in bytes
-			DiskUsed:    80530636800,  // 75 GB in bytes
-			DiskTotal:   107374182400, // 100 GB in bytes
-		},
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty client list")
+		return []clientspartials.ClientSummary{}
 	}
+
+	// Fetch nodes from the API
+	nodes, _, err := client.Nodes().List(nil)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch nodes from Nomad API", "error", err)
+		return []clientspartials.ClientSummary{}
+	}
+
+	// Convert API response to our summary type
+	result := make([]clientspartials.ClientSummary, 0, len(nodes))
+	for _, node := range nodes {
+		// Determine status
+		status := node.Status
+		if node.SchedulingEligibility == "ineligible" {
+			status = "ineligible"
+		}
+		if node.Drain {
+			status = "draining"
+		}
+
+		// Get resource info
+		var cpuTotal, memTotal, diskTotal int64
+		if node.NodeResources != nil {
+			if node.NodeResources.Cpu.CpuShares > 0 {
+				cpuTotal = node.NodeResources.Cpu.CpuShares
+			}
+			if node.NodeResources.Memory.MemoryMB > 0 {
+				memTotal = node.NodeResources.Memory.MemoryMB * 1024 * 1024
+			}
+			if node.NodeResources.Disk.DiskMB > 0 {
+				diskTotal = node.NodeResources.Disk.DiskMB * 1024 * 1024
+			}
+		}
+
+		// Get reserved/used resources
+		var cpuUsed, memUsed, diskUsed int64
+		if node.ReservedResources != nil {
+			if node.ReservedResources.Cpu.CpuShares > 0 {
+				cpuUsed = int64(node.ReservedResources.Cpu.CpuShares)
+			}
+			if node.ReservedResources.Memory.MemoryMB > 0 {
+				memUsed = int64(node.ReservedResources.Memory.MemoryMB) * 1024 * 1024
+			}
+			if node.ReservedResources.Disk.DiskMB > 0 {
+				diskUsed = int64(node.ReservedResources.Disk.DiskMB) * 1024 * 1024
+			}
+		}
+
+		result = append(result, clientspartials.ClientSummary{
+			ID:          node.ID,
+			Name:        node.Name,
+			Address:     node.Address,
+			Status:      status,
+			Datacenter:  node.Datacenter,
+			NodeClass:   node.NodeClass,
+			Allocations: 0, // Would need separate API call to get allocation count
+			CPUUsed:     int(cpuUsed),
+			CPUTotal:    int(cpuTotal),
+			MemUsed:     memUsed,
+			MemTotal:    memTotal,
+			DiskUsed:    diskUsed,
+			DiskTotal:   diskTotal,
+		})
+	}
+
+	return result
 }
 
 // getClientDetail returns mock client detail data.

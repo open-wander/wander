@@ -4,12 +4,14 @@ import "github.com/open-wander/wander/ui-htmx/templates/components"
 
 // PageLayoutProps contains parameters for the page wrapper layout
 type PageLayoutProps struct {
-	Title            string
-	Description      string
-	CurrentPath      string // Current page path for active navigation highlighting
-	Breadcrumbs      []components.Breadcrumb
-	User             *components.UserInfo // Optional user information
-	ExpandedSections []string             // Sidebar sections to expand by default
+	Title               string
+	Description         string
+	CurrentPath         string // Current page path for active navigation highlighting
+	Breadcrumbs         []components.Breadcrumb
+	User                *components.UserInfo       // Optional user information
+	ExpandedSections    []string                   // Sidebar sections to expand by default
+	CurrentNamespace    string                     // Current selected namespace
+	AvailableNamespaces []components.NamespaceInfo // List of available namespaces
 }
 
 // PageLayout provides the full page structure with header, sidebar, and main content area.
@@ -33,9 +35,11 @@ templ pageContent(props PageLayoutProps, content templ.Component) {
 		<div class="flex flex-col flex-1 overflow-hidden">
 			<!-- Header Component -->
 			@components.Header(components.HeaderProps{
-				CurrentPath: props.CurrentPath,
-				User:        props.User,
-				Breadcrumbs: props.Breadcrumbs,
+				CurrentPath:         props.CurrentPath,
+				User:                props.User,
+				Breadcrumbs:         props.Breadcrumbs,
+				CurrentNamespace:    props.CurrentNamespace,
+				AvailableNamespaces: props.AvailableNamespaces,
 			})
 			<!-- Main Content Component -->
 			@components.Main(components.MainProps{}, content)

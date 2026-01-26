@@ -1,24 +1,11 @@
 package csi
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/csipartials"
 )
 
 // PluginsList renders the full CSI plugins list page with layout.
-templ PluginsList(props csipartials.PluginsListProps) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       "CSI Plugins - Wander",
-			Description: "View and manage CSI plugins",
-			CurrentPath: "/ui/csi/plugins",
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "CSI", URL: ""},
-				{Label: "Plugins", URL: ""},
-			},
-		},
-		csipartials.PluginsListContent(props),
-	)
+templ PluginsList(layoutProps layouts.PageLayoutProps, props csipartials.PluginsListProps) {
+	@layouts.PageLayout(layoutProps, csipartials.PluginsListContent(props))
 }

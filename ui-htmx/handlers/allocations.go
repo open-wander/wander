@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/allocations"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/allocationspartials"
 )
@@ -203,9 +204,20 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build layout props with app context
+	layoutProps := h.handler.BaseLayoutProps(
+		"Allocations - Wander",
+		"View and manage Nomad allocations",
+		"/ui/allocations",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Allocations", URL: ""},
+		},
+	)
+
 	// Render the allocations list page
 	err := Render(w, r,
-		allocations.List(props),                // Full page with layout
+		allocations.List(layoutProps, props),   // Full page with layout
 		allocationspartials.ListContent(props), // Partial content for HTMX requests
 	)
 
@@ -391,121 +403,42 @@ func (h *AllocationsHandler) sortAllocations(allocs []AllocationSummary, column,
 	})
 }
 
-// getAllocationsList returns mock allocation data.
-// This will be replaced with actual Nomad API calls in the future.
+// getAllocationsList fetches allocations from the Nomad API.
+// Falls back to empty list if API is unavailable.
 func (h *AllocationsHandler) getAllocationsList() []AllocationSummary {
-	now := time.Now()
-
-	return []AllocationSummary{
-		{
-			ID:        "a1b2c3d4-e5f6-4a5b-9c8d-1e2f3a4b5c6d",
-			JobID:     "web-frontend",
-			TaskGroup: "web",
-			NodeID:    "node-1",
-			NodeName:  "worker-01.dc1",
-			Status:    "running",
-			Created:   now.Add(-24 * time.Hour),
-		},
-		{
-			ID:        "b2c3d4e5-f6a7-5b6c-ad9e-2f3a4b5c6d7e",
-			JobID:     "web-frontend",
-			TaskGroup: "web",
-			NodeID:    "node-2",
-			NodeName:  "worker-02.dc1",
-			Status:    "running",
-			Created:   now.Add(-24 * time.Hour),
-		},
-		{
-			ID:        "c3d4e5f6-a7b8-6c7d-be0f-3a4b5c6d7e8f",
-			JobID:     "api-gateway",
-			TaskGroup: "api",
-			NodeID:    "node-1",
-			NodeName:  "worker-01.dc1",
-			Status:    "running",
-			Created:   now.Add(-48 * time.Hour),
-		},
-		{
-			ID:        "d4e5f6a7-b8c9-7d8e-cf1a-4b5c6d7e8f9a",
-			JobID:     "data-processor",
-			TaskGroup: "processor",
-			NodeID:    "node-3",
-			NodeName:  "worker-03.dc1",
-			Status:    "pending",
-			Created:   now.Add(-1 * time.Hour),
-		},
-		{
-			ID:        "e5f6a7b8-c9da-8e9f-da2b-5c6d7e8f9a0b",
-			JobID:     "cache-service",
-			TaskGroup: "cache",
-			NodeID:    "node-2",
-			NodeName:  "worker-02.dc1",
-			Status:    "running",
-			Created:   now.Add(-72 * time.Hour),
-		},
-		{
-			ID:        "f6a7b8c9-dae0-9fa0-eb3c-6d7e8f9a0b1c",
-			JobID:     "backup-job",
-			TaskGroup: "backup",
-			NodeID:    "node-4",
-			NodeName:  "worker-04.dc2",
-			Status:    "failed",
-			Created:   now.Add(-120 * time.Hour),
-		},
-		{
-			ID:        "a7b8c9da-e0f1-0ab1-fc4d-7e8f9a0b1c2d",
-			JobID:     "metrics-collector",
-			TaskGroup: "collector",
-			NodeID:    "node-1",
-			NodeName:  "worker-01.dc1",
-			Status:    "running",
-			Created:   now.Add(-96 * time.Hour),
-		},
-		{
-			ID:        "b8c9dae0-f1a2-1bc2-ad5e-8f9a0b1c2d3e",
-			JobID:     "web-frontend",
-			TaskGroup: "cache",
-			NodeID:    "node-3",
-			NodeName:  "worker-03.dc1",
-			Status:    "complete",
-			Created:   now.Add(-168 * time.Hour),
-		},
-		{
-			ID:        "c9dae0f1-a2b3-2cd3-be6f-9a0b1c2d3e4f",
-			JobID:     "log-shipper",
-			TaskGroup: "shipper",
-			NodeID:    "node-2",
-			NodeName:  "worker-02.dc1",
-			Status:    "running",
-			Created:   now.Add(-36 * time.Hour),
-		},
-		{
-			ID:        "dae0f1a2-b3c4-3de4-cf7a-0b1c2d3e4f5a",
-			JobID:     "api-gateway",
-			TaskGroup: "api",
-			NodeID:    "node-4",
-			NodeName:  "worker-04.dc2",
-			Status:    "running",
-			Created:   now.Add(-60 * time.Hour),
-		},
-		{
-			ID:        "e0f1a2b3-c4d5-4ef5-da8b-1c2d3e4f5a6b",
-			JobID:     "batch-processor",
-			TaskGroup: "batch",
-			NodeID:    "node-1",
-			NodeName:  "worker-01.dc1",
-			Status:    "complete",
-			Created:   now.Add(-200 * time.Hour),
-		},
-		{
-			ID:        "f1a2b3c4-d5e6-5fa6-eb9c-2d3e4f5a6b7c",
-			JobID:     "data-processor",
-			TaskGroup: "processor",
-			NodeID:    "node-2",
-			NodeName:  "worker-02.dc1",
-			Status:    "failed",
-			Created:   now.Add(-12 * time.Hour),
-		},
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty allocation list")
+		return []AllocationSummary{}
 	}
+
+	// Fetch allocations from the API
+	allocs, _, err := client.Allocations().List(nil)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocations from Nomad API", "error", err)
+		return []AllocationSummary{}
+	}
+
+	// Convert API response to our summary type
+	result := make([]AllocationSummary, 0, len(allocs))
+	for _, alloc := range allocs {
+		created := time.Time{}
+		if alloc.CreateTime > 0 {
+			created = time.Unix(0, alloc.CreateTime)
+		}
+
+		result = append(result, AllocationSummary{
+			ID:        alloc.ID,
+			JobID:     alloc.JobID,
+			TaskGroup: alloc.TaskGroup,
+			NodeID:    alloc.NodeID,
+			NodeName:  alloc.NodeName,
+			Status:    alloc.ClientStatus,
+			Created:   created,
+		})
+	}
+
+	return result
 }
 
 // Detail handles the allocation detail page
@@ -553,9 +486,25 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Mock allocation detail data
 	allocDetail := h.getAllocationDetail(actualAllocID)
 
+	// Build layout props - use short ID for display
+	shortID := actualAllocID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+	layoutProps := h.handler.BaseLayoutProps(
+		"Allocation "+shortID+" - Wander",
+		"Allocation detail for "+actualAllocID,
+		"/ui/allocations/"+actualAllocID,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Allocations", URL: "/ui/allocations"},
+			{Label: shortID, URL: ""},
+		},
+	)
+
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		allocations.Detail(allocDetail),                // Full page with layout
+		allocations.Detail(layoutProps, allocDetail),                // Full page with layout
 		allocationspartials.DetailContent(allocDetail), // Partial content for HTMX requests
 	)
 

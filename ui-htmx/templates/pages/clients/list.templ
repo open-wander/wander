@@ -1,23 +1,11 @@
 package clients
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/clientspartials"
 )
 
 // List renders the full clients list page with layout.
-templ List(clientsList []clientspartials.ClientSummary, filters clientspartials.ClientFilters, options clientspartials.ClientFilterOptions) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       "Clients - Wander",
-			Description: "View and manage Nomad client nodes",
-			CurrentPath: "/ui/clients",
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "Clients", URL: ""},
-			},
-		},
-		clientspartials.ListContent(clientsList, filters, options),
-	)
+templ List(layoutProps layouts.PageLayoutProps, clientsList []clientspartials.ClientSummary, filters clientspartials.ClientFilters, options clientspartials.ClientFilterOptions) {
+	@layouts.PageLayout(layoutProps, clientspartials.ListContent(clientsList, filters, options))
 }

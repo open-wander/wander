@@ -1,23 +1,11 @@
 package topology
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/topologypartials"
 )
 
 // List renders the full topology page with layout.
-templ List(data topologypartials.TopologyData) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       "Cluster Topology - Wander",
-			Description: "Visual representation of cluster topology",
-			CurrentPath: "/ui/topology",
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "Topology", URL: ""},
-			},
-		},
-		topologypartials.ListContent(data),
-	)
+templ List(layoutProps layouts.PageLayoutProps, data topologypartials.TopologyData) {
+	@layouts.PageLayout(layoutProps, topologypartials.ListContent(data))
 }

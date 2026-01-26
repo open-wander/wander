@@ -20,3 +20,14 @@
 - Decided to keep current stack (HTMX + Alpine.js + Templ + Tailwind)
 - No React/Vue migration needed - current architecture is sound
 ---
+
+### 2026-01-26 - Task 1: ACL middleware for token extraction
+- Added token extraction from X-Nomad-Token header and nomad_token cookie
+- Header takes precedence over cookie (matches Nomad standard)
+- Token stored in request context via typed contextKey
+- Added helpers: GetTokenFromContext(), WithTokenContext(), GetTokenFromRequest()
+- ACL middleware wired into router via wrapMiddleware()
+- Added 4 test functions for all extraction scenarios
+- Pattern: Non-validating middleware - just extracts, doesn't validate
+- Files: context.go, middleware.go, middleware_test.go, router.go
+---

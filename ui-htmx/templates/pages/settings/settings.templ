@@ -1,23 +1,11 @@
 package settings
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/settingspartials"
 )
 
 // Settings renders the full settings page with layout.
-templ Settings(tokenInfo settingspartials.TokenInfo) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       "Settings - Wander",
-			Description: "Configure authorization and access control",
-			CurrentPath: "/ui/settings",
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "Settings", URL: ""},
-			},
-		},
-		settingspartials.SettingsContent(tokenInfo),
-	)
+templ Settings(layoutProps layouts.PageLayoutProps, tokenInfo settingspartials.TokenInfo) {
+	@layouts.PageLayout(layoutProps, settingspartials.SettingsContent(tokenInfo))
 }

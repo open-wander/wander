@@ -15,6 +15,7 @@ const (
 	htmxTargetKey        contextKey = "htmx_target"
 	htmxTriggerKey       contextKey = "htmx_trigger"
 	htmxTriggerNameKey   contextKey = "htmx_trigger_name"
+	nomadTokenKey        contextKey = "nomad_token"
 )
 
 // IsHTMXRequestFromContext retrieves the HTMX request status from the context.
@@ -108,4 +109,32 @@ func IsHTMXFromRequest(r *http.Request) bool {
 
 	// Fall back to checking headers directly
 	return IsHTMXRequest(r)
+}
+
+// GetTokenFromContext retrieves the Nomad ACL token from the request context.
+// Returns the token string and true if found, empty string and false otherwise.
+// The token is set by the ACLMiddleware from either the X-Nomad-Token header
+// or the nomad_token cookie.
+func GetTokenFromContext(ctx context.Context) (string, bool) {
+	token, ok := ctx.Value(nomadTokenKey).(string)
+	return token, ok
+}
+
+// WithTokenContext is a helper for testing that adds a Nomad token to a context.
+// This is useful for unit tests that need to simulate authenticated requests.
+func WithTokenContext(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, nomadTokenKey, token)
+}
+
+// GetTokenFromRequest is a convenience function that retrieves the token from
+// either the request context (if ACLMiddleware was applied) or directly from
+// the request headers/cookies.
+func GetTokenFromRequest(r *http.Request) string {
+	// First try to get from context (if middleware was applied)
+	if token, ok := GetTokenFromContext(r.Context()); ok {
+		return token
+	}
+
+	// Fall back to checking headers and cookies directly
+	return extractToken(r)
 }

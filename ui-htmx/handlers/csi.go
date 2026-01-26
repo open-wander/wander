@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/csi"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/csipartials"
 )
@@ -196,9 +197,21 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"CSI Volumes - Wander",
+		"View and manage CSI volumes",
+		"/ui/csi/volumes",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Storage", URL: ""},
+			{Label: "Volumes", URL: ""},
+		},
+	)
+
 	// Render the volumes list page
 	err := Render(w, r,
-		csi.VolumesList(props),                // Full page with layout
+		csi.VolumesList(layoutProps, props),                // Full page with layout
 		csipartials.VolumesListContent(props), // Partial content for HTMX requests
 	)
 
@@ -530,9 +543,22 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 		}
 	}
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		volumeDetail.Name+" - CSI Volume - Wander",
+		"CSI Volume detail for "+volumeDetail.Name,
+		"/ui/csi/volumes/"+volumeID,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Storage", URL: ""},
+			{Label: "Volumes", URL: "/ui/csi/volumes"},
+			{Label: volumeDetail.Name, URL: ""},
+		},
+	)
+
 	// Render the volume detail page
 	err := Render(w, r,
-		csi.VolumeDetail(volumeDetail),                // Full page with layout
+		csi.VolumeDetail(layoutProps, volumeDetail),                // Full page with layout
 		csipartials.VolumeDetailContent(volumeDetail), // Partial content for HTMX requests
 	)
 
@@ -755,9 +781,21 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"CSI Plugins - Wander",
+		"View CSI storage plugins",
+		"/ui/csi/plugins",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Storage", URL: ""},
+			{Label: "Plugins", URL: ""},
+		},
+	)
+
 	// Render the plugins list page
 	err := Render(w, r,
-		csi.PluginsList(props),                // Full page with layout
+		csi.PluginsList(layoutProps, props),                // Full page with layout
 		csipartials.PluginsListContent(props), // Partial content for HTMX requests
 	)
 

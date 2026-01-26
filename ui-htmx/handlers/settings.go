@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/settings"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/settingspartials"
 )
@@ -58,9 +59,20 @@ func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
 	// For now, we'll use mock data
 	tokenInfo := h.getTokenInfo(r)
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"Settings - Wander",
+		"Configure Wander settings",
+		"/ui/settings",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Settings", URL: ""},
+		},
+	)
+
 	// Render the settings page
 	err := Render(w, r,
-		settings.Settings(tokenInfo),                // Full page with layout
+		settings.Settings(layoutProps, tokenInfo),                // Full page with layout
 		settingspartials.SettingsContent(tokenInfo), // Partial content for HTMX requests
 	)
 

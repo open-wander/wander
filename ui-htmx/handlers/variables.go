@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/variables"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/variablespartials"
 )
@@ -122,9 +123,20 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Paginate the variables list
 	variablesList = paginateVariables(variablesList, page, perPage)
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"Variables - Wander",
+		"View and manage Nomad variables",
+		"/ui/variables",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Variables", URL: ""},
+		},
+	)
+
 	// Render the variables list page
 	err := Render(w, r,
-		variables.List(variablesList, sortColumn, sortDir, searchQuery, pagination),                // Full page with layout
+		variables.List(layoutProps, variablesList, sortColumn, sortDir, searchQuery, pagination),                // Full page with layout
 		variablespartials.ListContent(variablesList, sortColumn, sortDir, searchQuery, pagination), // Partial content for HTMX requests
 	)
 
@@ -148,22 +160,25 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 1250,
 			ItemCount:   12,
 			Modified:    now.Add(-24 * time.Hour),
+			JobID:       "",
 		},
 		{
-			Path:        "nomad/jobs/web",
+			Path:        "nomad/jobs/web-frontend",
 			Namespace:   "default",
 			CreateIndex: 1100,
 			ModifyIndex: 1300,
 			ItemCount:   8,
 			Modified:    now.Add(-2 * time.Hour),
+			JobID:       "web-frontend",
 		},
 		{
-			Path:        "nomad/jobs/api",
+			Path:        "nomad/jobs/api-backend",
 			Namespace:   "default",
 			CreateIndex: 1150,
 			ModifyIndex: 1350,
 			ItemCount:   6,
 			Modified:    now.Add(-5 * time.Hour),
+			JobID:       "api-backend",
 		},
 		{
 			Path:        "app/config",
@@ -172,6 +187,7 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 2100,
 			ItemCount:   15,
 			Modified:    now.Add(-12 * time.Hour),
+			JobID:       "",
 		},
 		{
 			Path:        "app/secrets",
@@ -180,6 +196,7 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 2150,
 			ItemCount:   4,
 			Modified:    now.Add(-3 * 24 * time.Hour),
+			JobID:       "",
 		},
 		{
 			Path:        "app/database",
@@ -188,6 +205,7 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 2200,
 			ItemCount:   7,
 			Modified:    now.Add(-48 * time.Hour),
+			JobID:       "",
 		},
 		{
 			Path:        "production/frontend",
@@ -196,6 +214,7 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 3050,
 			ItemCount:   10,
 			Modified:    now.Add(-6 * time.Hour),
+			JobID:       "web-frontend",
 		},
 		{
 			Path:        "production/backend",
@@ -204,6 +223,7 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 3150,
 			ItemCount:   9,
 			Modified:    now.Add(-8 * time.Hour),
+			JobID:       "api-backend",
 		},
 		{
 			Path:        "staging/config",
@@ -212,6 +232,7 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 4050,
 			ItemCount:   5,
 			Modified:    now.Add(-72 * time.Hour),
+			JobID:       "",
 		},
 		{
 			Path:        "shared/certificates",
@@ -220,6 +241,7 @@ func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummar
 			ModifyIndex: 5100,
 			ItemCount:   3,
 			Modified:    now.Add(-96 * time.Hour),
+			JobID:       "",
 		},
 	}
 }
@@ -293,9 +315,21 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("variable create page request", "htmx", IsHTMXFromRequest(r))
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"Create Variable - Wander",
+		"Create a new Nomad variable",
+		"/ui/variables/new",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Variables", URL: "/ui/variables"},
+			{Label: "Create", URL: ""},
+		},
+	)
+
 	// Render the create page
 	err := Render(w, r,
-		variables.Create(),                // Full page with layout
+		variables.Create(layoutProps),                // Full page with layout
 		variablespartials.CreateContent(), // Partial content for HTMX requests
 	)
 
@@ -372,9 +406,21 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		variableDetail.Path+" - Variable - Wander",
+		"View and edit variable "+variableDetail.Path,
+		"/ui/variables/"+variablePath,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Variables", URL: "/ui/variables"},
+			{Label: variableDetail.Path, URL: ""},
+		},
+	)
+
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		variables.Detail(*variableDetail),                // Full page with layout
+		variables.Detail(layoutProps, *variableDetail),                // Full page with layout
 		variablespartials.DetailContent(*variableDetail), // Partial content for HTMX requests
 	)
 

@@ -1,24 +1,11 @@
 package jobs
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/jobspartials"
 )
 
 // Detail renders the job detail page with full page layout
-templ Detail(job jobspartials.JobDetail) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       job.Name + " - Job Detail - Wander",
-			Description: "Job detail for " + job.Name,
-			CurrentPath: "/ui/jobs/" + job.ID,
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "Jobs", URL: "/ui/jobs"},
-				{Label: job.Name, URL: ""},
-			},
-		},
-		jobspartials.DetailContent(job),
-	)
+templ Detail(layoutProps layouts.PageLayoutProps, job jobspartials.JobDetail) {
+	@layouts.PageLayout(layoutProps, jobspartials.DetailContent(job))
 }

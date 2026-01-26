@@ -1,24 +1,11 @@
 package allocations
 
 import (
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/allocationspartials"
 )
 
 // Detail renders the allocation detail page with full page layout
-templ Detail(alloc allocationspartials.AllocationDetail) {
-	@layouts.PageLayout(
-		layouts.PageLayoutProps{
-			Title:       "Allocation " + alloc.ID[:8] + " - Wander",
-			Description: "Allocation detail for " + alloc.ID,
-			CurrentPath: "/ui/allocations/" + alloc.ID,
-			Breadcrumbs: []components.Breadcrumb{
-				{Label: "Home", URL: "/ui/"},
-				{Label: "Allocations", URL: "/ui/allocations"},
-				{Label: alloc.ID[:8], URL: ""},
-			},
-		},
-		allocationspartials.DetailContent(alloc),
-	)
+templ Detail(layoutProps layouts.PageLayoutProps, alloc allocationspartials.AllocationDetail) {
+	@layouts.PageLayout(layoutProps, allocationspartials.DetailContent(alloc))
 }
