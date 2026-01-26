@@ -22,21 +22,21 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			}
 			<title>{ props.Title }</title>
 			<!-- Tailwind CSS -->
-			<link rel="stylesheet" href="/static/css/output.css"/>
+			<link rel="stylesheet" href="/ui/static/css/output.css"/>
 			<!-- xterm.js CSS - Terminal emulator styles -->
-			<link rel="stylesheet" href="/static/css/xterm.min.css"/>
+			<link rel="stylesheet" href="/ui/static/css/xterm.min.css"/>
 			<!-- HTMX - Dynamic interactions without full page reloads -->
-			<script src="/static/js/htmx.min.js"></script>
+			<script src="/ui/static/js/htmx.min.js"></script>
 			<!-- Alpine.js - Client-side state management -->
-			<script src="/static/js/alpine.min.js" defer></script>
+			<script src="/ui/static/js/alpine.min.js" defer></script>
 			<!-- Alpine patterns - Reusable Alpine.js components -->
-			<script src="/static/js/alpine-patterns.js"></script>
+			<script src="/ui/static/js/alpine-patterns.js"></script>
 			<!-- ANSI parser - Terminal color support for logs -->
-			<script src="/static/js/ansi.js"></script>
+			<script src="/ui/static/js/ansi.js"></script>
 			<!-- xterm.js - Terminal emulator for exec sessions -->
-			<script src="/static/js/xterm.min.js"></script>
+			<script src="/ui/static/js/xterm.min.js"></script>
 			<!-- xterm-addon-fit - Auto-resize terminal to container -->
-			<script src="/static/js/xterm-addon-fit.min.js"></script>
+			<script src="/ui/static/js/xterm-addon-fit.min.js"></script>
 		</head>
 		<body class="h-full bg-neutral-50 text-neutral-900 antialiased" hx-ext="head-support">
 			<!-- HTMX Configuration -->

@@ -61,7 +61,7 @@ templ Sidebar(props SidebarProps) {
 			<div class="flex flex-col w-64 border-r border-neutral-200 bg-white shadow-sm lg:shadow-none">
 				<!-- Logo/Brand Area -->
 				<div class="flex items-center h-16 flex-shrink-0 px-4 border-b border-neutral-200">
-					<a href="/" class="flex items-center space-x-2">
+					<a href="/ui/" class="flex items-center space-x-2">
 						<svg class="h-8 w-8 text-primary-600" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
 							<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
 						</svg>
@@ -99,11 +99,11 @@ templ Sidebar(props SidebarProps) {
 templ sidebarNav(props SidebarProps) {
 	<!-- Main Navigation Items -->
 	<div class="space-y-1">
-		@navItem(NavItem{Label: "Jobs", Path: "/jobs", Icon: "briefcase"}, props.CurrentPath)
-		@navItem(NavItem{Label: "Allocations", Path: "/allocations", Icon: "cube"}, props.CurrentPath)
-		@navItem(NavItem{Label: "Clients", Path: "/clients", Icon: "server"}, props.CurrentPath)
-		@navItem(NavItem{Label: "Servers", Path: "/servers", Icon: "database"}, props.CurrentPath)
-		@navItem(NavItem{Label: "Topology", Path: "/topology", Icon: "chart"}, props.CurrentPath)
+		@navItem(NavItem{Label: "Jobs", Path: "/ui/jobs", Icon: "briefcase"}, props.CurrentPath)
+		@navItem(NavItem{Label: "Allocations", Path: "/ui/allocations", Icon: "cube"}, props.CurrentPath)
+		@navItem(NavItem{Label: "Clients", Path: "/ui/clients", Icon: "server"}, props.CurrentPath)
+		@navItem(NavItem{Label: "Servers", Path: "/ui/servers", Icon: "database"}, props.CurrentPath)
+		@navItem(NavItem{Label: "Topology", Path: "/ui/topology", Icon: "chart"}, props.CurrentPath)
 	</div>
 	<!-- Collapsible Sections -->
 	<div class="mt-6 space-y-1">
@@ -112,9 +112,9 @@ templ sidebarNav(props SidebarProps) {
 				ID:    "cluster",
 				Label: "Cluster",
 				Items: []NavItem{
-					{Label: "Namespaces", Path: "/namespaces", Icon: "folder"},
-					{Label: "ACL", Path: "/acl", Icon: "key"},
-					{Label: "Variables", Path: "/variables", Icon: "variable"},
+					{Label: "Namespaces", Path: "/ui/namespaces", Icon: "folder"},
+					{Label: "ACL", Path: "/ui/policies", Icon: "key"},
+					{Label: "Variables", Path: "/ui/variables", Icon: "variable"},
 				},
 			},
 			props,
@@ -124,8 +124,8 @@ templ sidebarNav(props SidebarProps) {
 				ID:    "system",
 				Label: "System",
 				Items: []NavItem{
-					{Label: "Evaluations", Path: "/evaluations", Icon: "clipboard"},
-					{Label: "CSI", Path: "/csi", Icon: "storage"},
+					{Label: "Evaluations", Path: "/ui/evaluations", Icon: "clipboard"},
+					{Label: "CSI", Path: "/ui/csi/volumes", Icon: "storage"},
 				},
 			},
 			props,
