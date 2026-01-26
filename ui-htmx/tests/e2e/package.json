@@ -12,6 +12,10 @@
     "test:firefox": "playwright test --project=firefox",
     "test:webkit": "playwright test --project=webkit",
     "test:mobile": "playwright test --project=mobile-chrome",
+    "test:visual": "playwright test --grep @visual --project=chromium",
+    "test:visual:headed": "playwright test --grep @visual --project=chromium --headed",
+    "test:visual:update": "UPDATE_SNAPSHOTS=true playwright test --grep @visual --project=chromium --update-snapshots",
+    "test:update-snapshots": "playwright test --update-snapshots --project=chromium",
     "report": "playwright show-report",
     "codegen": "playwright codegen http://localhost:3001/ui/",
     "typecheck": "tsc --noEmit"

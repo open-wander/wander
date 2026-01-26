@@ -47,6 +47,29 @@ export default defineConfig({
     navigationTimeout: 30 * 1000,
   },
 
+  // Visual regression testing settings
+  expect: {
+    toHaveScreenshot: {
+      // Allow 20% pixel difference (handles minor rendering differences)
+      threshold: 0.2,
+
+      // Max number of pixels that can be different
+      maxDiffPixels: 100,
+
+      // Disable animations for consistent screenshots
+      animations: 'disabled',
+
+      // Compare in CI mode for stricter matching
+      ...(process.env.CI && { threshold: 0.1, maxDiffPixels: 50 }),
+    },
+  },
+
+  // Screenshot directory
+  snapshotDir: './__screenshots__',
+
+  // Update snapshots mode (via --update-snapshots flag)
+  updateSnapshots: process.env.UPDATE_SNAPSHOTS === 'true' ? 'all' : 'missing',
+
   // Projects for different browsers
   projects: [
     {

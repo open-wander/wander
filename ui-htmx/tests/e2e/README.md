@@ -317,9 +317,217 @@ test('navigation preserves state', async ({ page }) => {
 npx playwright install
 ```
 
+## Visual Regression Testing
+
+Visual regression testing captures screenshots of pages and components, comparing them to baseline images to detect unintended visual changes.
+
+### What is Visual Regression Testing?
+
+Visual regression testing helps catch:
+- Unintended CSS changes
+- Layout breakages
+- Component rendering issues
+- Responsive design problems
+- Cross-browser rendering differences
+
+### Running Visual Regression Tests
+
+Visual tests are tagged with `@visual` and run only on Chromium to ensure consistent rendering.
+
+```bash
+# Run all visual regression tests
+npm run test:visual
+
+# Run with visible browser
+npm run test:visual:headed
+
+# Update baseline screenshots (after reviewing changes)
+npm run test:visual:update
+
+# Or use the Playwright flag
+npm run test:update-snapshots
+```
+
+### How It Works
+
+1. **Baseline Creation**: First run creates baseline screenshots in `__screenshots__/` directory
+2. **Comparison**: Subsequent runs compare against baselines
+3. **Threshold**: 20% pixel difference allowed (handles minor rendering differences)
+4. **Max Diff Pixels**: Up to 100 pixels can differ (for anti-aliasing, fonts)
+5. **CI Mode**: Stricter thresholds (10%, 50px) in CI environment
+
+### Screenshot Coverage
+
+Visual regression tests cover:
+
+**Page-Level Screenshots:**
+- Jobs list page (empty and populated states)
+- Job detail page (all tabs)
+- Allocations list page
+- Allocation detail page (overview, logs, exec terminal)
+- Clients list page
+- Client detail page (all tabs)
+- Servers list page
+- Server detail page
+
+**Component-Level Screenshots:**
+- Navigation header
+- Job table rows
+- Allocation table rows
+- Table component
+
+**Responsive Screenshots:**
+- Mobile viewport (375x667)
+- Tablet viewport (768x1024)
+- Desktop viewport (1280x720)
+
+### Configuration
+
+Visual regression settings in `playwright.config.ts`:
+
+```typescript
+expect: {
+  toHaveScreenshot: {
+    threshold: 0.2,         // 20% pixel difference allowed
+    maxDiffPixels: 100,     // Max 100 pixels can differ
+    animations: 'disabled', // Disable for consistent captures
+  },
+},
+snapshotDir: './__screenshots__',
+```
+
+### Updating Baselines
+
+When you intentionally change UI:
+
+1. **Review Changes**: Run tests to see what changed
+   ```bash
+   npm run test:visual
+   ```
+
+2. **View Diff Report**: Open test report to see visual diffs
+   ```bash
+   npm run report
+   ```
+
+3. **Update Baselines**: If changes are correct, update baselines
+   ```bash
+   npm run test:visual:update
+   ```
+
+4. **Commit New Baselines**: Commit updated screenshots to git
+   ```bash
+   git add __screenshots__/
+   git commit -m "Update visual regression baselines"
+   ```
+
+### Best Practices
+
+1. **Review Before Updating**: Always review diffs before updating baselines
+2. **Commit Baselines**: Version baseline screenshots in git
+3. **Run Locally First**: Test visual changes locally before CI
+4. **One Viewport Per Test**: Use consistent viewport sizes
+5. **Wait for Stability**: Use `networkidle` and timeouts to ensure page is ready
+6. **Disable Animations**: Set `animations: 'disabled'` for consistent captures
+7. **Test Components Too**: Capture individual components, not just full pages
+8. **Document Changes**: Add context to commits when updating baselines
+
+### Troubleshooting Visual Tests
+
+#### Tests Fail with Minor Differences
+
+```bash
+# Increase threshold in playwright.config.ts
+threshold: 0.3  # Allow 30% difference
+```
+
+#### Font Rendering Differences
+
+Fonts may render differently across machines. Solutions:
+- Use web fonts with `font-display: block`
+- Increase `maxDiffPixels` threshold
+- Run tests in Docker for consistency
+
+#### Animation/Loading State Captured
+
+```bash
+# Add longer wait in test
+await page.waitForLoadState('networkidle');
+await page.waitForTimeout(1000);  # Wait for animations
+```
+
+#### Screenshots Don't Match in CI
+
+CI uses stricter thresholds. To debug:
+1. Download artifacts from CI
+2. Compare with local screenshots
+3. Run in Docker locally to match CI environment
+
+#### HTMX Content Not Loaded
+
+```bash
+# Wait for HTMX swap to complete
+await page.waitForSelector('[hx-swap-oob]');
+await page.waitForLoadState('networkidle');
+```
+
+### CI Integration
+
+Visual regression tests run in CI with stricter thresholds:
+
+```yaml
+- name: Visual Regression Tests
+  run: |
+    cd ui-htmx/tests/e2e
+    npm ci
+    npx playwright install chromium --with-deps
+    npm run test:visual
+
+- name: Upload Screenshot Diffs
+  if: failure()
+  uses: actions/upload-artifact@v3
+  with:
+    name: screenshot-diffs
+    path: ui-htmx/tests/e2e/test-results/
+```
+
+### File Structure
+
+```
+tests/e2e/
+├── __screenshots__/                    # Baseline screenshots (versioned)
+│   └── visual-regression.spec.ts/
+│       ├── jobs-list.png
+│       ├── job-detail-overview.png
+│       └── ...
+├── test-results/                       # Test output (not versioned)
+│   └── visual-regression-*.spec.ts/
+│       ├── jobs-list-actual.png        # Current screenshot
+│       ├── jobs-list-diff.png          # Difference highlight
+│       └── jobs-list-expected.png      # Baseline copy
+└── specs/
+    └── visual-regression.spec.ts       # Visual test specs
+```
+
+### When to Update Baselines
+
+Update baselines when:
+- Intentionally changing UI design
+- Updating component styles
+- Changing layout or spacing
+- Adding new UI features
+- Fixing rendering bugs
+
+Do NOT update baselines when:
+- Tests fail unexpectedly
+- You haven't reviewed the changes
+- Changes are unintentional
+- You're not sure what changed
+
 ## Resources
 
 - [Playwright Documentation](https://playwright.dev/)
 - [Playwright Best Practices](https://playwright.dev/docs/best-practices)
+- [Playwright Visual Comparisons](https://playwright.dev/docs/test-snapshots)
 - [HTMX Testing Guide](https://htmx.org/docs/#testing)
 - [Go net/http Testing](https://golang.org/pkg/net/http/httptest/)
