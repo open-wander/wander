@@ -169,9 +169,16 @@ func (h *AllocationLogsHandler) simulateLogStream(sse *SSEHandler, r *http.Reque
 	}
 
 	// Choose message set based on log type
-	messages := stdoutMessages
-	if logType == "stderr" {
+	var messages []string
+	switch logType {
+	case "stderr":
 		messages = stderrMessages
+	case "both":
+		// Combine both stdout and stderr messages for "both" mode
+		messages = append(messages, stdoutMessages...)
+		messages = append(messages, stderrMessages...)
+	default: // stdout
+		messages = stdoutMessages
 	}
 
 	// Send initial historical logs (simulating log tail)

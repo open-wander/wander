@@ -23,7 +23,7 @@ type LogsTabProps struct {
 templ LogsTabContent(props LogsTabProps) {
 	<div
 		x-data={ logViewerData(props) }
-		x-init="connect()"
+		x-init="init(); connect()"
 		x-on:beforeunload.window="disconnect()"
 		class="p-6"
 	>
@@ -68,7 +68,7 @@ templ LogsTabContent(props LogsTabProps) {
 					</div>
 				}
 
-				<!-- Log Type Toggle (stdout/stderr) -->
+				<!-- Log Type Toggle (stdout/stderr/both) -->
 				<div class="inline-flex rounded-md shadow-sm" role="group">
 					<button
 						type="button"
@@ -88,9 +88,20 @@ templ LogsTabContent(props LogsTabProps) {
 							'bg-primary-600 text-white border-primary-600': logType === 'stderr',
 							'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': logType !== 'stderr'
 						}"
-						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						class="-ml-px px-3 py-2 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>
 						stderr
+					</button>
+					<button
+						type="button"
+						@click="setLogType('both')"
+						:class="{
+							'bg-primary-600 text-white border-primary-600': logType === 'both',
+							'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': logType !== 'both'
+						}"
+						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					>
+						both
 					</button>
 				</div>
 
@@ -236,7 +247,7 @@ templ LogsTabContent(props LogsTabProps) {
 						class="whitespace-pre-wrap break-all leading-relaxed hover:bg-neutral-800 px-1 -mx-1"
 					>
 						<span x-show="showTimestamps" class="text-neutral-500 mr-2" x-text="line.timestamp"></span>
-						<span x-text="line.message"></span>
+						<span x-html="line.message"></span>
 					</div>
 				</template>
 			</div>
