@@ -139,10 +139,10 @@ Status: in-progress
 
 - [x] 106. Create Templ template test utilities (needs: 3)
 - [x] 107. Create mock data layer for handler testing (needs: 10)
-- [ ] 108. Write handler unit tests for Jobs routes (needs: 39, 44, 107)
-- [ ] 109. Write handler unit tests for Allocations routes (needs: 58, 61, 107)
-- [ ] 110. Write handler unit tests for Clients/Servers routes (needs: 75, 78, 83, 107)
-- [ ] 111. Configure Playwright with Go test server (needs: 10)
+- [x] 108. Write handler unit tests for Jobs routes (needs: 39, 44, 107)
+- [x] 109. Write handler unit tests for Allocations routes (needs: 58, 61, 107)
+- [x] 110. Write handler unit tests for Clients/Servers routes (needs: 75, 78, 83, 107)
+- [x] 111. Configure Playwright with Go test server (needs: 10)
 - [ ] 112. Create Playwright page object patterns (needs: 111)
 - [ ] 113. Write e2e tests for Jobs list and detail (needs: 112, 45)
 - [ ] 114. Write e2e tests for Allocations and logs (needs: 112, 64)
@@ -151,7 +151,7 @@ Status: in-progress
 
 ### Phase 9: Migration Cutover
 
-- [ ] 117. Configure new UI to serve at /ui/ path (needs: all Phase 3-6 tasks)
+- [x] 117. Configure new UI to serve at /ui/ path (needs: all Phase 3-6 tasks)
 - [ ] 118. Verify all routes return 200 or appropriate error codes (needs: 117)
 - [ ] 119. Run full link checker for broken links/assets (needs: 117)
 - [ ] 120. Measure JavaScript bundle size (target <100kb) (needs: 117)

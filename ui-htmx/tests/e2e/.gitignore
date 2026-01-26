@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+test-results.json
+
+# Traces and screenshots
+*.trace.zip
+*.png
+*.webm
+
+# OS files
+.DS_Store

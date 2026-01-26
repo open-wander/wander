@@ -81,7 +81,7 @@ templ SearchBar(props SearchBarProps) {
 				hx-indicator={ "#" + getSearchBarID(props) + "-indicator" }
 				hx-swap="innerHTML"
 				data-search-bar-input
-				@keydown={ handleSearchBarKeydown(props) }
+				@keydown="handleSearchBarKeydown($event)"
 			/>
 
 			<!-- Right Side Icons Container -->
@@ -184,6 +184,20 @@ templ SearchBar(props SearchBarProps) {
 						htmx.trigger(input, 'input');
 					}
 				};
+
+				// Keydown handler for escape key
+				window.handleSearchBarKeydown = function(event) {
+					if (event.key === 'Escape') {
+						event.target.value = '';
+						event.target.blur();
+						updateClearButton();
+
+						// Trigger HTMX update if configured
+						if (event.target.getAttribute('hx-get')) {
+							htmx.trigger(event.target, 'input');
+						}
+					}
+				};
 			})();
 		</script>
 	</div>
@@ -238,16 +252,3 @@ func getSearchBarID(props SearchBarProps) string {
 	return "search-bar"
 }
 
-// handleSearchBarKeydown is a templ script for handling keydown events
-script handleSearchBarKeydown(props SearchBarProps) {
-	// Escape key clears the search
-	if (event.key === 'Escape') {
-		event.target.value = '';
-		event.target.blur();
-
-		// Trigger HTMX update if configured
-		if (event.target.getAttribute('hx-get')) {
-			htmx.trigger(event.target, 'input');
-		}
-	}
-}

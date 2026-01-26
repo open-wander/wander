@@ -778,3 +778,46 @@ Batch of 6 tasks completed:
 - 1,440 lines of Go code
 - Files: handlers/mock/mock.go, jobs.go, allocations.go, clients.go
 ---
+
+### 2026-01-26 - Tasks 108-111, 117: Testing & UI Configuration
+Batch of 5 tasks completed:
+
+**Task 108: Jobs handler unit tests**
+- 11 test functions, 51 subtests, 863 lines
+- Tests: List, Detail, tabs, filtering, sorting, pagination
+- HTMX partial response testing
+- Files: handlers/jobs_test.go
+
+**Task 109: Allocations handler unit tests**
+- 17 test functions, 979 lines
+- Tests: List, Detail, files, actions (restart/stop)
+- Filter, sort, search by ID prefix
+- Files: handlers/allocations_test.go
+
+**Task 110: Clients/Servers handler unit tests**
+- 37 test functions, 1,259 lines
+- Clients: List, Detail, drain actions
+- Servers: List with leader badge
+- Filter by status, datacenter, node class
+- Files: handlers/clients_test.go, servers_test.go
+
+**Task 111: Configure Playwright**
+- 10 files, 1,138 lines total
+- playwright.config.ts: multi-browser, CI-optimized
+- setup.go: Go test server integration
+- Example specs: home.spec.ts, example-advanced.spec.ts
+- README and QUICK_START documentation
+- Files: tests/e2e/*
+
+**Task 117: Configure UI at /ui/ path**
+- All routes verified under /ui/ prefix
+- Static files at /ui/static/
+- Fixed missing /ui/clients/ route
+- Fixed component naming conflicts
+- cmd/dev/main.go already configured
+
+**Note**: Template compilation errors block test execution
+- Badge, Button component API changes needed
+- Duplicate helper functions across partials
+- Requires separate fix task
+---

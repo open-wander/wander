@@ -234,5 +234,6 @@ func buildRefreshLogic(intervalMs int) string {
 
 // intToString converts int to string
 func intToString(i int) string {
-	return templ.JSONString(i).MarshalString()
+	js, _ := templ.JSONString(i)
+	return string(js)
 }

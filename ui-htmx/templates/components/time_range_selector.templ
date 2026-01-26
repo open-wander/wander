@@ -170,12 +170,12 @@ templ timeRangeButton(option TimeRangeOption, isFirst bool, isLast bool) {
 				'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700': selectedRange !== '` + option.ID + `'
 			}`
 		}
-		class={
-			"px-4 py-2 text-sm font-medium border focus:z-10 focus:outline-none focus:ring-2 focus:ring-primary-500 " +
-			templ.KV("rounded-l-md", isFirst) +
-			templ.KV("rounded-r-md", isLast) +
-			templ.KV("-ml-px", !isFirst)
-		}
+		class={ templ.Classes(
+			"px-4 py-2 text-sm font-medium border focus:z-10 focus:outline-none focus:ring-2 focus:ring-primary-500",
+			templ.KV("rounded-l-md", isFirst),
+			templ.KV("rounded-r-md", isLast),
+			templ.KV("-ml-px", !isFirst),
+		) }
 		aria-label={ "Select " + option.Label + " time range" }
 	>
 		{ option.Label }

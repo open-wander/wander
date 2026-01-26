@@ -114,8 +114,9 @@ func (r *Router) registerAllocationsRoutes() {
 func (r *Router) registerClientsRoutes() {
 	clientsHandler := NewClientsHandler(r.handler)
 
-	// Clients handler handles list page (detail pages to be implemented)
+	// Clients handler handles both list and detail pages
 	r.mux.Handle("/ui/clients", r.wrapMiddleware(clientsHandler))
+	r.mux.Handle("/ui/clients/", r.wrapMiddleware(clientsHandler))
 }
 
 // registerServersRoutes sets up routes for the servers section.

@@ -1,0 +1,22 @@
+{
+  "name": "wander-ui-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Wander UI using Playwright",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit",
+    "test:mobile": "playwright test --project=mobile-chrome",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen http://localhost:3001/ui/"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.41.0",
+    "@types/node": "^20.11.0"
+  }
+}
