@@ -404,7 +404,11 @@ export function styleAxis(axis, colors = getChartColors()) {
  * This listens for HTMX afterSwap events and reinitializes any charts
  * that have the data-chart-init attribute with a render function name.
  *
- * Usage in Templ:
+ * For Alpine.js chart components (LineChart, GaugeChart, BarChart):
+ * - These are automatically reinitialized by Alpine after HTMX swaps
+ * - The chart-utils will handle the D3 rendering when Alpine calls the init functions
+ *
+ * Usage in Templ (manual chart initialization):
  * <div id="my-chart" data-chart-init="renderMyChart"></div>
  *
  * The render function should be available globally:
@@ -426,7 +430,9 @@ if (typeof document !== 'undefined') {
             }
 
             if (!initFnName) {
-                // No auto-init function specified, skip
+                // No auto-init function specified
+                // Chart is likely managed by Alpine.js (x-data component)
+                // Alpine will handle initialization automatically
                 return;
             }
 
@@ -440,6 +446,12 @@ if (typeof document !== 'undefined') {
             // Initialize the chart
             initChart(chartId, renderFn);
         });
+
+        // Reinitialize Alpine.js components in swapped content
+        // This ensures chart components like LineChart, GaugeChart, BarChart work after HTMX swaps
+        if (typeof window.Alpine !== 'undefined') {
+            window.Alpine.initTree(swappedElement);
+        }
     });
 
     // Cleanup charts when elements are removed
