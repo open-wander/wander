@@ -2,9 +2,9 @@ package clientspartials
 
 import (
 	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"sort"
 	"time"
-	"github.com/open-wander/wander/ui-htmx/templates/components"
 )
 
 // ClientDetail represents detailed information about a client node
@@ -18,6 +18,7 @@ type ClientDetail struct {
 	Uptime      string
 	NodeClass   string
 	Drain       bool
+	Draining    bool // True if currently draining
 	Eligible    bool
 	Resources   ClientResources
 	Allocations []AllocationSummary
@@ -25,6 +26,15 @@ type ClientDetail struct {
 	Meta        map[string]string
 	Events      []ClientEvent
 	Drivers     map[string]DriverInfo
+	// Resource history for charts (mock data for now)
+	CPUHistory    []ResourceDataPoint
+	MemoryHistory []ResourceDataPoint
+}
+
+// ResourceDataPoint represents a single point in time-series resource data
+type ResourceDataPoint struct {
+	Time  time.Time
+	Value float64 // Percentage 0-100
 }
 
 // ClientEvent represents an event in the client's lifecycle
@@ -63,7 +73,7 @@ type AllocationSummary struct {
 
 // DetailContent renders the client detail page content (without layout)
 templ DetailContent(client ClientDetail) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ drainModal: false, cancelDrainModal: false }">
 		<!-- Client Header -->
 		@components.Card(components.CardProps{
 			Shadow: true,
@@ -82,7 +92,7 @@ templ DetailContent(client ClientDetail) {
 							}) {
 								{ client.Status }
 							}
-							if client.Drain {
+							if client.Draining {
 								@components.Badge(components.BadgeProps{
 									Variant: "warning",
 									Size:    "md",
@@ -130,6 +140,24 @@ templ DetailContent(client ClientDetail) {
 							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Uptime }</span>
 						</div>
 					</div>
+					<!-- Drain Controls -->
+					<div class="flex items-center space-x-2 ml-4">
+						if client.Draining {
+							@components.Button(components.ButtonProps{
+								Variant:     "warning",
+								Outline:     true,
+								Size:        "sm",
+								Icon:        "x-mark",
+								AlpineClick: "cancelDrainModal = true",
+							}, "Cancel Drain")
+						} else if client.Status == "ready" {
+							@components.Button(components.ButtonProps{
+								Variant:     "warning",
+								Size:        "sm",
+								AlpineClick: "drainModal = true",
+							}, "Drain Node")
+						}
+					</div>
 				</div>
 			}
 		}
@@ -167,6 +195,9 @@ templ DetailContent(client ClientDetail) {
 				})
 			}
 		}
+		<!-- Drain Modals -->
+		@DrainNodeModal(client)
+		@CancelDrainModal(client)
 	</div>
 }
 
@@ -215,6 +246,40 @@ templ OverviewTab(client ClientDetail) {
 					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
 						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
 					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Resource Utilization Charts Section -->
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Utilization History</h3>
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<!-- CPU Utilization Chart -->
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+					<div class="flex items-center justify-between mb-4">
+						<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">CPU Utilization</h4>
+						<span class="text-xs text-neutral-500 dark:text-neutral-400">Last 24 hours</span>
+					</div>
+					@components.ChartContainer(components.ChartContainerProps{
+						ID:     "cpu-utilization-chart-" + client.ID,
+						Height: "48",
+						Class:  "bg-white dark:bg-neutral-900 rounded",
+					}) {
+						@ResourceUtilizationChart(client.ID, "cpu", client.CPUHistory)
+					}
+				</div>
+				<!-- Memory Utilization Chart -->
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+					<div class="flex items-center justify-between mb-4">
+						<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Memory Utilization</h4>
+						<span class="text-xs text-neutral-500 dark:text-neutral-400">Last 24 hours</span>
+					</div>
+					@components.ChartContainer(components.ChartContainerProps{
+						ID:     "memory-utilization-chart-" + client.ID,
+						Height: "48",
+						Class:  "bg-white dark:bg-neutral-900 rounded",
+					}) {
+						@ResourceUtilizationChart(client.ID, "memory", client.MemoryHistory)
+					}
 				</div>
 			</div>
 		</div>
@@ -595,4 +660,273 @@ func eventTypeTextClasses(eventType string) string {
 	default:
 		return base + "text-neutral-900 dark:text-neutral-100"
 	}
+}
+
+// ResourceUtilizationChart renders a time-series area chart for resource utilization
+templ ResourceUtilizationChart(clientID string, resourceType string, data []ResourceDataPoint) {
+	<div
+		id={ "chart-" + resourceType + "-" + clientID }
+		class="w-full h-full"
+		x-data={ buildChartData(resourceType, data) }
+		x-init="initChart()"
+	>
+		<svg class="w-full h-full"></svg>
+	</div>
+}
+
+// buildChartData generates the Alpine.js data for the resource chart
+func buildChartData(resourceType string, data []ResourceDataPoint) string {
+	// Generate chart data points as JSON
+	dataPoints := "["
+	for i, point := range data {
+		if i > 0 {
+			dataPoints += ","
+		}
+		dataPoints += fmt.Sprintf(`{"time":%d,"value":%.1f}`, point.Time.Unix()*1000, point.Value)
+	}
+	dataPoints += "]"
+
+	color := "#3b82f6" // Blue for CPU
+	if resourceType == "memory" {
+		color = "#8b5cf6" // Purple for Memory
+	}
+
+	return fmt.Sprintf(`{
+		data: %s,
+		color: '%s',
+		initChart() {
+			const container = this.$el;
+			const svg = container.querySelector('svg');
+			if (!svg || this.data.length === 0) return;
+
+			const width = container.clientWidth;
+			const height = container.clientHeight;
+			const margin = { top: 10, right: 10, bottom: 25, left: 35 };
+			const innerWidth = width - margin.left - margin.right;
+			const innerHeight = height - margin.top - margin.bottom;
+
+			// Clear existing content
+			svg.innerHTML = '';
+
+			// Create SVG group
+			const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+			g.setAttribute('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+			svg.appendChild(g);
+
+			// Calculate scales
+			const xMin = Math.min(...this.data.map(d => d.time));
+			const xMax = Math.max(...this.data.map(d => d.time));
+			const yMax = 100;
+
+			// X Scale
+			const xScale = (t) => ((t - xMin) / (xMax - xMin)) * innerWidth;
+			const yScale = (v) => innerHeight - (v / yMax) * innerHeight;
+
+			// Create gradient
+			const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+			const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+			gradient.id = 'gradient-' + '%s' + '-' + Math.random().toString(36).substr(2, 9);
+			gradient.setAttribute('x1', '0%%');
+			gradient.setAttribute('y1', '0%%');
+			gradient.setAttribute('x2', '0%%');
+			gradient.setAttribute('y2', '100%%');
+
+			const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+			stop1.setAttribute('offset', '0%%');
+			stop1.setAttribute('stop-color', this.color);
+			stop1.setAttribute('stop-opacity', '0.3');
+			gradient.appendChild(stop1);
+
+			const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+			stop2.setAttribute('offset', '100%%');
+			stop2.setAttribute('stop-color', this.color);
+			stop2.setAttribute('stop-opacity', '0.05');
+			gradient.appendChild(stop2);
+
+			defs.appendChild(gradient);
+			svg.insertBefore(defs, svg.firstChild);
+
+			// Draw grid lines
+			for (let i = 0; i <= 4; i++) {
+				const y = (i / 4) * innerHeight;
+				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+				line.setAttribute('x1', '0');
+				line.setAttribute('y1', y);
+				line.setAttribute('x2', innerWidth);
+				line.setAttribute('y2', y);
+				line.setAttribute('stroke', '#e5e7eb');
+				line.setAttribute('stroke-width', '1');
+				line.setAttribute('class', 'dark:stroke-neutral-700');
+				g.appendChild(line);
+
+				// Y axis labels
+				const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+				text.setAttribute('x', '-5');
+				text.setAttribute('y', y + 4);
+				text.setAttribute('text-anchor', 'end');
+				text.setAttribute('class', 'text-xs fill-neutral-500 dark:fill-neutral-400');
+				text.textContent = (100 - i * 25) + '%%';
+				g.appendChild(text);
+			}
+
+			// Build area path
+			let areaPath = 'M ' + xScale(this.data[0].time) + ' ' + innerHeight;
+			for (const point of this.data) {
+				areaPath += ' L ' + xScale(point.time) + ' ' + yScale(point.value);
+			}
+			areaPath += ' L ' + xScale(this.data[this.data.length - 1].time) + ' ' + innerHeight + ' Z';
+
+			const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			area.setAttribute('d', areaPath);
+			area.setAttribute('fill', 'url(#' + gradient.id + ')');
+			g.appendChild(area);
+
+			// Build line path
+			let linePath = 'M';
+			for (let i = 0; i < this.data.length; i++) {
+				const point = this.data[i];
+				linePath += (i === 0 ? ' ' : ' L ') + xScale(point.time) + ' ' + yScale(point.value);
+			}
+
+			const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			line.setAttribute('d', linePath);
+			line.setAttribute('fill', 'none');
+			line.setAttribute('stroke', this.color);
+			line.setAttribute('stroke-width', '2');
+			g.appendChild(line);
+
+			// X axis labels (time)
+			const timeLabels = [xMin, xMin + (xMax - xMin) / 2, xMax];
+			for (const t of timeLabels) {
+				const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+				text.setAttribute('x', xScale(t));
+				text.setAttribute('y', innerHeight + 18);
+				text.setAttribute('text-anchor', 'middle');
+				text.setAttribute('class', 'text-xs fill-neutral-500 dark:fill-neutral-400');
+				const date = new Date(t);
+				text.textContent = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+				g.appendChild(text);
+			}
+		}
+	}`, dataPoints, color, resourceType)
+}
+
+// DrainNodeModal renders the modal for draining a node
+templ DrainNodeModal(client ClientDetail) {
+	<div
+		x-data="{
+		get isOpen() { return drainModal },
+		close() { drainModal = false },
+		deadline: '',
+		ignoreSystem: false
+	}"
+	>
+		@components.Modal(components.ModalProps{
+			ID:       "drain-node-modal",
+			Title:    "Drain Node",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<form id="drain-form" hx-post={ "/ui/clients/" + client.ID + "/drain" } hx-swap="none">
+					<div class="space-y-4">
+						<div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+							<div class="flex">
+								<svg class="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+								</svg>
+								<div class="ml-3">
+									<h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Warning</h3>
+									<p class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+										Draining will migrate all allocations off this node. New allocations will not be scheduled on this node while draining.
+									</p>
+								</div>
+							</div>
+						</div>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
+							Are you sure you want to drain node <strong class="text-neutral-900 dark:text-neutral-100">{ client.Name }</strong>?
+						</p>
+						@components.FormField(components.FormFieldProps{
+							Label: "Deadline",
+							ID:    "drain-deadline",
+							Hint:  "Optional: Time limit for the drain (e.g., 1h, 30m). Leave empty for no deadline.",
+						}) {
+							@components.Input(components.InputProps{
+								Type:        "text",
+								ID:          "drain-deadline",
+								Name:        "deadline",
+								Placeholder: "e.g., 1h, 30m, 2h30m",
+							})
+						}
+						<div class="pt-2">
+							@components.Checkbox(components.CheckboxProps{
+								ID:    "ignore-system-jobs",
+								Name:  "ignore_system",
+								Value: "true",
+								Label: "Ignore system jobs (system jobs will not be drained)",
+							})
+						</div>
+					</div>
+				</form>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="submit"
+					form="drain-form"
+					@click="close"
+					class="btn btn-warning btn-sm"
+				>
+					Start Drain
+				</button>
+			}
+		}
+	</div>
+}
+
+// CancelDrainModal renders the modal for canceling a drain operation
+templ CancelDrainModal(client ClientDetail) {
+	<div x-data="{ get isOpen() { return cancelDrainModal }, close() { cancelDrainModal = false } }">
+		@components.Modal(components.ModalProps{
+			ID:       "cancel-drain-modal",
+			Title:    "Cancel Drain",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						Are you sure you want to cancel the drain operation on node <strong class="text-neutral-900 dark:text-neutral-100">{ client.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-500">
+						The node will become eligible for new allocations again. Any allocations that have already been migrated will not be returned.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Keep Draining
+				</button>
+				<button
+					type="button"
+					hx-post={ "/ui/clients/" + client.ID + "/drain/cancel" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-warning btn-sm"
+				>
+					Cancel Drain
+				</button>
+			}
+		}
+	</div>
 }

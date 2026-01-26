@@ -22,26 +22,48 @@ func NewClientsHandler(h *Handler) *ClientsHandler {
 	}
 }
 
-// ServeHTTP handles GET requests to the clients list page.
+// ServeHTTP handles requests to the clients endpoints.
 // It renders the clients list using the page layout, supporting both
 // full page loads and HTMX partial updates.
 func (h *ClientsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Only allow GET requests
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	path := r.URL.Path
 
 	// Handle /ui/clients exactly (list page)
 	if path == "/ui/clients" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		h.List(w, r)
+		return
+	}
+
+	// Handle drain cancel endpoint: /ui/clients/{id}/drain/cancel
+	if strings.HasSuffix(path, "/drain/cancel") && strings.HasPrefix(path, "/ui/clients/") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.CancelDrain(w, r)
+		return
+	}
+
+	// Handle drain endpoint: /ui/clients/{id}/drain
+	if strings.HasSuffix(path, "/drain") && strings.HasPrefix(path, "/ui/clients/") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.Drain(w, r)
 		return
 	}
 
 	// Handle /ui/clients/{id} (detail page)
 	if strings.HasPrefix(path, "/ui/clients/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		h.Detail(w, r)
 		return
 	}
@@ -168,7 +190,7 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		clients.Detail(clientDetail),                       // Full page with layout
+		clients.Detail(clientDetail),                // Full page with layout
 		clientspartials.DetailContent(clientDetail), // Partial content for HTMX requests
 	)
 
@@ -177,6 +199,54 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+// Drain handles the drain node request
+func (h *ClientsHandler) Drain(w http.ResponseWriter, r *http.Request) {
+	// Extract client ID from path
+	clientID := strings.TrimPrefix(r.URL.Path, "/ui/clients/")
+	clientID = strings.TrimSuffix(clientID, "/drain")
+
+	// Parse form data
+	if err := r.ParseForm(); err != nil {
+		h.handler.logger.Error("failed to parse drain form", "error", err)
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	deadline := r.FormValue("deadline")
+	ignoreSystem := r.FormValue("ignore_system") == "true"
+
+	// Log the drain request
+	h.handler.logger.Info("drain node request",
+		"clientID", clientID,
+		"deadline", deadline,
+		"ignoreSystem", ignoreSystem,
+	)
+
+	// TODO: Implement actual Nomad API call to drain node
+	// For now, just log and return success
+
+	// Return HX-Redirect header to refresh the page
+	w.Header().Set("HX-Redirect", "/ui/clients/"+clientID)
+	w.WriteHeader(http.StatusOK)
+}
+
+// CancelDrain handles the cancel drain request
+func (h *ClientsHandler) CancelDrain(w http.ResponseWriter, r *http.Request) {
+	// Extract client ID from path
+	clientID := strings.TrimPrefix(r.URL.Path, "/ui/clients/")
+	clientID = strings.TrimSuffix(clientID, "/drain/cancel")
+
+	// Log the cancel drain request
+	h.handler.logger.Info("cancel drain request", "clientID", clientID)
+
+	// TODO: Implement actual Nomad API call to cancel drain
+	// For now, just log and return success
+
+	// Return HX-Redirect header to refresh the page
+	w.Header().Set("HX-Redirect", "/ui/clients/"+clientID)
+	w.WriteHeader(http.StatusOK)
 }
 
 // getClientsList returns mock client data.
@@ -280,6 +350,32 @@ func (h *ClientsHandler) getClientsList() []clientspartials.ClientSummary {
 // This will be replaced with actual Nomad API calls in the future.
 func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.ClientDetail {
 	now := time.Now()
+
+	// Generate mock CPU history data (last 24 hours, every 30 minutes)
+	cpuHistory := make([]clientspartials.ResourceDataPoint, 0, 48)
+	memoryHistory := make([]clientspartials.ResourceDataPoint, 0, 48)
+	for i := 47; i >= 0; i-- {
+		t := now.Add(-time.Duration(i) * 30 * time.Minute)
+		// Simulate varying CPU usage between 20-50%
+		cpuValue := 25.0 + 15.0*float64((i+7)%10)/10.0 + 5.0*float64(i%5)
+		if cpuValue > 50 {
+			cpuValue = 50
+		}
+		cpuHistory = append(cpuHistory, clientspartials.ResourceDataPoint{
+			Time:  t,
+			Value: cpuValue,
+		})
+		// Simulate varying memory usage between 40-60%
+		memValue := 45.0 + 10.0*float64((i+3)%8)/8.0 + 5.0*float64(i%4)
+		if memValue > 60 {
+			memValue = 60
+		}
+		memoryHistory = append(memoryHistory, clientspartials.ResourceDataPoint{
+			Time:  t,
+			Value: memValue,
+		})
+	}
+
 	return clientspartials.ClientDetail{
 		ID:         clientID,
 		Name:       "client-node-1",
@@ -290,6 +386,7 @@ func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.Client
 		Uptime:     "5d 12h 30m",
 		NodeClass:  "compute",
 		Drain:      false,
+		Draining:   false,
 		Eligible:   true,
 		Resources: clientspartials.ClientResources{
 			CPUUsed:   2400,
@@ -299,6 +396,8 @@ func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.Client
 			DiskUsed:  53687091200,  // 50 GB in bytes
 			DiskTotal: 107374182400, // 100 GB in bytes
 		},
+		CPUHistory:    cpuHistory,
+		MemoryHistory: memoryHistory,
 		Allocations: []clientspartials.AllocationSummary{
 			{
 				ID:        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -342,19 +441,19 @@ func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.Client
 			},
 		},
 		Attributes: map[string]string{
-			"kernel.name":                "linux",
-			"kernel.version":             "5.15.0-91-generic",
-			"os.name":                    "ubuntu",
-			"os.version":                 "22.04",
-			"cpu.arch":                   "amd64",
-			"cpu.numcores":               "8",
-			"cpu.totalcompute":           "8000",
-			"memory.totalbytes":          "17179869184",
-			"unique.hostname":            "client-node-1",
-			"unique.network.ip-address":  "192.168.1.100",
-			"driver.docker":              "1",
-			"driver.docker.version":      "24.0.7",
-			"driver.raw_exec":            "1",
+			"kernel.name":               "linux",
+			"kernel.version":            "5.15.0-91-generic",
+			"os.name":                   "ubuntu",
+			"os.version":                "22.04",
+			"cpu.arch":                  "amd64",
+			"cpu.numcores":              "8",
+			"cpu.totalcompute":          "8000",
+			"memory.totalbytes":         "17179869184",
+			"unique.hostname":           "client-node-1",
+			"unique.network.ip-address": "192.168.1.100",
+			"driver.docker":             "1",
+			"driver.docker.version":     "24.0.7",
+			"driver.raw_exec":           "1",
 		},
 		Meta: map[string]string{
 			"environment":    "production",
