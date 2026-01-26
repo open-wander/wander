@@ -1,0 +1,393 @@
+package csipartials
+
+import (
+	"fmt"
+	"net/url"
+	"time"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// VolumeSummary represents a summary view of a CSI volume for list display.
+type VolumeSummary struct {
+	ID          string
+	Name        string
+	PluginID    string
+	Provider    string
+	Schedulable bool
+	AccessMode  string
+	AttachMode  string
+	Allocations int
+	Created     time.Time
+}
+
+// FilterOptions contains the available options for each filter.
+type FilterOptions struct {
+	Plugins   []string
+	Providers []string
+}
+
+// ListFilters contains the current filter selections.
+type ListFilters struct {
+	Plugin      string
+	Provider    string
+	Schedulable string
+	Search      string
+}
+
+// PaginationMeta holds pagination metadata for list views.
+type PaginationMeta struct {
+	Page       int
+	PerPage    int
+	Total      int
+	TotalPages int
+}
+
+// ListProps contains all props for the CSI volumes list view.
+type ListProps struct {
+	Volumes       []VolumeSummary
+	FilterOptions FilterOptions
+	Filters       ListFilters
+	Pagination    PaginationMeta
+	SortColumn    string
+	SortDir       string
+}
+
+// VolumesListContent renders the CSI volumes table content for HTMX partial updates.
+templ VolumesListContent(props ListProps) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">CSI Volumes</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					View and manage Container Storage Interface volumes
+				</p>
+			</div>
+		</div>
+		<!-- Filters Row -->
+		<div class="mb-6 space-y-4">
+			<!-- Search Bar -->
+			<div>
+				@components.SearchBar(components.SearchBarProps{
+					Name:        "search",
+					Placeholder: "Search by ID, name, plugin, or provider...",
+					Value:       props.Filters.Search,
+					SearchURL:   buildVolumesURL(props.Filters.Plugin, props.Filters.Provider, props.Filters.Schedulable, "", props.SortColumn, props.SortDir),
+					ResultsID:   "volumes-table-container",
+					Debounce:    300,
+					MinChars:    0,
+				})
+			</div>
+			<!-- Filter Dropdowns -->
+			<div class="flex flex-wrap gap-4">
+				<!-- Plugin Filter -->
+				<div class="w-48">
+					<label for="plugin-filter" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						Plugin
+					</label>
+					@components.Select(components.SelectProps{
+						Name:        "plugin",
+						ID:          "plugin-filter",
+						Placeholder: "All Plugins",
+						Selected:    props.Filters.Plugin,
+						Options:     buildPluginOptions(props.FilterOptions.Plugins),
+						Size:        "sm",
+						HxGet:       buildFilterURL(props.Filters, "plugin", props.SortColumn, props.SortDir),
+						HxTarget:    "#volumes-table-container",
+						HxTrigger:   "change",
+					})
+				</div>
+				<!-- Provider Filter -->
+				<div class="w-48">
+					<label for="provider-filter" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						Provider
+					</label>
+					@components.Select(components.SelectProps{
+						Name:        "provider",
+						ID:          "provider-filter",
+						Placeholder: "All Providers",
+						Selected:    props.Filters.Provider,
+						Options:     buildProviderOptions(props.FilterOptions.Providers),
+						Size:        "sm",
+						HxGet:       buildFilterURL(props.Filters, "provider", props.SortColumn, props.SortDir),
+						HxTarget:    "#volumes-table-container",
+						HxTrigger:   "change",
+					})
+				</div>
+				<!-- Schedulable Filter -->
+				<div class="w-48">
+					<label for="schedulable-filter" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+						Schedulable
+					</label>
+					@components.Select(components.SelectProps{
+						Name:        "schedulable",
+						ID:          "schedulable-filter",
+						Placeholder: "All",
+						Selected:    props.Filters.Schedulable,
+						Options: []components.SelectOption{
+							{Value: "true", Label: "Schedulable"},
+							{Value: "false", Label: "Unschedulable"},
+						},
+						Size:      "sm",
+						HxGet:     buildFilterURL(props.Filters, "schedulable", props.SortColumn, props.SortDir),
+						HxTarget:  "#volumes-table-container",
+						HxTrigger: "change",
+					})
+				</div>
+				<!-- Clear Filters Button -->
+				if props.Filters.Plugin != "" || props.Filters.Provider != "" || props.Filters.Schedulable != "" || props.Filters.Search != "" {
+					<div class="flex items-end">
+						<button
+							type="button"
+							class="px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+							hx-get="/ui/csi/volumes"
+							hx-target="#volumes-table-container"
+							hx-push-url="true"
+						>
+							Clear Filters
+						</button>
+					</div>
+				}
+			</div>
+		</div>
+		<!-- Volumes Table Container -->
+		<div id="volumes-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+			@VolumesTable(props)
+		</div>
+	</div>
+}
+
+// VolumesTable renders just the table and pagination (for HTMX updates).
+templ VolumesTable(props ListProps) {
+	@components.Table(components.TableProps{
+		Columns: []components.Column{
+			{Key: "id", Label: "ID", Sortable: true, Align: "left", Width: "w-40"},
+			{Key: "name", Label: "Name", Sortable: true, Align: "left", Width: "w-1/5"},
+			{Key: "plugin", Label: "Plugin ID", Sortable: true, Align: "left", Width: "w-1/6"},
+			{Key: "provider", Label: "Provider", Sortable: true, Align: "left", Width: "w-1/5"},
+			{Key: "schedulable", Label: "Schedulable", Sortable: true, Align: "center", Width: "w-28"},
+			{Key: "accessmode", Label: "Access Mode", Sortable: true, Align: "left"},
+			{Key: "allocations", Label: "Allocs", Sortable: true, Align: "center", Width: "w-20"},
+		},
+		SortColumn: props.SortColumn,
+		SortDir:    props.SortDir,
+		Striped:    true,
+		Hover:      true,
+		SortURL:    buildVolumesBaseURL(props.Filters),
+	}) {
+		@components.TableBody() {
+			if len(props.Volumes) == 0 {
+				@components.TableEmptyState("No volumes found", "Try adjusting your filters or search query")
+			} else {
+				for _, volume := range props.Volumes {
+					@volumeRow(volume)
+				}
+			}
+		}
+	}
+	<!-- Pagination -->
+	@components.Pagination(components.PaginationProps{
+		Page:     props.Pagination.Page,
+		PerPage:  props.Pagination.PerPage,
+		Total:    props.Pagination.Total,
+		BaseURL:  buildVolumesURL(props.Filters.Plugin, props.Filters.Provider, props.Filters.Schedulable, props.Filters.Search, props.SortColumn, props.SortDir),
+		HxTarget: "#volumes-table-container",
+		HxSwap:   "innerHTML",
+	})
+}
+
+// volumeRow renders a single volume row in the table
+templ volumeRow(volume VolumeSummary) {
+	<tr
+		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+		hx-get={ fmt.Sprintf("/ui/csi/volumes/%s", volume.ID) }
+		hx-target="#main-content"
+		hx-swap="innerHTML"
+		hx-push-url="true"
+	>
+		@components.TableCell("left", "w-40") {
+			<div class="font-mono text-sm text-neutral-700 dark:text-neutral-300">
+				{ shortID(volume.ID) }
+			</div>
+		}
+		@components.TableCell("left", "w-1/5") {
+			<a
+				href={ templ.SafeURL(fmt.Sprintf("/ui/csi/volumes/%s", volume.ID)) }
+				class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+				onclick="event.stopPropagation();"
+				hx-get={ fmt.Sprintf("/ui/csi/volumes/%s", volume.ID) }
+				hx-target="#main-content"
+				hx-swap="innerHTML"
+				hx-push-url="true"
+			>
+				{ volume.Name }
+			</a>
+		}
+		@components.TableCell("left", "w-1/6") {
+			<span class="text-neutral-700 dark:text-neutral-300 text-sm">
+				{ volume.PluginID }
+			</span>
+		}
+		@components.TableCell("left", "w-1/5") {
+			<span class="text-neutral-700 dark:text-neutral-300 text-sm font-mono">
+				{ volume.Provider }
+			</span>
+		}
+		@components.TableCell("center", "w-28") {
+			if volume.Schedulable {
+				@components.Badge(components.BadgeProps{
+					Variant: "success",
+					Dot:     true,
+					Size:    "sm",
+				}) {
+					Yes
+				}
+			} else {
+				@components.Badge(components.BadgeProps{
+					Variant: "error",
+					Dot:     true,
+					Size:    "sm",
+				}) {
+					No
+				}
+			}
+		}
+		@components.TableCell("left", "") {
+			<span class="text-neutral-700 dark:text-neutral-300 text-sm">
+				{ formatAccessMode(volume.AccessMode) }
+			</span>
+		}
+		@components.TableCell("center", "w-20") {
+			<span class="text-neutral-700 dark:text-neutral-300 font-medium">
+				{ fmt.Sprintf("%d", volume.Allocations) }
+			</span>
+		}
+	</tr>
+}
+
+// buildPluginOptions creates select options for plugin filter
+func buildPluginOptions(plugins []string) []components.SelectOption {
+	options := make([]components.SelectOption, len(plugins))
+	for i, plugin := range plugins {
+		options[i] = components.SelectOption{
+			Value: plugin,
+			Label: plugin,
+		}
+	}
+	return options
+}
+
+// buildProviderOptions creates select options for provider filter
+func buildProviderOptions(providers []string) []components.SelectOption {
+	options := make([]components.SelectOption, len(providers))
+	for i, provider := range providers {
+		options[i] = components.SelectOption{
+			Value: provider,
+			Label: provider,
+		}
+	}
+	return options
+}
+
+// buildVolumesBaseURL constructs the base URL for table sorting
+func buildVolumesBaseURL(filters ListFilters) string {
+	params := url.Values{}
+	if filters.Plugin != "" {
+		params.Add("plugin", filters.Plugin)
+	}
+	if filters.Provider != "" {
+		params.Add("provider", filters.Provider)
+	}
+	if filters.Schedulable != "" {
+		params.Add("schedulable", filters.Schedulable)
+	}
+	if filters.Search != "" {
+		params.Add("search", filters.Search)
+	}
+	if len(params) > 0 {
+		return "/ui/csi/volumes?" + params.Encode()
+	}
+	return "/ui/csi/volumes"
+}
+
+// buildVolumesURL constructs the full URL with all filters and sort params
+func buildVolumesURL(plugin, provider, schedulable, search, sortColumn, sortDir string) string {
+	baseURL := "/ui/csi/volumes?"
+	params := url.Values{}
+
+	if plugin != "" {
+		params.Add("plugin", plugin)
+	}
+	if provider != "" {
+		params.Add("provider", provider)
+	}
+	if schedulable != "" {
+		params.Add("schedulable", schedulable)
+	}
+	if search != "" {
+		params.Add("search", search)
+	}
+	if sortColumn != "" {
+		params.Add("sort", sortColumn)
+	}
+	if sortDir != "" {
+		params.Add("dir", sortDir)
+	}
+
+	if len(params) > 0 {
+		return baseURL + params.Encode() + "&"
+	}
+	return baseURL
+}
+
+// buildFilterURL constructs URL for filter changes, excluding the filter being changed
+func buildFilterURL(filters ListFilters, excludeFilter, sortColumn, sortDir string) string {
+	baseURL := "/ui/csi/volumes?"
+	params := url.Values{}
+
+	if excludeFilter != "plugin" && filters.Plugin != "" {
+		params.Add("plugin", filters.Plugin)
+	}
+	if excludeFilter != "provider" && filters.Provider != "" {
+		params.Add("provider", filters.Provider)
+	}
+	if excludeFilter != "schedulable" && filters.Schedulable != "" {
+		params.Add("schedulable", filters.Schedulable)
+	}
+	if filters.Search != "" {
+		params.Add("search", filters.Search)
+	}
+	if sortColumn != "" {
+		params.Add("sort", sortColumn)
+	}
+	if sortDir != "" {
+		params.Add("dir", sortDir)
+	}
+
+	return baseURL + params.Encode()
+}
+
+// shortID truncates a volume ID to show a reasonable length
+func shortID(id string) string {
+	if len(id) > 20 {
+		return id[:20] + "..."
+	}
+	return id
+}
+
+// formatAccessMode formats the access mode for display
+func formatAccessMode(mode string) string {
+	switch mode {
+	case "single-node-writer":
+		return "Single Node Writer"
+	case "single-node-reader-only":
+		return "Single Node RO"
+	case "multi-node-reader-only":
+		return "Multi Node RO"
+	case "multi-node-single-writer":
+		return "Multi Node Single Writer"
+	case "multi-node-multi-writer":
+		return "Multi Node Multi Writer"
+	default:
+		return mode
+	}
+}

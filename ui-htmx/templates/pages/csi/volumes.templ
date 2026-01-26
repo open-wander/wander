@@ -1,0 +1,24 @@
+package csi
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/csipartials"
+)
+
+// VolumesList renders the full CSI volumes list page with layout.
+templ VolumesList(props csipartials.ListProps) {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       "CSI Volumes - Wander",
+			Description: "View and manage CSI volumes",
+			CurrentPath: "/ui/csi/volumes",
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "CSI", URL: ""},
+				{Label: "Volumes", URL: ""},
+			},
+		},
+		csipartials.VolumesListContent(props),
+	)
+}

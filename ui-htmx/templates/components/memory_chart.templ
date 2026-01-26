@@ -1,0 +1,236 @@
+package components
+
+import "strconv"
+
+// MemoryChartProps contains parameters for the MemoryChart component
+type MemoryChartProps struct {
+	ID              string // Required: Unique ID for the chart
+	DataURL         string // Required: URL to fetch chart data from
+	RefreshInterval int    // Optional: Auto-refresh interval in seconds (0 = disabled)
+	Width           string // Optional: Tailwind width class - defaults to "full"
+	Height          string // Optional: Tailwind height class - defaults to "64"
+	Class           string // Optional: Additional CSS classes
+
+	// Chart Options
+	ShowGrid      bool   // Show grid lines (default: true)
+	ShowAllocated bool   // Show allocated memory line (default: true)
+	MaxMemory     int64  // Optional: Maximum memory in bytes for Y axis scaling
+	XAxisLabel    string // X axis label
+	YAxisLabel    string // Y axis label (default: "Memory")
+	MarginLeft    int    // Left margin for Y axis labels (default: 60)
+	MarginBottom  int    // Bottom margin for X axis labels (default: 40)
+}
+
+// MemoryChart renders a memory utilization chart with D3.js.
+//
+// Features:
+//   - Time-series memory usage visualization
+//   - Area chart showing used vs allocated memory
+//   - Color gradient based on utilization percentage:
+//     * Green: < 50% utilization
+//     * Yellow: 50-75% utilization
+//     * Orange: 75-90% utilization
+//     * Red: >= 90% utilization
+//   - Human-readable memory formatting (KB, MB, GB, TB)
+//   - Interactive tooltips showing used/allocated/percentage
+//   - Grid lines for readability
+//   - Responsive resizing
+//   - Auto-refresh support
+//   - Dark mode support
+//
+// Data Format (JSON from DataURL):
+//   {
+//     "data": [
+//       {
+//         "timestamp": "2024-01-01T12:00:00Z",  // ISO 8601 timestamp
+//         "used": 1073741824,                    // Used memory in bytes
+//         "allocated": 2147483648                // Allocated memory in bytes
+//       },
+//       ...
+//     ]
+//   }
+//
+// Example Basic Usage:
+//   @MemoryChart(MemoryChartProps{
+//       ID: "memory-chart",
+//       DataURL: "/api/charts/memory",
+//   })
+//
+// Example with All Options:
+//   @MemoryChart(MemoryChartProps{
+//       ID: "client-memory-chart",
+//       DataURL: "/api/clients/abc123/memory",
+//       RefreshInterval: 5,
+//       Height: "80",
+//       ShowGrid: true,
+//       ShowAllocated: true,
+//       MaxMemory: 4294967296,  // 4GB
+//       XAxisLabel: "Time",
+//       YAxisLabel: "Memory Usage",
+//       MarginLeft: 70,
+//   })
+//
+// Example with HTMX Lazy Loading:
+//   <div hx-get="/api/dashboard/memory-section"
+//        hx-trigger="intersect once"
+//        hx-target="#memory-container">
+//       <div id="memory-container">
+//           @MemoryChart(MemoryChartProps{
+//               ID: "memory-chart",
+//               DataURL: "/api/charts/memory",
+//               RefreshInterval: 10,
+//           })
+//       </div>
+//   </div>
+//
+// Color Thresholds:
+//   The chart automatically colors the memory usage area based on utilization:
+//   - Green (< 50%): Healthy memory usage
+//   - Yellow (50-75%): Moderate memory usage
+//   - Orange (75-90%): High memory usage
+//   - Red (>= 90%): Critical memory usage
+templ MemoryChart(props MemoryChartProps) {
+	<div
+		x-data={ memoryChartData(props) }
+		x-init="init()"
+	>
+		@ChartContainer(ChartContainerProps{
+			ID:     props.ID,
+			Width:  props.Width,
+			Height: props.Height,
+			Class:  props.Class,
+		}) {
+			<!-- Loading state -->
+			<div x-show="loading" class="w-full h-full">
+				@ChartLoading()
+			</div>
+			<!-- Error state -->
+			<div x-show="error" class="w-full h-full" x-cloak>
+				@ChartError("Failed to load memory chart data")
+			</div>
+		}
+	</div>
+}
+
+// memoryChartData generates Alpine.js data object for the memory chart
+func memoryChartData(props MemoryChartProps) string {
+	// Set defaults
+	showGrid := "true"
+	if !props.ShowGrid {
+		showGrid = "false"
+	}
+
+	showAllocated := "true"
+	if !props.ShowAllocated {
+		showAllocated = "false"
+	}
+
+	marginLeft := props.MarginLeft
+	if marginLeft == 0 {
+		marginLeft = 60
+	}
+
+	marginBottom := props.MarginBottom
+	if marginBottom == 0 {
+		marginBottom = 40
+	}
+
+	yAxisLabel := props.YAxisLabel
+	if yAxisLabel == "" {
+		yAxisLabel = "Memory"
+	}
+
+	maxMemory := "null"
+	if props.MaxMemory > 0 {
+		maxMemory = int64ToString(props.MaxMemory)
+	}
+
+	refreshInterval := props.RefreshInterval * 1000 // Convert to milliseconds
+
+	// Build Alpine.js data object
+	return `{
+		loading: true,
+		error: false,
+		chart: null,
+		refreshTimer: null,
+		init() {
+			this.loadChart();
+			` + buildMemoryRefreshLogic(refreshInterval) + `
+		},
+		async loadChart() {
+			this.loading = true;
+			this.error = false;
+
+			try {
+				const { renderMemoryChartFromUrl } = await import('/static/js/memory-chart.js');
+
+				this.chart = await renderMemoryChartFromUrl(
+					'` + props.ID + `',
+					'` + props.DataURL + `',
+					{
+						showGrid: ` + showGrid + `,
+						showAllocated: ` + showAllocated + `,
+						maxMemory: ` + maxMemory + `,
+						marginLeft: ` + intToString(marginLeft) + `,
+						marginBottom: ` + intToString(marginBottom) + `,
+						xAxisLabel: '` + props.XAxisLabel + `',
+						yAxisLabel: '` + yAxisLabel + `',
+					}
+				);
+
+				this.loading = false;
+			} catch (err) {
+				console.error('Failed to load memory chart:', err);
+				this.error = true;
+				this.loading = false;
+			}
+		},
+		async refreshChart() {
+			if (!this.chart) return;
+
+			try {
+				const response = await fetch('` + props.DataURL + `');
+				if (!response.ok) throw new Error('Failed to fetch data');
+
+				const data = await response.json();
+				this.chart.update(data);
+			} catch (err) {
+				console.error('Failed to refresh memory chart:', err);
+			}
+		},
+		destroy() {
+			if (this.refreshTimer) {
+				clearInterval(this.refreshTimer);
+			}
+			if (this.chart) {
+				this.chart.destroy();
+			}
+		}
+	}`
+}
+
+// buildMemoryRefreshLogic creates the auto-refresh logic if interval is set
+func buildMemoryRefreshLogic(intervalMs int) string {
+	if intervalMs <= 0 {
+		return ""
+	}
+
+	return `
+			// Set up auto-refresh
+			this.refreshTimer = setInterval(() => {
+				this.refreshChart();
+			}, ` + intToString(intervalMs) + `);
+
+			// Cleanup on component destroy
+			this.$watch('$el', (el) => {
+				if (!document.contains(el)) {
+					this.destroy();
+				}
+			});
+	`
+}
+
+// int64ToString converts int64 to string
+func int64ToString(i int64) string {
+	return strconv.FormatInt(i, 10)
+}

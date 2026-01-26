@@ -630,3 +630,53 @@ Files: codemirror-bundle.js, version_diff.templ, diff.go, allocations.templ, log
 - Chart cleanup before swap
 - Files: gauge_chart.templ, bar_chart.templ, gauge-chart.js, bar-chart.js, chart-utils.js
 ---
+
+### 2026-01-26 - Tasks 85, 87, 90, 93, 102, 103: Phase 6 Pages & Charts
+Batch of 6 tasks completed:
+
+**Task 85: Topology page handler**
+- Created topology.templ with PageLayout and breadcrumbs
+- Created list_content.templ with datacenter grid view
+- Cluster statistics dashboard (nodes, allocations, CPU)
+- Placeholder for D3 visualization (Task 86)
+- Node cards with status, resources, heartbeat
+- Files: topology.templ, topologypartials/list_content.templ, router.go
+
+**Task 87: CSI Volumes list handler**
+- Created handlers/csi.go with VolumesList()
+- 10 mock volumes (aws-ebs, aws-efs, ceph-rbd providers)
+- Table: ID, Name, Plugin, Provider, Schedulable, Access Mode, Allocations
+- Filter dropdowns, search bar, sortable columns
+- Files: csi.go, csi/volumes.templ, csipartials/volumes_list.templ
+
+**Task 90: Variables list handler**
+- Created handlers/variables.go with List()
+- Mock data: nomad/jobs, app/config, app/secrets paths
+- Table: Path, Namespace, Items Count, Last Modified
+- Namespace badges (production=danger, staging=warning)
+- Files: variables.go, variables/list.templ, variablespartials/list_content.templ
+
+**Task 93: Policies list handler**
+- Created handlers/policies.go with List(), Detail() stub
+- 6 mock policies: admin, developer, operator, read-only, ci-deploy, monitoring
+- Table: Name, Description, Last Modified
+- Create Policy button, row click to editor
+- Files: policies.go, policies/list.templ, policiespartials/list_content.templ
+
+**Task 102: CPU utilization chart**
+- Already fully implemented in cpu-chart.js
+- CPUChart class with D3 rendering
+- Color thresholds (green/yellow/orange/red)
+- Tooltip, threshold lines, current value badge
+- cpu_chart.templ with Alpine.js integration
+
+**Task 103: Memory utilization chart**
+- Fixed memory_chart.templ compilation (strconv import)
+- MemoryChart class with used vs allocated visualization
+- Human-readable formatting (KB, MB, GB)
+- Color gradient based on utilization percentage
+- Files: memory_chart.templ (fixed int64ToString)
+
+Pattern: Types defined in partials packages to avoid import cycles
+Pattern: Pre-existing component errors in codebase don't block new pages
+---

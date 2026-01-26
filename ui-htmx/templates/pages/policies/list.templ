@@ -1,0 +1,34 @@
+package policies
+
+import (
+	"time"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/policiespartials"
+)
+
+// PolicySummary represents a summary view of an ACL policy for list display.
+type PolicySummary struct {
+	Name        string
+	Description string
+	CreateIndex uint64
+	ModifyIndex uint64
+	CreatedAt   time.Time
+	ModifiedAt  time.Time
+}
+
+// List renders the full ACL policies list page with layout.
+templ List(policiesList []PolicySummary, sortColumn string, sortDir string, searchQuery string) {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       "ACL Policies - Wander",
+			Description: "View and manage Nomad ACL policies",
+			CurrentPath: "/ui/policies",
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "ACL Policies", URL: ""},
+			},
+		},
+		policiespartials.ListContent(policiesList, sortColumn, sortDir, searchQuery),
+	)
+}

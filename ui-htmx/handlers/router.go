@@ -50,6 +50,18 @@ func (r *Router) registerRoutes() {
 	// Servers routes
 	r.registerServersRoutes()
 
+	// Topology routes
+	r.registerTopologyRoutes()
+
+	// Variables routes
+	r.registerVariablesRoutes()
+
+	// Policies routes
+	r.registerPoliciesRoutes()
+
+	// CSI routes
+	r.registerCSIRoutes()
+
 	// API routes
 	r.registerAPIRoutes()
 }
@@ -107,6 +119,41 @@ func (r *Router) registerServersRoutes() {
 	// Servers handler handles both list and detail pages
 	r.mux.Handle("/ui/servers", r.wrapMiddleware(serversHandler))
 	r.mux.Handle("/ui/servers/", r.wrapMiddleware(serversHandler))
+}
+
+// registerTopologyRoutes sets up routes for the topology section.
+func (r *Router) registerTopologyRoutes() {
+	topologyHandler := NewTopologyHandler(r.handler)
+
+	// Topology handler handles the topology visualization page
+	r.mux.Handle("/ui/topology", r.wrapMiddleware(topologyHandler))
+}
+
+// registerVariablesRoutes sets up routes for the variables section.
+func (r *Router) registerVariablesRoutes() {
+	variablesHandler := NewVariablesHandler(r.handler)
+
+	// Variables handler handles both list and detail pages
+	r.mux.Handle("/ui/variables", r.wrapMiddleware(variablesHandler))
+	r.mux.Handle("/ui/variables/", r.wrapMiddleware(variablesHandler))
+}
+
+// registerPoliciesRoutes sets up routes for the ACL policies section.
+func (r *Router) registerPoliciesRoutes() {
+	policiesHandler := NewPoliciesHandler(r.handler)
+
+	// Policies handler handles both list and detail pages
+	r.mux.Handle("/ui/policies", r.wrapMiddleware(policiesHandler))
+	r.mux.Handle("/ui/policies/", r.wrapMiddleware(policiesHandler))
+}
+
+// registerCSIRoutes sets up routes for the CSI section.
+func (r *Router) registerCSIRoutes() {
+	csiHandler := NewCSIHandler(r.handler)
+
+	// CSI handler handles volumes list and detail pages
+	r.mux.Handle("/ui/csi/volumes", r.wrapMiddleware(csiHandler))
+	r.mux.Handle("/ui/csi/volumes/", r.wrapMiddleware(csiHandler))
 }
 
 // registerAPIRoutes sets up API routes for HTMX actions.
