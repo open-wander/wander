@@ -236,7 +236,6 @@ hclfmt: ## Format HCL files with hclfmt
 	        -o -name '.git' -prune \
 	        -o -name 'node_modules' -prune \
 	        -o -name '.next' -prune \
-	        -o -path './ui/dist' -prune \
 	        -o -path './website/out' -prune \
 	        -o -path './command/testdata' -prune \
 	        -o \( -name '*.nomad' -o -name '*.hcl' -o -name '*.tf' \) \
@@ -270,7 +269,7 @@ dev: hclfmt ## Build for the current development platform
 
 .PHONY: prerelease
 prerelease: GO_TAGS=ui codegen_generated release
-prerelease: generate-all ember-dist static-assets ## Generate all the static assets for a Wander release
+prerelease: generate-all ## Generate all the static assets for a Wander release
 
 .PHONY: release
 release: GO_TAGS=ui codegen_generated release
@@ -340,30 +339,8 @@ testcluster: ## Bring up a Linux test cluster using Vagrant. Set PROVIDER if nec
 		wander-client03 \
 		$(if $(PROVIDER),--provider $(PROVIDER))
 
-.PHONY: static-assets
-static-assets: ## Compile the static routes to serve alongside the API
-	@echo "==> Generating static assets"
-	@go-bindata-assetfs -pkg agent -prefix ui -modtime 1480000000 -tags ui -o bindata_assetfs.go ./ui/dist/...
-	@mv bindata_assetfs.go command/agent
-
-.PHONY: test-ui
-test-ui: ## Run Wander UI test suite
-	@echo "==> Installing JavaScript assets"
-	@cd ui && npm rebuild node-sass
-	@cd ui && yarn install
-	@echo "==> Running ember tests"
-	@cd ui && npm test
-
-.PHONY: ember-dist
-ember-dist: ## Build the static UI assets from source
-	@echo "==> Installing JavaScript assets"
-	@cd ui && yarn install --silent --network-timeout 300000
-	@cd ui && npm rebuild node-sass
-	@echo "==> Building Ember application"
-	@cd ui && npm run build
-
 .PHONY: dev-ui
-dev-ui: ember-dist static-assets ## Build a dev UI binary
+dev-ui: ## Build a dev UI binary (uses HTMX UI)
 	@$(MAKE) WANDER_UI_TAG="ui" dev ## Build a dev binary with the UI baked in
 
 HELP_FORMAT="    \033[36m%-25s\033[0m %s\n"

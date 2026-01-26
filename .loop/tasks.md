@@ -147,7 +147,7 @@ Status: in-progress
 - [x] 113. Write e2e tests for Jobs list and detail (needs: 112, 45)
 - [x] 114. Write e2e tests for Allocations and logs (needs: 112, 64)
 - [x] 115. Write e2e tests for Clients and Servers (needs: 112, 79, 84)
-- [ ] 116. Set up visual regression testing baseline (needs: 113)
+- [x] 116. Set up visual regression testing baseline (needs: 113)
 
 ### Phase 9: Migration Cutover
 

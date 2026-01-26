@@ -103,7 +103,7 @@ Developing without Vagrant
 
 Running a development build
 ---
-1. Compile a development binary (see the [UI README](https://github.com/hashicorp/nomad/blob/main/ui/README.md) to include the web UI in the binary)
+1. Compile a development binary
     ```sh
     $ make dev
     # find the built binary at ./bin/nomad
@@ -132,7 +132,12 @@ If in the course of your development you change a Protobuf file (those ending in
 
 Building the Web UI
 ---
-See the [UI README](https://github.com/hashicorp/nomad/blob/main/ui/README.md) for instructions.
+The UI is built using HTMX, Templ, and Tailwind CSS. See the `ui-htmx/` directory for details.
+
+To run the UI in development mode:
+```sh
+cd ui-htmx && make dev
+```
 
 Create a release binary
 ---
@@ -159,7 +164,7 @@ The code for Nomad's major components is organized as:
 * `client/` contains Nomad's client agent code.
 * `command/` contains Nomad's CLI code.
 * `nomad/` contains Nomad's server agent code.
-* `ui/` contains Nomad's UI code.
+* `ui-htmx/` contains Wander's UI code (HTMX, Templ, Tailwind CSS).
 * `website/` contains Nomad's website and documentation.
 
 The high level control flow for many Nomad actions (via the CLI or UI) are:
