@@ -8,12 +8,14 @@ import (
 
 // ServerSummary represents a summary view of a server for list display.
 type ServerSummary struct {
-	Name    string
-	Address string
-	Status  string
-	Leader  bool
-	Region  string
-	Version string
+	Name       string
+	Address    string
+	Status     string
+	Leader     bool
+	Region     string
+	Datacenter string
+	RaftVoter  bool
+	Version    string
 }
 
 // List renders the full servers list page with layout.

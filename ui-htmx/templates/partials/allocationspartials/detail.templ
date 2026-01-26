@@ -23,10 +23,22 @@ type AllocationDetail struct {
 
 // TaskStatus represents the status of a task within an allocation
 type TaskStatus struct {
-	Name   string
-	State  string
-	Failed bool
-	Events []TaskEvent
+	Name       string
+	State      string
+	Failed     bool
+	StartedAt  time.Time
+	FinishedAt time.Time
+	Restarts   int
+	Resources  TaskResources
+	Events     []TaskEvent
+}
+
+// TaskResources represents resource allocation for a task
+type TaskResources struct {
+	CPU       int  // MHz
+	Memory    int  // MB
+	CPUUsage  int  // Current CPU usage percentage (0-100)
+	MemUsage  int  // Current memory usage percentage (0-100)
 }
 
 // TaskEvent represents an event in a task's lifecycle

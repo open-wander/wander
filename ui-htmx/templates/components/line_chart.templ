@@ -1,0 +1,238 @@
+package components
+
+// LineChartProps contains parameters for the LineChart component
+type LineChartProps struct {
+	ID             string // Required: Unique ID for the chart
+	DataURL        string // Required: URL to fetch chart data from
+	RefreshInterval int    // Optional: Auto-refresh interval in seconds (0 = disabled)
+	Width          string // Optional: Tailwind width class - defaults to "full"
+	Height         string // Optional: Tailwind height class - defaults to "96"
+	Class          string // Optional: Additional CSS classes
+
+	// Chart Options
+	ShowLegend   bool   // Show legend for multiple series (default: true)
+	ShowGrid     bool   // Show grid lines (default: true)
+	ShowGradient bool   // Show gradient fill under lines (default: true)
+	CurveType    string // D3 curve type: curveLinear, curveMonotoneX, curveCatmullRom, etc.
+	XAxisLabel   string // X axis label
+	YAxisLabel   string // Y axis label
+	MarginLeft   int    // Left margin for Y axis labels (default: 50)
+	MarginBottom int    // Bottom margin for X axis labels (default: 40)
+}
+
+// LineChart renders a time-series line chart with D3.js.
+//
+// Features:
+//   - Time-series data visualization
+//   - Multiple data series support
+//   - Interactive tooltips on hover
+//   - Gradient fills under lines
+//   - Legend for multiple series
+//   - Grid lines for readability
+//   - Smooth line interpolation
+//   - Responsive resizing
+//   - Auto-refresh support
+//   - Dark mode support
+//
+// Data Format (JSON from DataURL):
+//   {
+//     "series": [
+//       {
+//         "name": "Series 1",
+//         "color": "#3b82f6",  // Optional
+//         "data": [
+//           { "date": "2024-01-01", "value": 100 },
+//           { "date": "2024-01-02", "value": 150 },
+//           ...
+//         ]
+//       },
+//       ...
+//     ]
+//   }
+//
+// Example Basic Usage:
+//   @LineChart(LineChartProps{
+//       ID: "revenue-chart",
+//       DataURL: "/api/charts/revenue",
+//   })
+//
+// Example with All Options:
+//   @LineChart(LineChartProps{
+//       ID: "metrics-chart",
+//       DataURL: "/api/charts/metrics",
+//       RefreshInterval: 30,
+//       Height: "96",
+//       ShowLegend: true,
+//       ShowGrid: true,
+//       ShowGradient: true,
+//       CurveType: "curveMonotoneX",
+//       XAxisLabel: "Date",
+//       YAxisLabel: "Revenue ($)",
+//       MarginLeft: 60,
+//   })
+//
+// Example with HTMX Lazy Loading:
+//   <div hx-get="/api/dashboard/revenue-section"
+//        hx-trigger="intersect once"
+//        hx-target="#revenue-container">
+//       <div id="revenue-container">
+//           @LineChart(LineChartProps{
+//               ID: "revenue-chart",
+//               DataURL: "/api/charts/revenue",
+//           })
+//       </div>
+//   </div>
+//
+// Curve Types:
+//   - curveLinear: Straight lines between points
+//   - curveMonotoneX: Smooth curves that preserve monotonicity (default)
+//   - curveCatmullRom: Smooth Catmull-Rom spline
+//   - curveNatural: Natural cubic spline
+//   - curveStep: Step function
+//   - curveBasis: B-spline
+templ LineChart(props LineChartProps) {
+	<div
+		x-data={ lineChartData(props) }
+		x-init="init()"
+	>
+		@ChartContainer(ChartContainerProps{
+			ID:     props.ID,
+			Width:  props.Width,
+			Height: props.Height,
+			Class:  props.Class,
+		}) {
+			<!-- Loading state -->
+			<div x-show="loading" class="w-full h-full">
+				@ChartLoading()
+			</div>
+			<!-- Error state -->
+			<div x-show="error" class="w-full h-full" x-cloak>
+				@ChartError("Failed to load chart data")
+			</div>
+		}
+	</div>
+}
+
+// lineChartData generates Alpine.js data object for the line chart
+func lineChartData(props LineChartProps) string {
+	// Set defaults
+	showLegend := "true"
+	if !props.ShowLegend {
+		showLegend = "false"
+	}
+
+	showGrid := "true"
+	if !props.ShowGrid {
+		showGrid = "false"
+	}
+
+	showGradient := "true"
+	if !props.ShowGradient {
+		showGradient = "false"
+	}
+
+	curveType := props.CurveType
+	if curveType == "" {
+		curveType = "curveMonotoneX"
+	}
+
+	marginLeft := props.MarginLeft
+	if marginLeft == 0 {
+		marginLeft = 50
+	}
+
+	marginBottom := props.MarginBottom
+	if marginBottom == 0 {
+		marginBottom = 40
+	}
+
+	refreshInterval := props.RefreshInterval * 1000 // Convert to milliseconds
+
+	// Build Alpine.js data object
+	return `{
+		loading: true,
+		error: false,
+		chart: null,
+		refreshTimer: null,
+		init() {
+			this.loadChart();
+			` + buildRefreshLogic(refreshInterval) + `
+		},
+		async loadChart() {
+			this.loading = true;
+			this.error = false;
+
+			try {
+				const { renderLineChartFromUrl } = await import('/static/js/line-chart.js');
+
+				this.chart = await renderLineChartFromUrl(
+					'` + props.ID + `',
+					'` + props.DataURL + `',
+					{
+						showLegend: ` + showLegend + `,
+						showGrid: ` + showGrid + `,
+						showGradient: ` + showGradient + `,
+						curveType: '` + curveType + `',
+						marginLeft: ` + intToString(marginLeft) + `,
+						marginBottom: ` + intToString(marginBottom) + `,
+						xAxisLabel: '` + props.XAxisLabel + `',
+						yAxisLabel: '` + props.YAxisLabel + `',
+					}
+				);
+
+				this.loading = false;
+			} catch (err) {
+				console.error('Failed to load line chart:', err);
+				this.error = true;
+				this.loading = false;
+			}
+		},
+		async refreshChart() {
+			if (!this.chart) return;
+
+			try {
+				const response = await fetch('` + props.DataURL + `');
+				if (!response.ok) throw new Error('Failed to fetch data');
+
+				const data = await response.json();
+				this.chart.update(data);
+			} catch (err) {
+				console.error('Failed to refresh chart:', err);
+			}
+		},
+		destroy() {
+			if (this.refreshTimer) {
+				clearInterval(this.refreshTimer);
+			}
+			if (this.chart) {
+				this.chart.destroy();
+			}
+		}
+	}`
+}
+
+// buildRefreshLogic creates the auto-refresh logic if interval is set
+func buildRefreshLogic(intervalMs int) string {
+	if intervalMs <= 0 {
+		return ""
+	}
+
+	return `
+			// Set up auto-refresh
+			this.refreshTimer = setInterval(() => {
+				this.refreshChart();
+			}, ` + intToString(intervalMs) + `);
+
+			// Cleanup on component destroy
+			this.$watch('$el', (el) => {
+				if (!document.contains(el)) {
+					this.destroy();
+				}
+			});
+	`
+}
+
+// intToString converts int to string
+func intToString(i int) string {
+	return templ.JSONString(i).MarshalString()
+}

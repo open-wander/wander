@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"math"
+	"math/rand"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +25,14 @@ type JobSummary struct {
 	Submitted time.Time
 }
 
+// PaginationMeta holds pagination metadata for list views.
+type PaginationMeta struct {
+	Page       int // Current page (1-indexed)
+	PerPage    int // Items per page
+	Total      int // Total number of items
+	TotalPages int // Total number of pages
+}
+
 // JobsHandler handles requests for the jobs list page.
 type JobsHandler struct {
 	handler *Handler
@@ -33,32 +45,48 @@ func NewJobsHandler(h *Handler) *JobsHandler {
 	}
 }
 
-// ServeHTTP handles GET requests to the jobs list page.
+// ServeHTTP handles requests to the jobs pages.
 // It renders the jobs list using the page layout, supporting both
 // full page loads and HTMX partial updates.
 func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Only allow GET requests
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	path := r.URL.Path
 
 	// Handle /ui/jobs exactly (list page)
 	if path == "/ui/jobs" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		h.List(w, r)
+		return
+	}
+
+	// Handle /ui/jobs/{id}/taskgroups/{tgname}/scale (scale action)
+	if strings.Contains(path, "/taskgroups/") && strings.HasSuffix(path, "/scale") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.ScaleTaskGroup(w, r)
 		return
 	}
 
 	// Handle /ui/jobs/{id}/taskgroups/{tgname} (task group detail page)
 	if strings.Contains(path, "/taskgroups/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		h.TaskGroup(w, r)
 		return
 	}
 
 	// Handle /ui/jobs/{id} (detail page)
 	if strings.HasPrefix(path, "/ui/jobs/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		h.Detail(w, r)
 		return
 	}
@@ -74,6 +102,14 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Get mock job data
 	jobsList := h.getJobsList()
 
+	// Parse search query from query string
+	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
+
+	// Filter jobs by search query if provided
+	if searchQuery != "" {
+		jobsList = h.filterJobs(jobsList, searchQuery)
+	}
+
 	// Parse sort parameters from query string
 	sortColumn := r.URL.Query().Get("sort")
 	sortDir := r.URL.Query().Get("dir")
@@ -87,10 +123,28 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Sort the jobs list based on parameters
 	h.sortJobs(jobsList, sortColumn, sortDir)
 
+	// Parse pagination parameters
+	page := parsePage(r.URL.Query().Get("page"))
+	perPage := parsePerPage(r.URL.Query().Get("per_page"))
+
+	// Calculate total before pagination
+	total := len(jobsList)
+
+	// Calculate pagination metadata
+	pagination := PaginationMeta{
+		Page:       page,
+		PerPage:    perPage,
+		Total:      total,
+		TotalPages: int(math.Ceil(float64(total) / float64(perPage))),
+	}
+
+	// Paginate the jobs list
+	jobsList = paginateJobs(jobsList, page, perPage)
+
 	// Render the jobs list page
 	err := Render(w, r,
-		jobs.List(jobsList, sortColumn, sortDir),                    // Full page with layout
-		jobspartials.ListContent(jobsList, sortColumn, sortDir), // Partial content for HTMX requests
+		jobs.List(jobsList, sortColumn, sortDir, searchQuery, pagination),                // Full page with layout
+		jobspartials.ListContent(jobsList, sortColumn, sortDir, searchQuery, pagination), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -133,7 +187,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		jobs.Detail(jobDetail),                    // Full page with layout
+		jobs.Detail(jobDetail),                // Full page with layout
 		jobspartials.DetailContent(jobDetail), // Partial content for HTMX requests
 	)
 
@@ -201,25 +255,54 @@ func (h *JobsHandler) getJobsList() []JobSummary {
 	}
 }
 
+// filterJobs filters the jobs list based on search query.
+// The search is case-insensitive and matches against job ID and name.
+func (h *JobsHandler) filterJobs(jobsList []JobSummary, query string) []JobSummary {
+	if query == "" {
+		return jobsList
+	}
+
+	query = strings.ToLower(query)
+	filtered := make([]JobSummary, 0, len(jobsList))
+
+	for _, job := range jobsList {
+		// Match against ID or Name (case-insensitive)
+		if strings.Contains(strings.ToLower(job.ID), query) ||
+			strings.Contains(strings.ToLower(job.Name), query) {
+			filtered = append(filtered, job)
+		}
+	}
+
+	return filtered
+}
+
 // sortJobs sorts the jobs list based on the specified column and direction.
 func (h *JobsHandler) sortJobs(jobsList []JobSummary, sortColumn, sortDir string) {
-	// For now, this is a placeholder. In a production implementation,
-	// we would use sort.Slice with the appropriate comparison function.
-	// Since this is mock data and sorting will be done by the Nomad API
-	// in the future, we'll keep this simple for now.
+	sort.Slice(jobsList, func(i, j int) bool {
+		var less bool
 
-	// TODO: Implement sorting when needed
-	// Example:
-	// sort.Slice(jobsList, func(i, j int) bool {
-	//     switch sortColumn {
-	//     case "name":
-	//         if sortDir == "asc" {
-	//             return jobsList[i].Name < jobsList[j].Name
-	//         }
-	//         return jobsList[i].Name > jobsList[j].Name
-	//     // ... other cases
-	//     }
-	// })
+		switch sortColumn {
+		case "name":
+			less = jobsList[i].Name < jobsList[j].Name
+		case "status":
+			less = jobsList[i].Status < jobsList[j].Status
+		case "type":
+			less = jobsList[i].Type < jobsList[j].Type
+		case "priority":
+			less = jobsList[i].Priority < jobsList[j].Priority
+		case "submitted":
+			less = jobsList[i].Submitted.Before(jobsList[j].Submitted)
+		default:
+			// Default to sorting by submitted time descending
+			less = jobsList[i].Submitted.After(jobsList[j].Submitted)
+		}
+
+		// Reverse if descending
+		if sortDir == "desc" {
+			return !less
+		}
+		return less
+	})
 }
 
 // getJobDetail returns mock job detail data.
@@ -257,11 +340,17 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 	case "overview":
 		err = RenderPartial(w, r, jobspartials.OverviewTab(jobDetail))
 	case "definition":
-		err = RenderPartial(w, r, jobspartials.DefinitionTab())
+		jobDef := h.getJobDefinition(jobID)
+		err = RenderPartial(w, r, jobspartials.DefinitionTab(jobDef))
 	case "versions":
-		err = RenderPartial(w, r, jobspartials.VersionsTab())
+		versions := h.getJobVersions(jobID)
+		err = RenderPartial(w, r, jobspartials.VersionsTab(versions, jobID))
 	case "allocations":
-		err = RenderPartial(w, r, jobspartials.AllocationsTab())
+		// Parse pagination parameters for allocations
+		page := parsePage(r.URL.Query().Get("page"))
+		perPage := parsePerPage(r.URL.Query().Get("per_page"))
+		allocData := h.getJobAllocations(jobID, page, perPage)
+		err = RenderPartial(w, r, jobspartials.AllocationsTabWithData(allocData))
 	case "evaluations":
 		err = RenderPartial(w, r, jobspartials.EvaluationsTab())
 	default:
@@ -273,6 +362,288 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		h.handler.logger.Error("failed to render tab content", "tab", tabName, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// getJobVersions returns mock job version data.
+// This will be replaced with actual Nomad API calls in the future.
+func (h *JobsHandler) getJobVersions(jobID string) []jobspartials.JobVersion {
+	now := time.Now()
+
+	return []jobspartials.JobVersion{
+		{
+			Version:    4,
+			Stable:     true,
+			SubmitTime: now.Add(-2 * time.Hour),
+			Active:     true,
+			Diff:       "/ui/jobs/" + jobID + "/versions/4/diff",
+		},
+		{
+			Version:    3,
+			Stable:     true,
+			SubmitTime: now.Add(-24 * time.Hour),
+			Active:     false,
+			Diff:       "/ui/jobs/" + jobID + "/versions/3/diff",
+		},
+		{
+			Version:    2,
+			Stable:     false,
+			SubmitTime: now.Add(-48 * time.Hour),
+			Active:     false,
+			Diff:       "/ui/jobs/" + jobID + "/versions/2/diff",
+		},
+		{
+			Version:    1,
+			Stable:     true,
+			SubmitTime: now.Add(-72 * time.Hour),
+			Active:     false,
+			Diff:       "/ui/jobs/" + jobID + "/versions/1/diff",
+		},
+		{
+			Version:    0,
+			Stable:     false,
+			SubmitTime: now.Add(-96 * time.Hour),
+			Active:     false,
+			Diff:       "", // No diff for version 0 (initial version)
+		},
+	}
+}
+
+// getJobDefinition returns mock job definition data.
+// This will be replaced with actual Nomad API calls in the future.
+func (h *JobsHandler) getJobDefinition(jobID string) jobspartials.JobDefinition {
+	// Mock HCL job definition
+	hclContent := `job "` + jobID + `" {
+  region      = "global"
+  datacenters = ["dc1", "dc2"]
+  type        = "service"
+  priority    = 50
+
+  # Update strategy for rolling deployments
+  update {
+    max_parallel      = 1
+    min_healthy_time  = "10s"
+    healthy_deadline  = "3m"
+    progress_deadline = "10m"
+    auto_revert       = true
+    canary            = 0
+  }
+
+  # Task group for web servers
+  group "web" {
+    count = 3
+
+    # Restart policy on task failure
+    restart {
+      attempts = 3
+      interval = "5m"
+      delay    = "25s"
+      mode     = "delay"
+    }
+
+    # Network configuration
+    network {
+      port "http" {
+        to = 8080
+      }
+      port "metrics" {
+        to = 9090
+      }
+    }
+
+    # Service registration for Consul
+    service {
+      name = "` + jobID + `-web"
+      port = "http"
+      tags = ["urlprefix-/"]
+
+      check {
+        name     = "health"
+        type     = "http"
+        path     = "/health"
+        interval = "10s"
+        timeout  = "2s"
+      }
+    }
+
+    # Main web task
+    task "nginx" {
+      driver = "docker"
+
+      config {
+        image = "nginx:1.21-alpine"
+        ports = ["http"]
+
+        volumes = [
+          "local/nginx.conf:/etc/nginx/nginx.conf",
+        ]
+      }
+
+      # Resource requirements
+      resources {
+        cpu    = 500
+        memory = 256
+      }
+
+      # Template for nginx config
+      template {
+        data = <<EOF
+events {
+  worker_connections 1024;
+}
+
+http {
+  server {
+    listen 8080;
+
+    location / {
+      root /usr/share/nginx/html;
+      index index.html;
+    }
+
+    location /health {
+      return 200 "healthy\n";
+      add_header Content-Type text/plain;
+    }
+  }
+}
+EOF
+        destination = "local/nginx.conf"
+      }
+
+      # Environment variables
+      env {
+        ENVIRONMENT = "production"
+        LOG_LEVEL   = "info"
+      }
+    }
+
+    # Redis sidecar task
+    task "redis" {
+      driver = "docker"
+
+      config {
+        image = "redis:7-alpine"
+        ports = ["metrics"]
+      }
+
+      resources {
+        cpu    = 250
+        memory = 128
+      }
+
+      lifecycle {
+        hook    = "prestart"
+        sidecar = true
+      }
+    }
+  }
+
+  # Constraints
+  constraint {
+    attribute = "${attr.kernel.name}"
+    value     = "linux"
+  }
+
+  constraint {
+    operator  = "distinct_hosts"
+    value     = "true"
+  }
+}`
+
+	return jobspartials.JobDefinition{
+		JobID:    jobID,
+		Content:  hclContent,
+		Format:   "hcl",
+		Version:  4,
+		ReadOnly: false,
+	}
+}
+
+// ScaleTaskGroup handles the scale task group action
+func (h *JobsHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID and task group name from path
+	// Expected format: /ui/jobs/{jobID}/taskgroups/{tgName}/scale
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+	path = strings.TrimSuffix(path, "/scale")
+	parts := strings.Split(path, "/taskgroups/")
+	if len(parts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+
+	jobID := parts[0]
+	tgName := parts[1]
+
+	// Parse the form data
+	if err := r.ParseForm(); err != nil {
+		h.handler.logger.Error("failed to parse form", "error", err)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(renderScaleError("Invalid form data")))
+		return
+	}
+
+	// Get the count from the form
+	countStr := r.FormValue("count")
+	count, err := strconv.Atoi(countStr)
+	if err != nil || count < 0 {
+		h.handler.logger.Error("invalid count value", "count", countStr, "error", err)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(renderScaleError("Invalid count value")))
+		return
+	}
+
+	// Log the scaling operation
+	h.handler.logger.Info("scaling task group",
+		"jobID", jobID,
+		"taskGroup", tgName,
+		"newCount", count,
+	)
+
+	// TODO: In a real implementation, this would call the Nomad API:
+	// client.Jobs().Scale(jobID, tgName, &count, "Scaling via Wander UI", false, nil, nil)
+
+	// For now, simulate the scaling operation with a success response
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(renderScaleSuccess(tgName, count)))
+}
+
+// renderScaleSuccess returns the HTML for a successful scale operation
+func renderScaleSuccess(taskGroupName string, newCount int) string {
+	return `<div class="rounded-lg bg-green-50 border border-green-200 p-4">
+		<div class="flex items-center">
+			<div class="flex-shrink-0">
+				<svg class="h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				</svg>
+			</div>
+			<div class="ml-3">
+				<p class="text-sm font-medium text-green-800">
+					Task group <span class="font-semibold">` + taskGroupName + `</span> scaled to ` + strconv.Itoa(newCount) + ` instance(s)
+				</p>
+			</div>
+		</div>
+	</div>`
+}
+
+// renderScaleError returns the HTML for a failed scale operation
+func renderScaleError(message string) string {
+	return `<div class="rounded-lg bg-red-50 border border-red-200 p-4">
+		<div class="flex items-center">
+			<div class="flex-shrink-0">
+				<svg class="h-5 w-5 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+				</svg>
+			</div>
+			<div class="ml-3">
+				<p class="text-sm font-medium text-red-800">
+					Failed to scale: ` + message + `
+				</p>
+			</div>
+		</div>
+	</div>`
 }
 
 // TaskGroup handles the task group detail page
@@ -297,7 +668,7 @@ func (h *JobsHandler) TaskGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		jobs.TaskGroup(jobID, taskGroup),                       // Full page with layout
+		jobs.TaskGroup(jobID, taskGroup),                  // Full page with layout
 		taskgrouppartials.DetailContent(jobID, taskGroup), // Partial content for HTMX requests
 	)
 
@@ -371,4 +742,225 @@ func (h *JobsHandler) getTaskGroupDetail(jobID, tgName string) taskgrouppartials
 	}
 
 	return tg
+}
+
+// parsePage parses the page query parameter and returns a valid page number.
+// Returns 1 if the parameter is invalid or not provided.
+func parsePage(pageStr string) int {
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		return 1
+	}
+	return page
+}
+
+// parsePerPage parses the per_page query parameter and returns a valid per page value.
+// Returns 10 if the parameter is invalid or not provided.
+// Maximum value is capped at 100.
+func parsePerPage(perPageStr string) int {
+	perPage, err := strconv.Atoi(perPageStr)
+	if err != nil || perPage < 1 {
+		return 10
+	}
+	if perPage > 100 {
+		return 100
+	}
+	return perPage
+}
+
+// paginateJobs returns a slice of jobs for the requested page.
+// Returns an empty slice if the page is beyond available data.
+func paginateJobs(jobs []JobSummary, page, perPage int) []JobSummary {
+	start := (page - 1) * perPage
+	if start >= len(jobs) {
+		return []JobSummary{}
+	}
+
+	end := start + perPage
+	if end > len(jobs) {
+		end = len(jobs)
+	}
+
+	return jobs[start:end]
+}
+
+// getJobAllocations returns mock allocation data for a specific job.
+// This will be replaced with actual Nomad API calls in the future.
+func (h *JobsHandler) getJobAllocations(jobID string, page, perPage int) jobspartials.AllocationsTabData {
+	now := time.Now()
+
+	// Generate mock allocations based on job ID
+	// In reality, this would filter allocations from the Nomad API
+	allAllocations := h.generateMockAllocations(jobID, now)
+
+	// Calculate pagination
+	total := len(allAllocations)
+	totalPages := int(math.Ceil(float64(total) / float64(perPage)))
+
+	// Apply pagination
+	start := (page - 1) * perPage
+	end := start + perPage
+	if start >= total {
+		start = 0
+		end = 0
+	}
+	if end > total {
+		end = total
+	}
+
+	var paginatedAllocs []jobspartials.JobAllocation
+	if start < total {
+		paginatedAllocs = allAllocations[start:end]
+	}
+
+	return jobspartials.AllocationsTabData{
+		JobID:       jobID,
+		Allocations: paginatedAllocs,
+		Pagination: jobspartials.JobAllocationsPagination{
+			Page:       page,
+			PerPage:    perPage,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}
+}
+
+// generateMockAllocations generates mock allocation data for testing.
+// This simulates allocations that would be returned from the Nomad API.
+func (h *JobsHandler) generateMockAllocations(jobID string, now time.Time) []jobspartials.JobAllocation {
+	// Task groups and statuses for variation
+	taskGroups := []string{"web", "api", "cache", "worker"}
+	statuses := []string{"running", "running", "running", "pending", "complete", "failed"}
+	nodes := []struct {
+		id   string
+		name string
+	}{
+		{"node-1a2b3c4d", "worker-01.dc1"},
+		{"node-2b3c4d5e", "worker-02.dc1"},
+		{"node-3c4d5e6f", "worker-03.dc1"},
+		{"node-4d5e6f7g", "worker-04.dc2"},
+		{"node-5e6f7g8h", "worker-05.dc2"},
+	}
+
+	// Generate 12 allocations for this job
+	allocations := make([]jobspartials.JobAllocation, 0, 12)
+
+	// Use a deterministic seed based on job ID for consistent mock data
+	r := rand.New(rand.NewSource(hashString(jobID)))
+
+	for i := 0; i < 12; i++ {
+		// Generate a pseudo-random allocation ID
+		allocID := generateMockID(r)
+		shortID := allocID[:8]
+
+		// Select mock data
+		tgIndex := r.Intn(len(taskGroups))
+		statusIndex := r.Intn(len(statuses))
+		nodeIndex := r.Intn(len(nodes))
+
+		// Generate resource usage (random but realistic)
+		cpuMax := 500 + r.Intn(500)
+		cpuUsed := int(float64(cpuMax) * (0.2 + r.Float64()*0.7))
+		memMax := 256 + r.Intn(768)
+		memUsed := int(float64(memMax) * (0.3 + r.Float64()*0.6))
+
+		// Vary creation time
+		hoursAgo := r.Intn(168) + 1 // 1 to 168 hours (1 week)
+
+		alloc := jobspartials.JobAllocation{
+			ID:        allocID,
+			ShortID:   shortID,
+			TaskGroup: taskGroups[tgIndex],
+			NodeID:    nodes[nodeIndex].id,
+			NodeName:  nodes[nodeIndex].name,
+			Status:    statuses[statusIndex],
+			CPU:       cpuUsed,
+			CPUMax:    cpuMax,
+			Memory:    memUsed,
+			MemoryMax: memMax,
+			Created:   now.Add(-time.Duration(hoursAgo) * time.Hour),
+		}
+
+		allocations = append(allocations, alloc)
+	}
+
+	// Sort by created time (newest first)
+	sort.Slice(allocations, func(i, j int) bool {
+		return allocations[i].Created.After(allocations[j].Created)
+	})
+
+	return allocations
+}
+
+// hashString creates a simple hash from a string for deterministic random seeding.
+func hashString(s string) int64 {
+	var h int64
+	for _, c := range s {
+		h = h*31 + int64(c)
+	}
+	return h
+}
+
+// generateMockID generates a mock UUID-like ID.
+func generateMockID(r *rand.Rand) string {
+	const chars = "0123456789abcdef"
+	id := make([]byte, 36)
+	for i := range id {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			id[i] = '-'
+		} else {
+			id[i] = chars[r.Intn(len(chars))]
+		}
+	}
+	return string(id)
+}
+
+// ScaleTaskGroup handles POST requests to scale a task group.
+// This is a stub that will be implemented with actual Nomad API calls.
+func (h *JobsHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request) {
+	// Extract job ID and task group name from path
+	// Expected format: /ui/jobs/{jobID}/taskgroups/{tgName}/scale
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+	path = strings.TrimSuffix(path, "/scale")
+	parts := strings.Split(path, "/taskgroups/")
+	if len(parts) != 2 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+
+	jobID := parts[0]
+	tgName := parts[1]
+
+	// Parse the new count from form data
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	countStr := r.FormValue("count")
+	count, err := strconv.Atoi(countStr)
+	if err != nil || count < 0 {
+		http.Error(w, "Invalid count", http.StatusBadRequest)
+		return
+	}
+
+	// Log the scale request
+	h.handler.logger.Info("scale task group request",
+		"jobID", jobID,
+		"taskGroup", tgName,
+		"newCount", count,
+	)
+
+	// TODO: Implement actual Nomad API call to scale the task group
+	// For now, just return success
+
+	// Return the updated task group content
+	taskGroup := h.getTaskGroupDetail(jobID, tgName)
+	taskGroup.Count = count
+
+	err = RenderPartial(w, r, taskgrouppartials.DetailContent(jobID, taskGroup))
+	if err != nil {
+		h.handler.logger.Error("failed to render task group after scale", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }

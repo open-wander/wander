@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"math"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,13 +67,118 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("allocations list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
-	// Get mock allocation data
-	allocationsList := h.getAllocationsList()
+	// Parse query parameters
+	query := r.URL.Query()
+	statusFilter := query.Get("status")
+	jobFilter := query.Get("job")
+	nodeFilter := query.Get("node")
+	searchQuery := query.Get("search")
+	sortColumn := query.Get("sort")
+	sortDir := query.Get("dir")
+	pageStr := query.Get("page")
+	perPageStr := query.Get("per_page")
+
+	// Default sort
+	if sortColumn == "" {
+		sortColumn = "created"
+	}
+	if sortDir == "" {
+		sortDir = "desc"
+	}
+
+	// Default pagination
+	page := 1
+	perPage := 25
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
+	if pp, err := strconv.Atoi(perPageStr); err == nil && pp > 0 && pp <= 100 {
+		perPage = pp
+	}
+
+	// Get all allocations
+	allAllocations := h.getAllocationsList()
+
+	// Extract filter options from all allocations (before filtering)
+	filterOptions := h.extractFilterOptions(allAllocations)
+
+	// Apply filters
+	filteredAllocations := h.filterAllocations(allAllocations, statusFilter, jobFilter, nodeFilter, searchQuery)
+
+	// Apply sorting
+	h.sortAllocations(filteredAllocations, sortColumn, sortDir)
+
+	// Calculate pagination
+	total := len(filteredAllocations)
+	totalPages := int(math.Ceil(float64(total) / float64(perPage)))
+	if page > totalPages && totalPages > 0 {
+		page = totalPages
+	}
+
+	// Apply pagination
+	startIdx := (page - 1) * perPage
+	endIdx := startIdx + perPage
+	if endIdx > total {
+		endIdx = total
+	}
+	if startIdx > total {
+		startIdx = total
+	}
+
+	paginatedAllocations := filteredAllocations[startIdx:endIdx]
+
+	// Convert to partial type
+	allocationsList := make([]allocationspartials.AllocationSummary, len(paginatedAllocations))
+	for i, a := range paginatedAllocations {
+		allocationsList[i] = allocationspartials.AllocationSummary{
+			ID:        a.ID,
+			JobID:     a.JobID,
+			TaskGroup: a.TaskGroup,
+			NodeID:    a.NodeID,
+			NodeName:  a.NodeName,
+			Status:    a.Status,
+			Created:   a.Created,
+		}
+	}
+
+	// Build props
+	props := allocationspartials.ListProps{
+		Allocations: allocationsList,
+		FilterOptions: allocationspartials.FilterOptions{
+			Statuses: filterOptions.Statuses,
+			Jobs:     filterOptions.Jobs,
+			Nodes:    filterOptions.Nodes,
+		},
+		Filters: allocationspartials.ListFilters{
+			Status: statusFilter,
+			Job:    jobFilter,
+			Node:   nodeFilter,
+			Search: searchQuery,
+		},
+		Pagination: allocationspartials.PaginationMeta{
+			Page:       page,
+			PerPage:    perPage,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+		SortColumn: sortColumn,
+		SortDir:    sortDir,
+	}
+
+	// Check if this is an HTMX request for table update only
+	if IsHTMXFromRequest(r) && r.Header.Get("HX-Target") == "allocations-table-container" {
+		err := RenderPartial(w, r, allocationspartials.AllocationsTable(props))
+		if err != nil {
+			h.handler.logger.Error("failed to render allocations table", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
 
 	// Render the allocations list page
 	err := Render(w, r,
-		allocations.List(allocationsList),                // Full page with layout
-		allocationspartials.ListContent(allocationsList), // Partial content for HTMX requests
+		allocations.List(props),                // Full page with layout
+		allocationspartials.ListContent(props), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -78,6 +186,118 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+// FilterOptions holds the available filter options
+type FilterOptions struct {
+	Statuses []string
+	Jobs     []string
+	Nodes    []string
+}
+
+// extractFilterOptions extracts unique values for filter dropdowns
+func (h *AllocationsHandler) extractFilterOptions(allocs []AllocationSummary) FilterOptions {
+	statusSet := make(map[string]bool)
+	jobSet := make(map[string]bool)
+	nodeSet := make(map[string]bool)
+
+	for _, a := range allocs {
+		statusSet[a.Status] = true
+		jobSet[a.JobID] = true
+		nodeSet[a.NodeName] = true
+	}
+
+	// Convert to sorted slices
+	statuses := make([]string, 0, len(statusSet))
+	for s := range statusSet {
+		statuses = append(statuses, s)
+	}
+	sort.Strings(statuses)
+
+	jobs := make([]string, 0, len(jobSet))
+	for j := range jobSet {
+		jobs = append(jobs, j)
+	}
+	sort.Strings(jobs)
+
+	nodes := make([]string, 0, len(nodeSet))
+	for n := range nodeSet {
+		nodes = append(nodes, n)
+	}
+	sort.Strings(nodes)
+
+	return FilterOptions{
+		Statuses: statuses,
+		Jobs:     jobs,
+		Nodes:    nodes,
+	}
+}
+
+// filterAllocations applies filters to the allocations list
+func (h *AllocationsHandler) filterAllocations(allocs []AllocationSummary, status, job, node, search string) []AllocationSummary {
+	filtered := make([]AllocationSummary, 0, len(allocs))
+
+	for _, a := range allocs {
+		// Status filter
+		if status != "" && a.Status != status {
+			continue
+		}
+
+		// Job filter
+		if job != "" && a.JobID != job {
+			continue
+		}
+
+		// Node filter
+		if node != "" && a.NodeName != node {
+			continue
+		}
+
+		// Search filter (case-insensitive)
+		if search != "" {
+			searchLower := strings.ToLower(search)
+			if !strings.Contains(strings.ToLower(a.ID), searchLower) &&
+				!strings.Contains(strings.ToLower(a.JobID), searchLower) &&
+				!strings.Contains(strings.ToLower(a.TaskGroup), searchLower) &&
+				!strings.Contains(strings.ToLower(a.NodeName), searchLower) &&
+				!strings.Contains(strings.ToLower(a.NodeID), searchLower) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, a)
+	}
+
+	return filtered
+}
+
+// sortAllocations sorts the allocations list by the specified column
+func (h *AllocationsHandler) sortAllocations(allocs []AllocationSummary, column, dir string) {
+	sort.Slice(allocs, func(i, j int) bool {
+		var less bool
+
+		switch column {
+		case "id":
+			less = allocs[i].ID < allocs[j].ID
+		case "job":
+			less = allocs[i].JobID < allocs[j].JobID
+		case "taskgroup":
+			less = allocs[i].TaskGroup < allocs[j].TaskGroup
+		case "node":
+			less = allocs[i].NodeName < allocs[j].NodeName
+		case "status":
+			less = allocs[i].Status < allocs[j].Status
+		case "created":
+			less = allocs[i].Created.Before(allocs[j].Created)
+		default:
+			less = allocs[i].Created.Before(allocs[j].Created)
+		}
+
+		if dir == "desc" {
+			return !less
+		}
+		return less
+	})
 }
 
 // getAllocationsList returns mock allocation data.
@@ -158,6 +378,42 @@ func (h *AllocationsHandler) getAllocationsList() []AllocationSummary {
 			Status:    "complete",
 			Created:   now.Add(-168 * time.Hour),
 		},
+		{
+			ID:        "c9dae0f1-a2b3-2cd3-be6f-9a0b1c2d3e4f",
+			JobID:     "log-shipper",
+			TaskGroup: "shipper",
+			NodeID:    "node-2",
+			NodeName:  "worker-02.dc1",
+			Status:    "running",
+			Created:   now.Add(-36 * time.Hour),
+		},
+		{
+			ID:        "dae0f1a2-b3c4-3de4-cf7a-0b1c2d3e4f5a",
+			JobID:     "api-gateway",
+			TaskGroup: "api",
+			NodeID:    "node-4",
+			NodeName:  "worker-04.dc2",
+			Status:    "running",
+			Created:   now.Add(-60 * time.Hour),
+		},
+		{
+			ID:        "e0f1a2b3-c4d5-4ef5-da8b-1c2d3e4f5a6b",
+			JobID:     "batch-processor",
+			TaskGroup: "batch",
+			NodeID:    "node-1",
+			NodeName:  "worker-01.dc1",
+			Status:    "complete",
+			Created:   now.Add(-200 * time.Hour),
+		},
+		{
+			ID:        "f1a2b3c4-d5e6-5fa6-eb9c-2d3e4f5a6b7c",
+			JobID:     "data-processor",
+			TaskGroup: "processor",
+			NodeID:    "node-2",
+			NodeName:  "worker-02.dc1",
+			Status:    "failed",
+			Created:   now.Add(-12 * time.Hour),
+		},
 	}
 }
 
@@ -216,9 +472,18 @@ func (h *AllocationsHandler) getAllocationDetail(allocID string) allocationspart
 		Modified:  now.Add(-5 * time.Minute),
 		Tasks: []allocationspartials.TaskStatus{
 			{
-				Name:   "nginx",
-				State:  "running",
-				Failed: false,
+				Name:       "nginx",
+				State:      "running",
+				Failed:     false,
+				StartedAt:  now.Add(-2 * time.Hour),
+				FinishedAt: time.Time{}, // Running, so no finish time
+				Restarts:   0,
+				Resources: allocationspartials.TaskResources{
+					CPU:      256,
+					Memory:   512,
+					CPUUsage: 35,
+					MemUsage: 62,
+				},
 				Events: []allocationspartials.TaskEvent{
 					{
 						Type:       "Started",
@@ -232,13 +497,98 @@ func (h *AllocationsHandler) getAllocationDetail(allocID string) allocationspart
 						DisplayMsg: "Building Task Directory",
 						FailsTask:  false,
 					},
+					{
+						Type:       "Driver",
+						Time:       now.Add(-124 * time.Minute),
+						DisplayMsg: "Downloading image nginx:1.25-alpine",
+						FailsTask:  false,
+					},
+					{
+						Type:       "Received",
+						Time:       now.Add(-126 * time.Minute),
+						DisplayMsg: "Task received by client",
+						FailsTask:  false,
+					},
 				},
 			},
 			{
-				Name:   "redis",
-				State:  "running",
-				Failed: false,
+				Name:       "redis",
+				State:      "running",
+				Failed:     false,
+				StartedAt:  now.Add(-2 * time.Hour),
+				FinishedAt: time.Time{}, // Running, so no finish time
+				Restarts:   2,
+				Resources: allocationspartials.TaskResources{
+					CPU:      256,
+					Memory:   512,
+					CPUUsage: 12,
+					MemUsage: 78,
+				},
 				Events: []allocationspartials.TaskEvent{
+					{
+						Type:       "Started",
+						Time:       now.Add(-30 * time.Minute),
+						DisplayMsg: "Task started by client",
+						FailsTask:  false,
+					},
+					{
+						Type:       "Restarting",
+						Time:       now.Add(-31 * time.Minute),
+						DisplayMsg: "Task restarting in 10s",
+						FailsTask:  false,
+					},
+					{
+						Type:       "Terminated",
+						Time:       now.Add(-32 * time.Minute),
+						DisplayMsg: "Exit Code: 137, Signal: 9",
+						FailsTask:  false,
+					},
+					{
+						Type:       "Started",
+						Time:       now.Add(-1 * time.Hour),
+						DisplayMsg: "Task started by client",
+						FailsTask:  false,
+					},
+					{
+						Type:       "Restarting",
+						Time:       now.Add(-61 * time.Minute),
+						DisplayMsg: "Task restarting in 10s",
+						FailsTask:  false,
+					},
+					{
+						Type:       "Terminated",
+						Time:       now.Add(-62 * time.Minute),
+						DisplayMsg: "Exit Code: 1, OOM Killed",
+						FailsTask:  true,
+					},
+					{
+						Type:       "Started",
+						Time:       now.Add(-2 * time.Hour),
+						DisplayMsg: "Task started by client",
+						FailsTask:  false,
+					},
+				},
+			},
+			{
+				Name:       "sidecar",
+				State:      "dead",
+				Failed:     false,
+				StartedAt:  now.Add(-2 * time.Hour),
+				FinishedAt: now.Add(-1 * time.Hour),
+				Restarts:   0,
+				Resources: allocationspartials.TaskResources{
+					CPU:      100,
+					Memory:   128,
+					CPUUsage: 0,
+					MemUsage: 0,
+				},
+				Events: []allocationspartials.TaskEvent{
+					{
+						Type:       "Terminated",
+						Time:       now.Add(-1 * time.Hour),
+						DisplayMsg: "Exit Code: 0, Signal: 0",
+						FailsTask:  false,
+					},
 					{
 						Type:       "Started",
 						Time:       now.Add(-2 * time.Hour),
@@ -249,25 +599,35 @@ func (h *AllocationsHandler) getAllocationDetail(allocID string) allocationspart
 			},
 		},
 		Resources: allocationspartials.ResourceUsage{
-			CPU:    512,
-			Memory: 1024,
+			CPU:    612,
+			Memory: 1152,
 			Disk:   2048,
 		},
 		Events: []allocationspartials.AllocationEvent{
 			{
-				Type:    "Received",
-				Time:    now.Add(-2 * time.Hour),
-				Message: "Allocation received by client",
+				Type:    "Allocation Healthy",
+				Time:    now.Add(-115 * time.Minute),
+				Message: "All tasks are running",
 			},
 			{
 				Type:    "Task Started",
-				Time:    now.Add(-115 * time.Minute),
+				Time:    now.Add(-119 * time.Minute),
 				Message: "Task 'nginx' started",
 			},
 			{
 				Type:    "Task Started",
-				Time:    now.Add(-115 * time.Minute),
+				Time:    now.Add(-119 * time.Minute),
 				Message: "Task 'redis' started",
+			},
+			{
+				Type:    "Task Started",
+				Time:    now.Add(-120 * time.Minute),
+				Message: "Task 'sidecar' started",
+			},
+			{
+				Type:    "Received",
+				Time:    now.Add(-2 * time.Hour),
+				Message: "Allocation received by client",
 			},
 		},
 	}

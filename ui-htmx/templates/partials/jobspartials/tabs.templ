@@ -1,27 +1,317 @@
 package jobspartials
 
-// DefinitionTab renders the job definition tab (placeholder)
-templ DefinitionTab() {
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"time"
+)
+
+// JobVersion represents a version of a job
+type JobVersion struct {
+	Version    int       // Version number
+	Stable     bool      // Whether this version is marked as stable
+	SubmitTime time.Time // When this version was submitted
+	Active     bool      // Whether this is the currently active version
+	Diff       string    // URL for diff view (for future use)
+}
+
+// JobDefinition contains the job definition content and metadata
+type JobDefinition struct {
+	JobID    string // Job ID for API calls
+	Content  string // The actual job definition (HCL or JSON)
+	Format   string // "hcl" or "json"
+	Version  int    // Current version number
+	ReadOnly bool   // Whether editing is disabled (e.g., for periodic jobs)
+}
+
+// DefinitionTab renders the job definition tab with CodeMirror editor
+templ DefinitionTab(def JobDefinition) {
+	<div
+		class="p-6"
+		x-data={ jobDefinitionAlpineData(def) }
+	>
+		<!-- Header with controls -->
+		<div class="flex items-center justify-between mb-4">
+			<div class="flex items-center gap-4">
+				<h3 class="text-lg font-medium text-neutral-900">Job Definition</h3>
+				<!-- Format Toggle -->
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-neutral-500">Format:</span>
+					<div class="inline-flex rounded-md shadow-sm" role="group">
+						<button
+							type="button"
+							@click="setFormat('hcl')"
+							:class="format === 'hcl' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+							class="px-3 py-1.5 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
+						>
+							HCL
+						</button>
+						<button
+							type="button"
+							@click="setFormat('json')"
+							:class="format === 'json' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+							class="px-3 py-1.5 text-sm font-medium border border-l-0 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
+						>
+							JSON
+						</button>
+					</div>
+				</div>
+			</div>
+			<!-- Action Buttons -->
+			<div class="flex items-center gap-2">
+				<!-- Copy button -->
+				<button
+					type="button"
+					@click="copyToClipboard"
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+					title="Copy to clipboard"
+				>
+					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+					</svg>
+					Copy
+				</button>
+				<!-- Download button -->
+				<button
+					type="button"
+					@click="downloadDefinition"
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+					title="Download definition file"
+				>
+					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+					</svg>
+					Download
+				</button>
+				if !def.ReadOnly {
+					<!-- Edit/Cancel button -->
+					<template x-if="!isEditing">
+						<button
+							type="button"
+							@click="toggleEdit"
+							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+						>
+							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+							</svg>
+							Edit
+						</button>
+					</template>
+					<template x-if="isEditing">
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								@click="cancelEdit"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								@click="saveChanges"
+								:disabled="!hasChanges || isSaving"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-success-600 border border-transparent rounded-md hover:bg-success-700 focus:outline-none focus:ring-2 focus:ring-success-500 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<svg x-show="isSaving" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								<span x-text="isSaving ? 'Saving...' : 'Save Changes'"></span>
+							</button>
+						</div>
+					</template>
+				}
+			</div>
+		</div>
+		<!-- Edit mode indicator -->
+		<template x-if="isEditing">
+			<div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+				<div class="flex items-center">
+					<svg class="w-5 h-5 text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+					</svg>
+					<span class="text-sm text-yellow-700">
+						<strong>Edit Mode:</strong> Changes will create a new job version. Press <kbd class="px-1.5 py-0.5 mx-1 text-xs bg-yellow-100 border border-yellow-300 rounded">Ctrl+S</kbd> to save.
+					</span>
+				</div>
+			</div>
+		</template>
+		<!-- Version info -->
+		<div class="mb-4 text-sm text-neutral-500">
+			Version: <span class="font-mono">{ fmt.Sprintf("%d", def.Version) }</span>
+		</div>
+		<!-- Error message -->
+		<template x-if="error">
+			<div class="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-md">
+				<div class="flex items-center">
+					<svg class="w-5 h-5 text-danger-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+					</svg>
+					<span class="text-sm text-danger-700" x-text="error"></span>
+				</div>
+			</div>
+		</template>
+		<!-- Editor Container -->
+		<div
+			x-ref="editorContainer"
+			class="border border-neutral-300 rounded-lg overflow-hidden"
+			:class="isEditing ? 'ring-2 ring-primary-500 ring-offset-1' : ''"
+		>
+			<!-- Loading state while editor initializes -->
+		</div>
+		<!-- Keyboard shortcuts help -->
+		<div class="mt-4 text-xs text-neutral-500">
+			<span class="font-medium">Keyboard shortcuts:</span>
+			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Tab</kbd> Insert spaces</span>
+			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Ctrl+S</kbd> Save changes</span>
+		</div>
+	</div>
+	<!-- Load CodeMirror bundle -->
+	<script src="/static/js/codemirror-bundle.js"></script>
+}
+
+// jobDefinitionAlpineData generates the Alpine.js x-data for the definition editor
+func jobDefinitionAlpineData(def JobDefinition) string {
+	// Escape the content for use in JavaScript
+	escapedContent := escapeForJS(def.Content)
+	return fmt.Sprintf("jobDefinitionEditor(`%s`, '%s', '%s')", escapedContent, def.Format, def.JobID)
+}
+
+// escapeForJS escapes a string for use in JavaScript template literals
+func escapeForJS(s string) string {
+	// Escape backslashes first, then backticks and dollar signs
+	result := ""
+	for _, c := range s {
+		switch c {
+		case '\\':
+			result += "\\\\"
+		case '`':
+			result += "\\`"
+		case '$':
+			result += "\\$"
+		default:
+			result += string(c)
+		}
+	}
+	return result
+}
+
+// VersionsTab renders the job versions tab with version history table
+templ VersionsTab(versions []JobVersion, jobID string) {
 	<div class="p-6">
-		<h3 class="text-lg font-medium text-neutral-900 mb-4">Definition</h3>
-		<p class="text-neutral-600">Job definition content will be displayed here.</p>
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-medium text-neutral-900">Version History</h3>
+			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d versions", len(versions)) }</span>
+		</div>
+		@components.Table(components.TableProps{
+			Columns: []components.Column{
+				{Key: "version", Label: "Version", Sortable: false, Align: "left", Width: "w-24"},
+				{Key: "stable", Label: "Stable", Sortable: false, Align: "center", Width: "w-24"},
+				{Key: "submitted", Label: "Submitted", Sortable: false, Align: "left"},
+				{Key: "actions", Label: "Actions", Sortable: false, Align: "right", Width: "w-32"},
+			},
+			Striped: true,
+			Hover:   true,
+		}) {
+			@components.TableBody() {
+				if len(versions) == 0 {
+					@components.TableEmptyState("No versions found", "This job has no version history")
+				} else {
+					for _, version := range versions {
+						@versionRow(version, jobID)
+					}
+				}
+			}
+		}
 	</div>
 }
 
-// VersionsTab renders the job versions tab (placeholder)
-templ VersionsTab() {
-	<div class="p-6">
-		<h3 class="text-lg font-medium text-neutral-900 mb-4">Versions</h3>
-		<p class="text-neutral-600">Job version history will be displayed here.</p>
-	</div>
+// versionRow renders a single version row in the table
+templ versionRow(version JobVersion, jobID string) {
+	<tr class={ versionRowClasses(version.Active) }>
+		@components.TableCell("left", "w-24") {
+			<div class="flex items-center gap-2">
+				<span class="font-mono font-medium text-neutral-900">{ fmt.Sprintf("%d", version.Version) }</span>
+				if version.Active {
+					@components.Badge(components.BadgeProps{
+						Variant: "primary",
+						Size:    "sm",
+						Pill:    true,
+					}) {
+						Active
+					}
+				}
+			</div>
+		}
+		@components.TableCell("center", "w-24") {
+			if version.Stable {
+				@components.Badge(components.BadgeProps{
+					Variant: "success",
+					Size:    "sm",
+					Dot:     true,
+				}) {
+					Stable
+				}
+			} else {
+				<span class="text-neutral-400">-</span>
+			}
+		}
+		@components.TableCell("left", "") {
+			<span class="text-neutral-700">{ formatSubmitTime(version.SubmitTime) }</span>
+		}
+		@components.TableCell("right", "w-32") {
+			<div class="flex items-center justify-end gap-2">
+				<button
+					type="button"
+					class="text-sm text-primary-600 hover:text-primary-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+					title="View diff between this version and the previous"
+					if version.Version == 0 {
+						disabled
+					}
+				>
+					Diff
+				</button>
+			</div>
+		}
+	</tr>
 }
 
-// AllocationsTab renders the job allocations tab (placeholder)
-templ AllocationsTab() {
-	<div class="p-6">
-		<h3 class="text-lg font-medium text-neutral-900 mb-4">Allocations</h3>
-		<p class="text-neutral-600">Job allocations will be displayed here.</p>
-	</div>
+// versionRowClasses returns CSS classes for version rows, highlighting the active version
+func versionRowClasses(isActive bool) string {
+	base := "transition-colors duration-100"
+	if isActive {
+		return base + " bg-primary-50 hover:bg-primary-100"
+	}
+	return base + " hover:bg-neutral-50"
+}
+
+// formatSubmitTime formats the version submit time
+func formatSubmitTime(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else if duration < 7*24*time.Hour {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+	// For older versions, show the full date
+	return t.Format("Jan 2, 2006 at 3:04 PM")
 }
 
 // EvaluationsTab renders the job evaluations tab (placeholder)

@@ -18,7 +18,7 @@ type JobSummary struct {
 }
 
 // List renders the full jobs list page with layout.
-templ List(jobsList []JobSummary, sortColumn string, sortDir string) {
+templ List(jobsList []JobSummary, sortColumn string, sortDir string, searchQuery string, pagination jobspartials.PaginationMeta) {
 	@layouts.PageLayout(
 		layouts.PageLayoutProps{
 			Title:       "Jobs - Wander",
@@ -29,6 +29,6 @@ templ List(jobsList []JobSummary, sortColumn string, sortDir string) {
 				{Label: "Jobs", URL: ""},
 			},
 		},
-		jobspartials.ListContent(jobsList, sortColumn, sortDir),
+		jobspartials.ListContent(jobsList, sortColumn, sortDir, searchQuery, pagination),
 	)
 }

@@ -1,0 +1,24 @@
+package clients
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/clientspartials"
+)
+
+// Detail renders the client detail page with full page layout
+templ Detail(client clientspartials.ClientDetail) {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       client.Name + " - Client Detail - Wander",
+			Description: "Client detail for " + client.Name,
+			CurrentPath: "/ui/clients/" + client.ID,
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "Clients", URL: "/ui/clients"},
+				{Label: client.Name, URL: ""},
+			},
+		},
+		clientspartials.DetailContent(client),
+	)
+}

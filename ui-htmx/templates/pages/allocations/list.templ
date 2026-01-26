@@ -1,25 +1,13 @@
 package allocations
 
 import (
-	"time"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/allocationspartials"
 )
 
-// AllocationSummary represents a summary view of an allocation for list display.
-type AllocationSummary struct {
-	ID        string
-	JobID     string
-	TaskGroup string
-	NodeID    string
-	NodeName  string
-	Status    string
-	Created   time.Time
-}
-
 // List renders the full allocations list page with layout.
-templ List(allocationsList []AllocationSummary) {
+templ List(props allocationspartials.ListProps) {
 	@layouts.PageLayout(
 		layouts.PageLayoutProps{
 			Title:       "Allocations - Wander",
@@ -30,6 +18,6 @@ templ List(allocationsList []AllocationSummary) {
 				{Label: "Allocations", URL: ""},
 			},
 		},
-		allocationspartials.ListContent(allocationsList),
+		allocationspartials.ListContent(props),
 	)
 }

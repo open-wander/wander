@@ -48,6 +48,9 @@ func (r *Router) registerRoutes() {
 
 	// Servers routes
 	r.registerServersRoutes()
+
+	// API routes
+	r.registerAPIRoutes()
 }
 
 // registerJobsRoutes sets up routes for the jobs section.
@@ -83,6 +86,14 @@ func (r *Router) registerServersRoutes() {
 	// Servers handler handles both list and detail pages
 	r.mux.Handle("/ui/servers", r.wrapMiddleware(serversHandler))
 	r.mux.Handle("/ui/servers/", r.wrapMiddleware(serversHandler))
+}
+
+// registerAPIRoutes sets up API routes for HTMX actions.
+func (r *Router) registerAPIRoutes() {
+	jobsAPIHandler := NewJobsAPIHandler(r.handler)
+
+	// Job action endpoints
+	r.mux.Handle("/api/jobs/", r.wrapMiddleware(jobsAPIHandler))
 }
 
 // wrapMiddleware applies HTMX middleware and any other necessary middleware

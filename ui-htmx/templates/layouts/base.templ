@@ -1,5 +1,7 @@
 package layouts
 
+import "github.com/open-wander/wander/ui-htmx/templates/components"
+
 // BaseLayoutProps contains parameters for the base HTML layout
 type BaseLayoutProps struct {
 	Title       string
@@ -35,6 +37,10 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			<div id="app" class="h-full">
 				@content
 			</div>
+			<!-- Toast Container -->
+			@components.ToastContainer(components.ToastContainerProps{
+				Position: "top-right",
+			})
 		</body>
 	</html>
 }

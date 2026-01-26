@@ -25,7 +25,7 @@ type TaskGroupSummary struct {
 
 // DetailContent renders the job detail page content (without layout)
 templ DetailContent(job JobDetail) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false }">
 		<!-- Job Header -->
 		<div class="bg-white shadow rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
@@ -40,6 +40,32 @@ templ DetailContent(job JobDetail) {
 				<div class="flex items-center space-x-4">
 					<span class="text-sm text-neutral-600">Type: <span class="font-medium">{ job.Type }</span></span>
 					<span class="text-sm text-neutral-600">Priority: <span class="font-medium">{ fmt.Sprintf("%d", job.Priority) }</span></span>
+					<!-- Action Buttons -->
+					<div class="flex items-center space-x-2">
+						if job.Status == "dead" || job.Status == "pending" {
+							@components.Button(components.ButtonProps{
+								Variant:     "success",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "startModal = true",
+							}, "Start")
+						}
+						if job.Status == "running" {
+							@components.Button(components.ButtonProps{
+								Variant:     "danger",
+								Outline:     true,
+								Size:        "sm",
+								Icon:        "stop",
+								AlpineClick: "stopModal = true",
+							}, "Stop")
+						}
+						@components.Button(components.ButtonProps{
+							Variant:     "primary",
+							Size:        "sm",
+							Icon:        "play",
+							AlpineClick: "runModal = true",
+						}, "Run")
+					</div>
 				</div>
 			</div>
 		</div>
@@ -85,6 +111,10 @@ templ DetailContent(job JobDetail) {
 				PanelID:   "job-detail-panel",
 			})
 		</div>
+		<!-- Confirmation Modals -->
+		@StartJobModal(job)
+		@StopJobModal(job)
+		@RunJobModal(job)
 	</div>
 }
 
@@ -100,4 +130,127 @@ func statusToBadgeVariant(status string) string {
 	default:
 		return "info"
 	}
+}
+
+// StartJobModal renders the confirmation modal for starting a job
+templ StartJobModal(job JobDetail) {
+	<div x-data="{ get isOpen() { return startModal }, close() { startModal = false } }">
+		@components.Modal(components.ModalProps{
+			ID:       "start-job-modal",
+			Title:    "Start Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Are you sure you want to start job <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500">
+						This will create new allocations and start running the job tasks.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					hx-post={ "/api/jobs/" + job.ID + "/start" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-success btn-sm"
+				>
+					Start Job
+				</button>
+			}
+		}
+	</div>
+}
+
+// StopJobModal renders the confirmation modal for stopping a job
+templ StopJobModal(job JobDetail) {
+	<div x-data="{ get isOpen() { return stopModal }, close() { stopModal = false } }">
+		@components.Modal(components.ModalProps{
+			ID:       "stop-job-modal",
+			Title:    "Stop Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Are you sure you want to stop job <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500">
+						This will gracefully stop all running allocations for this job.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					hx-post={ "/api/jobs/" + job.ID + "/stop" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-danger btn-sm"
+				>
+					Stop Job
+				</button>
+			}
+		}
+	</div>
+}
+
+// RunJobModal renders the confirmation modal for running a new job version
+templ RunJobModal(job JobDetail) {
+	<div x-data="{ get isOpen() { return runModal }, close() { runModal = false } }">
+		@components.Modal(components.ModalProps{
+			ID:       "run-job-modal",
+			Title:    "Run Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Are you sure you want to submit a new version of job <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500">
+						This will create a new job version and trigger a deployment with the current job specification.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					hx-post={ "/api/jobs/" + job.ID + "/run" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-primary btn-sm"
+				>
+					Run Job
+				</button>
+			}
+		}
+	</div>
 }

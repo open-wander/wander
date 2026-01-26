@@ -3,6 +3,7 @@ package jobspartials
 import (
 	"time"
 	"fmt"
+	"net/url"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 )
 
@@ -16,8 +17,16 @@ type JobSummary struct {
 	Submitted time.Time
 }
 
+// PaginationMeta holds pagination metadata for list views.
+type PaginationMeta struct {
+	Page       int // Current page (1-indexed)
+	PerPage    int // Items per page
+	Total      int // Total number of items
+	TotalPages int // Total number of pages
+}
+
 // ListContent renders the jobs table content for HTMX partial updates.
-templ ListContent(jobsList []JobSummary, sortColumn string, sortDir string) {
+templ ListContent(jobsList []JobSummary, sortColumn string, sortDir string, searchQuery string, pagination PaginationMeta) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="sm:flex sm:items-center sm:justify-between mb-6">
 			<div>
@@ -27,7 +36,20 @@ templ ListContent(jobsList []JobSummary, sortColumn string, sortDir string) {
 				</p>
 			</div>
 		</div>
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<!-- Search Bar -->
+		<div class="mb-6">
+			@components.SearchBar(components.SearchBarProps{
+				Name:        "search",
+				Placeholder: "Search jobs by name or ID...",
+				Value:       searchQuery,
+				SearchURL:   "/ui/jobs",
+				ResultsID:   "jobs-table-container",
+				Debounce:    300,
+				MinChars:    0,
+			})
+		</div>
+		<!-- Jobs Table Container -->
+		<div id="jobs-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "name", Label: "Name", Sortable: true, Align: "left", Width: "w-1/4"},
@@ -52,8 +74,38 @@ templ ListContent(jobsList []JobSummary, sortColumn string, sortDir string) {
 					}
 				}
 			}
+			<!-- Pagination -->
+			@components.Pagination(components.PaginationProps{
+				Page:     pagination.Page,
+				PerPage:  pagination.PerPage,
+				Total:    pagination.Total,
+				BaseURL:  buildJobsURL(sortColumn, sortDir, searchQuery),
+				HxTarget: "#main-content",
+				HxSwap:   "innerHTML",
+			})
 		</div>
 	</div>
+}
+
+// buildJobsURL constructs the base URL for pagination with sort and search params
+func buildJobsURL(sortColumn, sortDir, searchQuery string) string {
+	baseURL := "/ui/jobs?"
+	params := url.Values{}
+
+	if sortColumn != "" {
+		params.Add("sort", sortColumn)
+	}
+	if sortDir != "" {
+		params.Add("dir", sortDir)
+	}
+	if searchQuery != "" {
+		params.Add("search", searchQuery)
+	}
+
+	if len(params) > 0 {
+		return baseURL + params.Encode() + "&"
+	}
+	return baseURL
 }
 
 // jobRow renders a single job row in the table

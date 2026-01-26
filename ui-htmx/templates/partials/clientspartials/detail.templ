@@ -1,0 +1,371 @@
+package clientspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// ClientDetail represents detailed information about a client node
+type ClientDetail struct {
+	ID          string
+	Name        string
+	Status      string
+	Datacenter  string
+	Address     string
+	Version     string
+	Uptime      string
+	Resources   ClientResources
+	Allocations []AllocationSummary
+	Attributes  map[string]string
+	Meta        map[string]string
+}
+
+// ClientResources represents resource allocation and usage for a client
+type ClientResources struct {
+	CPUUsed   int
+	CPUTotal  int
+	MemUsed   int64
+	MemTotal  int64
+	DiskUsed  int64
+	DiskTotal int64
+}
+
+// AllocationSummary represents a summary of an allocation running on this client
+type AllocationSummary struct {
+	ID        string
+	JobID     string
+	TaskGroup string
+	Status    string
+	CPUUsed   int
+	MemUsed   int64
+}
+
+// DetailContent renders the client detail page content (without layout)
+templ DetailContent(client ClientDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Client Header -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+			<div class="flex items-start justify-between">
+				<div class="flex-1">
+					<div class="flex items-center space-x-4 mb-4">
+						<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ client.Name }</h1>
+						@components.Badge(components.BadgeProps{
+							Variant: statusToBadgeVariant(client.Status),
+							Dot:     true,
+							Size:    "md",
+						}) {
+							{ client.Status }
+						}
+					</div>
+					<div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">ID:</span>
+							<span class="font-mono text-xs text-neutral-700 dark:text-neutral-300 ml-2">{ truncateID(client.ID) }</span>
+						</div>
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">Datacenter:</span>
+							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Datacenter }</span>
+						</div>
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">Address:</span>
+							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Address }</span>
+						</div>
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">Version:</span>
+							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Version }</span>
+						</div>
+					</div>
+					<div class="mt-2 text-sm">
+						<span class="text-neutral-600 dark:text-neutral-400">Uptime:</span>
+						<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Uptime }</span>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Resource Usage -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Usage</h2>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+				<!-- CPU Usage -->
+				<div>
+					<div class="flex items-center justify-between text-sm mb-2">
+						<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU</span>
+						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+							{ fmt.Sprintf("%d / %d MHz", client.Resources.CPUUsed, client.Resources.CPUTotal) }
+						</span>
+					</div>
+					@resourceBar(client.Resources.CPUUsed, client.Resources.CPUTotal)
+					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+						{ fmt.Sprintf("%d%% utilized", calculatePercentage(client.Resources.CPUUsed, client.Resources.CPUTotal)) }
+					</div>
+				</div>
+				<!-- Memory Usage -->
+				<div>
+					<div class="flex items-center justify-between text-sm mb-2">
+						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory</span>
+						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+							{ formatMemory(client.Resources.MemUsed) } / { formatMemory(client.Resources.MemTotal) }
+						</span>
+					</div>
+					@memoryBar(client.Resources.MemUsed, client.Resources.MemTotal)
+					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.MemUsed, client.Resources.MemTotal)) }
+					</div>
+				</div>
+				<!-- Disk Usage -->
+				<div>
+					<div class="flex items-center justify-between text-sm mb-2">
+						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk</span>
+						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+							{ formatMemory(client.Resources.DiskUsed) } / { formatMemory(client.Resources.DiskTotal) }
+						</span>
+					</div>
+					@memoryBar(client.Resources.DiskUsed, client.Resources.DiskTotal)
+					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Allocations -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
+				Allocations ({ fmt.Sprintf("%d", len(client.Allocations)) })
+			</h2>
+			if len(client.Allocations) == 0 {
+				<div class="text-center py-8">
+					<p class="text-neutral-500 dark:text-neutral-400">No allocations running on this client</p>
+				</div>
+			} else {
+				<div class="overflow-hidden">
+					@components.Table(components.TableProps{
+						Columns: []components.Column{
+							{Key: "id", Label: "ID", Sortable: false, Align: "left", Width: "w-32"},
+							{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-1/4"},
+							{Key: "taskgroup", Label: "Task Group", Sortable: false, Align: "left", Width: "w-1/4"},
+							{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-32"},
+							{Key: "resources", Label: "Resources", Sortable: false, Align: "left"},
+						},
+						SortColumn: "",
+						SortDir:    "",
+						Striped:    true,
+						Hover:      true,
+						SortURL:    "",
+					}) {
+						@components.TableBody() {
+							for _, alloc := range client.Allocations {
+								@allocationRow(alloc)
+							}
+						}
+					}
+				</div>
+			}
+		</div>
+		<!-- Node Attributes -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Node Attributes</h2>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				for key, value := range client.Attributes {
+					<div class="flex items-start border-b border-neutral-200 dark:border-neutral-700 pb-2">
+						<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2">{ key }</span>
+						<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2 font-mono">{ value }</span>
+					</div>
+				}
+			</div>
+		</div>
+		<!-- Meta Attributes -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Meta Attributes</h2>
+			if len(client.Meta) == 0 {
+				<p class="text-neutral-500 dark:text-neutral-400">No meta attributes defined</p>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					for key, value := range client.Meta {
+						<div class="flex items-start border-b border-neutral-200 dark:border-neutral-700 pb-2">
+							<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2">{ key }</span>
+							<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2">{ value }</span>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// allocationRow renders a single allocation row in the table
+templ allocationRow(alloc AllocationSummary) {
+	<tr class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+		@components.TableCell("left", "w-32") {
+			<a
+				href={ templ.URL("/ui/allocations/" + alloc.ID) }
+				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-mono text-xs"
+			>
+				{ truncateID(alloc.ID) }
+			</a>
+		}
+		@components.TableCell("left", "w-1/4") {
+			<a
+				href={ templ.URL("/ui/jobs/" + alloc.JobID) }
+				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
+			>
+				{ alloc.JobID }
+			</a>
+		}
+		@components.TableCell("left", "w-1/4") {
+			<span class="text-neutral-700 dark:text-neutral-300">
+				{ alloc.TaskGroup }
+			</span>
+		}
+		@components.TableCell("center", "w-32") {
+			@components.Badge(components.BadgeProps{
+				Variant: allocationStatusVariant(alloc.Status),
+				Dot:     true,
+			}) {
+				{ alloc.Status }
+			}
+		}
+		@components.TableCell("left", "") {
+			<div class="space-y-1">
+				<div class="text-xs text-neutral-600 dark:text-neutral-400">
+					CPU: <span class="font-medium text-neutral-700 dark:text-neutral-300">{ fmt.Sprintf("%d MHz", alloc.CPUUsed) }</span>
+				</div>
+				<div class="text-xs text-neutral-600 dark:text-neutral-400">
+					Memory: <span class="font-medium text-neutral-700 dark:text-neutral-300">{ formatMemory(alloc.MemUsed) }</span>
+				</div>
+			</div>
+		}
+	</tr>
+}
+
+// statusToBadgeVariant maps client status to badge variant
+func statusToBadgeVariant(status string) string {
+	switch status {
+	case "ready":
+		return "success"
+	case "down":
+		return "error"
+	case "draining":
+		return "warning"
+	default:
+		return "neutral"
+	}
+}
+
+// allocationStatusVariant maps allocation status to badge variant
+func allocationStatusVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "complete":
+		return "info"
+	case "failed":
+		return "error"
+	default:
+		return "neutral"
+	}
+}
+
+// resourceBar renders a progress bar for CPU usage
+templ resourceBar(used int, total int) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", resourceBarColor(used, total) }
+			style={ fmt.Sprintf("width: %d%%", calculatePercentage(used, total)) }
+		></div>
+	</div>
+}
+
+// memoryBar renders a progress bar for memory usage
+templ memoryBar(used int64, total int64) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", memoryBarColor(used, total) }
+			style={ fmt.Sprintf("width: %d%%", calculateMemoryPercentage(used, total)) }
+		></div>
+	</div>
+}
+
+// resourceBarColor returns the appropriate color class based on usage percentage
+func resourceBarColor(used int, total int) string {
+	if total == 0 {
+		return "bg-neutral-400 dark:bg-neutral-500"
+	}
+
+	percentage := (used * 100) / total
+
+	if percentage >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percentage >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percentage >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// memoryBarColor returns the appropriate color class based on memory usage percentage
+func memoryBarColor(used int64, total int64) string {
+	if total == 0 {
+		return "bg-neutral-400 dark:bg-neutral-500"
+	}
+
+	percentage := (used * 100) / total
+
+	if percentage >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percentage >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percentage >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// calculatePercentage calculates the usage percentage for CPU
+func calculatePercentage(used int, total int) int {
+	if total == 0 {
+		return 0
+	}
+	return (used * 100) / total
+}
+
+// calculateMemoryPercentage calculates the usage percentage for memory
+func calculateMemoryPercentage(used int64, total int64) int {
+	if total == 0 {
+		return 0
+	}
+	return int((used * 100) / total)
+}
+
+// formatMemory formats bytes into human-readable format
+func formatMemory(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+		TB = GB * 1024
+	)
+
+	switch {
+	case bytes >= TB:
+		return fmt.Sprintf("%.1f TB", float64(bytes)/float64(TB))
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
+	case bytes >= MB:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
+// truncateID truncates a client ID to show first 8 characters
+func truncateID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
+}

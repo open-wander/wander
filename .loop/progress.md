@@ -379,3 +379,56 @@ Files: pages/jobs/taskgroup.templ, handlers/allocations.go, clients.go, servers.
 - Pattern: npm needed for plugins even with standalone CLI
 - Files: GNUmakefile, tailwind.config.js, tests/tailwind_test.go, BUILD_SYSTEM.md
 ---
+
+### 2026-01-26 - Tasks 47, 50, 53, 56, 59, 63, 76, 84: Job Tabs, Scaling, List Pages
+Batch of 8 tasks completed:
+
+**Task 47: Job Definition tab with CodeMirror**
+- Created codemirror-bundle.js with custom lightweight editor (792 lines)
+- HCL and JSON syntax highlighting with token-based parsing
+- Read-only by default, edit mode toggle, copy/download buttons
+- Alpine.js integration for state management
+
+**Task 50: Job Versions tab**
+- Table with version number, stable badge, submit time, diff link
+- Active version highlighted with primary-50 background
+- Relative time formatting for recent versions
+
+**Task 53: Job Allocations tab**
+- Table with Short ID, Task Group, Node, Status, CPU, Memory, Created
+- Pagination support with HTMX
+- Color-coded CPU/Memory progress bars
+
+**Task 56: Task group scaling controls**
+- Increment/decrement buttons with Alpine.js
+- Direct count input, scale confirmation modal
+- HTMX POST to scale endpoint
+- Scaling constraints display (min/max)
+
+**Task 59: Allocations list page with filters**
+- Status, Job, Node filter dropdowns
+- Search bar with 300ms debounce
+- Sortable columns, HTMX pagination
+- Clickable rows navigate to detail
+
+**Task 63: Allocation Tasks tab**
+- Card per task with state badge, restart count
+- Resource usage bars (CPU/Memory)
+- Events timeline with visual dots
+- Duration calculation, logs link
+
+**Task 76: Clients list page with resource bars**
+- Table: Name, Address, Status, Datacenter, Node Class, Allocations
+- CPU, Memory, Disk progress bars with color thresholds
+- Search bar with HTMX filtering
+
+**Task 84: Servers list page with leader badge**
+- Table: Name, Address, Status, Region, Datacenter, Raft Voter
+- Leader row highlighted (primary-50 bg, left border accent)
+- Voter/Non-Voter badges
+
+Pattern: Duplicate struct definitions across handler/page/partial packages for type compatibility
+Pattern: Color thresholds for resource bars: green <50%, yellow 50-90%, red >=90%
+Pattern: Modal confirmation for destructive actions (scaling)
+Files: codemirror-bundle.js, jobspartials/tabs.templ, allocations.templ, taskgrouppartials/detail.templ, allocationspartials/list_content.templ, tabs.templ, clientspartials/list_content.templ, serverspartials/list_content.templ, handlers/jobs.go, allocations.go, clients.go, servers.go
+---

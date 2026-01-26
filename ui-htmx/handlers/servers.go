@@ -10,12 +10,14 @@ import (
 // ServerSummary represents a summary view of a server for list display.
 // This structure will eventually be populated from the Nomad API.
 type ServerSummary struct {
-	Name    string
-	Address string
-	Status  string
-	Leader  bool
-	Region  string
-	Version string
+	Name       string
+	Address    string
+	Status     string
+	Leader     bool
+	Region     string
+	Datacenter string
+	RaftVoter  bool
+	Version    string
 }
 
 // ServersHandler handles requests for the servers list page.
@@ -87,44 +89,54 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *ServersHandler) getServersList() []ServerSummary {
 	return []ServerSummary{
 		{
-			Name:    "nomad-server-1",
-			Address: "10.0.1.10:4647",
-			Status:  "alive",
-			Leader:  true,
-			Region:  "us-east-1",
-			Version: "1.7.2",
+			Name:       "nomad-server-1",
+			Address:    "10.0.1.10:4647",
+			Status:     "alive",
+			Leader:     true,
+			Region:     "us-east-1",
+			Datacenter: "dc1",
+			RaftVoter:  true,
+			Version:    "1.7.2",
 		},
 		{
-			Name:    "nomad-server-2",
-			Address: "10.0.1.11:4647",
-			Status:  "alive",
-			Leader:  false,
-			Region:  "us-east-1",
-			Version: "1.7.2",
+			Name:       "nomad-server-2",
+			Address:    "10.0.1.11:4647",
+			Status:     "alive",
+			Leader:     false,
+			Region:     "us-east-1",
+			Datacenter: "dc1",
+			RaftVoter:  true,
+			Version:    "1.7.2",
 		},
 		{
-			Name:    "nomad-server-3",
-			Address: "10.0.1.12:4647",
-			Status:  "alive",
-			Leader:  false,
-			Region:  "us-east-1",
-			Version: "1.7.2",
+			Name:       "nomad-server-3",
+			Address:    "10.0.1.12:4647",
+			Status:     "alive",
+			Leader:     false,
+			Region:     "us-east-1",
+			Datacenter: "dc1",
+			RaftVoter:  true,
+			Version:    "1.7.2",
 		},
 		{
-			Name:    "nomad-server-4",
-			Address: "10.0.2.10:4647",
-			Status:  "alive",
-			Leader:  false,
-			Region:  "us-west-2",
-			Version: "1.7.2",
+			Name:       "nomad-server-4",
+			Address:    "10.0.2.10:4647",
+			Status:     "alive",
+			Leader:     false,
+			Region:     "us-west-2",
+			Datacenter: "dc2",
+			RaftVoter:  true,
+			Version:    "1.7.2",
 		},
 		{
-			Name:    "nomad-server-5",
-			Address: "10.0.2.11:4647",
-			Status:  "failed",
-			Leader:  false,
-			Region:  "us-west-2",
-			Version: "1.7.1",
+			Name:       "nomad-server-5",
+			Address:    "10.0.2.11:4647",
+			Status:     "failed",
+			Leader:     false,
+			Region:     "us-west-2",
+			Datacenter: "dc2",
+			RaftVoter:  false,
+			Version:    "1.7.1",
 		},
 	}
 }

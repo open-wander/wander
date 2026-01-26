@@ -6,21 +6,8 @@ import (
 	"github.com/open-wander/wander/ui-htmx/templates/partials/clientspartials"
 )
 
-// ClientSummary represents a summary view of a client for list display.
-type ClientSummary struct {
-	ID          string
-	Name        string
-	Status      string
-	Datacenter  string
-	Allocations int
-	CPUUsed     int
-	CPUTotal    int
-	MemUsed     int64
-	MemTotal    int64
-}
-
 // List renders the full clients list page with layout.
-templ List(clientsList []ClientSummary) {
+templ List(clientsList []clientspartials.ClientSummary) {
 	@layouts.PageLayout(
 		layouts.PageLayoutProps{
 			Title:       "Clients - Wander",
