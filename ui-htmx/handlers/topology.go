@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -34,6 +35,16 @@ func (h *TopologyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle /ui/topology/data (JSON data endpoint for D3 visualization)
+	if path == "/ui/topology/data" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.Data(w, r)
+		return
+	}
+
 	http.NotFound(w, r)
 }
 
@@ -55,6 +66,31 @@ func (h *TopologyHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		h.handler.logger.Error("failed to render topology", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// Data handles JSON data endpoint for the D3 topology visualization.
+// Returns topology data in a format suitable for the D3.js visualization.
+func (h *TopologyHandler) Data(w http.ResponseWriter, r *http.Request) {
+	// Log the request
+	h.handler.logger.Debug("topology data request", "path", r.URL.Path)
+
+	// Get topology data
+	topologyData := h.getTopologyData()
+
+	// Convert to JSON response format
+	response := struct {
+		Datacenters []topologypartials.Datacenter `json:"datacenters"`
+	}{
+		Datacenters: topologyData.Datacenters,
+	}
+
+	// Set content type and write JSON response
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.handler.logger.Error("failed to encode topology data", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

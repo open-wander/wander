@@ -1,0 +1,25 @@
+package csi
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/csipartials"
+)
+
+// VolumeDetail renders the CSI volume detail page with full page layout
+templ VolumeDetail(volume csipartials.VolumeDetail) {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       volume.Name + " - CSI Volume - Wander",
+			Description: "CSI Volume detail for " + volume.Name,
+			CurrentPath: "/ui/csi/volumes/" + volume.ID,
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "CSI", URL: "/ui/csi/volumes"},
+				{Label: "Volumes", URL: "/ui/csi/volumes"},
+				{Label: volume.Name, URL: ""},
+			},
+		},
+		csipartials.VolumeDetailContent(volume),
+	)
+}

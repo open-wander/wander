@@ -62,6 +62,12 @@ func (r *Router) registerRoutes() {
 	// CSI routes
 	r.registerCSIRoutes()
 
+	// Settings routes
+	r.registerSettingsRoutes()
+
+	// Evaluations routes
+	r.registerEvaluationsRoutes()
+
 	// API routes
 	r.registerAPIRoutes()
 }
@@ -154,6 +160,23 @@ func (r *Router) registerCSIRoutes() {
 	// CSI handler handles volumes list and detail pages
 	r.mux.Handle("/ui/csi/volumes", r.wrapMiddleware(csiHandler))
 	r.mux.Handle("/ui/csi/volumes/", r.wrapMiddleware(csiHandler))
+}
+
+// registerSettingsRoutes sets up routes for the settings section.
+func (r *Router) registerSettingsRoutes() {
+	settingsHandler := NewSettingsHandler(r.handler)
+
+	// Settings handler handles settings page and token management
+	r.mux.Handle("/ui/settings", r.wrapMiddleware(settingsHandler))
+	r.mux.Handle("/ui/settings/", r.wrapMiddleware(settingsHandler))
+}
+
+// registerEvaluationsRoutes sets up routes for the evaluations panel.
+func (r *Router) registerEvaluationsRoutes() {
+	evaluationsHandler := NewEvaluationsHandler(r.handler)
+
+	// Evaluations handler returns the list of recent evaluations
+	r.mux.Handle("/ui/evaluations", r.wrapMiddleware(evaluationsHandler))
 }
 
 // registerAPIRoutes sets up API routes for HTMX actions.

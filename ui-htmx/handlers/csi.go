@@ -39,7 +39,7 @@ func NewCSIHandler(h *Handler) *CSIHandler {
 }
 
 // ServeHTTP handles requests to the CSI pages.
-// It routes to the volumes list page.
+// It routes to the volumes list page and volume detail pages.
 func (h *CSIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
@@ -50,6 +50,22 @@ func (h *CSIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.VolumesList(w, r)
+		return
+	}
+
+	// Handle /ui/csi/volumes/{id} (detail page)
+	if strings.HasPrefix(path, "/ui/csi/volumes/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		// Extract volume ID from path
+		volumeID := strings.TrimPrefix(path, "/ui/csi/volumes/")
+		// Remove any trailing slashes or additional path segments
+		if idx := strings.Index(volumeID, "/"); idx != -1 {
+			volumeID = volumeID[:idx]
+		}
+		h.VolumeDetail(w, r, volumeID)
 		return
 	}
 
@@ -408,4 +424,251 @@ func (h *CSIHandler) getVolumesList() []VolumeSummary {
 			Created:     now.Add(-144 * time.Hour), // 6 days ago
 		},
 	}
+}
+
+// VolumeDetail represents detailed information about a CSI volume.
+// This will eventually be populated from the Nomad API.
+type VolumeDetail struct {
+	ID                  string
+	Name                string
+	Namespace           string
+	PluginID            string
+	Provider            string
+	Schedulable         bool
+	AccessMode          string
+	AttachMode          string
+	MountOptions        string
+	Capacity            int64 // in bytes
+	AllocationsCount    int
+	ReadAllocsCount     int
+	WriteAllocsCount    int
+	Created             time.Time
+	ExternalID          string
+	ControllerRequired  bool
+	ControllersHealthy  int
+	ControllersExpected int
+	NodesHealthy        int
+	NodesExpected       int
+	Allocations         []AllocationInfo
+}
+
+// AllocationInfo represents basic allocation information for volume detail
+type AllocationInfo struct {
+	ID        string
+	Name      string
+	JobID     string
+	TaskGroup string
+	NodeID    string
+	NodeName  string
+	Status    string
+	ReadOnly  bool
+	Created   time.Time
+}
+
+// VolumeDetail handles the CSI volume detail page
+func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volumeID string) {
+	// Log the request
+	h.handler.logger.Debug("csi volume detail request",
+		"path", r.URL.Path,
+		"volumeID", volumeID,
+		"htmx", IsHTMXFromRequest(r))
+
+	// Get volume details
+	volume := h.getVolumeDetail(volumeID)
+	if volume == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Convert to partial type
+	volumeDetail := csipartials.VolumeDetail{
+		ID:                  volume.ID,
+		Name:                volume.Name,
+		Namespace:           volume.Namespace,
+		PluginID:            volume.PluginID,
+		Provider:            volume.Provider,
+		Schedulable:         volume.Schedulable,
+		AccessMode:          volume.AccessMode,
+		AttachMode:          volume.AttachMode,
+		MountOptions:        volume.MountOptions,
+		Capacity:            volume.Capacity,
+		AllocationsCount:    volume.AllocationsCount,
+		ReadAllocsCount:     volume.ReadAllocsCount,
+		WriteAllocsCount:    volume.WriteAllocsCount,
+		Created:             volume.Created,
+		ExternalID:          volume.ExternalID,
+		ControllerRequired:  volume.ControllerRequired,
+		ControllersHealthy:  volume.ControllersHealthy,
+		ControllersExpected: volume.ControllersExpected,
+		NodesHealthy:        volume.NodesHealthy,
+		NodesExpected:       volume.NodesExpected,
+	}
+
+	// Convert allocations
+	volumeDetail.Allocations = make([]csipartials.AllocationInfo, len(volume.Allocations))
+	for i, a := range volume.Allocations {
+		volumeDetail.Allocations[i] = csipartials.AllocationInfo{
+			ID:        a.ID,
+			Name:      a.Name,
+			JobID:     a.JobID,
+			TaskGroup: a.TaskGroup,
+			NodeID:    a.NodeID,
+			NodeName:  a.NodeName,
+			Status:    a.Status,
+			ReadOnly:  a.ReadOnly,
+			Created:   a.Created,
+		}
+	}
+
+	// Render the volume detail page
+	err := Render(w, r,
+		csi.VolumeDetail(volumeDetail),          // Full page with layout
+		csipartials.VolumeDetailContent(volumeDetail), // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render csi volume detail", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// getVolumeDetail returns mock volume detail data.
+// This will be replaced with actual Nomad API calls in the future.
+func (h *CSIHandler) getVolumeDetail(volumeID string) *VolumeDetail {
+	now := time.Now()
+
+	// Mock data for different volumes
+	volumes := map[string]*VolumeDetail{
+		"vol-01-postgres-data": {
+			ID:                  "vol-01-postgres-data",
+			Name:                "postgres-data",
+			Namespace:           "default",
+			PluginID:            "aws-ebs0",
+			Provider:            "ebs.csi.aws.com",
+			Schedulable:         true,
+			AccessMode:          "single-node-writer",
+			AttachMode:          "file-system",
+			MountOptions:        "defaults",
+			Capacity:            107374182400, // 100 GB
+			AllocationsCount:    1,
+			ReadAllocsCount:     0,
+			WriteAllocsCount:    1,
+			Created:             now.Add(-168 * time.Hour),
+			ExternalID:          "vol-0abc123def456",
+			ControllerRequired:  true,
+			ControllersHealthy:  2,
+			ControllersExpected: 2,
+			NodesHealthy:        3,
+			NodesExpected:       3,
+			Allocations: []AllocationInfo{
+				{
+					ID:        "alloc-postgres-001",
+					Name:      "postgres.db[0]",
+					JobID:     "postgres",
+					TaskGroup: "db",
+					NodeID:    "node-001",
+					NodeName:  "node-1.example.com",
+					Status:    "running",
+					ReadOnly:  false,
+					Created:   now.Add(-24 * time.Hour),
+				},
+			},
+		},
+		"vol-02-redis-cache": {
+			ID:                  "vol-02-redis-cache",
+			Name:                "redis-cache",
+			Namespace:           "default",
+			PluginID:            "aws-ebs0",
+			Provider:            "ebs.csi.aws.com",
+			Schedulable:         true,
+			AccessMode:          "single-node-writer",
+			AttachMode:          "file-system",
+			MountOptions:        "defaults",
+			Capacity:            53687091200, // 50 GB
+			AllocationsCount:    1,
+			ReadAllocsCount:     0,
+			WriteAllocsCount:    1,
+			Created:             now.Add(-120 * time.Hour),
+			ExternalID:          "vol-1def456abc789",
+			ControllerRequired:  true,
+			ControllersHealthy:  2,
+			ControllersExpected: 2,
+			NodesHealthy:        3,
+			NodesExpected:       3,
+			Allocations: []AllocationInfo{
+				{
+					ID:        "alloc-redis-001",
+					Name:      "redis.cache[0]",
+					JobID:     "redis",
+					TaskGroup: "cache",
+					NodeID:    "node-002",
+					NodeName:  "node-2.example.com",
+					Status:    "running",
+					ReadOnly:  false,
+					Created:   now.Add(-12 * time.Hour),
+				},
+			},
+		},
+		"vol-03-shared-assets": {
+			ID:                  "vol-03-shared-assets",
+			Name:                "shared-assets",
+			Namespace:           "default",
+			PluginID:            "aws-efs0",
+			Provider:            "efs.csi.aws.com",
+			Schedulable:         true,
+			AccessMode:          "multi-node-multi-writer",
+			AttachMode:          "file-system",
+			MountOptions:        "nfsvers=4.1,rsize=1048576,wsize=1048576",
+			Capacity:            0, // EFS is elastic
+			AllocationsCount:    3,
+			ReadAllocsCount:     1,
+			WriteAllocsCount:    2,
+			Created:             now.Add(-240 * time.Hour),
+			ExternalID:          "fs-0123456789abcdef",
+			ControllerRequired:  false,
+			ControllersHealthy:  0,
+			ControllersExpected: 0,
+			NodesHealthy:        3,
+			NodesExpected:       3,
+			Allocations: []AllocationInfo{
+				{
+					ID:        "alloc-webapp-001",
+					Name:      "webapp.web[0]",
+					JobID:     "webapp",
+					TaskGroup: "web",
+					NodeID:    "node-001",
+					NodeName:  "node-1.example.com",
+					Status:    "running",
+					ReadOnly:  false,
+					Created:   now.Add(-48 * time.Hour),
+				},
+				{
+					ID:        "alloc-webapp-002",
+					Name:      "webapp.web[1]",
+					JobID:     "webapp",
+					TaskGroup: "web",
+					NodeID:    "node-002",
+					NodeName:  "node-2.example.com",
+					Status:    "running",
+					ReadOnly:  false,
+					Created:   now.Add(-47 * time.Hour),
+				},
+				{
+					ID:        "alloc-worker-001",
+					Name:      "worker.processor[0]",
+					JobID:     "worker",
+					TaskGroup: "processor",
+					NodeID:    "node-003",
+					NodeName:  "node-3.example.com",
+					Status:    "running",
+					ReadOnly:  true,
+					Created:   now.Add(-36 * time.Hour),
+				},
+			},
+		},
+	}
+
+	// Return the requested volume or nil if not found
+	return volumes[volumeID]
 }

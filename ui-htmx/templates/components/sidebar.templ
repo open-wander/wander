@@ -74,6 +74,20 @@ templ Sidebar(props SidebarProps) {
 				</nav>
 				<!-- Footer/Version Info -->
 				<div class="flex-shrink-0 border-t border-neutral-200 px-4 py-3">
+					<button
+						type="button"
+						@click="$dispatch('toggle-evaluations')"
+						class="w-full flex items-center px-3 py-2 mb-2 text-sm font-medium rounded-md transition-colors text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
+						title="Recent Evaluations"
+					>
+						<svg class="mr-3 flex-shrink-0 h-5 w-5 text-neutral-500 group-hover:text-neutral-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+						</svg>
+						<span class="flex-1 text-left">Evaluations</span>
+						<svg class="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+						</svg>
+					</button>
 					<p class="text-xs text-neutral-500">v1.0.0-dev</p>
 				</div>
 			</div>

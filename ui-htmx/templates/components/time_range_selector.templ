@@ -1,0 +1,411 @@
+package components
+
+// TimeRangeOption represents a preset time range option
+type TimeRangeOption struct {
+	ID       string // Unique identifier (e.g., "5m", "1h", "24h")
+	Label    string // Display text (e.g., "5 minutes", "1 hour")
+	Duration string // Duration in ISO 8601 or custom format (e.g., "5m", "1h", "24h", "7d")
+}
+
+// TimeRangeSelectorProps contains parameters for the TimeRangeSelector component
+type TimeRangeSelectorProps struct {
+	ID               string              // Required: Unique ID for the selector
+	Options          []TimeRangeOption   // Preset time range options
+	DefaultOption    string              // ID of the default selected option (default: first option)
+	Class            string              // Optional: Additional CSS classes
+	UpdateURLParams  bool                // Whether to update URL params (default: true)
+	EventName        string              // Custom event name (default: "timerange-change")
+	ShowCustomRange  bool                // Show custom date range picker (default: false)
+}
+
+// TimeRangeSelector renders a time range selector for charts with preset buttons.
+//
+// Features:
+//   - Preset time range buttons (5m, 15m, 1h, 6h, 24h, 7d, etc.)
+//   - Active state management with Alpine.js
+//   - Dispatches custom events that charts can listen to
+//   - Optional URL parameter updates for persistence
+//   - Optional custom date range picker
+//   - Accessible button group with ARIA labels
+//   - Responsive design with Tailwind
+//
+// Event Format:
+//   The component dispatches a 'timerange-change' event (or custom event name) with detail:
+//   {
+//     range: "5m",           // Selected range ID
+//     label: "5 minutes",    // Human-readable label
+//     duration: "5m",        // Duration value
+//     startTime: Date,       // Calculated start timestamp
+//     endTime: Date          // Calculated end timestamp (now)
+//   }
+//
+// Data Format:
+//   Charts should listen for the event and update their DataURL:
+//   ```js
+//   this.$el.addEventListener('timerange-change', (event) => {
+//     const { startTime, endTime } = event.detail;
+//     this.dataUrl = `/api/cpu?start=${startTime.toISOString()}&end=${endTime.toISOString()}`;
+//     this.refreshChart();
+//   });
+//   ```
+//
+// Example Basic Usage:
+//   @TimeRangeSelector(TimeRangeSelectorProps{
+//       ID: "chart-time-selector",
+//       Options: []TimeRangeOption{
+//           {ID: "5m", Label: "5 min", Duration: "5m"},
+//           {ID: "1h", Label: "1 hour", Duration: "1h"},
+//           {ID: "24h", Label: "24 hours", Duration: "24h"},
+//       },
+//       DefaultOption: "1h",
+//   })
+//
+// Example with All Options:
+//   @TimeRangeSelector(TimeRangeSelectorProps{
+//       ID: "client-time-selector",
+//       Options: []TimeRangeOption{
+//           {ID: "5m", Label: "5m", Duration: "5m"},
+//           {ID: "15m", Label: "15m", Duration: "15m"},
+//           {ID: "1h", Label: "1h", Duration: "1h"},
+//           {ID: "6h", Label: "6h", Duration: "6h"},
+//           {ID: "24h", Label: "24h", Duration: "24h"},
+//           {ID: "7d", Label: "7d", Duration: "7d"},
+//       },
+//       DefaultOption: "1h",
+//       UpdateURLParams: true,
+//       EventName: "timerange-change",
+//       ShowCustomRange: false,
+//       Class: "mb-4",
+//   })
+//
+// Example with Custom Date Range:
+//   @TimeRangeSelector(TimeRangeSelectorProps{
+//       ID: "advanced-time-selector",
+//       Options: defaultTimeRanges(),
+//       DefaultOption: "1h",
+//       ShowCustomRange: true,
+//       Class: "mb-6",
+//   })
+//
+// Duration Format:
+//   Supports: "Xm" (minutes), "Xh" (hours), "Xd" (days), "Xw" (weeks)
+//   Examples: "5m", "30m", "1h", "6h", "24h", "7d", "30d"
+templ TimeRangeSelector(props TimeRangeSelectorProps) {
+	<div
+		id={ props.ID }
+		x-data={ timeRangeSelectorData(props) }
+		x-init="init()"
+		class={ "time-range-selector " + props.Class }
+	>
+		<!-- Preset Buttons -->
+		<div class="flex flex-wrap items-center gap-2">
+			<label class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mr-2">
+				Time Range:
+			</label>
+			<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Time range selector">
+				for i, option := range props.Options {
+					@timeRangeButton(option, i == 0, i == len(props.Options)-1)
+				}
+			</div>
+			if props.ShowCustomRange {
+				@customRangeButton()
+			}
+		</div>
+		<!-- Custom Range Picker (initially hidden) -->
+		if props.ShowCustomRange {
+			<div x-show="showCustomPicker" x-cloak class="mt-4 p-4 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-neutral-50 dark:bg-neutral-800">
+				<div class="flex flex-wrap gap-4 items-end">
+					<div class="flex-1 min-w-[200px]">
+						<label for={ props.ID + "-start" } class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							Start Date/Time
+						</label>
+						<input
+							type="datetime-local"
+							id={ props.ID + "-start" }
+							x-model="customStart"
+							class="block w-full rounded-md border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+						/>
+					</div>
+					<div class="flex-1 min-w-[200px]">
+						<label for={ props.ID + "-end" } class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+							End Date/Time
+						</label>
+						<input
+							type="datetime-local"
+							id={ props.ID + "-end" }
+							x-model="customEnd"
+							class="block w-full rounded-md border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+						/>
+					</div>
+					<div class="flex gap-2">
+						<button
+							type="button"
+							@click="applyCustomRange()"
+							class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+						>
+							Apply
+						</button>
+						<button
+							type="button"
+							@click="showCustomPicker = false"
+							class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-600 text-sm font-medium rounded-md text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// timeRangeButton renders a single preset time range button
+templ timeRangeButton(option TimeRangeOption, isFirst bool, isLast bool) {
+	<button
+		type="button"
+		@click={ "selectRange('" + option.ID + "', '" + option.Label + "', '" + option.Duration + "')" }
+		:class={
+			`{
+				'bg-primary-600 text-white border-primary-600 hover:bg-primary-700': selectedRange === '` + option.ID + `',
+				'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700': selectedRange !== '` + option.ID + `'
+			}`
+		}
+		class={
+			"px-4 py-2 text-sm font-medium border focus:z-10 focus:outline-none focus:ring-2 focus:ring-primary-500 " +
+			templ.KV("rounded-l-md", isFirst) +
+			templ.KV("rounded-r-md", isLast) +
+			templ.KV("-ml-px", !isFirst)
+		}
+		aria-label={ "Select " + option.Label + " time range" }
+	>
+		{ option.Label }
+	</button>
+}
+
+// customRangeButton renders a button to show the custom date range picker
+templ customRangeButton() {
+	<button
+		type="button"
+		@click="toggleCustomPicker()"
+		:class={
+			`{
+				'bg-primary-600 text-white border-primary-600 hover:bg-primary-700': selectedRange === 'custom',
+				'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700': selectedRange !== 'custom'
+			}`
+		}
+		class="inline-flex items-center px-4 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+		aria-label="Select custom time range"
+	>
+		<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+		</svg>
+		Custom
+	</button>
+}
+
+// timeRangeSelectorData generates Alpine.js data object for the time range selector
+func timeRangeSelectorData(props TimeRangeSelectorProps) string {
+	// Set defaults
+	defaultOption := props.DefaultOption
+	if defaultOption == "" && len(props.Options) > 0 {
+		defaultOption = props.Options[0].ID
+	}
+
+	updateURLParams := "true"
+	if !props.UpdateURLParams {
+		updateURLParams = "false"
+	}
+
+	eventName := props.EventName
+	if eventName == "" {
+		eventName = "timerange-change"
+	}
+
+	showCustomRange := "false"
+	if props.ShowCustomRange {
+		showCustomRange = "true"
+	}
+
+	// Build options map for JavaScript
+	optionsMap := "{"
+	for i, opt := range props.Options {
+		if i > 0 {
+			optionsMap += ","
+		}
+		optionsMap += "'" + opt.ID + "': { label: '" + opt.Label + "', duration: '" + opt.Duration + "' }"
+	}
+	optionsMap += "}"
+
+	// Build Alpine.js data object
+	return `{
+		selectedRange: '` + defaultOption + `',
+		showCustomPicker: false,
+		customStart: '',
+		customEnd: '',
+		options: ` + optionsMap + `,
+		updateURLParams: ` + updateURLParams + `,
+		eventName: '` + eventName + `',
+		showCustomRange: ` + showCustomRange + `,
+
+		init() {
+			// Initialize with default selection
+			const defaultOpt = this.options['` + defaultOption + `'];
+			if (defaultOpt) {
+				this.selectRange('` + defaultOption + `', defaultOpt.label, defaultOpt.duration);
+			}
+
+			// Check URL params for initial state
+			if (this.updateURLParams) {
+				const params = new URLSearchParams(window.location.search);
+				const rangeParam = params.get('range');
+				if (rangeParam && this.options[rangeParam]) {
+					this.selectRange(rangeParam, this.options[rangeParam].label, this.options[rangeParam].duration);
+				}
+			}
+		},
+
+		selectRange(id, label, duration) {
+			this.selectedRange = id;
+			this.showCustomPicker = false;
+
+			// Calculate start and end times
+			const endTime = new Date();
+			const startTime = this.calculateStartTime(duration, endTime);
+
+			// Dispatch event
+			this.dispatchTimeRangeEvent({
+				range: id,
+				label: label,
+				duration: duration,
+				startTime: startTime,
+				endTime: endTime
+			});
+
+			// Update URL params if enabled
+			if (this.updateURLParams) {
+				this.updateURL(id);
+			}
+		},
+
+		calculateStartTime(duration, endTime) {
+			const now = new Date(endTime);
+			const match = duration.match(/^(\d+)([mhdw])$/);
+
+			if (!match) {
+				console.error('Invalid duration format:', duration);
+				return new Date(now.getTime() - 3600000); // Default to 1 hour
+			}
+
+			const value = parseInt(match[1]);
+			const unit = match[2];
+
+			switch (unit) {
+				case 'm': // minutes
+					return new Date(now.getTime() - (value * 60 * 1000));
+				case 'h': // hours
+					return new Date(now.getTime() - (value * 60 * 60 * 1000));
+				case 'd': // days
+					return new Date(now.getTime() - (value * 24 * 60 * 60 * 1000));
+				case 'w': // weeks
+					return new Date(now.getTime() - (value * 7 * 24 * 60 * 60 * 1000));
+				default:
+					return new Date(now.getTime() - 3600000); // Default to 1 hour
+			}
+		},
+
+		toggleCustomPicker() {
+			this.showCustomPicker = !this.showCustomPicker;
+
+			if (this.showCustomPicker) {
+				// Pre-fill with current range
+				const endTime = new Date();
+				const startTime = this.calculateStartTime(
+					this.options[this.selectedRange]?.duration || '1h',
+					endTime
+				);
+
+				// Format for datetime-local input (YYYY-MM-DDTHH:mm)
+				this.customEnd = this.formatDateTimeLocal(endTime);
+				this.customStart = this.formatDateTimeLocal(startTime);
+			}
+		},
+
+		applyCustomRange() {
+			if (!this.customStart || !this.customEnd) {
+				alert('Please select both start and end dates');
+				return;
+			}
+
+			const startTime = new Date(this.customStart);
+			const endTime = new Date(this.customEnd);
+
+			if (startTime >= endTime) {
+				alert('Start date must be before end date');
+				return;
+			}
+
+			this.selectedRange = 'custom';
+			this.showCustomPicker = false;
+
+			// Dispatch event with custom range
+			this.dispatchTimeRangeEvent({
+				range: 'custom',
+				label: 'Custom Range',
+				duration: 'custom',
+				startTime: startTime,
+				endTime: endTime
+			});
+
+			// Update URL params if enabled
+			if (this.updateURLParams) {
+				this.updateURL('custom', startTime.toISOString(), endTime.toISOString());
+			}
+		},
+
+		formatDateTimeLocal(date) {
+			// Format: YYYY-MM-DDTHH:mm
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(date.getDate()).padStart(2, '0');
+			const hours = String(date.getHours()).padStart(2, '0');
+			const minutes = String(date.getMinutes()).padStart(2, '0');
+			return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+		},
+
+		dispatchTimeRangeEvent(detail) {
+			const event = new CustomEvent(this.eventName, {
+				detail: detail,
+				bubbles: true,
+				composed: true
+			});
+			this.$el.dispatchEvent(event);
+		},
+
+		updateURL(range, customStart = null, customEnd = null) {
+			const url = new URL(window.location);
+			url.searchParams.set('range', range);
+
+			if (customStart && customEnd) {
+				url.searchParams.set('start', customStart);
+				url.searchParams.set('end', customEnd);
+			} else {
+				url.searchParams.delete('start');
+				url.searchParams.delete('end');
+			}
+
+			window.history.replaceState({}, '', url);
+		}
+	}`
+}
+
+// DefaultTimeRangeOptions returns a standard set of time range options
+func DefaultTimeRangeOptions() []TimeRangeOption {
+	return []TimeRangeOption{
+		{ID: "5m", Label: "5m", Duration: "5m"},
+		{ID: "15m", Label: "15m", Duration: "15m"},
+		{ID: "1h", Label: "1h", Duration: "1h"},
+		{ID: "6h", Label: "6h", Duration: "6h"},
+		{ID: "24h", Label: "24h", Duration: "24h"},
+		{ID: "7d", Label: "7d", Duration: "7d"},
+	}
+}

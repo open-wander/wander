@@ -20,24 +20,24 @@ type TopologyData struct {
 
 // Datacenter represents a datacenter with its nodes.
 type Datacenter struct {
-	Name   string
-	Region string
-	Nodes  []Node
+	Name   string `json:"name"`
+	Region string `json:"region"`
+	Nodes  []Node `json:"nodes"`
 }
 
 // Node represents a client node in the topology.
 type Node struct {
-	ID            string
-	Name          string
-	Status        string
-	Datacenter    string
-	NodeClass     string
-	Allocations   int
-	CPUUsed       int
-	CPUTotal      int
-	MemoryUsed    int64
-	MemoryTotal   int64
-	LastHeartbeat time.Time
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Status        string    `json:"status"`
+	Datacenter    string    `json:"datacenter"`
+	NodeClass     string    `json:"nodeClass"`
+	Allocations   int       `json:"allocations"`
+	CPUUsed       int       `json:"cpuUsed"`
+	CPUTotal      int       `json:"cpuTotal"`
+	MemoryUsed    int64     `json:"memoryUsed"`
+	MemoryTotal   int64     `json:"memoryTotal"`
+	LastHeartbeat time.Time `json:"lastHeartbeat"`
 }
 
 // ListContent renders the topology visualization content.
@@ -124,20 +124,15 @@ templ ListContent(data TopologyData) {
 				</div>
 			</div>
 		</div>
-		<!-- Visualization Placeholder -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+		<!-- Topology Visualization -->
+		<div class="mb-6">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Cluster Visualization</h2>
-			<div class="flex items-center justify-center bg-neutral-50 dark:bg-neutral-800 rounded-lg p-12 border-2 border-dashed border-neutral-300 dark:border-neutral-700">
-				<div class="text-center">
-					<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-					</svg>
-					<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">D3.js Visualization Coming Soon</h3>
-					<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-						Interactive cluster topology visualization will be implemented in Task 86
-					</p>
-				</div>
-			</div>
+			@components.TopologyViz(components.TopologyVizProps{
+				ID:      "topology-viz",
+				DataURL: "/ui/topology/data",
+				Height:  "screen-1/2",
+				Class:   "min-h-96",
+			})
 		</div>
 		<!-- Datacenters Grid -->
 		<div class="space-y-6">

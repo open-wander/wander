@@ -1,0 +1,159 @@
+package components
+
+// TopologyVizProps contains parameters for the TopologyViz component
+type TopologyVizProps struct {
+	ID      string // Required: Unique ID for D3 to target
+	DataURL string // Required: URL to fetch topology data from
+	Width   string // Optional: Tailwind width class (defaults to "full")
+	Height  string // Optional: Tailwind height class (defaults to "96")
+	Class   string // Optional: Additional CSS classes
+}
+
+// TopologyViz renders an interactive cluster topology visualization using D3.js.
+//
+// Features:
+//   - Grid-based layout with datacenters as columns
+//   - Node cards showing status, resources, and allocations
+//   - Color-coded by status (ready=green, down=red, draining=yellow)
+//   - Interactive tooltips on hover
+//   - Click to navigate to node detail
+//   - Responsive sizing with auto-resize
+//   - Zoom and pan support for large clusters
+//   - Dark mode support
+//
+// Data Format (fetched from DataURL):
+//
+//	{
+//	  "datacenters": [
+//	    {
+//	      "name": "dc1",
+//	      "region": "us-east",
+//	      "nodes": [
+//	        {
+//	          "id": "node-123",
+//	          "name": "node-1",
+//	          "status": "ready",
+//	          "datacenter": "dc1",
+//	          "nodeClass": "compute",
+//	          "allocations": 5,
+//	          "cpuUsed": 1200,
+//	          "cpuTotal": 2400,
+//	          "memoryUsed": 4096000000,
+//	          "memoryTotal": 8192000000,
+//	          "lastHeartbeat": "2026-01-26T10:30:00Z"
+//	        }
+//	      ]
+//	    }
+//	  ]
+//	}
+//
+// Example Usage:
+//
+//	@TopologyViz(TopologyVizProps{
+//	    ID: "cluster-topology",
+//	    DataURL: "/api/topology/data",
+//	    Height: "screen",
+//	})
+//
+// Example with HTMX auto-refresh:
+//
+//	<div hx-get="/api/topology/data"
+//	     hx-trigger="every 30s"
+//	     hx-target="#topology-viz">
+//	    @TopologyViz(TopologyVizProps{
+//	        ID: "topology-viz",
+//	        DataURL: "/api/topology/data",
+//	    })
+//	</div>
+templ TopologyViz(props TopologyVizProps) {
+	<div
+		id={ props.ID }
+		class={ topologyVizClasses(props) }
+		data-chart-container
+		x-data={ topologyVizData(props.ID, props.DataURL) }
+		x-init="initTopology()"
+	></div>
+}
+
+// topologyVizClasses generates the CSS classes for the topology container
+func topologyVizClasses(props TopologyVizProps) string {
+	classes := "topology-viz-container"
+
+	// Width
+	width := props.Width
+	if width == "" {
+		width = "full"
+	}
+	classes += " w-" + width
+
+	// Height
+	height := props.Height
+	if height == "" {
+		height = "96"
+	}
+	classes += " h-" + height
+
+	// Base styles
+	classes += " relative overflow-hidden bg-white dark:bg-neutral-900 rounded-lg shadow"
+
+	// Add custom classes
+	if props.Class != "" {
+		classes += " " + props.Class
+	}
+
+	return classes
+}
+
+// topologyVizData generates Alpine.js x-data attribute
+func topologyVizData(id, dataURL string) string {
+	return `{
+		vizId: '` + id + `',
+		dataUrl: '` + dataURL + `',
+		viz: null,
+		loading: false,
+		error: null,
+
+		async initTopology() {
+			await this.loadTopology();
+		},
+
+		async loadTopology() {
+			this.loading = true;
+			this.error = null;
+
+			try {
+				const response = await fetch(this.dataUrl);
+				if (!response.ok) {
+					throw new Error('Failed to load topology data');
+				}
+
+				const data = await response.json();
+
+				// Destroy existing visualization if any
+				if (this.viz) {
+					this.viz.destroy();
+				}
+
+				// Create new visualization
+				const { TopologyViz } = await import('/static/js/topology-viz.js');
+				this.viz = new TopologyViz(this.vizId, {
+					nodeHeight: 120,
+					nodeWidth: 180,
+					padding: 16,
+					showTooltips: true
+				});
+
+				this.viz.render(data);
+				this.loading = false;
+			} catch (error) {
+				console.error('Failed to load topology:', error);
+				this.error = error.message || 'Failed to load topology';
+				this.loading = false;
+			}
+		},
+
+		async refreshTopology() {
+			await this.loadTopology();
+		}
+	}`
+}

@@ -680,3 +680,54 @@ Batch of 6 tasks completed:
 Pattern: Types defined in partials packages to avoid import cycles
 Pattern: Pre-existing component errors in codebase don't block new pages
 ---
+
+### 2026-01-26 - Tasks 86, 88, 91, 95, 96, 104: Visualizations & Detail Pages
+Batch of 6 tasks completed:
+
+**Task 86: Topology D3 visualization**
+- Grid-based D3.js visualization (not force-directed)
+- Datacenters as vertical sections, nodes as cards
+- Color-coded status (ready=green, down=red, draining=yellow)
+- Resource utilization bars, tooltips, click-to-navigate
+- Zoom/pan support, responsive sizing, dark mode
+- Files: topology-viz.js, topology_viz.templ, list_content.templ
+
+**Task 88: CSI Volume detail page**
+- VolumeDetail() handler with mock data
+- Three-tab interface: Overview, Allocations, Health
+- Volume info grid, allocation table, health status cards
+- Breadcrumbs, status badges, formatBytes helper
+- Files: csi.go, volume_detail.templ, volume_tabs.templ
+
+**Task 91: Variable detail/edit page**
+- Detail(), Update(), Delete() handlers
+- Alpine.js key-value editor with add/remove
+- Save button with HTMX POST, delete confirmation modal
+- 5 mock variables with realistic paths
+- Pattern: templ.Raw() for inline JavaScript
+- Files: variables.go, detail.templ, detail_content.templ
+
+**Task 95: Settings/Token page**
+- Show(), UpdateToken() handlers
+- Token input with password visibility toggle
+- Sign in/out functionality with cookie storage
+- Token policies display for client tokens
+- Management token handling
+- Files: settings.go, settings.templ, token_form.templ
+
+**Task 96: Evaluations sidebar panel**
+- Slide-out panel from right side
+- 13 mock evaluations with various statuses
+- Status badges, triggered-by icons, time ago
+- HTMX auto-refresh every 5s
+- Trigger button in sidebar footer
+- Files: evaluations.go, evaluations_panel.templ, list.templ, sidebar.templ, base.templ
+
+**Task 104: Time range selector**
+- Preset buttons (5m, 15m, 1h, 6h, 24h, 7d)
+- Custom date range picker option
+- Alpine.js state, event dispatching
+- URL parameter persistence
+- Chart integration helpers
+- Files: time_range_selector.templ, time-range-selector.js, chart-time-range-integration.js
+---

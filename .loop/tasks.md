@@ -111,17 +111,17 @@ Status: in-progress
 ### Phase 6: Additional Sections
 
 - [x] 85. Create Topology page handler (needs: 10)
-- [ ] 86. Implement Topology visualization (D3 or grid-based) (needs: 85)
+- [x] 86. Implement Topology visualization (D3 or grid-based) (needs: 85)
 - [x] 87. Create CSI Volumes list handler and page (needs: 10, 25)
-- [ ] 88. Create CSI Volume detail page (needs: 87)
+- [x] 88. Create CSI Volume detail page (needs: 87)
 - [ ] 89. Create CSI Plugins list page (needs: 87)
 - [x] 90. Create Variables list handler and page (needs: 10, 25)
-- [ ] 91. Create Variable detail/edit page with key-value editor (needs: 90)
+- [x] 91. Create Variable detail/edit page with key-value editor (needs: 90)
 - [ ] 92. Add create/delete variable functionality (needs: 91)
 - [x] 93. Create Policies list handler and page (needs: 10, 25)
 - [ ] 94. Create Policy editor with HCL highlighting (needs: 48, 93)
-- [ ] 95. Create Settings/Token page (needs: 10, 22)
-- [ ] 96. Create Evaluations sidebar panel (needs: 26)
+- [x] 95. Create Settings/Token page (needs: 10, 22)
+- [x] 96. Create Evaluations sidebar panel (needs: 26)
 
 ### Phase 7: Charts & Visualizations
 
@@ -132,7 +132,7 @@ Status: in-progress
 - [x] 101. Add chart initialization after HTMX swaps (needs: 97)
 - [x] 102. Implement CPU utilization chart (needs: 98)
 - [x] 103. Implement Memory utilization chart (needs: 98)
-- [ ] 104. Add time range selector to resource charts (needs: 102, 103)
+- [x] 104. Add time range selector to resource charts (needs: 102, 103)
 - [ ] 105. Add auto-refresh to charts via HTMX polling (needs: 104)
 
 ### Phase 8: Testing Infrastructure

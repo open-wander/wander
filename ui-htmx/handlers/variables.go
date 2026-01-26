@@ -39,15 +39,22 @@ func (h *VariablesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle /ui/variables/{path} (detail page - to be implemented)
+	// Handle /ui/variables/{path} (detail page)
 	if strings.HasPrefix(path, "/ui/variables/") {
-		if r.Method != http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
+			h.Detail(w, r)
+			return
+		case http.MethodPost, http.MethodPut:
+			h.Update(w, r)
+			return
+		case http.MethodDelete:
+			h.Delete(w, r)
+			return
+		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// TODO: Implement detail page
-		http.NotFound(w, r)
-		return
 	}
 
 	http.NotFound(w, r)
@@ -264,4 +271,188 @@ func paginateVariables(variables []variablespartials.VariableSummary, page, perP
 	}
 
 	return variables[start:end]
+}
+
+// Detail handles the variable detail/edit page
+func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	// Extract variable path from URL
+	variablePath := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
+	variablePath = strings.TrimSuffix(variablePath, "/")
+
+	// Log the request
+	h.handler.logger.Debug("variable detail request", "path", variablePath, "htmx", IsHTMXFromRequest(r))
+
+	// Get mock variable detail data
+	variableDetail := h.getVariableDetail(variablePath)
+
+	// If not found, return 404
+	if variableDetail == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Render full page or partial based on HTMX request
+	err := Render(w, r,
+		variables.Detail(*variableDetail),                // Full page with layout
+		variablespartials.DetailContent(*variableDetail), // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render variable detail", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// Update handles POST/PUT requests to update a variable
+func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
+	// Extract variable path from URL
+	variablePath := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
+	variablePath = strings.TrimSuffix(variablePath, "/")
+
+	// Log the request
+	h.handler.logger.Info("variable update request", "path", variablePath)
+
+	// Parse the form data
+	if err := r.ParseForm(); err != nil {
+		h.handler.logger.Error("failed to parse form", "error", err)
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	// TODO: In a real implementation, this would:
+	// 1. Parse the key-value pairs from the form
+	// 2. Call the Nomad API: client.Variables().Update(variable, nil)
+	// 3. Return success/error response
+
+	// For now, simulate success
+	h.handler.logger.Info("variable updated successfully", "path", variablePath)
+
+	// Return success response for HTMX
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`<div class="rounded-lg bg-green-50 border border-green-200 p-4">
+		<div class="flex items-center">
+			<div class="flex-shrink-0">
+				<svg class="h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				</svg>
+			</div>
+			<div class="ml-3">
+				<p class="text-sm font-medium text-green-800">Variable saved successfully</p>
+			</div>
+		</div>
+	</div>`))
+}
+
+// Delete handles DELETE requests to delete a variable
+func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	// Extract variable path from URL
+	variablePath := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
+	variablePath = strings.TrimSuffix(variablePath, "/")
+
+	// Log the request
+	h.handler.logger.Info("variable delete request", "path", variablePath)
+
+	// TODO: In a real implementation, this would:
+	// 1. Call the Nomad API: client.Variables().Delete(path, nil)
+	// 2. Return success/error response
+
+	// For now, simulate success
+	h.handler.logger.Info("variable deleted successfully", "path", variablePath)
+
+	// Return success response that redirects to list
+	w.Header().Set("HX-Redirect", "/ui/variables")
+	w.WriteHeader(http.StatusOK)
+}
+
+// getVariableDetail returns mock variable detail data.
+// Returns nil if the variable is not found.
+func (h *VariablesHandler) getVariableDetail(path string) *variablespartials.VariableDetail {
+	now := time.Now()
+
+	// Mock variable data - match some paths from the list
+	variables := map[string]variablespartials.VariableDetail{
+		"nomad/jobs": {
+			Path:        "nomad/jobs",
+			Namespace:   "default",
+			CreateIndex: 1000,
+			ModifyIndex: 1250,
+			Modified:    now.Add(-24 * time.Hour),
+			Items: map[string]string{
+				"database_url":      "postgresql://localhost:5432/nomad",
+				"redis_host":        "redis.service.consul",
+				"api_timeout":       "30s",
+				"max_connections":   "100",
+				"enable_debugging":  "false",
+			},
+		},
+		"nomad/jobs/web": {
+			Path:        "nomad/jobs/web",
+			Namespace:   "default",
+			CreateIndex: 1100,
+			ModifyIndex: 1300,
+			Modified:    now.Add(-2 * time.Hour),
+			Items: map[string]string{
+				"port":             "8080",
+				"log_level":        "info",
+				"static_assets":    "/var/www/public",
+				"session_timeout":  "3600",
+			},
+		},
+		"nomad/jobs/api": {
+			Path:        "nomad/jobs/api",
+			Namespace:   "default",
+			CreateIndex: 1150,
+			ModifyIndex: 1350,
+			Modified:    now.Add(-5 * time.Hour),
+			Items: map[string]string{
+				"api_key":          "test-key-12345",
+				"rate_limit":       "1000",
+				"cors_origins":     "*",
+			},
+		},
+		"app/config": {
+			Path:        "app/config",
+			Namespace:   "default",
+			CreateIndex: 2000,
+			ModifyIndex: 2100,
+			Modified:    now.Add(-12 * time.Hour),
+			Items: map[string]string{
+				"app_name":         "Wander",
+				"environment":      "production",
+				"feature_flags":    "new-ui,dark-mode",
+				"maintenance_mode": "false",
+				"version":          "1.0.0",
+			},
+		},
+		"app/secrets": {
+			Path:        "app/secrets",
+			Namespace:   "default",
+			CreateIndex: 2050,
+			ModifyIndex: 2150,
+			Modified:    now.Add(-3 * 24 * time.Hour),
+			Items: map[string]string{
+				"jwt_secret":       "super-secret-key",
+				"encryption_key":   "aes-256-key",
+				"api_token":        "Bearer token123",
+			},
+		},
+	}
+
+	if detail, ok := variables[path]; ok {
+		return &detail
+	}
+
+	// Return a default variable for any other path (for testing)
+	return &variablespartials.VariableDetail{
+		Path:        path,
+		Namespace:   "default",
+		CreateIndex: 1000,
+		ModifyIndex: 1000,
+		Modified:    now,
+		Items: map[string]string{
+			"example_key": "example_value",
+		},
+	}
 }

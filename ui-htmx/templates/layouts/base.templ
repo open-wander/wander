@@ -49,6 +49,12 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			@components.ToastContainer(components.ToastContainerProps{
 				Position: "top-right",
 			})
+			<!-- Evaluations Panel -->
+			<div x-data="evaluationsPanel()" @toggle-evaluations.window="toggle()">
+				@components.EvaluationsPanel(components.EvaluationsPanelProps{
+					ID: "evaluations",
+				})
+			</div>
 		</body>
 	</html>
 }

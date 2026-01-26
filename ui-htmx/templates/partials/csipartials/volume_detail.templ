@@ -1,0 +1,171 @@
+package csipartials
+
+import (
+	"fmt"
+	"time"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// VolumeDetail represents detailed information about a CSI volume
+type VolumeDetail struct {
+	ID                  string
+	Name                string
+	Namespace           string
+	PluginID            string
+	Provider            string
+	Schedulable         bool
+	AccessMode          string
+	AttachMode          string
+	MountOptions        string
+	Capacity            int64
+	AllocationsCount    int
+	ReadAllocsCount     int
+	WriteAllocsCount    int
+	Created             time.Time
+	ExternalID          string
+	ControllerRequired  bool
+	ControllersHealthy  int
+	ControllersExpected int
+	NodesHealthy        int
+	NodesExpected       int
+	Allocations         []AllocationInfo
+}
+
+// AllocationInfo represents basic allocation information for volume detail
+type AllocationInfo struct {
+	ID        string
+	Name      string
+	JobID     string
+	TaskGroup string
+	NodeID    string
+	NodeName  string
+	Status    string
+	ReadOnly  bool
+	Created   time.Time
+}
+
+// VolumeDetailContent renders the volume detail page content (without layout)
+templ VolumeDetailContent(volume VolumeDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Volume Header -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+			<div class="flex items-start justify-between">
+				<div class="flex-1">
+					<div class="flex items-center space-x-4 mb-4">
+						<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ volume.Name }</h1>
+						if volume.Schedulable {
+							@components.Badge(components.BadgeProps{
+								Variant: "success",
+								Dot:     true,
+								Size:    "md",
+							}) {
+								Schedulable
+							}
+						} else {
+							@components.Badge(components.BadgeProps{
+								Variant: "error",
+								Dot:     true,
+								Size:    "md",
+							}) {
+								Unschedulable
+							}
+						}
+					</div>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">ID:</span>
+							<span class="font-mono text-neutral-900 dark:text-neutral-100 ml-2">{ volume.ID }</span>
+						</div>
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">Plugin:</span>
+							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ volume.PluginID }</span>
+						</div>
+						<div>
+							<span class="text-neutral-600 dark:text-neutral-400">Provider:</span>
+							<span class="font-mono text-neutral-900 dark:text-neutral-100 ml-2 text-xs">{ volume.Provider }</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Tabs -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			@components.Tabs(components.TabsProps{
+				Tabs: []components.Tab{
+					{
+						ID:      "overview",
+						Label:   "Overview",
+						Icon:    "home",
+						URL:     "/ui/csi/volumes/" + volume.ID + "/overview",
+						Content: OverviewTab(volume),
+						Active:  true,
+					},
+					{
+						ID:      "allocations",
+						Label:   "Allocations",
+						Icon:    "user",
+						URL:     "/ui/csi/volumes/" + volume.ID + "/allocations",
+						Content: AllocationsTab(volume),
+					},
+					{
+						ID:      "health",
+						Label:   "Health",
+						Icon:    "heart",
+						URL:     "/ui/csi/volumes/" + volume.ID + "/health",
+						Content: HealthTab(volume),
+					},
+				},
+				ActiveTab: "overview",
+				Mode:      "htmx",
+				PanelID:   "volume-detail-panel",
+			})
+		</div>
+	</div>
+}
+
+// formatBytes converts bytes to human-readable format
+func formatBytes(bytes int64) string {
+	if bytes == 0 {
+		return "Elastic"
+	}
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// formatAccessMode formats the access mode for display
+func formatAccessModeDetailed(mode string) string {
+	switch mode {
+	case "single-node-writer":
+		return "Single Node Writer"
+	case "single-node-reader-only":
+		return "Single Node Reader Only"
+	case "multi-node-reader-only":
+		return "Multi Node Reader Only"
+	case "multi-node-single-writer":
+		return "Multi Node Single Writer"
+	case "multi-node-multi-writer":
+		return "Multi Node Multi Writer"
+	default:
+		return mode
+	}
+}
+
+// formatAttachMode formats the attach mode for display
+func formatAttachMode(mode string) string {
+	switch mode {
+	case "file-system":
+		return "File System"
+	case "block-device":
+		return "Block Device"
+	default:
+		return mode
+	}
+}

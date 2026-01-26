@@ -1347,6 +1347,52 @@ function execTerminal(allocId, initialTask, initialCommand) {
 }
 
 /**
+ * EVALUATIONS PANEL PATTERN
+ *
+ * Slide-out panel from right side for displaying recent evaluations.
+ *
+ * Features:
+ * - Open/close state management
+ * - Escape key to close
+ * - Click backdrop to close
+ * - Smooth slide animations from right
+ * - HTMX auto-refresh integration
+ *
+ * Usage in Templ:
+ * ```html
+ * <div x-data="evaluationsPanel()"
+ *      @toggle-evaluations.window="toggle()">
+ *   @EvaluationsPanel(EvaluationsPanelProps{ID: "evaluations"})
+ * </div>
+ * ```
+ */
+function evaluationsPanel(initialOpen = false) {
+    return {
+        isOpen: initialOpen,
+
+        open() {
+            this.isOpen = true;
+            // Prevent body scroll
+            document.body.style.overflow = 'hidden';
+        },
+
+        close() {
+            this.isOpen = false;
+            // Restore body scroll
+            document.body.style.overflow = '';
+        },
+
+        toggle() {
+            if (this.isOpen) {
+                this.close();
+            } else {
+                this.open();
+            }
+        }
+    };
+}
+
+/**
  * GLOBAL ALPINE CONFIGURATION
  *
  * Make patterns available globally if Alpine is loaded.
@@ -1361,6 +1407,7 @@ if (typeof window !== 'undefined') {
         formValidation,
         validators,
         logViewer,
-        execTerminal
+        execTerminal,
+        evaluationsPanel
     };
 }
