@@ -1,9 +1,8 @@
 package allocationspartials
 
 import (
-	"fmt"
-	"time"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"time"
 )
 
 // AllocationDetail represents detailed information about an allocation
@@ -35,10 +34,10 @@ type TaskStatus struct {
 
 // TaskResources represents resource allocation for a task
 type TaskResources struct {
-	CPU       int  // MHz
-	Memory    int  // MB
-	CPUUsage  int  // Current CPU usage percentage (0-100)
-	MemUsage  int  // Current memory usage percentage (0-100)
+	CPU      int // MHz
+	Memory   int // MB
+	CPUUsage int // Current CPU usage percentage (0-100)
+	MemUsage int // Current memory usage percentage (0-100)
 }
 
 // TaskEvent represents an event in a task's lifecycle
@@ -97,6 +96,181 @@ templ DetailContent(alloc AllocationDetail) {
 						</div>
 					</div>
 				</div>
+				<!-- Action Buttons -->
+				<div class="flex space-x-3 ml-4">
+					<!-- Restart Button -->
+					<div x-data="{ showRestartModal: false }">
+						@components.Button(components.ButtonProps{
+							Variant:     "warning",
+							Size:        "sm",
+							Icon:        "refresh",
+							AlpineClick: "showRestartModal = true",
+						}, "Restart")
+						<!-- Restart Confirmation Modal -->
+						<div
+							x-show="showRestartModal"
+							x-cloak
+							@keydown.escape.window="showRestartModal = false"
+							class="fixed inset-0 z-50 overflow-y-auto"
+							x-transition:enter="transition ease-out duration-300"
+							x-transition:enter-start="opacity-0"
+							x-transition:enter-end="opacity-100"
+							x-transition:leave="transition ease-in duration-200"
+							x-transition:leave-start="opacity-100"
+							x-transition:leave-end="opacity-0"
+							role="dialog"
+							aria-modal="true"
+							aria-labelledby="restart-modal-title"
+						>
+							<div @click="showRestartModal = false" class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+							<div class="flex min-h-full items-center justify-center p-4">
+								<div
+									@click.stop
+									class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
+									x-transition:enter="transition ease-out duration-300"
+									x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+									x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+									x-transition:leave="transition ease-in duration-200"
+									x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+									x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+								>
+									<div class="bg-white px-6 py-5">
+										<div class="flex items-center">
+											<div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-yellow-100">
+												<svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+												</svg>
+											</div>
+											<div class="ml-4">
+												<h3 id="restart-modal-title" class="text-lg font-semibold text-neutral-900">Restart Allocation</h3>
+											</div>
+										</div>
+										<div class="mt-4">
+											<p class="text-sm text-neutral-600">
+												Are you sure you want to restart this allocation? This will:
+											</p>
+											<ul class="mt-2 text-sm text-neutral-600 list-disc list-inside space-y-1">
+												<li>Stop all running tasks in this allocation</li>
+												<li>Restart the tasks with their current configuration</li>
+												<li>Cause a brief service interruption</li>
+											</ul>
+											<div class="mt-4 p-3 bg-neutral-50 rounded-md">
+												<p class="text-xs text-neutral-500">Allocation ID</p>
+												<p class="text-sm font-mono text-neutral-900">{ alloc.ID }</p>
+											</div>
+										</div>
+									</div>
+									<div class="bg-neutral-50 px-6 py-4 flex justify-end space-x-3">
+										<button
+											type="button"
+											@click="showRestartModal = false"
+											class="btn btn-secondary btn-sm"
+										>
+											Cancel
+										</button>
+										<button
+											type="button"
+											hx-post={ "/ui/allocations/" + alloc.ID + "/restart" }
+											hx-swap="none"
+											@click="showRestartModal = false"
+											class="btn btn-warning btn-sm"
+										>
+											Restart Allocation
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- Stop Button -->
+					<div x-data="{ showStopModal: false }">
+						@components.Button(components.ButtonProps{
+							Variant:     "danger",
+							Size:        "sm",
+							Icon:        "stop",
+							AlpineClick: "showStopModal = true",
+						}, "Stop")
+						<!-- Stop Confirmation Modal -->
+						<div
+							x-show="showStopModal"
+							x-cloak
+							@keydown.escape.window="showStopModal = false"
+							class="fixed inset-0 z-50 overflow-y-auto"
+							x-transition:enter="transition ease-out duration-300"
+							x-transition:enter-start="opacity-0"
+							x-transition:enter-end="opacity-100"
+							x-transition:leave="transition ease-in duration-200"
+							x-transition:leave-start="opacity-100"
+							x-transition:leave-end="opacity-0"
+							role="dialog"
+							aria-modal="true"
+							aria-labelledby="stop-modal-title"
+						>
+							<div @click="showStopModal = false" class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+							<div class="flex min-h-full items-center justify-center p-4">
+								<div
+									@click.stop
+									class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
+									x-transition:enter="transition ease-out duration-300"
+									x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+									x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+									x-transition:leave="transition ease-in duration-200"
+									x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+									x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+								>
+									<div class="bg-white px-6 py-5">
+										<div class="flex items-center">
+											<div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
+												<svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+												</svg>
+											</div>
+											<div class="ml-4">
+												<h3 id="stop-modal-title" class="text-lg font-semibold text-neutral-900">Stop Allocation</h3>
+											</div>
+										</div>
+										<div class="mt-4">
+											<div class="p-3 bg-red-50 border border-red-200 rounded-md mb-4">
+												<p class="text-sm font-medium text-red-800">Warning: This action cannot be undone.</p>
+											</div>
+											<p class="text-sm text-neutral-600">
+												Stopping this allocation will:
+											</p>
+											<ul class="mt-2 text-sm text-neutral-600 list-disc list-inside space-y-1">
+												<li>Immediately terminate all tasks in this allocation</li>
+												<li>Release all resources allocated to this allocation</li>
+												<li>Mark the allocation as stopped</li>
+											</ul>
+											<div class="mt-4 p-3 bg-neutral-50 rounded-md">
+												<p class="text-xs text-neutral-500">Allocation ID</p>
+												<p class="text-sm font-mono text-neutral-900">{ alloc.ID }</p>
+											</div>
+										</div>
+									</div>
+									<div class="bg-neutral-50 px-6 py-4 flex justify-end space-x-3">
+										<button
+											type="button"
+											@click="showStopModal = false"
+											class="btn btn-secondary btn-sm"
+										>
+											Cancel
+										</button>
+										<button
+											type="button"
+											hx-post={ "/ui/allocations/" + alloc.ID + "/stop" }
+											hx-swap="none"
+											@click="showStopModal = false"
+											class="btn btn-danger btn-sm"
+										>
+											Stop Allocation
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 		<!-- Tabs -->
@@ -116,6 +290,12 @@ templ DetailContent(alloc AllocationDetail) {
 						Label: "Logs",
 						Icon:  "document",
 						URL:   "/ui/allocations/" + alloc.ID + "/logs",
+					},
+					{
+						ID:    "exec",
+						Label: "Exec",
+						Icon:  "terminal",
+						URL:   "/ui/allocations/" + alloc.ID + "/exec",
 					},
 					{
 						ID:    "files",

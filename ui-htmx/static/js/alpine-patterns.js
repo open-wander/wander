@@ -1032,6 +1032,298 @@ function logViewer(allocId, initialTask, initialLogType) {
 }
 
 /**
+ * EXEC TERMINAL PATTERN
+ *
+ * Interactive terminal emulator using xterm.js for exec sessions.
+ *
+ * Features:
+ * - xterm.js terminal emulator
+ * - WebSocket connection for bidirectional I/O
+ * - Auto-fit to container size
+ * - Window resize handling
+ * - Connection state management
+ * - Disconnect on page unload
+ *
+ * Usage in Templ:
+ * ```html
+ * <div x-data="execTerminal('alloc-123', 'nginx', '/bin/sh')"
+ *      x-init="init()"
+ *      x-on:beforeunload.window="disconnect()">
+ *   <div x-ref="terminal" style="height: 500px;"></div>
+ *   <button @click="toggleConnection()">Connect/Disconnect</button>
+ * </div>
+ * ```
+ *
+ * Dependencies:
+ * - xterm.js (loaded as /static/js/xterm.min.js)
+ * - xterm-addon-fit (loaded as /static/js/xterm-addon-fit.min.js)
+ *
+ * Note: The WebSocket connection logic is prepared here but will be
+ * fully implemented in Task 72 (WebSocket Exec Handler).
+ */
+function execTerminal(allocId, initialTask, initialCommand) {
+    return {
+        // Configuration
+        allocId: allocId,
+        selectedTask: initialTask || '',
+        command: initialCommand || '/bin/sh',
+
+        // State
+        terminal: null,
+        fitAddon: null,
+        websocket: null,
+        connectionState: 'disconnected', // disconnected, connecting, connected, error
+        resizeObserver: null,
+
+        // Initialize xterm.js terminal
+        init() {
+            // Check if xterm.js is loaded
+            if (typeof Terminal === 'undefined') {
+                console.error('xterm.js not loaded. Make sure xterm.min.js is included.');
+                return;
+            }
+
+            // Create terminal instance with dark theme
+            this.terminal = new Terminal({
+                cursorBlink: true,
+                cursorStyle: 'block',
+                fontSize: 14,
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                theme: {
+                    background: '#1e1e1e',
+                    foreground: '#d4d4d4',
+                    cursor: '#d4d4d4',
+                    cursorAccent: '#1e1e1e',
+                    black: '#000000',
+                    red: '#cd3131',
+                    green: '#0dbc79',
+                    yellow: '#e5e510',
+                    blue: '#2472c8',
+                    magenta: '#bc3fbc',
+                    cyan: '#11a8cd',
+                    white: '#e5e5e5',
+                    brightBlack: '#666666',
+                    brightRed: '#f14c4c',
+                    brightGreen: '#23d18b',
+                    brightYellow: '#f5f543',
+                    brightBlue: '#3b8eea',
+                    brightMagenta: '#d670d6',
+                    brightCyan: '#29b8db',
+                    brightWhite: '#ffffff'
+                },
+                scrollback: 10000,
+                allowProposedApi: true
+            });
+
+            // Load fit addon if available
+            if (typeof FitAddon !== 'undefined') {
+                this.fitAddon = new FitAddon.FitAddon();
+                this.terminal.loadAddon(this.fitAddon);
+            }
+
+            // Open terminal in the container
+            const container = this.$refs.terminal;
+            if (container) {
+                this.terminal.open(container);
+
+                // Initial fit
+                this.$nextTick(() => {
+                    this.fit();
+                });
+
+                // Set up resize observer for auto-fit
+                this.setupResizeObserver(container);
+            }
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                this.fit();
+            });
+
+            // Write welcome message
+            this.terminal.writeln('\x1b[1;34m=== Wander Exec Terminal ===\x1b[0m');
+            this.terminal.writeln('');
+            this.terminal.writeln('Click \x1b[1;32mConnect\x1b[0m to start an exec session.');
+            this.terminal.writeln('');
+        },
+
+        // Fit terminal to container
+        fit() {
+            if (this.fitAddon) {
+                try {
+                    this.fitAddon.fit();
+
+                    // Send resize to server if connected
+                    if (this.connectionState === 'connected' && this.websocket) {
+                        const dims = { cols: this.terminal.cols, rows: this.terminal.rows };
+                        this.sendResize(dims);
+                    }
+                } catch (e) {
+                    console.warn('Failed to fit terminal:', e);
+                }
+            }
+        },
+
+        // Set up ResizeObserver for container
+        setupResizeObserver(container) {
+            if (typeof ResizeObserver !== 'undefined') {
+                this.resizeObserver = new ResizeObserver(() => {
+                    this.fit();
+                });
+                this.resizeObserver.observe(container);
+            }
+        },
+
+        // Toggle connection state
+        toggleConnection() {
+            if (this.connectionState === 'connected') {
+                this.disconnect();
+            } else if (this.connectionState === 'disconnected' || this.connectionState === 'error') {
+                this.connect();
+            }
+        },
+
+        // Build WebSocket URL for exec
+        buildWebSocketUrl() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const cmd = encodeURIComponent(this.command || '/bin/sh');
+            return `${protocol}//${host}/ui/allocations/${this.allocId}/exec/ws?task=${this.selectedTask}&command=${cmd}`;
+        },
+
+        // Connect to exec session via WebSocket
+        connect() {
+            if (this.connectionState === 'connecting' || this.connectionState === 'connected') {
+                return;
+            }
+
+            this.connectionState = 'connecting';
+            this.terminal.clear();
+            this.terminal.writeln('\x1b[33mConnecting to exec session...\x1b[0m');
+            this.terminal.writeln(`\x1b[90mTask: ${this.selectedTask}\x1b[0m`);
+            this.terminal.writeln(`\x1b[90mCommand: ${this.command || '/bin/sh'}\x1b[0m`);
+            this.terminal.writeln('');
+
+            try {
+                const url = this.buildWebSocketUrl();
+                this.websocket = new WebSocket(url);
+
+                this.websocket.onopen = () => {
+                    this.connectionState = 'connected';
+                    this.terminal.writeln('\x1b[32mConnected!\x1b[0m');
+                    this.terminal.writeln('');
+
+                    // Focus terminal
+                    this.terminal.focus();
+
+                    // Send initial resize
+                    this.sendResize({ cols: this.terminal.cols, rows: this.terminal.rows });
+                };
+
+                this.websocket.onmessage = (event) => {
+                    // Handle incoming data from exec session
+                    if (event.data instanceof Blob) {
+                        // Binary data
+                        event.data.text().then(text => {
+                            this.terminal.write(text);
+                        });
+                    } else {
+                        // Text data - could be JSON for control messages or raw output
+                        try {
+                            const msg = JSON.parse(event.data);
+                            if (msg.type === 'output' && msg.data) {
+                                this.terminal.write(msg.data);
+                            } else if (msg.type === 'error') {
+                                this.terminal.writeln(`\x1b[31mError: ${msg.message}\x1b[0m`);
+                            } else if (msg.type === 'exit') {
+                                this.terminal.writeln('');
+                                this.terminal.writeln(`\x1b[33mSession ended (exit code: ${msg.code || 0})\x1b[0m`);
+                                this.disconnect();
+                            }
+                        } catch (e) {
+                            // Not JSON, treat as raw terminal output
+                            this.terminal.write(event.data);
+                        }
+                    }
+                };
+
+                this.websocket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.terminal.writeln('');
+                    this.terminal.writeln('\x1b[31mConnection error occurred.\x1b[0m');
+                    this.connectionState = 'error';
+                };
+
+                this.websocket.onclose = (event) => {
+                    if (this.connectionState === 'connected') {
+                        this.terminal.writeln('');
+                        this.terminal.writeln('\x1b[33mConnection closed.\x1b[0m');
+                    }
+                    this.connectionState = 'disconnected';
+                    this.websocket = null;
+                };
+
+                // Handle terminal input - send to WebSocket
+                this.terminal.onData(data => {
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        // Send as JSON message with type 'input'
+                        this.websocket.send(JSON.stringify({ type: 'input', data: data }));
+                    }
+                });
+
+            } catch (e) {
+                console.error('Failed to connect:', e);
+                this.terminal.writeln(`\x1b[31mFailed to connect: ${e.message}\x1b[0m`);
+                this.connectionState = 'error';
+            }
+        },
+
+        // Send resize message to server
+        sendResize(dims) {
+            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                this.websocket.send(JSON.stringify({
+                    type: 'resize',
+                    cols: dims.cols,
+                    rows: dims.rows
+                }));
+            }
+        },
+
+        // Disconnect from exec session
+        disconnect() {
+            if (this.websocket) {
+                // Send close message if possible
+                if (this.websocket.readyState === WebSocket.OPEN) {
+                    try {
+                        this.websocket.send(JSON.stringify({ type: 'close' }));
+                    } catch (e) {
+                        // Ignore send errors during close
+                    }
+                }
+                this.websocket.close();
+                this.websocket = null;
+            }
+            this.connectionState = 'disconnected';
+        },
+
+        // Cleanup on destroy
+        destroy() {
+            this.disconnect();
+
+            if (this.resizeObserver) {
+                this.resizeObserver.disconnect();
+                this.resizeObserver = null;
+            }
+
+            if (this.terminal) {
+                this.terminal.dispose();
+                this.terminal = null;
+            }
+        }
+    };
+}
+
+/**
  * GLOBAL ALPINE CONFIGURATION
  *
  * Make patterns available globally if Alpine is loaded.
@@ -1045,6 +1337,7 @@ if (typeof window !== 'undefined') {
         accordion,
         formValidation,
         validators,
-        logViewer
+        logViewer,
+        execTerminal
     };
 }

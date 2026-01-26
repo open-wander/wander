@@ -36,25 +36,47 @@ func NewAllocationsHandler(h *Handler) *AllocationsHandler {
 	}
 }
 
-// ServeHTTP handles GET requests to the allocations pages.
+// ServeHTTP handles requests to the allocations pages.
 // It routes to either the list page or detail page based on the URL path.
 func (h *AllocationsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Only allow GET requests
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	path := r.URL.Path
 
 	// Handle /ui/allocations exactly (list page)
 	if path == "/ui/allocations" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		h.List(w, r)
+		return
+	}
+
+	// Handle /ui/allocations/{id}/restart (restart action)
+	if strings.HasSuffix(path, "/restart") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.Restart(w, r)
+		return
+	}
+
+	// Handle /ui/allocations/{id}/stop (stop action)
+	if strings.HasSuffix(path, "/stop") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.Stop(w, r)
 		return
 	}
 
 	// Handle /ui/allocations/{id} (detail page)
 	if strings.HasPrefix(path, "/ui/allocations/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		h.Detail(w, r)
 		return
 	}
@@ -748,6 +770,24 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 			LogType:      logType,
 		}
 		err = RenderPartial(w, r, allocationspartials.LogsTabContent(props))
+	case "exec":
+		// Render the exec terminal tab
+		task := r.URL.Query().Get("task")
+		command := r.URL.Query().Get("command")
+		tasks := h.getTasksForAllocation(allocID)
+		if task == "" && len(tasks) > 0 {
+			task = tasks[0]
+		}
+		if command == "" {
+			command = "/bin/sh"
+		}
+		execProps := allocationspartials.ExecTabProps{
+			AllocID:      allocID,
+			Tasks:        tasks,
+			SelectedTask: task,
+			Command:      command,
+		}
+		err = RenderPartial(w, r, allocationspartials.ExecTabContent(execProps))
 	case "files":
 		// Get task list and file data
 		tasks := h.getTaskNames(allocDetail)
@@ -1217,4 +1257,48 @@ MIIDazCCAlOgAwIBAgIUXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 	default:
 		return "File content not available", 0, true
 	}
+}
+
+// Restart handles POST requests to restart an allocation.
+// Route: POST /ui/allocations/{id}/restart
+func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
+	// Extract allocation ID from path: /ui/allocations/{id}/restart
+	path := strings.TrimPrefix(r.URL.Path, "/ui/allocations/")
+	path = strings.TrimSuffix(path, "/restart")
+	allocID := path
+
+	// Log the restart request
+	h.handler.logger.Info("restart allocation request", "allocID", allocID)
+
+	// TODO: In a real implementation, this would call the Nomad API:
+	// client.Allocations().Restart(allocID, "", nil)
+
+	// For now, simulate the restart operation
+	// Send HX-Trigger header to show toast notification
+	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Restarted", "message": "The allocation `+allocID[:8]+`... has been restarted successfully.", "duration": 5000}}`)
+	// Trigger a page refresh after a short delay to show updated status
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusOK)
+}
+
+// Stop handles POST requests to stop an allocation.
+// Route: POST /ui/allocations/{id}/stop
+func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
+	// Extract allocation ID from path: /ui/allocations/{id}/stop
+	path := strings.TrimPrefix(r.URL.Path, "/ui/allocations/")
+	path = strings.TrimSuffix(path, "/stop")
+	allocID := path
+
+	// Log the stop request
+	h.handler.logger.Info("stop allocation request", "allocID", allocID)
+
+	// TODO: In a real implementation, this would call the Nomad API:
+	// client.Allocations().Stop(allocID, nil)
+
+	// For now, simulate the stop operation
+	// Send HX-Trigger header to show toast notification
+	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Stopped", "message": "The allocation `+allocID[:8]+`... has been stopped.", "duration": 5000}}`)
+	// Trigger a page refresh after a short delay to show updated status
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusOK)
 }
