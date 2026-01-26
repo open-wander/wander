@@ -71,19 +71,17 @@ jobs:
         with:
           go-version: ${{ steps.get-go-version.outputs.go-version }}
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
-
-      - name: Install Yarn
-        run: |
-          npm install -g yarn
-
       - name: Install dependencies
         run: |
           make deps
+
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
+
+      - name: Generate UI assets
+        run: |
+          cd ui-htmx && make install-tailwind && make build-css
+          cd templates && templ generate
 
       - name: Update notification channel
         id: notification-channel

@@ -15,7 +15,7 @@ on:
       - 'pkg/**'
       - 'scripts/**'
       - 'terraform/**'
-      - 'ui/**'
+      - 'ui-htmx/**'
       - 'website/**'
   push:
     branches:
@@ -35,7 +35,7 @@ on:
       - 'pkg/**'
       - 'scripts/**'
       - 'terraform/**'
-      - 'ui/**'
+      - 'ui-htmx/**'
       - 'website/**'
 
 env:

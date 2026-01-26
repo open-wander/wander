@@ -99,15 +99,13 @@ jobs:
       - name: Build dependencies
         run: make deps
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
 
-      - name: Install Yarn
+      - name: Generate UI assets
         run: |
-          npm install -g yarn
+          cd ui-htmx && make install-tailwind && make build-css
+          cd templates && templ generate
 
       - name: Build prerelease
         run: make prerelease
@@ -151,15 +149,13 @@ jobs:
       - name: Build dependencies
         run: make deps
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
 
-      - name: Install Yarn
+      - name: Generate UI assets
         run: |
-          npm install -g yarn
+          cd ui-htmx && make install-tailwind && make build-css
+          cd templates && templ generate
 
       - name: Build prerelease
         run: make prerelease
@@ -257,15 +253,13 @@ jobs:
       - name: Build dependencies
         run: make deps
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
 
-      - name: Install Yarn
+      - name: Generate UI assets
         run: |
-          npm install -g yarn
+          cd ui-htmx && make install-tailwind && make build-css
+          cd templates && templ generate
 
       - name: Build prerelease
         run: make prerelease
