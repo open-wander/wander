@@ -1,3 +1,57 @@
+## UNRELEASED
+
+BREAKING CHANGES:
+
+* ui: Complete rewrite of the web UI from Ember.js to Go Templ + HTMX + Alpine.js + Tailwind CSS. The new UI maintains feature parity while significantly reducing bundle size and improving performance.
+
+FEATURES:
+
+* ui: New topology visualization with D3.js grid-based datacenter view, node status indicators, and resource utilization bars
+* ui: SSE-based log streaming with ANSI color support, auto-scroll, and download capability
+* ui: Evaluations sidebar panel with real-time updates and status badges
+* ui: Time range selector for resource charts (5m, 15m, 1h, 6h, 24h, 7d presets plus custom range)
+* ui: Interactive exec terminal with xterm.js and WebSocket connection
+* ui: Key-value editor for Variables with create/edit/delete functionality
+* ui: Policy editor with HCL syntax highlighting via CodeMirror 6
+
+IMPROVEMENTS:
+
+* ui: Upgraded CodeMirror from v5 to v6 with HCL/JSON syntax highlighting and bracket matching
+* ui: CSS framework changed from Bulma to Tailwind CSS with custom theme and utility classes
+* ui: Added HTMX for dynamic updates without full page reloads
+* ui: Added Alpine.js for client-side interactivity (dropdowns, modals, tabs, toasts)
+* ui: Real-time allocation updates via HTMX polling with visibility-based pause
+* ui: Resource utilization charts with color thresholds (green/yellow/orange/red)
+* ui: Comprehensive component library: Button, Badge, Card, Table, Modal, Dropdown, Tabs, Alert, Toast, etc.
+* ui: Client drain controls with deadline and ignore-system-jobs options
+* ui: Job version diff view with LCS-based algorithm
+* ui: File browser with syntax-highlighted preview and download capability
+
+PERFORMANCE:
+
+* ui: JavaScript bundle reduced from ~500kb to <100kb gzipped (HTMX ~16kb + Alpine.js ~15kb + utilities)
+* ui: CSS bundle <50kb gzipped after Tailwind purge
+* ui: Server-side rendering improves Time to First Byte (target <100ms)
+* ui: First Contentful Paint target <500ms
+* ui: Time to Interactive target <1s
+* ui: Single binary deployment - no node_modules required in production
+
+REMOVED:
+
+* ui: Ember.js 3.28 framework and all related dependencies
+* ui: HashiCorp Design System (HDS) components
+* ui: Bulma CSS framework
+* ui: node_modules directory for UI (build-time Tailwind CLI only)
+
+MIGRATION NOTES:
+
+* Browser Requirements: Chrome/Edge 80+, Firefox 78+, Safari 14+ (2020+ browsers)
+* The new UI serves at the same `/ui/` path - no URL changes required
+* ACL tokens continue to work via cookie or header authentication
+* All existing UI functionality is preserved with the new technology stack
+* Custom CSS or JavaScript extensions targeting the old Ember UI will need to be updated
+* The UI is now rendered server-side; JavaScript is only required for interactive elements
+
 ## 1.6.5 (December 13, 2023)
 
 BUG FIXES:

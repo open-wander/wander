@@ -13,10 +13,12 @@
     "test:webkit": "playwright test --project=webkit",
     "test:mobile": "playwright test --project=mobile-chrome",
     "report": "playwright show-report",
-    "codegen": "playwright codegen http://localhost:3001/ui/"
+    "codegen": "playwright codegen http://localhost:3001/ui/",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@playwright/test": "^1.41.0",
-    "@types/node": "^20.11.0"
+    "@types/node": "^20.11.0",
+    "typescript": "^5.9.3"
   }
 }
