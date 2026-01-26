@@ -14,16 +14,16 @@ Consider Docusoaurus for document handling
 ## 1. Branding Assets
 
 ### Icons and Logos
-- [ ] `ui/public/images/icons/nomad-logo-n.svg` - Main UI logo
-- [ ] `ui/public/favicon.ico` - Browser tab icon
+- [ ] `ui-htmx/static/images/` - UI logos and icons (HTMX UI)
+- [ ] `ui-htmx/static/favicon.ico` - Browser tab icon (if applicable)
 - [ ] `website/public/img/logo-hashicorp.svg` - Full HashiCorp logo
 - [ ] `website/public/img/logo-text.svg` - Nomad text logo
 - [ ] `website/public/img/favicons/*` - All favicon sizes
 - [ ] `website/public/img/og-image.png` - Social media preview image
 
 ### UI Icon System
-- [ ] Review `ui/app/styles/core/icon.scss` for hardcoded references
-- [ ] Review `ui/stories/theme/icons.stories.js` for branding examples
+- [x] UI migrated from Ember.js to HTMX/Templ/Tailwind (see `ui-htmx/`)
+- [ ] Review `ui-htmx/templates/` for hardcoded branding references
 
 ---
 
@@ -68,9 +68,9 @@ Consider Docusoaurus for document handling
 - [ ] Security policy (if exists)
 
 ### UI Documentation
-- [ ] `ui/README.md`
-- [ ] `ui/DEVELOPMENT_MODE.md`
-- [ ] UI component documentation
+- [ ] `ui-htmx/README.md` - Main HTMX UI documentation
+- [ ] `ui-htmx/templates/README.md` - Templ templates documentation
+- [ ] UI component documentation in `ui-htmx/templates/components/`
 
 ### Website Content
 - [ ] `website/` - All content files
@@ -121,17 +121,17 @@ Consider Docusoaurus for document handling
 
 ## 6. UI and Frontend
 
-### UI Text and Strings
-- [ ] Application title in `ui/app/index.html`
-- [ ] Page titles and meta tags
-- [ ] Error messages mentioning "Nomad"
+### UI Text and Strings (HTMX UI)
+- [ ] Page titles in `ui-htmx/templates/layouts/`
+- [ ] Page titles and meta tags in Templ templates
+- [ ] Error messages mentioning "Nomad" in templates
 - [ ] Help text and tooltips
-- [ ] Navigation labels
+- [ ] Navigation labels in `ui-htmx/templates/components/`
 
 ### UI Configuration
-- [ ] `ui/config/environment.js`
-- [ ] `ui/package.json` - Package name and description
-- [ ] Build configuration in `ui/ember-cli-build.js`
+- [x] Ember.js UI removed (old `/ui/` directory)
+- [ ] `ui-htmx/Makefile` - Build configuration
+- [ ] `ui-htmx/tailwind.config.js` - Tailwind theme/branding
 
 ---
 
@@ -139,7 +139,7 @@ Consider Docusoaurus for document handling
 
 ### Test Files
 - [ ] Test fixture data mentioning Nomad/HashiCorp
-- [ ] Mock data in `ui/mirage/`
+- [ ] Test data in `ui-htmx/tests/` (HTMX UI tests)
 - [ ] Test certificates (already updated in #5)
 - [ ] Example job files and configurations
 - [ ] Test scripts in `e2e/`
