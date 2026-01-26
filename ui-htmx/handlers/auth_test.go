@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/open-wander/wander/api"
 )
 
 func TestTokenCache(t *testing.T) {
@@ -225,4 +228,302 @@ func TestGetACLTokenInfoFromRequest(t *testing.T) {
 	if !info.IsValid {
 		t.Error("expected token to be valid")
 	}
+}
+
+func TestIsTokenExpired(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     *ACLTokenInfo
+		expected bool
+	}{
+		{
+			name:     "nil info",
+			info:     nil,
+			expected: false,
+		},
+		{
+			name: "no token",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+			},
+			expected: false,
+		},
+		{
+			name: "no expiration time",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID: "test-accessor",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "expired token",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID:     "test-accessor",
+					ExpirationTime: timePtr(time.Now().Add(-1 * time.Hour)),
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "valid token",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID:     "test-accessor",
+					ExpirationTime: timePtr(time.Now().Add(1 * time.Hour)),
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsTokenExpired(tt.info)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestIsTokenExpiringSoon(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     *ACLTokenInfo
+		within   time.Duration
+		expected bool
+	}{
+		{
+			name:     "nil info",
+			info:     nil,
+			within:   5 * time.Minute,
+			expected: false,
+		},
+		{
+			name: "no token",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+			},
+			within:   5 * time.Minute,
+			expected: false,
+		},
+		{
+			name: "expires in 2 minutes (within 5)",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID:     "test-accessor",
+					ExpirationTime: timePtr(time.Now().Add(2 * time.Minute)),
+				},
+			},
+			within:   5 * time.Minute,
+			expected: true,
+		},
+		{
+			name: "expires in 10 minutes (not within 5)",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID:     "test-accessor",
+					ExpirationTime: timePtr(time.Now().Add(10 * time.Minute)),
+				},
+			},
+			within:   5 * time.Minute,
+			expected: false,
+		},
+		{
+			name: "already expired",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID:     "test-accessor",
+					ExpirationTime: timePtr(time.Now().Add(-1 * time.Hour)),
+				},
+			},
+			within:   5 * time.Minute,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsTokenExpiringSoon(tt.info, tt.within)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetTimeUntilExpiry(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     *ACLTokenInfo
+		validate func(time.Duration) bool
+	}{
+		{
+			name: "nil info",
+			info: nil,
+			validate: func(d time.Duration) bool {
+				return d == 0
+			},
+		},
+		{
+			name: "no token",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+			},
+			validate: func(d time.Duration) bool {
+				return d == 0
+			},
+		},
+		{
+			name: "expired token",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID:     "test-accessor",
+					ExpirationTime: timePtr(time.Now().Add(-1 * time.Hour)),
+				},
+			},
+			validate: func(d time.Duration) bool {
+				return d == 0
+			},
+		},
+		{
+			name: "valid token",
+			info: &ACLTokenInfo{
+				IsValid:    true,
+				ACLEnabled: true,
+				Token: &api.ACLToken{
+					AccessorID:     "test-accessor",
+					ExpirationTime: timePtr(time.Now().Add(1 * time.Hour)),
+				},
+			},
+			validate: func(d time.Duration) bool {
+				// Should be approximately 1 hour (with some tolerance for execution time)
+				return d > 59*time.Minute && d <= 60*time.Minute
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetTimeUntilExpiry(tt.info)
+			if !tt.validate(result) {
+				t.Errorf("time until expiry validation failed: got %v", result)
+			}
+		})
+	}
+}
+
+func TestTokenCacheDelete(t *testing.T) {
+	cache := getTokenCache()
+
+	token := "test-token-delete"
+	info := &ACLTokenInfo{
+		IsValid:    true,
+		ACLEnabled: true,
+	}
+
+	// Add to cache
+	cache.Set(token, info, 5*time.Minute)
+
+	// Verify it's in cache
+	_, ok := cache.Get(token)
+	if !ok {
+		t.Fatal("expected token to be in cache")
+	}
+
+	// Delete it
+	cache.Delete(token)
+
+	// Verify it's gone
+	_, ok = cache.Get(token)
+	if ok {
+		t.Error("expected token to be deleted from cache")
+	}
+}
+
+func TestTokenCacheClear(t *testing.T) {
+	cache := getTokenCache()
+
+	// Add multiple tokens
+	for i := 0; i < 5; i++ {
+		token := "test-token-" + string(rune('0'+i))
+		info := &ACLTokenInfo{
+			IsValid:    true,
+			ACLEnabled: true,
+		}
+		cache.Set(token, info, 5*time.Minute)
+	}
+
+	// Clear all
+	cache.Clear()
+
+	// Verify all are gone
+	for i := 0; i < 5; i++ {
+		token := "test-token-" + string(rune('0'+i))
+		_, ok := cache.Get(token)
+		if ok {
+			t.Errorf("expected token %s to be cleared from cache", token)
+		}
+	}
+}
+
+func TestRequireTokenWithExpiredToken(t *testing.T) {
+	handler := NewHandler(hclog.NewNullLogger())
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := handler.RequireToken(testHandler)
+
+	t.Run("expired token", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", nil)
+
+		// Add expired token info to context
+		info := &ACLTokenInfo{
+			IsValid:    false,
+			ACLEnabled: true,
+			Error:      fmt.Errorf("token has expired"),
+		}
+		ctx := WithACLTokenInfo(req.Context(), info)
+		req = req.WithContext(ctx)
+
+		w := httptest.NewRecorder()
+		middleware.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", w.Code)
+		}
+
+		// Check for specific expired token message
+		body := w.Body.String()
+		if !strings.Contains(body, "expired") {
+			t.Errorf("expected error message to mention expiration, got: %s", body)
+		}
+	})
+}
+
+// Helper function to create a time pointer
+func timePtr(t time.Time) *time.Time {
+	return &t
 }

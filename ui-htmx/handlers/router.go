@@ -202,6 +202,15 @@ func (r *Router) registerAPIRoutes() {
 
 	// Namespace API endpoints
 	r.mux.Handle("/api/namespace/", r.wrapMiddleware(namespaceAPIHandler))
+
+	// Auth endpoints for token management
+	r.mux.HandleFunc("/api/v1/auth/token-info", func(w http.ResponseWriter, req *http.Request) {
+		// Apply middleware manually for this route
+		middleware := r.handler.TokenValidationMiddleware(http.HandlerFunc(r.handler.GetTokenInfo))
+		middleware.ServeHTTP(w, req)
+	})
+
+	r.mux.HandleFunc("/api/v1/auth/clear-cache", r.handler.ClearTokenCache)
 }
 
 // wrapMiddleware applies HTMX middleware and any other necessary middleware

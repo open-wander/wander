@@ -68,3 +68,16 @@
 - Pattern: HTMX partial errors vs full page errors based on request type
 - Files: errors.go (new), jobs.go, allocations.go, variables.go, policies.go, clients.go, csi.go
 ---
+
+### 2026-01-26 - Task 5: Token expiration handling and refresh
+- Enhanced ValidateToken() to check expiration before returning cached entries
+- Added expiration warning headers: X-Nomad-Token-Expires-Soon, X-Nomad-Token-Expires-At
+- Cache TTL respects token expiration (never caches beyond expiry)
+- Added helper functions: IsTokenExpired(), IsTokenExpiringSoon(), GetTimeUntilExpiry()
+- Added TokenCache.Delete() and TokenCache.Clear() methods
+- Created /api/v1/auth/token-info endpoint for token metadata
+- Created /api/v1/auth/clear-cache endpoint for cache management
+- Expired tokens get specific error message vs invalid tokens
+- Pattern: 5-minute warning threshold, cache half remaining lifetime
+- Files: auth.go, auth_test.go, router.go
+---

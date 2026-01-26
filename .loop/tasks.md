@@ -15,7 +15,7 @@ Status: in-progress
 - [x] 2. Integrate token validation with Nomad ACL API (client.ACLTokens().Self())
 - [x] 3. Store user permissions in request context for downstream handlers
 - [x] 4. Add per-handler permission checks with proper 403 Forbidden responses
-- [ ] 5. Implement token expiration handling and refresh logic
+- [x] 5. Implement token expiration handling and refresh logic
 - [ ] 6. Wire up Settings page to real token management (store/clear token)
 
 ### Phase 2: Detail Page API Integration
