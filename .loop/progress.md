@@ -494,3 +494,139 @@ Pattern: SSE + Alpine.js for real-time log streaming with auto-reconnect
 Pattern: HTMX lazy-load with hx-trigger="load" for directory expansion
 Files: codemirror-bundle.js, version_diff.templ, diff.go, allocations.templ, logs.templ, files.templ, allocation_logs.go, clientspartials/list_content.templ, detail.templ
 ---
+
+### 2026-01-26 - Task 49: Add Plan and Run buttons to Job editor
+- Added Plan and Run buttons in Definition tab (edit mode only)
+- Plan button: secondary variant, submits to /ui/jobs/{id}/plan
+- Run button: primary variant with confirmation modal
+- Plan Result modal shows created/updated/destroyed counts and diff
+- Run Confirmation modal for safety before execution
+- Loading states during submission
+- Pattern: Alpine.js modal with `<template x-if="showModal">` for conditional rendering
+- Pattern: HTMX + Alpine.js hybrid - HTMX for page updates, Alpine for client state
+- Files: partials/jobspartials/tabs.templ, handlers/jobs.go, codemirror-bundle.js
+---
+
+### 2026-01-26 - Task 52: Add revert to version action
+- Added Revert button to version rows (except active version)
+- Added confirmation modal showing target version
+- Created RevertToVersion handler at POST /ui/jobs/{id}/versions/{version}/revert
+- Toast notification on success/failure, page refresh after revert
+- Files: partials/jobspartials/tabs.templ, handlers/jobs.go
+---
+
+### 2026-01-26 - Task 65: Add stdout/stderr toggle to logs viewer
+- Added "both" option to existing stdout/stderr toggle
+- Three-button toggle group with visual indicator
+- Handler updated to support "both" log type
+- Properly disconnects/reconnects SSE on stream switch
+- Files: partials/allocationspartials/logs.templ, handlers/allocation_logs.go
+---
+
+### 2026-01-26 - Task 66: Add ANSI color support to logs viewer
+- Created ansi.js parser for ANSI escape codes
+- Support standard/bright colors (30-37, 90-97) and backgrounds (40-47, 100-107)
+- Support text styles (bold, dim, italic, underline)
+- Added ANSI color CSS classes to input.css
+- Parse ANSI codes in Alpine.js logViewer component
+- Strip ANSI codes from downloaded log files
+- XSS protection via HTML escaping
+- Pattern: Dual storage - keep parsed HTML and raw message separately
+- Files: ansi.js, input.css, alpine-patterns.js, base.templ
+---
+
+### 2026-01-26 - Task 67: Add download logs button
+- Already implemented in previous work
+- Download button in toolbar calling downloadLogs()
+- Filename format: {8-char-alloc-id}-{task}-{logtype}.log
+- Strips ANSI codes from downloaded content
+- Files: (no changes needed)
+---
+
+### 2026-01-26 - Tasks 69-70: File content viewer and download
+**Task 69: File content viewer with syntax highlighting**
+- Server-side syntax highlighting for JSON, HCL, Shell, Log files
+- File size and language label in preview header
+- Large files truncated at 100KB (at newline boundary)
+- Warning banner for truncated files
+- Binary file handling with friendly message
+
+**Task 70: File download capability**
+- Download button on file rows (appears on hover)
+- Content-Length header for download progress
+- 35+ file extensions mapped to MIME types
+- Input validation and error handling
+
+- Pattern: Server-side highlighting preferred over JS for read-only preview
+- Pattern: Log files in Nomad use .stdout.N and .stderr.N naming
+- Files: files.templ, allocations.go, input.css
+---
+
+### 2026-01-26 - Task 71: Allocation Exec terminal with xterm.js
+- Added xterm.js v5.5.0 and xterm-addon-fit libraries
+- Created exec.templ with task selector and command input
+- Added execTerminal() Alpine.js pattern (WebSocket-ready)
+- Terminal auto-fits container with resize handling
+- Connection status indicator, disconnect overlay
+- Note: Task 72 will implement WebSocket handler
+- Files: exec.templ, xterm.min.js, xterm-addon-fit.min.js, xterm.min.css, alpine-patterns.js, base.templ
+---
+
+### 2026-01-26 - Task 74: Allocation action buttons
+- Added Restart (warning) and Stop (danger) buttons
+- Confirmation modals with allocation ID display
+- Handlers for /restart and /stop endpoints
+- Toast notifications and page refresh on success
+- Pattern: HX-Trigger with showToast event for notifications
+- Files: detail.templ, allocations.go
+---
+
+### 2026-01-26 - Tasks 80-82: Client detail enhancements
+**Task 80: Resource utilization charts**
+- CPU and Memory time-series area charts with gradient
+- Inline SVG rendering via Alpine.js
+- 24-hour mock history with time labels
+
+**Task 81: Allocations list**
+- Already existed, verified working
+
+**Task 82: Drain controls**
+- Drain Node button for ready nodes
+- Cancel Drain button for draining nodes
+- Modal with deadline and ignore system jobs options
+- POST endpoints for drain operations
+- Pattern: Modal state via Alpine.js getter (get isOpen())
+- Files: detail.templ, clients.go
+---
+
+### 2026-01-26 - Tasks 72-73: WebSocket exec and resize
+**Task 72: WebSocket connection**
+- Created ExecHandler at /ui/allocations/{id}/exec/ws
+- Handles input, output, resize, error, exit, close messages
+- gorilla/websocket for bidirectional communication
+- Mock implementation with colored shell prompt
+
+**Task 73: Terminal resize handling**
+- 100ms debouncing for resize events
+- lastSentDims tracking to avoid duplicates
+- Initial dimensions sent on connect
+- Files: exec.go, router.go, alpine-patterns.js
+---
+
+### 2026-01-26 - Tasks 99-101: Chart components and HTMX
+**Task 99: GaugeChart**
+- Semi-circular/circular gauge for utilization
+- Color thresholds: green/yellow/orange/red
+- Animated transitions, center percentage
+
+**Task 100: BarChart**
+- Vertical/horizontal orientations
+- Single/multi-color modes
+- Interactive tooltips, value labels
+
+**Task 101: HTMX swap initialization**
+- afterSwap handler reinitializes charts
+- Alpine.initTree() on swapped content
+- Chart cleanup before swap
+- Files: gauge_chart.templ, bar_chart.templ, gauge-chart.js, bar-chart.js, chart-utils.js
+---
