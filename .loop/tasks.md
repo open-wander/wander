@@ -1,217 +1,147 @@
-# Project: UI Modernization - Ember.js to HTMX/Templ/Tailwind
+# Project: UI Feature Parity - API Integration
 
-> Complete UI rewrite from Ember.js 3.28 + HDS + Bulma to Go Templ + HTMX + Alpine.js + Tailwind CSS
+> Wire up HTMX UI to real Nomad API, replacing mock data with live cluster data
 
-Started: 2026-01-25
-Status: completed
+Started: 2026-01-26
+Status: in-progress
 
 ---
 
 ## Tasks
 
-### Phase 1: Infrastructure Setup
+### Phase 1: ACL & Authentication (Foundation)
 
-- [x] 1. Create ui-htmx directory structure and install Templ CLI
-- [x] 2. Configure templ generate in Makefile with watch mode (needs: 1)
-- [x] 3. Create base layout template with HTML head/body structure (needs: 2)
-- [x] 4. Add HTMX library and create request detection middleware (needs: 1)
-- [x] 5. Implement partial vs full page response logic (needs: 4)
-- [x] 6. Install Tailwind CLI and create tailwind.config.js (needs: 1)
-- [x] 7. Set up Tailwind CSS build pipeline with content paths (needs: 6)
-- [x] 8. Create base Tailwind styles (typography, forms, buttons) (needs: 7)
-- [x] 9. Add Alpine.js and create component patterns (dropdown, modal, tabs) (needs: 1)
-- [x] 10. Create ui-htmx handlers package with route registration (needs: 3, 5)
-- [x] 11. Configure air for Go hot-reload development workflow (needs: 10)
-- [x] 12. Create SSE handler utility for real-time log streaming (needs: 10)
-- [x] 13. Implement SSE connection management and reconnection logic (needs: 12)
+- [ ] 1. Create ACL middleware to validate X-Nomad-Token header on all requests
+- [ ] 2. Integrate token validation with Nomad ACL API (client.ACLTokens().Self())
+- [ ] 3. Store user permissions in request context for downstream handlers
+- [ ] 4. Add per-handler permission checks with proper 403 Forbidden responses
+- [ ] 5. Implement token expiration handling and refresh logic
+- [ ] 6. Wire up Settings page to real token management (store/clear token)
 
-### Phase 2: Core Component Library
+### Phase 2: Detail Page API Integration
 
-- [x] 14. Create Button component with variants (primary, secondary, danger, ghost) (needs: 8)
-- [x] 15. Create Badge component with color variants (needs: 8)
-- [x] 16. Create Link component with internal/external handling (needs: 8)
-- [x] 17. Create Icon component with Heroicons SVG helper (needs: 8)
-- [x] 18. Create Input component (text, number, password, search) (needs: 8)
-- [x] 19. Create Textarea component with auto-resize option (needs: 8)
-- [x] 20. Create Select component with Alpine.js styling (needs: 9, 8)
-- [x] 21. Create Checkbox, Radio, and Toggle components (needs: 8)
-- [x] 22. Create FormField wrapper with label and error message (needs: 18, 19, 20, 21)
-- [x] 23. Create PageLayout component with header, sidebar, main areas (needs: 3)
-- [x] 24. Create Card component with header, body, footer slots (needs: 8)
-- [x] 25. Create Table component with sortable columns support (needs: 8)
-- [x] 26. Create Modal component with Alpine.js (needs: 9, 8)
-- [x] 27. Create Dropdown menu component with Alpine.js (needs: 9, 8)
-- [x] 28. Create Tabs component with HTMX lazy-loading support (needs: 5, 9)
-- [x] 29. Create Breadcrumbs component (needs: 16)
-- [x] 30. Create Alert component (info, success, warning, error) (needs: 8)
-- [x] 31. Create Toast notification system with Alpine.js (needs: 9, 8)
-- [x] 32. Create EmptyState component (needs: 8)
-- [x] 33. Create LoadingSpinner and Skeleton loader components (needs: 8)
-- [x] 34. Create ProgressBar component (needs: 8)
-- [x] 35. Create Sidebar component with collapsible sections (needs: 9, 23)
-- [x] 36. Create NavItem component with active state (needs: 16)
-- [x] 37. Create Header component with user menu, region selector (needs: 27, 23)
-- [x] 38. Create SearchBar component with HTMX autocomplete (needs: 5, 18)
+- [ ] 7. Wire Jobs list to real API: client.Jobs().List() (needs: 1)
+- [ ] 8. Wire Job detail to real API: client.Jobs().Info() (needs: 7)
+- [ ] 9. Wire Job versions tab to real API: client.Jobs().Versions() (needs: 8)
+- [ ] 10. Wire Job allocations tab to real API: client.Jobs().Allocations() (needs: 8)
+- [ ] 11. Wire Job deployments tab to real API: client.Jobs().Deployments() (needs: 8)
+- [ ] 12. Wire Job evaluations tab to real API: client.Jobs().Evaluations() (needs: 8)
+- [ ] 13. Wire Allocations list to real API: client.Allocations().List() (needs: 1)
+- [ ] 14. Wire Allocation detail to real API: client.Allocations().Info() (needs: 13)
+- [ ] 15. Wire Allocation file browser to real API: client.AllocFS().List() (needs: 14)
+- [ ] 16. Wire Allocation file content to real API: client.AllocFS().Cat()/Stat() (needs: 15)
+- [ ] 17. Wire Allocation log streaming to real API: client.AllocFS().Logs() via SSE (needs: 14)
+- [ ] 18. Wire Clients list to real API: client.Nodes().List() (needs: 1)
+- [ ] 19. Wire Client detail to real API: client.Nodes().Info() (needs: 18)
+- [ ] 20. Wire Client allocations to real API: client.Nodes().Allocations() (needs: 19)
+- [ ] 21. Wire Client stats to real API: client.Nodes().Stats() (needs: 19)
+- [ ] 22. Wire Servers list to real API: client.Agent().Members() (needs: 1)
+- [ ] 23. Add Server detail page and handler with client.Agent().Self() (needs: 22)
+- [ ] 24. Wire Evaluations list to real API: client.Evaluations().List() (needs: 1)
+- [ ] 25. Add Evaluation detail page with client.Evaluations().Info() (needs: 24)
+- [ ] 26. Wire Namespaces list to real API: client.Namespaces().List() (needs: 1)
 
-### Phase 3: Jobs Section
+### Phase 3: Write Operations (Actions)
 
-- [x] 39. Create Jobs list handler and route (needs: 10)
-- [x] 40. Create Jobs list page template with table (needs: 25, 39)
-- [x] 41. Add Jobs list pagination with HTMX (needs: 40)
-- [x] 42. Add Jobs list search/filter with debounced HTMX (needs: 38, 40)
-- [x] 43. Add Jobs list sorting by column headers (needs: 40)
-- [x] 44. Create Job detail handler and route (needs: 10)
-- [x] 45. Create Job detail page with header and tabs (needs: 28, 44)
-- [x] 46. Create Job Overview tab with task groups summary (needs: 45)
-- [x] 47. Create Job Definition tab with CodeMirror 6 editor (needs: 45)
-- [x] 48. Set up CodeMirror 6 with HCL/JSON syntax highlighting (needs: 47)
-- [x] 49. Add Plan and Run buttons to Job editor (needs: 48)
-- [x] 50. Create Job Versions tab with version list (needs: 45)
-- [x] 51. Add version diff view (needs: 50)
-- [x] 52. Add revert to version action (needs: 51)
-- [x] 53. Create Job Allocations tab with table (needs: 45)
-- [x] 54. Add real-time allocation updates via HTMX polling (needs: 53)
-- [x] 55. Create Task group detail page (needs: 44)
-- [x] 56. Add scaling controls to Task group page (needs: 55)
-- [x] 57. Add Job action buttons (Start, Stop, Run) with confirmation modals (needs: 26, 45)
+- [ ] 27. Implement job plan: client.Jobs().Plan() with diff display (needs: 8)
+- [ ] 28. Implement job submit/run: client.Jobs().Register() (needs: 27)
+- [ ] 29. Implement job stop: client.Jobs().Deregister() (needs: 8)
+- [ ] 30. Implement force periodic job: client.Jobs().PeriodicForce() (needs: 8)
+- [ ] 31. Implement dispatch parameterized job: client.Jobs().Dispatch() (needs: 8)
+- [ ] 32. Implement job version revert: client.Jobs().Revert() (needs: 9)
+- [ ] 33. Implement task group scaling: client.Jobs().Scale() (needs: 8)
+- [ ] 34. Implement allocation restart: client.Allocations().Restart() (needs: 14)
+- [ ] 35. Implement allocation stop: client.Allocations().Stop() (needs: 14)
+- [ ] 36. Implement allocation exec: WebSocket to /v1/client/allocation/:id/exec (needs: 14)
+- [ ] 37. Implement client drain: client.Nodes().UpdateDrain() (needs: 19)
+- [ ] 38. Implement client eligibility toggle: client.Nodes().ToggleEligibility() (needs: 19)
+- [ ] 39. Wire Variables list to real API: client.Variables().List() (needs: 1)
+- [ ] 40. Wire Variable read to real API: client.Variables().Read() (needs: 39)
+- [ ] 41. Implement Variable create: client.Variables().Create() (needs: 40)
+- [ ] 42. Implement Variable update: client.Variables().Update() (needs: 40)
+- [ ] 43. Implement Variable delete: client.Variables().Delete() (needs: 40)
+- [ ] 44. Wire Policies list to real API: client.ACLPolicies().List() (needs: 1)
+- [ ] 45. Wire Policy read to real API: client.ACLPolicies().Info() (needs: 44)
+- [ ] 46. Implement Policy create/update: client.ACLPolicies().Upsert() (needs: 45)
+- [ ] 47. Implement Policy delete: client.ACLPolicies().Delete() (needs: 45)
 
-### Phase 4: Allocations Section
+### Phase 4: Missing Pages
 
-- [x] 58. Create Allocations list handler and route (needs: 10)
-- [x] 59. Create Allocations list page with filters (needs: 25, 58)
-- [x] 60. Add Allocations search by ID prefix (needs: 59)
-- [x] 61. Create Allocation detail handler and route (needs: 10)
-- [x] 62. Create Allocation detail page with tabs (needs: 28, 61)
-- [x] 63. Create Allocation Tasks tab with status list (needs: 62)
-- [x] 64. Create Allocation Logs tab with SSE streaming (needs: 12, 13, 62)
-- [x] 65. Add stdout/stderr toggle to logs viewer (needs: 64)
-- [x] 66. Add ANSI color support to logs viewer (needs: 64)
-- [x] 67. Add download logs button (needs: 64)
-- [x] 68. Create Allocation Files tab with directory tree (needs: 62)
-- [x] 69. Add file content viewer with syntax highlighting (needs: 68)
-- [x] 70. Add file download capability (needs: 68)
-- [x] 71. Create Allocation Exec terminal with xterm.js (needs: 62)
-- [x] 72. Implement WebSocket connection for exec (needs: 71)
-- [x] 73. Add terminal resize handling (needs: 71)
-- [x] 74. Add Allocation action buttons (Restart, Stop) (needs: 26, 62)
+- [ ] 48. Create Job submission page with CodeMirror editor (needs: 27, 28)
+- [ ] 49. Add job template library to submission page (needs: 48)
+- [ ] 50. Create Deployments list handler and page (needs: 11)
+- [ ] 51. Create Deployment detail page with task group status (needs: 50)
+- [ ] 52. Implement deployment promote action (needs: 51)
+- [ ] 53. Implement deployment fail action (needs: 51)
+- [ ] 54. Wire CSI Volumes list to real API: client.CSIVolumes().List() (needs: 1)
+- [ ] 55. Wire CSI Volume detail to real API: client.CSIVolumes().Info() (needs: 54)
+- [ ] 56. Wire CSI Plugins list to real API: client.CSIPlugins().List() (needs: 1)
+- [ ] 57. Wire Topology page to real API: build from Nodes + Allocations (needs: 18, 13)
 
-### Phase 5: Clients & Servers
+### Phase 5: Real-Time Updates
 
-- [x] 75. Create Clients list handler and route (needs: 10)
-- [x] 76. Create Clients list page with resource bars (needs: 25, 34, 75)
-- [x] 77. Add Clients filtering by status, datacenter (needs: 76)
-- [x] 78. Create Client detail handler and route (needs: 10)
-- [x] 79. Create Client detail page (needs: 78)
-- [x] 80. Add resource utilization charts to Client detail (needs: 79)
-- [x] 81. Add allocations list to Client detail (needs: 79)
-- [x] 82. Add drain controls to Client detail (needs: 79)
-- [x] 83. Create Servers list handler and route (needs: 10)
-- [x] 84. Create Servers list page with leader badge (needs: 25, 15, 83)
+- [ ] 58. Add HTMX polling to allocation status on job detail (needs: 10)
+- [ ] 59. Implement SSE endpoint for real log streaming from Nomad (needs: 17)
+- [ ] 60. Add HTMX polling for deployment progress (needs: 51)
+- [ ] 61. Add HTMX polling for evaluation status (needs: 25)
+- [ ] 62. Add connection status indicator with reconnection logic (needs: 59)
 
-### Phase 6: Additional Sections
+### Phase 6: UX Enhancements
 
-- [x] 85. Create Topology page handler (needs: 10)
-- [x] 86. Implement Topology visualization (D3 or grid-based) (needs: 85)
-- [x] 87. Create CSI Volumes list handler and page (needs: 10, 25)
-- [x] 88. Create CSI Volume detail page (needs: 87)
-- [x] 89. Create CSI Plugins list page (needs: 87)
-- [x] 90. Create Variables list handler and page (needs: 10, 25)
-- [x] 91. Create Variable detail/edit page with key-value editor (needs: 90)
-- [x] 92. Add create/delete variable functionality (needs: 91)
-- [x] 93. Create Policies list handler and page (needs: 10, 25)
-- [x] 94. Create Policy editor with HCL highlighting (needs: 48, 93)
-- [x] 95. Create Settings/Token page (needs: 10, 22)
-- [x] 96. Create Evaluations sidebar panel (needs: 26)
-
-### Phase 7: Charts & Visualizations
-
-- [x] 97. Create D3 chart container Templ component (needs: 8)
-- [x] 98. Implement LineChart component for time-series data (needs: 97)
-- [x] 99. Implement GaugeChart component for resource utilization (needs: 97)
-- [x] 100. Implement BarChart component for comparisons (needs: 97)
-- [x] 101. Add chart initialization after HTMX swaps (needs: 97)
-- [x] 102. Implement CPU utilization chart (needs: 98)
-- [x] 103. Implement Memory utilization chart (needs: 98)
-- [x] 104. Add time range selector to resource charts (needs: 102, 103)
-- [x] 105. Add auto-refresh to charts via HTMX polling (needs: 104)
-
-### Phase 8: Testing Infrastructure
-
-- [x] 106. Create Templ template test utilities (needs: 3)
-- [x] 107. Create mock data layer for handler testing (needs: 10)
-- [x] 108. Write handler unit tests for Jobs routes (needs: 39, 44, 107)
-- [x] 109. Write handler unit tests for Allocations routes (needs: 58, 61, 107)
-- [x] 110. Write handler unit tests for Clients/Servers routes (needs: 75, 78, 83, 107)
-- [x] 111. Configure Playwright with Go test server (needs: 10)
-- [x] 112. Create Playwright page object patterns (needs: 111)
-- [x] 113. Write e2e tests for Jobs list and detail (needs: 112, 45)
-- [x] 114. Write e2e tests for Allocations and logs (needs: 112, 64)
-- [x] 115. Write e2e tests for Clients and Servers (needs: 112, 79, 84)
-- [x] 116. Set up visual regression testing baseline (needs: 113)
-
-### Phase 9: Migration Cutover
-
-- [x] 117. Configure new UI to serve at /ui/ path (needs: all Phase 3-6 tasks)
-- [x] 118. Verify all routes return 200 or appropriate error codes (needs: 117)
-- [x] 119. Run full link checker for broken links/assets (needs: 117)
-- [x] 120. Measure JavaScript bundle size (target <100kb) (needs: 117)
-- [x] 121. Measure TTFB, FCP, TTI performance metrics (needs: 117)
-- [x] 122. Run load test with concurrent users (needs: 117)
-- [x] 123. Update CHANGELOG with migration notes (needs: 117)
-- [x] 124. Remove Ember.js /ui/ directory (needs: 122, 116)
-- [x] 125. Remove package.json and node_modules (needs: 124)
-- [x] 126. Update CI to not build Ember (needs: 124)
-- [x] 127. Update documentation (needs: 126)
+- [ ] 63. Implement keyboard shortcuts (g+j=Jobs, g+c=Clients, etc.) (needs: 7)
+- [ ] 64. Implement global search with /v1/search/fuzzy endpoint (needs: 1)
+- [ ] 65. Create 403 Forbidden error page with ACL message (needs: 4)
+- [ ] 66. Create 404 Not Found error page (needs: 1)
+- [ ] 67. Create No Leader error page for cluster unavailable state (needs: 1)
+- [ ] 68. Verify breadcrumb navigation completeness across all pages (needs: 57)
+- [ ] 69. Add region switcher to header with API region parameter (needs: 1)
+- [ ] 70. Verify version diff viewer working with real data (needs: 9, 32)
 
 ---
 
 ## Notes
 
-### Technology Stack
-- **Templates:** Go Templ (type-safe, compiles to Go)
-- **Interactivity:** HTMX (~16kb) for dynamic updates
-- **Client State:** Alpine.js (~15kb) for dropdowns, modals, tabs
-- **Styling:** Tailwind CSS (utility-first)
-- **Charts:** D3.js (keep existing)
-- **Code Editor:** CodeMirror 6 (upgrade from v5)
-- **Terminal:** xterm.js (keep)
-- **Icons:** Heroicons
-- **Real-time:** SSE for logs/events, HTMX polling for lists
-
-### Performance Targets
-- JavaScript bundle: <100kb gzipped
-- CSS bundle: <50kb gzipped (after Tailwind purge)
-- Time to First Byte: <100ms
-- First Contentful Paint: <500ms
-- Time to Interactive: <1s
-
-### Rollout Strategy
-- Hard cutover (no feature flag)
-- New UI replaces Ember UI at /ui/ path
-- Single binary deployment (no node_modules in production)
-
-### Directory Structure
+### API Client Access
+The Nomad API client is available via the Handler struct. Each handler receives access through dependency injection:
+```go
+type Handler struct {
+    client *api.Client
+    // ...
+}
 ```
-/ui-htmx/
-  handlers/       # HTTP handlers
-  templates/
-    layouts/      # Base layouts
-    components/   # Reusable components
-    pages/        # Page templates
-    partials/     # HTMX partial responses
-  static/
-    css/          # Tailwind output
-    js/           # HTMX, Alpine, CodeMirror
-    icons/        # Heroicons SVGs
-  tests/
-    unit/
-    e2e/
-```
+
+### ACL Flow
+1. Token comes from `X-Nomad-Token` header or cookie
+2. Middleware validates token via `client.ACLTokens().Self()`
+3. Permissions stored in context
+4. Handlers check permissions before operations
+
+### Error Handling
+- Invalid token: 401 Unauthorized
+- Missing permission: 403 Forbidden
+- Resource not found: 404 Not Found
+- Cluster unavailable: 503 Service Unavailable
+
+### Namespace Handling
+Many API calls require namespace parameter. Get from:
+1. Query parameter `?namespace=foo`
+2. Header `X-Nomad-Namespace`
+3. Default to "default" namespace
+
+### Real-Time Patterns
+- Log streaming: SSE with client.AllocFS().Logs()
+- Exec: WebSocket proxying to Nomad agent
+- Status updates: HTMX polling with `hx-trigger="every 5s"`
+
+### Testing Strategy
+After each task:
+1. Start dev cluster: `nomad agent -dev`
+2. Test with real data
+3. Test with/without ACL token
+4. Verify error handling
 
 ### Agent Recommendations
-- Go code: `golang-pro`
-- Frontend design: `frontend-design`
-- JavaScript: `javascript-pro`
-- Testing: `test-automator`
-- Code review: `code-reviewer`
-- Security: `security-auditor`
+- Phase 1 (ACL): security-auditor + golang-pro
+- Phase 2-3 (API): golang-pro
+- Phase 4 (Pages): golang-pro + frontend-design
+- Phase 5-6 (Polish): golang-pro + javascript-pro
