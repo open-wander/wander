@@ -77,6 +77,20 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("clients list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need read-nodes capability
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.HasCapability("", "node:read") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view client nodes",
+			Capability: "node:read",
+			Suggestions: []string{
+				"Contact your administrator to request the 'node:read' capability",
+				"This capability allows viewing Nomad client node information",
+			},
+		})
+		return
+	}
+
 	// Parse filter query parameters
 	filters := clientspartials.ClientFilters{
 		Status:     r.URL.Query().Get("status"),
@@ -197,6 +211,20 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("client detail request", "clientID", clientID, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need read-nodes capability
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.HasCapability("", "node:read") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view client node details",
+			Capability: "node:read",
+			Suggestions: []string{
+				"Contact your administrator to request the 'node:read' capability",
+				"This capability allows viewing Nomad client node information",
+			},
+		})
+		return
+	}
+
 	// Mock client detail data
 	clientDetail := h.getClientDetail(clientID)
 
@@ -231,6 +259,14 @@ func (h *ClientsHandler) Drain(w http.ResponseWriter, r *http.Request) {
 	clientID := strings.TrimPrefix(r.URL.Path, "/ui/clients/")
 	clientID = strings.TrimSuffix(clientID, "/drain")
 
+	// Check permissions - need node-write capability to drain nodes
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.HasCapability("", "node:write") {
+		h.handler.logger.Warn("drain permission denied", "clientID", clientID)
+		http.Error(w, "Permission denied: you do not have the 'node:write' capability", http.StatusForbidden)
+		return
+	}
+
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		h.handler.logger.Error("failed to parse drain form", "error", err)
@@ -261,6 +297,14 @@ func (h *ClientsHandler) CancelDrain(w http.ResponseWriter, r *http.Request) {
 	// Extract client ID from path
 	clientID := strings.TrimPrefix(r.URL.Path, "/ui/clients/")
 	clientID = strings.TrimSuffix(clientID, "/drain/cancel")
+
+	// Check permissions - need node-write capability to cancel drain
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.HasCapability("", "node:write") {
+		h.handler.logger.Warn("cancel drain permission denied", "clientID", clientID)
+		http.Error(w, "Permission denied: you do not have the 'node:write' capability", http.StatusForbidden)
+		return
+	}
 
 	// Log the cancel drain request
 	h.handler.logger.Info("cancel drain request", "clientID", clientID)

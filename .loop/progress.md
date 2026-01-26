@@ -55,3 +55,16 @@
 - Pattern: Most specific wildcard wins, "deny" takes precedence
 - Files: permissions.go (386 lines), permissions_test.go, permissions_example_test.go, PERMISSIONS.md
 ---
+
+### 2026-01-26 - Task 4: Per-handler permission checks with 403 responses
+- Created errors.go with RenderForbidden(), CheckPermission() helpers
+- Three response types: full page 403, HTMX partial, JSON error
+- Jobs: CanListJobs, CanReadJob, CanSubmitJob, CanScaleJob checks
+- Allocations: read-job, read-logs, alloc-exec, read-fs, alloc-lifecycle checks
+- Variables: Path-based list/read/write/destroy checks
+- Policies: Management token required for all operations
+- Clients: node:read and node:write capability checks
+- CSI: csi-list-volume and csi-read-volume checks
+- Pattern: HTMX partial errors vs full page errors based on request type
+- Files: errors.go (new), jobs.go, allocations.go, variables.go, policies.go, clients.go, csi.go
+---

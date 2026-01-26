@@ -132,6 +132,22 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("jobs list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - for list, we need to check "default" namespace
+	// In a real implementation, we'd check all namespaces or filter by accessible ones
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanListJobs("default") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to list jobs",
+			Capability: "list-jobs",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'list-jobs' capability",
+				"Ensure you are using a valid ACL token with appropriate permissions",
+			},
+		})
+		return
+	}
+
 	// Get mock job data
 	jobsList := h.getJobsList()
 
@@ -219,6 +235,22 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Log the request
 	h.handler.logger.Debug("job detail request", "jobID", actualJobID, "tab", tabName, "htmx", IsHTMXFromRequest(r))
+
+	// Check permissions - need read-job capability
+	// In production, we'd get the namespace from the actual job
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanReadJob("default") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view this job",
+			Capability: "read-job",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'read-job' capability",
+				"Ensure you are using a valid ACL token with appropriate permissions",
+			},
+		})
+		return
+	}
 
 	// If this is a tab content request, return just the tab partial
 	if tabName != "" && IsHTMXFromRequest(r) {
@@ -855,6 +887,16 @@ func (h *JobsHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request) {
 	jobID := parts[0]
 	tgName := parts[1]
 
+	// Check permissions - need scale-job capability to scale task groups
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanScaleJob("default") {
+		h.handler.logger.Warn("scale permission denied", "jobID", jobID, "taskGroup", tgName)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(renderScaleError("Permission denied: you do not have the 'scale-job' capability in the default namespace")))
+		return
+	}
+
 	// Parse the form data
 	if err := r.ParseForm(); err != nil {
 		h.handler.logger.Error("failed to parse form", "error", err)
@@ -1261,6 +1303,17 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 	path = strings.TrimSuffix(path, "/plan")
 	jobID := path
 
+	// Check permissions - need submit-job capability to plan
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanSubmitJob("default") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{
+			Error: "Permission denied: you do not have the 'submit-job' capability in the default namespace",
+		})
+		return
+	}
+
 	// Log the request
 	h.handler.logger.Info("plan job request", "jobID", jobID)
 
@@ -1319,6 +1372,17 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
 	path = strings.TrimSuffix(path, "/run")
 	jobID := path
+
+	// Check permissions - need submit-job capability to run
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanSubmitJob("default") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(RunJobResponse{
+			Error: "Permission denied: you do not have the 'submit-job' capability in the default namespace",
+		})
+		return
+	}
 
 	// Log the request
 	h.handler.logger.Info("run job request", "jobID", jobID)
@@ -1402,6 +1466,18 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 
 	jobID := parts[0]
 	versionStr := parts[1]
+
+	// Check permissions - need submit-job capability to revert versions
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanSubmitJob("default") {
+		h.handler.logger.Warn("revert permission denied", "jobID", jobID, "version", versionStr)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{
+			Error: "Permission denied: you do not have the 'submit-job' capability in the default namespace",
+		})
+		return
+	}
 
 	version, err := strconv.Atoi(versionStr)
 	if err != nil {

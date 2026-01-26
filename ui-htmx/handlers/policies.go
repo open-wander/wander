@@ -57,6 +57,20 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("policies list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - policies require management token
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.IsManagement() {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view ACL policies",
+			Capability: "management token",
+			Suggestions: []string{
+				"ACL policy management requires a management token",
+				"Contact your administrator to request management access",
+			},
+		})
+		return
+	}
+
 	// Get mock policy data
 	policiesList := h.getPoliciesList()
 
@@ -129,6 +143,20 @@ func (h *PoliciesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 func (h *PoliciesHandler) showDetail(w http.ResponseWriter, r *http.Request, policyName string) {
 	// Log the request
 	h.handler.logger.Debug("policy detail request", "policy", policyName, "htmx", IsHTMXFromRequest(r))
+
+	// Check permissions - policies require management token
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.IsManagement() {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view ACL policy details",
+			Capability: "management token",
+			Suggestions: []string{
+				"ACL policy management requires a management token",
+				"Contact your administrator to request management access",
+			},
+		})
+		return
+	}
 
 	// Get policy data (mock for now)
 	policy, exists := h.getPolicyDetail(policyName)

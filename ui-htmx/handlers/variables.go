@@ -81,6 +81,22 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("variables list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need list capability for variables
+	// For now, checking against "*" path to list all variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanListVariables("default", "*") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to list variables",
+			Capability: "variables: list",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'list' capability for variables",
+				"Variables require specific path-based permissions",
+			},
+		})
+		return
+	}
+
 	// Get mock variable data
 	variablesList := h.getVariablesList()
 
@@ -315,6 +331,21 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("variable create page request", "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need write capability to create variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanWriteVariables("default", "*") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to create variables",
+			Capability: "variables: write",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'write' capability for variables",
+				"Variables require specific path-based permissions",
+			},
+		})
+		return
+	}
+
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(
 		"Create Variable - Wander",
@@ -344,6 +375,14 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Info("variable create request")
+
+	// Check permissions - need write capability to create variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanWriteVariables("default", "*") {
+		h.handler.logger.Warn("create variable permission denied")
+		http.Error(w, "Permission denied: you do not have the 'write' capability for variables", http.StatusForbidden)
+		return
+	}
 
 	// Parse the form data
 	if err := r.ParseForm(); err != nil {
@@ -397,6 +436,21 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("variable detail request", "path", variablePath, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need read capability to view variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanReadVariables("default", variablePath) {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to read this variable",
+			Capability: "variables: read",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'read' capability for this variable path",
+				"Variable permissions are path-specific",
+			},
+		})
+		return
+	}
+
 	// Get mock variable detail data
 	variableDetail := h.getVariableDetail(variablePath)
 
@@ -440,6 +494,14 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Info("variable update request", "path", variablePath)
 
+	// Check permissions - need write capability to update variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanWriteVariables("default", variablePath) {
+		h.handler.logger.Warn("update variable permission denied", "path", variablePath)
+		http.Error(w, "Permission denied: you do not have the 'write' capability for this variable path", http.StatusForbidden)
+		return
+	}
+
 	// Parse the form data
 	if err := r.ParseForm(); err != nil {
 		h.handler.logger.Error("failed to parse form", "error", err)
@@ -480,6 +542,14 @@ func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	// Log the request
 	h.handler.logger.Info("variable delete request", "path", variablePath)
+
+	// Check permissions - need destroy capability to delete variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanDestroyVariables("default", variablePath) {
+		h.handler.logger.Warn("delete variable permission denied", "path", variablePath)
+		http.Error(w, "Permission denied: you do not have the 'destroy' capability for this variable path", http.StatusForbidden)
+		return
+	}
 
 	// TODO: In a real implementation, this would:
 	// 1. Call the Nomad API: client.Variables().Delete(path, nil)

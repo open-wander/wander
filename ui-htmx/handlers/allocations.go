@@ -90,6 +90,21 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("allocations list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - allocations inherit job permissions
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanListJobs("default") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to list allocations",
+			Capability: "list-jobs",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Allocations inherit job permissions. You need the 'list-jobs' capability",
+				"Contact your administrator to request appropriate permissions",
+			},
+		})
+		return
+	}
+
 	// Parse query parameters
 	query := r.URL.Query()
 	statusFilter := query.Get("status")
@@ -462,6 +477,21 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("allocation detail request", "allocID", actualAllocID, "tab", tabName, "subAction", subAction, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need read-job capability to view allocation details
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanReadJob("default") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view this allocation",
+			Capability: "read-job",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Allocations inherit job permissions. You need the 'read-job' capability",
+				"Contact your administrator to request appropriate permissions",
+			},
+		})
+		return
+	}
+
 	// Handle files sub-routes (list, preview, download)
 	if tabName == "files" && subAction != "" {
 		switch subAction {
@@ -694,6 +724,57 @@ func (h *AllocationsHandler) getAllocationDetail(allocID string) allocationspart
 
 // renderTabContent handles rendering individual tab content
 func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, allocID, tabName string) {
+	// Check permissions based on tab type
+	perms := GetPermissionsFromRequest(r)
+
+	// Logs tab requires read-logs capability
+	if tabName == "logs" {
+		if perms != nil && !perms.CanReadLogs("default") {
+			h.handler.RenderForbidden(w, r, ForbiddenError{
+				Message:    "You do not have permission to view allocation logs",
+				Capability: "read-logs",
+				Namespace:  "default",
+				Suggestions: []string{
+					"Contact your administrator to request the 'read-logs' capability",
+					"You may still be able to view other allocation details",
+				},
+			})
+			return
+		}
+	}
+
+	// Exec tab requires alloc-exec capability
+	if tabName == "exec" {
+		if perms != nil && !perms.CanExec("default") {
+			h.handler.RenderForbidden(w, r, ForbiddenError{
+				Message:    "You do not have permission to execute commands in allocations",
+				Capability: "alloc-exec",
+				Namespace:  "default",
+				Suggestions: []string{
+					"Contact your administrator to request the 'alloc-exec' capability",
+					"This capability allows interactive command execution in running tasks",
+				},
+			})
+			return
+		}
+	}
+
+	// Files tab requires read-fs capability
+	if tabName == "files" {
+		if perms != nil && !perms.CanReadFS("default") {
+			h.handler.RenderForbidden(w, r, ForbiddenError{
+				Message:    "You do not have permission to browse allocation filesystem",
+				Capability: "read-fs",
+				Namespace:  "default",
+				Suggestions: []string{
+					"Contact your administrator to request the 'read-fs' capability",
+					"This capability allows browsing and downloading allocation files",
+				},
+			})
+			return
+		}
+	}
+
 	// Get allocation detail data
 	allocDetail := h.getAllocationDetail(allocID)
 
@@ -1216,6 +1297,15 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	path = strings.TrimSuffix(path, "/restart")
 	allocID := path
 
+	// Check permissions - need alloc-lifecycle capability to restart
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.HasCapability("default", "alloc-lifecycle") {
+		h.handler.logger.Warn("restart permission denied", "allocID", allocID)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Permission Denied", "message": "You do not have the 'alloc-lifecycle' capability to restart allocations.", "duration": 5000}}`)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
 	// Log the restart request
 	h.handler.logger.Info("restart allocation request", "allocID", allocID)
 
@@ -1237,6 +1327,15 @@ func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/ui/allocations/")
 	path = strings.TrimSuffix(path, "/stop")
 	allocID := path
+
+	// Check permissions - need alloc-lifecycle capability to stop
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.HasCapability("default", "alloc-lifecycle") {
+		h.handler.logger.Warn("stop permission denied", "allocID", allocID)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Permission Denied", "message": "You do not have the 'alloc-lifecycle' capability to stop allocations.", "duration": 5000}}`)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
 	// Log the stop request
 	h.handler.logger.Info("stop allocation request", "allocID", allocID)

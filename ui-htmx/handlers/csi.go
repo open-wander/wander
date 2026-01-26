@@ -88,6 +88,21 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("csi volumes list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need csi-list-volume capability
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanListCSI("default") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to list CSI volumes",
+			Capability: "csi-list-volume",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'csi-list-volume' capability",
+				"This capability allows viewing CSI volume information",
+			},
+		})
+		return
+	}
+
 	// Parse query parameters
 	query := r.URL.Query()
 	pluginFilter := query.Get("plugin")
@@ -496,6 +511,21 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 		"volumeID", volumeID,
 		"htmx", IsHTMXFromRequest(r))
 
+	// Check permissions - need csi-read-volume capability
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanReadCSI("default") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view CSI volume details",
+			Capability: "csi-read-volume",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'csi-read-volume' capability",
+				"This capability allows viewing detailed CSI volume information",
+			},
+		})
+		return
+	}
+
 	// Get volume details
 	volume := h.getVolumeDetail(volumeID)
 	if volume == nil {
@@ -725,6 +755,21 @@ type PluginSummary struct {
 func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("csi plugins list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
+
+	// Check permissions - CSI plugins require read capability
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanReadCSI("default") {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to view CSI plugins",
+			Capability: "csi-read-volume",
+			Namespace:  "default",
+			Suggestions: []string{
+				"Contact your administrator to request the 'csi-read-volume' capability",
+				"This capability allows viewing CSI plugin information",
+			},
+		})
+		return
+	}
 
 	// Parse query parameters
 	query := r.URL.Query()
