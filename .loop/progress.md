@@ -863,3 +863,33 @@ Batch of 6 tasks completed:
 - Performance targets, migration notes
 - Files: CHANGELOG.md
 ---
+
+### 2026-01-26 - Tasks 113-115, 121: E2E Tests & Performance Metrics
+Batch of 4 tasks completed:
+
+**Task 113: E2E tests for Jobs**
+- 23 tests across 6 browser configs
+- Jobs list: load, search, filter, sort, navigate
+- Job detail: header, tabs, CodeMirror, versions, allocations
+- Job actions: run/stop modals
+- Files: tests/e2e/specs/jobs.spec.ts (626 lines)
+
+**Task 114: E2E tests for Allocations**
+- 25 tests covering list, detail, logs, exec
+- List: search by ID prefix, filters, navigation
+- Logs: stdout/stderr toggle, SSE streaming, download
+- Exec: terminal, WebSocket, task selector
+- Files: tests/e2e/specs/allocations.spec.ts
+
+**Task 115: E2E tests for Clients/Servers**
+- 34 tests (17 clients + 17 servers)
+- Clients: list, filters, detail, resource charts, drain
+- Servers: list, leader badge, status, versions
+- Files: tests/e2e/specs/clients.spec.ts, servers.spec.ts
+
+**Task 121: Measure performance metrics**
+- Created measure-performance.sh for TTFB
+- Targets: TTFB <100ms, FCP <500ms, TTI <1s
+- Includes Lighthouse CLI and Playwright examples
+- Files: scripts/measure-performance.sh, PERFORMANCE_METRICS.md
+---

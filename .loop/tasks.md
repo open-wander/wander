@@ -144,9 +144,9 @@ Status: in-progress
 - [x] 110. Write handler unit tests for Clients/Servers routes (needs: 75, 78, 83, 107)
 - [x] 111. Configure Playwright with Go test server (needs: 10)
 - [x] 112. Create Playwright page object patterns (needs: 111)
-- [ ] 113. Write e2e tests for Jobs list and detail (needs: 112, 45)
-- [ ] 114. Write e2e tests for Allocations and logs (needs: 112, 64)
-- [ ] 115. Write e2e tests for Clients and Servers (needs: 112, 79, 84)
+- [x] 113. Write e2e tests for Jobs list and detail (needs: 112, 45)
+- [x] 114. Write e2e tests for Allocations and logs (needs: 112, 64)
+- [x] 115. Write e2e tests for Clients and Servers (needs: 112, 79, 84)
 - [ ] 116. Set up visual regression testing baseline (needs: 113)
 
 ### Phase 9: Migration Cutover
@@ -155,7 +155,7 @@ Status: in-progress
 - [x] 118. Verify all routes return 200 or appropriate error codes (needs: 117)
 - [x] 119. Run full link checker for broken links/assets (needs: 117)
 - [x] 120. Measure JavaScript bundle size (target <100kb) (needs: 117)
-- [ ] 121. Measure TTFB, FCP, TTI performance metrics (needs: 117)
+- [x] 121. Measure TTFB, FCP, TTI performance metrics (needs: 117)
 - [x] 122. Run load test with concurrent users (needs: 117)
 - [x] 123. Update CHANGELOG with migration notes (needs: 117)
 - [ ] 124. Remove Ember.js /ui/ directory (needs: 122, 116)
