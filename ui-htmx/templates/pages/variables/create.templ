@@ -1,0 +1,24 @@
+package variables
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/variablespartials"
+)
+
+// Create renders the full variable create page with layout.
+templ Create() {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       "Create Variable - Wander",
+			Description: "Create a new Nomad variable",
+			CurrentPath: "/ui/variables/new",
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/ui/"},
+				{Label: "Variables", URL: "/ui/variables"},
+				{Label: "Create", URL: ""},
+			},
+		},
+		variablespartials.CreateContent(),
+	)
+}

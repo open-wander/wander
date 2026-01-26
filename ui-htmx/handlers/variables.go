@@ -29,13 +29,28 @@ func NewVariablesHandler(h *Handler) *VariablesHandler {
 func (h *VariablesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	// Handle /ui/variables exactly (list page)
+	// Handle /ui/variables exactly
 	if path == "/ui/variables" {
+		switch r.Method {
+		case http.MethodGet:
+			h.List(w, r)
+			return
+		case http.MethodPost:
+			h.Create(w, r)
+			return
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+	}
+
+	// Handle /ui/variables/new (create page)
+	if path == "/ui/variables/new" {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		h.List(w, r)
+		h.ShowCreate(w, r)
 		return
 	}
 
@@ -271,6 +286,72 @@ func paginateVariables(variables []variablespartials.VariableSummary, page, perP
 	}
 
 	return variables[start:end]
+}
+
+// ShowCreate handles the variable create page
+func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
+	// Log the request
+	h.handler.logger.Debug("variable create page request", "htmx", IsHTMXFromRequest(r))
+
+	// Render the create page
+	err := Render(w, r,
+		variables.Create(),                // Full page with layout
+		variablespartials.CreateContent(), // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render variable create page", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// Create handles POST requests to create a new variable
+func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
+	// Log the request
+	h.handler.logger.Info("variable create request")
+
+	// Parse the form data
+	if err := r.ParseForm(); err != nil {
+		h.handler.logger.Error("failed to parse form", "error", err)
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	// Get form values
+	path := strings.TrimSpace(r.FormValue("path"))
+	namespace := strings.TrimSpace(r.FormValue("namespace"))
+
+	// Validate path (required)
+	if path == "" {
+		h.handler.logger.Error("path is required")
+		http.Error(w, "Path is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate path format (basic validation)
+	if strings.Contains(path, " ") {
+		h.handler.logger.Error("path contains spaces", "path", path)
+		http.Error(w, "Path cannot contain spaces", http.StatusBadRequest)
+		return
+	}
+
+	// Default namespace if not provided
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// TODO: In a real implementation, this would:
+	// 1. Parse the key-value pairs from the form
+	// 2. Call the Nomad API: client.Variables().Create(variable, nil)
+	// 3. Return success/error response
+
+	// For now, simulate success
+	h.handler.logger.Info("variable created successfully", "path", path, "namespace", namespace)
+
+	// Redirect to the detail page for the new variable
+	w.Header().Set("HX-Redirect", "/ui/variables/"+path)
+	w.WriteHeader(http.StatusCreated)
 }
 
 // Detail handles the variable detail/edit page

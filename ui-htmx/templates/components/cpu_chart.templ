@@ -142,9 +142,31 @@ func cpuChartData(props CPUChartProps) string {
 		error: false,
 		chart: null,
 		refreshTimer: null,
+		isTabVisible: true,
 		init() {
 			this.loadChart();
+			this.setupVisibilityHandling();
 			` + buildCPURefreshLogic(refreshInterval) + `
+		},
+		setupVisibilityHandling() {
+			// Page Visibility API to pause refresh when tab is hidden
+			this.isTabVisible = !document.hidden;
+
+			const handleVisibilityChange = () => {
+				this.isTabVisible = !document.hidden;
+
+				if (this.isTabVisible && this.refreshTimer) {
+					// Tab became visible - refresh immediately
+					this.refreshChart();
+				}
+			};
+
+			document.addEventListener('visibilitychange', handleVisibilityChange);
+
+			// Cleanup listener on destroy
+			this.$el.addEventListener('destroy', () => {
+				document.removeEventListener('visibilitychange', handleVisibilityChange);
+			});
 		},
 		async loadChart() {
 			this.loading = true;
@@ -175,6 +197,9 @@ func cpuChartData(props CPUChartProps) string {
 		},
 		async refreshChart() {
 			if (!this.chart) return;
+
+			// Skip refresh if tab is not visible
+			if (!this.isTabVisible) return;
 
 			try {
 				const response = await fetch('` + props.DataURL + `');

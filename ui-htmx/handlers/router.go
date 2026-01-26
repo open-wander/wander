@@ -157,7 +157,8 @@ func (r *Router) registerPoliciesRoutes() {
 func (r *Router) registerCSIRoutes() {
 	csiHandler := NewCSIHandler(r.handler)
 
-	// CSI handler handles volumes list and detail pages
+	// CSI handler handles plugins list, volumes list and detail pages
+	r.mux.Handle("/ui/csi/plugins", r.wrapMiddleware(csiHandler))
 	r.mux.Handle("/ui/csi/volumes", r.wrapMiddleware(csiHandler))
 	r.mux.Handle("/ui/csi/volumes/", r.wrapMiddleware(csiHandler))
 }

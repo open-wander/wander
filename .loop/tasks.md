@@ -114,12 +114,12 @@ Status: in-progress
 - [x] 86. Implement Topology visualization (D3 or grid-based) (needs: 85)
 - [x] 87. Create CSI Volumes list handler and page (needs: 10, 25)
 - [x] 88. Create CSI Volume detail page (needs: 87)
-- [ ] 89. Create CSI Plugins list page (needs: 87)
+- [x] 89. Create CSI Plugins list page (needs: 87)
 - [x] 90. Create Variables list handler and page (needs: 10, 25)
 - [x] 91. Create Variable detail/edit page with key-value editor (needs: 90)
-- [ ] 92. Add create/delete variable functionality (needs: 91)
+- [x] 92. Add create/delete variable functionality (needs: 91)
 - [x] 93. Create Policies list handler and page (needs: 10, 25)
-- [ ] 94. Create Policy editor with HCL highlighting (needs: 48, 93)
+- [x] 94. Create Policy editor with HCL highlighting (needs: 48, 93)
 - [x] 95. Create Settings/Token page (needs: 10, 22)
 - [x] 96. Create Evaluations sidebar panel (needs: 26)
 
@@ -133,12 +133,12 @@ Status: in-progress
 - [x] 102. Implement CPU utilization chart (needs: 98)
 - [x] 103. Implement Memory utilization chart (needs: 98)
 - [x] 104. Add time range selector to resource charts (needs: 102, 103)
-- [ ] 105. Add auto-refresh to charts via HTMX polling (needs: 104)
+- [x] 105. Add auto-refresh to charts via HTMX polling (needs: 104)
 
 ### Phase 8: Testing Infrastructure
 
-- [ ] 106. Create Templ template test utilities (needs: 3)
-- [ ] 107. Create mock data layer for handler testing (needs: 10)
+- [x] 106. Create Templ template test utilities (needs: 3)
+- [x] 107. Create mock data layer for handler testing (needs: 10)
 - [ ] 108. Write handler unit tests for Jobs routes (needs: 39, 44, 107)
 - [ ] 109. Write handler unit tests for Allocations routes (needs: 58, 61, 107)
 - [ ] 110. Write handler unit tests for Clients/Servers routes (needs: 75, 78, 83, 107)

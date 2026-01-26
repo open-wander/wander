@@ -731,3 +731,50 @@ Batch of 6 tasks completed:
 - Chart integration helpers
 - Files: time_range_selector.templ, time-range-selector.js, chart-time-range-integration.js
 ---
+
+### 2026-01-26 - Tasks 89, 92, 94, 105, 106, 107: Pages, Testing, Mock Data
+Batch of 6 tasks completed:
+
+**Task 89: CSI Plugins list page**
+- PluginsList() handler with 4 mock plugins
+- Table: Plugin ID, Provider, Controllers, Nodes health
+- Health status badges (green/yellow/red)
+- Click navigates to volumes filtered by plugin
+- Files: csi.go, plugins.templ, plugins_list.templ
+
+**Task 92: Create/delete variable**
+- ShowCreate() and Create() handlers
+- Create form with path, namespace, key-value editor
+- Alpine.js dynamic key-value pairs
+- Delete confirmation in detail page
+- Files: variables.go, create.templ, create_form.templ
+
+**Task 94: Policy editor with HCL**
+- Detail page with CodeMirror HCL editor
+- Edit mode toggle, save/cancel buttons
+- 6 mock policies with realistic HCL rules
+- Delete with confirmation modal
+- Files: policies.go, detail.templ, detail_content.templ, codemirror-bundle.js
+
+**Task 105: Chart auto-refresh**
+- Page Visibility API integration
+- Pause refresh when tab not visible
+- Resume and fetch on visibility change
+- setInterval with cleanup
+- Files: cpu_chart.templ, memory_chart.templ
+
+**Task 106: Templ template test utilities**
+- RenderToString, RenderToBytes, MustRender
+- Assertion helpers: ContainsHTML, ContainsClass, HasAttribute
+- 41 passing tests
+- README with documentation
+- Files: tests/testutil/render.go, assertions.go, testutil_test.go
+
+**Task 107: Mock data layer**
+- DataProvider interface
+- Jobs: 8 jobs, versions, allocations
+- Allocations: 12 allocations, tasks, files
+- Clients: 6 nodes, 48h history, events
+- 1,440 lines of Go code
+- Files: handlers/mock/mock.go, jobs.go, allocations.go, clients.go
+---

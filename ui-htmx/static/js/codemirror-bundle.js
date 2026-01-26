@@ -1073,4 +1073,186 @@
     };
   };
 
+  /**
+   * Alpine.js data component for policy editor
+   * @param {string} initialRules - Initial HCL rules content
+   * @param {string} initialDescription - Initial policy description
+   * @param {string} policyName - Policy name
+   * @returns {object} Alpine.js component data
+   */
+  window.policyEditor = function(initialRules, initialDescription, policyName) {
+    return {
+      editor: null,
+      isEditing: false,
+      policyName: policyName || '',
+      description: initialDescription || '',
+      originalDescription: initialDescription || '',
+      originalRules: initialRules || '',
+      currentRules: initialRules || '',
+      hasChanges: false,
+      isSaving: false,
+      isDeleting: false,
+      showDeleteModal: false,
+      error: null,
+
+      init() {
+        this.$nextTick(() => {
+          this.editor = new WanderEditor(this.$refs.editorContainer, {
+            value: this.originalRules,
+            language: 'hcl',
+            readOnly: true,
+            lineNumbers: true,
+            onChange: (value) => {
+              this.currentRules = value;
+              this.updateHasChanges();
+            },
+            onSave: () => {
+              if (this.isEditing && this.hasChanges) {
+                this.saveChanges();
+              }
+            }
+          });
+        });
+      },
+
+      updateHasChanges() {
+        this.hasChanges = this.currentRules !== this.originalRules ||
+                          this.description !== this.originalDescription;
+      },
+
+      toggleEdit() {
+        this.isEditing = !this.isEditing;
+        if (this.editor) {
+          this.editor.setReadOnly(!this.isEditing);
+          if (this.isEditing) {
+            this.editor.focus();
+          }
+        }
+      },
+
+      cancelEdit() {
+        this.isEditing = false;
+        this.currentRules = this.originalRules;
+        this.description = this.originalDescription;
+        this.hasChanges = false;
+        this.error = null;
+        if (this.editor) {
+          this.editor.setValue(this.originalRules);
+          this.editor.setReadOnly(true);
+        }
+      },
+
+      async saveChanges() {
+        if (this.isSaving || !this.hasChanges) return;
+
+        this.isSaving = true;
+        this.error = null;
+
+        try {
+          const formData = new FormData();
+          formData.append('description', this.description);
+          formData.append('rules', this.currentRules);
+
+          const response = await fetch(`/ui/policies/${this.policyName}`, {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Failed to update policy');
+          }
+
+          // Update original values since save was successful
+          this.originalRules = this.currentRules;
+          this.originalDescription = this.description;
+          this.hasChanges = false;
+          this.isEditing = false;
+
+          if (this.editor) {
+            this.editor.setReadOnly(true);
+          }
+
+          // Dispatch toast event
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Policy updated successfully',
+              type: 'success'
+            }
+          }));
+
+        } catch (err) {
+          this.error = err.message;
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to update policy: ' + err.message,
+              type: 'error'
+            }
+          }));
+        } finally {
+          this.isSaving = false;
+        }
+      },
+
+      copyToClipboard() {
+        navigator.clipboard.writeText(this.currentRules).then(() => {
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Policy rules copied to clipboard',
+              type: 'success'
+            }
+          }));
+        }).catch(() => {
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to copy to clipboard',
+              type: 'error'
+            }
+          }));
+        });
+      },
+
+      showDeleteConfirm() {
+        this.showDeleteModal = true;
+      },
+
+      closeDeleteModal() {
+        this.showDeleteModal = false;
+      },
+
+      async deletePolicy() {
+        if (this.isDeleting) return;
+
+        this.isDeleting = true;
+        this.error = null;
+
+        try {
+          const response = await fetch(`/ui/policies/${this.policyName}`, {
+            method: 'DELETE'
+          });
+
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Failed to delete policy');
+          }
+
+          // Policy deleted successfully, redirect to policies list
+          window.location.href = '/ui/policies';
+
+        } catch (err) {
+          this.error = err.message;
+          this.closeDeleteModal();
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to delete policy: ' + err.message,
+              type: 'error'
+            }
+          }));
+        } finally {
+          this.isDeleting = false;
+        }
+      }
+    };
+  };
+
 })(window);

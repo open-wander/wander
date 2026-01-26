@@ -15,15 +15,15 @@ import (
 // VolumeSummary represents a summary view of a CSI volume for list display.
 // This structure will eventually be populated from the Nomad API.
 type VolumeSummary struct {
-	ID            string
-	Name          string
-	PluginID      string
-	Provider      string
-	Schedulable   bool
-	AccessMode    string
-	AttachMode    string
-	Allocations   int
-	Created       time.Time
+	ID          string
+	Name        string
+	PluginID    string
+	Provider    string
+	Schedulable bool
+	AccessMode  string
+	AttachMode  string
+	Allocations int
+	Created     time.Time
 }
 
 // CSIHandler handles requests for the CSI volumes pages.
@@ -39,9 +39,19 @@ func NewCSIHandler(h *Handler) *CSIHandler {
 }
 
 // ServeHTTP handles requests to the CSI pages.
-// It routes to the volumes list page and volume detail pages.
+// It routes to the volumes list page, volume detail pages, and plugins list page.
 func (h *CSIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+
+	// Handle /ui/csi/plugins exactly (list page)
+	if path == "/ui/csi/plugins" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.PluginsList(w, r)
+		return
+	}
 
 	// Handle /ui/csi/volumes exactly (list page)
 	if path == "/ui/csi/volumes" {
@@ -522,7 +532,7 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 
 	// Render the volume detail page
 	err := Render(w, r,
-		csi.VolumeDetail(volumeDetail),          // Full page with layout
+		csi.VolumeDetail(volumeDetail),                // Full page with layout
 		csipartials.VolumeDetailContent(volumeDetail), // Partial content for HTMX requests
 	)
 
@@ -671,4 +681,176 @@ func (h *CSIHandler) getVolumeDetail(volumeID string) *VolumeDetail {
 
 	// Return the requested volume or nil if not found
 	return volumes[volumeID]
+}
+
+// PluginSummary represents a summary view of a CSI plugin for list display.
+// This structure will eventually be populated from the Nomad API.
+type PluginSummary struct {
+	ID                  string
+	Provider            string
+	ControllerRequired  bool
+	ControllersHealthy  int
+	ControllersExpected int
+	NodesHealthy        int
+	NodesExpected       int
+}
+
+// PluginsList handles the CSI plugins list page
+func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
+	// Log the request
+	h.handler.logger.Debug("csi plugins list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
+
+	// Parse query parameters
+	query := r.URL.Query()
+	searchQuery := query.Get("search")
+	sortColumn := query.Get("sort")
+	sortDir := query.Get("dir")
+
+	// Default sort
+	if sortColumn == "" {
+		sortColumn = "id"
+	}
+	if sortDir == "" {
+		sortDir = "asc"
+	}
+
+	// Get all plugins
+	allPlugins := h.getPluginsList()
+
+	// Apply search filter
+	filteredPlugins := h.filterPlugins(allPlugins, searchQuery)
+
+	// Apply sorting
+	h.sortPlugins(filteredPlugins, sortColumn, sortDir)
+
+	// Convert to partial type
+	pluginsList := make([]csipartials.PluginSummary, len(filteredPlugins))
+	for i, p := range filteredPlugins {
+		pluginsList[i] = csipartials.PluginSummary{
+			ID:                  p.ID,
+			Provider:            p.Provider,
+			ControllerRequired:  p.ControllerRequired,
+			ControllersHealthy:  p.ControllersHealthy,
+			ControllersExpected: p.ControllersExpected,
+			NodesHealthy:        p.NodesHealthy,
+			NodesExpected:       p.NodesExpected,
+		}
+	}
+
+	// Build props
+	props := csipartials.PluginsListProps{
+		Plugins:    pluginsList,
+		Search:     searchQuery,
+		SortColumn: sortColumn,
+		SortDir:    sortDir,
+	}
+
+	// Check if this is an HTMX request for table update only
+	if IsHTMXFromRequest(r) && r.Header.Get("HX-Target") == "plugins-table-container" {
+		err := RenderPartial(w, r, csipartials.PluginsTable(props))
+		if err != nil {
+			h.handler.logger.Error("failed to render plugins table", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Render the plugins list page
+	err := Render(w, r,
+		csi.PluginsList(props),                // Full page with layout
+		csipartials.PluginsListContent(props), // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render csi plugins list", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// filterPlugins applies search filter to the plugins list
+func (h *CSIHandler) filterPlugins(plugins []PluginSummary, search string) []PluginSummary {
+	if search == "" {
+		return plugins
+	}
+
+	filtered := make([]PluginSummary, 0, len(plugins))
+	searchLower := strings.ToLower(search)
+
+	for _, p := range plugins {
+		if strings.Contains(strings.ToLower(p.ID), searchLower) ||
+			strings.Contains(strings.ToLower(p.Provider), searchLower) {
+			filtered = append(filtered, p)
+		}
+	}
+
+	return filtered
+}
+
+// sortPlugins sorts the plugins list by the specified column
+func (h *CSIHandler) sortPlugins(plugins []PluginSummary, column, dir string) {
+	sort.Slice(plugins, func(i, j int) bool {
+		var less bool
+
+		switch column {
+		case "id":
+			less = plugins[i].ID < plugins[j].ID
+		case "provider":
+			less = plugins[i].Provider < plugins[j].Provider
+		case "controllers":
+			less = plugins[i].ControllersHealthy < plugins[j].ControllersHealthy
+		case "nodes":
+			less = plugins[i].NodesHealthy < plugins[j].NodesHealthy
+		default:
+			less = plugins[i].ID < plugins[j].ID
+		}
+
+		if dir == "desc" {
+			return !less
+		}
+		return less
+	})
+}
+
+// getPluginsList returns mock CSI plugin data.
+// This will be replaced with actual Nomad API calls in the future.
+func (h *CSIHandler) getPluginsList() []PluginSummary {
+	return []PluginSummary{
+		{
+			ID:                  "aws-ebs0",
+			Provider:            "ebs.csi.aws.com",
+			ControllerRequired:  true,
+			ControllersHealthy:  2,
+			ControllersExpected: 2,
+			NodesHealthy:        3,
+			NodesExpected:       3,
+		},
+		{
+			ID:                  "aws-efs0",
+			Provider:            "efs.csi.aws.com",
+			ControllerRequired:  false,
+			ControllersHealthy:  0,
+			ControllersExpected: 0,
+			NodesHealthy:        3,
+			NodesExpected:       3,
+		},
+		{
+			ID:                  "ceph-rbd0",
+			Provider:            "rbd.csi.ceph.com",
+			ControllerRequired:  true,
+			ControllersHealthy:  2,
+			ControllersExpected: 2,
+			NodesHealthy:        3,
+			NodesExpected:       4,
+		},
+		{
+			ID:                  "nfs-csi0",
+			Provider:            "nfs.csi.k8s.io",
+			ControllerRequired:  false,
+			ControllersHealthy:  0,
+			ControllersExpected: 0,
+			NodesHealthy:        3,
+			NodesExpected:       3,
+		},
+	}
 }

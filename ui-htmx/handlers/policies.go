@@ -93,27 +93,86 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Detail handles the policy detail page (stub for now)
+// Detail handles the policy detail page
 func (h *PoliciesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Extract policy name from path
 	policyName := strings.TrimPrefix(r.URL.Path, "/ui/policies/")
 	policyName = strings.TrimSuffix(policyName, "/")
 
+	// Handle different HTTP methods
+	switch r.Method {
+	case http.MethodGet:
+		h.showDetail(w, r, policyName)
+	case http.MethodPost:
+		h.updatePolicy(w, r, policyName)
+	case http.MethodDelete:
+		h.deletePolicy(w, r, policyName)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// showDetail renders the policy detail page
+func (h *PoliciesHandler) showDetail(w http.ResponseWriter, r *http.Request, policyName string) {
 	// Log the request
 	h.handler.logger.Debug("policy detail request", "policy", policyName, "htmx", IsHTMXFromRequest(r))
 
-	// TODO: Implement policy detail page with editor
-	// For now, return a placeholder
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// Get policy data (mock for now)
+	policy, exists := h.getPolicyDetail(policyName)
+	if !exists {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Render the policy detail page
+	err := Render(w, r,
+		policies.Detail(policy),                       // Full page with layout
+		policiespartials.DetailContent(policy),        // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render policy detail", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// updatePolicy handles policy update requests
+func (h *PoliciesHandler) updatePolicy(w http.ResponseWriter, r *http.Request, policyName string) {
+	// Log the request
+	h.handler.logger.Debug("policy update request", "policy", policyName)
+
+	// Parse form data
+	if err := r.ParseForm(); err != nil {
+		h.handler.logger.Error("failed to parse form", "error", err)
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	// Extract form values
+	description := r.FormValue("description")
+	rules := r.FormValue("rules")
+
+	// Log the update (in real implementation, this would call Nomad API)
+	h.handler.logger.Info("policy update", "policy", policyName, "description", description, "rules_length", len(rules))
+
+	// Return success response (HTMX will show a toast)
+	w.Header().Set("HX-Trigger", `{"toast": {"message": "Policy updated successfully", "type": "success"}}`)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
-				<h2 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">Policy: ` + policyName + `</h2>
-				<p class="text-neutral-600 dark:text-neutral-400">Policy editor coming soon.</p>
-			</div>
-		</div>
-	`))
+}
+
+// deletePolicy handles policy deletion requests
+func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, policyName string) {
+	// Log the request
+	h.handler.logger.Debug("policy delete request", "policy", policyName)
+
+	// In real implementation, this would call Nomad API
+	h.handler.logger.Info("policy delete", "policy", policyName)
+
+	// Return success response and redirect to policies list
+	w.Header().Set("HX-Redirect", "/ui/policies")
+	w.Header().Set("HX-Trigger", `{"toast": {"message": "Policy deleted successfully", "type": "success"}}`)
+	w.WriteHeader(http.StatusOK)
 }
 
 // getPoliciesList returns mock policy data.
@@ -171,6 +230,203 @@ func (h *PoliciesHandler) getPoliciesList() []policies.PolicySummary {
 			ModifiedAt:  now.Add(-168 * time.Hour),
 		},
 	}
+}
+
+// getPolicyDetail returns mock policy detail data.
+// This will be replaced with actual Nomad API calls in the future.
+func (h *PoliciesHandler) getPolicyDetail(name string) (policiespartials.PolicyDetail, bool) {
+	now := time.Now()
+
+	// Mock policy data with HCL rules
+	mockPolicies := map[string]policiespartials.PolicyDetail{
+		"admin": {
+			Name:        "admin",
+			Description: "Full administrative access to all Nomad resources",
+			Rules: `# Allow full access to all namespaces
+namespace "*" {
+  policy       = "write"
+  capabilities = ["alloc-lifecycle", "submit-job", "dispatch-job", "read-logs"]
+}
+
+# Allow full access to agent operations
+agent {
+  policy = "write"
+}
+
+# Allow full access to operator commands
+operator {
+  policy = "write"
+}
+
+# Allow full access to quota specifications
+quota {
+  policy = "write"
+}
+
+# Allow full access to node operations
+node {
+  policy = "write"
+}`,
+			CreateIndex: 1000,
+			ModifyIndex: 1000,
+			CreatedAt:   now.Add(-720 * time.Hour),
+			ModifiedAt:  now.Add(-720 * time.Hour),
+		},
+		"developer": {
+			Name:        "developer",
+			Description: "Read and write access to jobs, allocations, and evaluations",
+			Rules: `# Allow read-write access to default namespace
+namespace "default" {
+  policy       = "write"
+  capabilities = ["submit-job", "dispatch-job", "read-logs", "alloc-exec"]
+}
+
+# Allow read-write access to development namespace
+namespace "dev" {
+  policy       = "write"
+  capabilities = ["submit-job", "dispatch-job", "read-logs", "alloc-exec"]
+}
+
+# Allow read access to all other namespaces
+namespace "*" {
+  policy = "read"
+}
+
+# Allow read access to agent
+agent {
+  policy = "read"
+}
+
+# Allow read access to nodes
+node {
+  policy = "read"
+}`,
+			CreateIndex: 1001,
+			ModifyIndex: 1015,
+			CreatedAt:   now.Add(-600 * time.Hour),
+			ModifiedAt:  now.Add(-48 * time.Hour),
+		},
+		"operator": {
+			Name:        "operator",
+			Description: "Access to manage nodes, deployments, and scaling operations",
+			Rules: `# Allow read-write access to all namespaces
+namespace "*" {
+  policy       = "write"
+  capabilities = ["alloc-lifecycle", "submit-job"]
+}
+
+# Allow write access to nodes
+node {
+  policy = "write"
+}
+
+# Allow read access to agent
+agent {
+  policy = "read"
+}
+
+# Allow write access to operator commands (drain, etc.)
+operator {
+  policy = "write"
+}`,
+			CreateIndex: 1002,
+			ModifyIndex: 1008,
+			CreatedAt:   now.Add(-480 * time.Hour),
+			ModifiedAt:  now.Add(-120 * time.Hour),
+		},
+		"read-only": {
+			Name:        "read-only",
+			Description: "Read-only access to all Nomad resources",
+			Rules: `# Allow read access to all namespaces
+namespace "*" {
+  policy = "read"
+}
+
+# Allow read access to agent
+agent {
+  policy = "read"
+}
+
+# Allow read access to nodes
+node {
+  policy = "read"
+}
+
+# Allow read access to operator
+operator {
+  policy = "read"
+}
+
+# Allow read access to quota
+quota {
+  policy = "read"
+}`,
+			CreateIndex: 1003,
+			ModifyIndex: 1003,
+			CreatedAt:   now.Add(-360 * time.Hour),
+			ModifiedAt:  now.Add(-360 * time.Hour),
+		},
+		"ci-deploy": {
+			Name:        "ci-deploy",
+			Description: "CI/CD pipeline policy for automated deployments",
+			Rules: `# Allow write access to production namespace for deployments
+namespace "production" {
+  policy       = "write"
+  capabilities = ["submit-job", "dispatch-job", "read-logs"]
+}
+
+# Allow write access to staging namespace
+namespace "staging" {
+  policy       = "write"
+  capabilities = ["submit-job", "dispatch-job", "read-logs"]
+}
+
+# Allow read access to all namespaces for monitoring
+namespace "*" {
+  policy = "read"
+}
+
+# Allow read access to nodes for health checks
+node {
+  policy = "read"
+}`,
+			CreateIndex: 1004,
+			ModifyIndex: 1020,
+			CreatedAt:   now.Add(-240 * time.Hour),
+			ModifiedAt:  now.Add(-24 * time.Hour),
+		},
+		"monitoring": {
+			Name:        "monitoring",
+			Description: "Read access for monitoring and observability tools",
+			Rules: `# Allow read access to all namespaces for metrics collection
+namespace "*" {
+  policy       = "read"
+  capabilities = ["read-logs"]
+}
+
+# Allow read access to agent for health metrics
+agent {
+  policy = "read"
+}
+
+# Allow read access to nodes for resource metrics
+node {
+  policy = "read"
+}
+
+# Allow read access to operator for cluster state
+operator {
+  policy = "read"
+}`,
+			CreateIndex: 1005,
+			ModifyIndex: 1005,
+			CreatedAt:   now.Add(-168 * time.Hour),
+			ModifiedAt:  now.Add(-168 * time.Hour),
+		},
+	}
+
+	policy, exists := mockPolicies[name]
+	return policy, exists
 }
 
 // filterPolicies filters the policies list based on search query.
