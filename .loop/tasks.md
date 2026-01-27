@@ -28,7 +28,7 @@ Status: in-progress
 - [x] 12. Wire Job evaluations tab to real API: client.Jobs().Evaluations() (needs: 8)
 - [x] 13. Wire Allocations list to real API: client.Allocations().List() (needs: 1)
 - [x] 14. Wire Allocation detail to real API: client.Allocations().Info() (needs: 13)
-- [ ] 15. Wire Allocation file browser to real API: client.AllocFS().List() (needs: 14)
+- [x] 15. Wire Allocation file browser to real API: client.AllocFS().List() (needs: 14)
 - [ ] 16. Wire Allocation file content to real API: client.AllocFS().Cat()/Stat() (needs: 15)
 - [ ] 17. Wire Allocation log streaming to real API: client.AllocFS().Logs() via SSE (needs: 14)
 - [ ] 18. Wire Clients list to real API: client.Nodes().List() (needs: 1)

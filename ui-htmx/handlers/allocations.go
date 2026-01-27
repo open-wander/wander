@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"sort"
@@ -859,7 +860,7 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 		if selectedTask == "" && len(tasks) > 0 {
 			selectedTask = tasks[0]
 		}
-		files := h.getMockFiles(allocID, selectedTask, "/")
+		files := h.getFiles(allocID, selectedTask, "/", token)
 		err = RenderPartial(w, r, allocationspartials.FilesTab(allocID, tasks, selectedTask, files))
 	case "raw":
 		err = RenderPartial(w, r, allocationspartials.RawTab())
@@ -884,8 +885,11 @@ func (h *AllocationsHandler) FilesListHandler(w http.ResponseWriter, r *http.Req
 
 	h.handler.logger.Debug("files list request", "allocID", allocID, "task", task, "path", path)
 
-	// Get directory contents
-	files := h.getMockFiles(allocID, task, path)
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
+
+	// Get directory contents from API
+	files := h.getFiles(allocID, task, path, token)
 
 	// Determine depth based on path
 	depth := 0
@@ -912,8 +916,11 @@ func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.
 
 	h.handler.logger.Debug("files preview request", "allocID", allocID, "task", task, "path", path)
 
-	// Get mock file content
-	content, size, isText := h.getMockFileContent(path)
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
+
+	// Get file content from API
+	content, size, isText := h.getFileContent(allocID, path, token)
 
 	// Get file name from path
 	fileName := path
@@ -999,11 +1006,14 @@ func (h *AllocationsHandler) FilesDownloadHandler(w http.ResponseWriter, r *http
 		}
 	}
 
-	// Get mock file content
-	content, size, isText := h.getMockFileContent(path)
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
 
-	// Check if file exists (in production, this would check the actual filesystem)
-	if content == "File content not available" && size == 0 {
+	// Get file content from API
+	content, size, isText := h.getFileContent(allocID, path, token)
+
+	// Check if file exists
+	if content == "" && size == 0 {
 		h.handler.logger.Warn("file not found", "allocID", allocID, "path", path)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
@@ -1135,216 +1145,161 @@ func (h *AllocationsHandler) getTasksForAllocation(allocID, token string) []stri
 	return tasks
 }
 
-// getMockFiles returns mock file entries for testing
-func (h *AllocationsHandler) getMockFiles(allocID, task, path string) []allocationspartials.FileEntry {
-	now := time.Now()
-
-	// Root level files
-	if path == "/" {
-		return []allocationspartials.FileEntry{
-			{
-				Name:    "alloc",
-				Path:    "/alloc",
-				IsDir:   true,
-				ModTime: now.Add(-2 * time.Hour),
-			},
-			{
-				Name:    "local",
-				Path:    "/local",
-				IsDir:   true,
-				ModTime: now.Add(-2 * time.Hour),
-			},
-			{
-				Name:    "secrets",
-				Path:    "/secrets",
-				IsDir:   true,
-				ModTime: now.Add(-2 * time.Hour),
-			},
-		}
+// getFiles fetches file entries from the Nomad API for a given allocation and path.
+// Returns a list of FileEntry objects representing files and directories.
+func (h *AllocationsHandler) getFiles(allocID, task, path, token string) []allocationspartials.FileEntry {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available for file listing")
+		return []allocationspartials.FileEntry{}
 	}
 
-	// /alloc directory
-	if path == "/alloc" {
-		return []allocationspartials.FileEntry{
-			{
-				Name:    "logs",
-				Path:    "/alloc/logs",
-				IsDir:   true,
-				ModTime: now.Add(-1 * time.Hour),
-			},
-			{
-				Name:    "data",
-				Path:    "/alloc/data",
-				IsDir:   true,
-				ModTime: now.Add(-30 * time.Minute),
-			},
-		}
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
 	}
 
-	// /alloc/logs directory
-	if path == "/alloc/logs" {
-		return []allocationspartials.FileEntry{
-			{
-				Name:    task + ".stdout.0",
-				Path:    "/alloc/logs/" + task + ".stdout.0",
-				IsDir:   false,
-				Size:    4523,
-				ModTime: now.Add(-5 * time.Minute),
-			},
-			{
-				Name:    task + ".stderr.0",
-				Path:    "/alloc/logs/" + task + ".stderr.0",
-				IsDir:   false,
-				Size:    1256,
-				ModTime: now.Add(-5 * time.Minute),
-			},
-		}
+	// Fetch allocation info to get the allocation object
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for file listing", "allocID", allocID, "error", err)
+		return []allocationspartials.FileEntry{}
 	}
 
-	// /alloc/data directory
-	if path == "/alloc/data" {
-		return []allocationspartials.FileEntry{
-			{
-				Name:    "cache",
-				Path:    "/alloc/data/cache",
-				IsDir:   true,
-				ModTime: now.Add(-15 * time.Minute),
-			},
-			{
-				Name:    "state.json",
-				Path:    "/alloc/data/state.json",
-				IsDir:   false,
-				Size:    892,
-				ModTime: now.Add(-10 * time.Minute),
-			},
-		}
+	// Call AllocFS().List to get file listing
+	files, _, err := client.AllocFS().List(alloc, path, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to list files", "allocID", allocID, "path", path, "error", err)
+		return []allocationspartials.FileEntry{}
 	}
 
-	// /alloc/data/cache directory
-	if path == "/alloc/data/cache" {
-		return []allocationspartials.FileEntry{
-			{
-				Name:    "index.db",
-				Path:    "/alloc/data/cache/index.db",
-				IsDir:   false,
-				Size:    102400,
-				ModTime: now.Add(-8 * time.Minute),
-			},
+	h.handler.logger.Debug("fetched files from API", "allocID", allocID, "path", path, "count", len(files))
+
+	// Convert API response to FileEntry format
+	result := make([]allocationspartials.FileEntry, 0, len(files))
+	for _, file := range files {
+		// Build full path by joining parent path with file name
+		fullPath := path
+		if !strings.HasSuffix(fullPath, "/") {
+			fullPath += "/"
 		}
+		fullPath += file.Name
+
+		result = append(result, allocationspartials.FileEntry{
+			Name:    file.Name,
+			Path:    fullPath,
+			IsDir:   file.IsDir,
+			Size:    file.Size,
+			ModTime: file.ModTime,
+		})
 	}
 
-	// /local directory
-	if path == "/local" {
-		return []allocationspartials.FileEntry{
-			{
-				Name:    "config.json",
-				Path:    "/local/config.json",
-				IsDir:   false,
-				Size:    2048,
-				ModTime: now.Add(-2 * time.Hour),
-			},
-			{
-				Name:    "run.sh",
-				Path:    "/local/run.sh",
-				IsDir:   false,
-				Size:    512,
-				ModTime: now.Add(-2 * time.Hour),
-			},
-		}
-	}
-
-	// /secrets directory
-	if path == "/secrets" {
-		return []allocationspartials.FileEntry{
-			{
-				Name:    "api_key",
-				Path:    "/secrets/api_key",
-				IsDir:   false,
-				Size:    64,
-				ModTime: now.Add(-2 * time.Hour),
-			},
-			{
-				Name:    "cert.pem",
-				Path:    "/secrets/cert.pem",
-				IsDir:   false,
-				Size:    1824,
-				ModTime: now.Add(-2 * time.Hour),
-			},
-		}
-	}
-
-	// Empty for unknown paths
-	return []allocationspartials.FileEntry{}
+	return result
 }
 
-// getMockFileContent returns mock file content for testing
-func (h *AllocationsHandler) getMockFileContent(path string) (content string, size int64, isText bool) {
-	switch {
-	case strings.HasSuffix(path, ".stdout.0"):
-		return `[2026-01-26 10:00:00] Starting application...
-[2026-01-26 10:00:01] Loading configuration from /local/config.json
-[2026-01-26 10:00:01] Configuration loaded successfully
-[2026-01-26 10:00:02] Initializing database connection
-[2026-01-26 10:00:02] Database connected: localhost:5432
-[2026-01-26 10:00:03] Starting HTTP server on :8080
-[2026-01-26 10:00:03] Server is ready to accept connections
-[2026-01-26 10:05:15] GET /health - 200 OK (2ms)
-[2026-01-26 10:05:30] GET /api/v1/users - 200 OK (45ms)
-[2026-01-26 10:06:00] POST /api/v1/tasks - 201 Created (123ms)`, 4523, true
-
-	case strings.HasSuffix(path, ".stderr.0"):
-		return `[WARN] 2026-01-26 10:00:02 - Connection pool size not specified, using default: 10
-[WARN] 2026-01-26 10:05:45 - Slow query detected: SELECT * FROM tasks (took 234ms)
-[ERROR] 2026-01-26 10:07:12 - Failed to parse request body: invalid JSON`, 1256, true
-
-	case strings.HasSuffix(path, "config.json"):
-		return `{
-  "app": {
-    "name": "web-frontend",
-    "version": "1.2.3",
-    "environment": "production"
-  },
-  "server": {
-    "host": "0.0.0.0",
-    "port": 8080,
-    "timeout": "30s"
-  },
-  "database": {
-    "host": "localhost",
-    "port": 5432,
-    "name": "appdb"
-  }
-}`, 2048, true
-
-	case strings.HasSuffix(path, "run.sh"):
-		return `#!/bin/bash
-set -e
-
-echo "Starting application..."
-exec /usr/local/bin/app serve --config /local/config.json`, 512, true
-
-	case strings.HasSuffix(path, "state.json"):
-		return `{
-  "status": "healthy",
-  "last_check": "2026-01-26T10:05:00Z",
-  "uptime_seconds": 7200
-}`, 892, true
-
-	case strings.HasSuffix(path, "api_key"):
-		return `sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`, 64, true
-
-	case strings.HasSuffix(path, "cert.pem"):
-		return `-----BEGIN CERTIFICATE-----
-MIIDazCCAlOgAwIBAgIUXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-...certificate content...
------END CERTIFICATE-----`, 1824, true
-
-	case strings.HasSuffix(path, "index.db"):
-		return "[binary data]", 102400, false
-
-	default:
-		return "File content not available", 0, true
+// getFileContent fetches file content from the Nomad API.
+// Returns the file content as a string, the file size, and whether it's a text file.
+func (h *AllocationsHandler) getFileContent(allocID, path, token string) (content string, size int64, isText bool) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available for file content")
+		return "", 0, true
 	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch allocation info
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for file content", "allocID", allocID, "error", err)
+		return "", 0, true
+	}
+
+	// First, stat the file to get size and type
+	fileInfo, _, err := client.AllocFS().Stat(alloc, path, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to stat file", "allocID", allocID, "path", path, "error", err)
+		return "", 0, true
+	}
+
+	// Check if it's a directory
+	if fileInfo.IsDir {
+		h.handler.logger.Warn("cannot read directory as file", "allocID", allocID, "path", path)
+		return "", 0, true
+	}
+
+	// Determine if it's a text file based on ContentType or filename
+	isText = isTextContentType(fileInfo.ContentType, path)
+
+	// For preview, limit to MaxPreviewSize
+	limit := MaxPreviewSize
+	if fileInfo.Size < limit {
+		limit = fileInfo.Size
+	}
+
+	// Read file content
+	reader, err := client.AllocFS().ReadAt(alloc, path, 0, limit, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to read file", "allocID", allocID, "path", path, "error", err)
+		return "", 0, isText
+	}
+	defer reader.Close()
+
+	// Read all content from reader
+	buf, err := io.ReadAll(reader)
+	if err != nil {
+		h.handler.logger.Error("failed to read file content", "allocID", allocID, "path", path, "error", err)
+		return "", 0, isText
+	}
+
+	h.handler.logger.Debug("fetched file content", "allocID", allocID, "path", path, "size", fileInfo.Size, "read", len(buf))
+
+	return string(buf), fileInfo.Size, isText
+}
+
+// isTextContentType determines if a file is text based on ContentType and filename.
+func isTextContentType(contentType, fileName string) bool {
+	// Check ContentType first
+	if strings.HasPrefix(contentType, "text/") ||
+		strings.Contains(contentType, "json") ||
+		strings.Contains(contentType, "xml") ||
+		strings.Contains(contentType, "yaml") ||
+		strings.Contains(contentType, "javascript") {
+		return true
+	}
+
+	// Fallback to filename extension check
+	textExts := map[string]bool{
+		"txt": true, "log": true, "md": true, "json": true,
+		"yaml": true, "yml": true, "toml": true, "xml": true,
+		"html": true, "css": true, "js": true, "ts": true,
+		"go": true, "py": true, "rb": true, "sh": true,
+		"bash": true, "conf": true, "cfg": true, "ini": true,
+		"env": true, "out": true, "err": true, "stdout": true,
+		"stderr": true, "hcl": true, "tf": true, "nomad": true,
+		"pem": true, "crt": true, "key": true,
+	}
+
+	// Get extension
+	ext := ""
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			ext = fileName[i+1:]
+			break
+		}
+	}
+
+	// Check for stdout/stderr patterns
+	if strings.Contains(fileName, ".stdout.") || strings.Contains(fileName, ".stderr.") {
+		return true
+	}
+
+	return textExts[ext]
 }
 
 // Restart handles POST requests to restart an allocation.

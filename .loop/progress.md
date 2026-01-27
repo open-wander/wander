@@ -181,3 +181,14 @@
 - Note: CPU/Mem usage % requires separate stats endpoint
 - Files: allocations.go
 ---
+
+### 2026-01-26 - Task 15: Allocation file browser real API
+- Replaced mock file listing with client.AllocFS().List()
+- Added getFileContent() with AllocFS().Stat() and ReadAt()
+- File preview limited to 100KB (MaxPreviewSize)
+- Detects text vs binary via ContentType and extensions
+- Handles .stdout.0/.stderr.0 log file detection
+- Directory navigation with HTMX lazy loading
+- ACL token passed for authenticated requests
+- Files: allocations.go
+---
