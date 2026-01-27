@@ -124,6 +124,13 @@ class SSEClient {
         this._clearRetryTimer();
         this._closeEventSource();
         this._setState('disconnected');
+
+        // Dispatch global disconnect event
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sse:disconnect', {
+                detail: { id: this.url, url: this.url }
+            }));
+        }
     }
 
     /**
@@ -172,6 +179,13 @@ class SSEClient {
         this.retryCount = 0;
         this.retryDelay = this.options.initialRetryDelay;
 
+        // Dispatch global connection event for connection status monitoring
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sse:connect', {
+                detail: { id: this.url, url: this.url }
+            }));
+        }
+
         if (this.options.onConnect) {
             this.options.onConnect();
         }
@@ -196,12 +210,28 @@ class SSEClient {
 
         if (this.state === 'connected') {
             this._log('Connection lost, will attempt to reconnect');
+
+            // Dispatch global disconnect event
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('sse:disconnect', {
+                    detail: { id: this.url, url: this.url }
+                }));
+            }
+
             if (this.options.onDisconnect) {
                 this.options.onDisconnect();
             }
         }
 
         this._setState('error');
+
+        // Dispatch global error event
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sse:error', {
+                detail: { id: this.url, url: this.url, error: error }
+            }));
+        }
+
         this._scheduleReconnect();
     }
 

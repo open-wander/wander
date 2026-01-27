@@ -837,6 +837,14 @@ function logViewer(allocId, initialTask, initialLogType) {
                     console.error('Log stream error:', data);
                 });
 
+                // Listen for manual reconnection requests
+                this._reconnectHandler = () => {
+                    if (this.connectionState === 'disconnected' || this.connectionState === 'error') {
+                        this.connect();
+                    }
+                };
+                window.addEventListener('connection:reconnect-requested', this._reconnectHandler);
+
                 this.sseClient.connect();
             } else {
                 // Fallback to raw EventSource
@@ -871,6 +879,13 @@ function logViewer(allocId, initialTask, initialLogType) {
                 }
                 this.sseClient = null;
             }
+
+            // Remove reconnection listener
+            if (this._reconnectHandler) {
+                window.removeEventListener('connection:reconnect-requested', this._reconnectHandler);
+                this._reconnectHandler = null;
+            }
+
             this.connectionState = 'disconnected';
         },
 
@@ -1085,6 +1100,14 @@ function execTerminal(allocId, initialTask, initialCommand) {
                 return;
             }
 
+            // Listen for manual reconnection requests
+            this._reconnectHandler = () => {
+                if (this.connectionState === 'disconnected' || this.connectionState === 'error') {
+                    this.connect();
+                }
+            };
+            window.addEventListener('connection:reconnect-requested', this._reconnectHandler);
+
             // Create terminal instance with dark theme
             this.terminal = new Terminal({
                 cursorBlink: true,
@@ -1227,6 +1250,11 @@ function execTerminal(allocId, initialTask, initialCommand) {
                     this.terminal.writeln('\x1b[32mConnected!\x1b[0m');
                     this.terminal.writeln('');
 
+                    // Dispatch global WebSocket connection event
+                    window.dispatchEvent(new CustomEvent('ws:connect', {
+                        detail: { id: url, url: url }
+                    }));
+
                     // Focus terminal
                     this.terminal.focus();
 
@@ -1268,6 +1296,11 @@ function execTerminal(allocId, initialTask, initialCommand) {
                     this.terminal.writeln('');
                     this.terminal.writeln('\x1b[31mConnection error occurred.\x1b[0m');
                     this.connectionState = 'error';
+
+                    // Dispatch global WebSocket error event
+                    window.dispatchEvent(new CustomEvent('ws:error', {
+                        detail: { id: url, url: url, error: error }
+                    }));
                 };
 
                 this.websocket.onclose = (event) => {
@@ -1277,6 +1310,11 @@ function execTerminal(allocId, initialTask, initialCommand) {
                     }
                     this.connectionState = 'disconnected';
                     this.websocket = null;
+
+                    // Dispatch global WebSocket disconnect event
+                    window.dispatchEvent(new CustomEvent('ws:disconnect', {
+                        detail: { id: url, url: url }
+                    }));
                 };
 
                 // Handle terminal input - send to WebSocket
@@ -1332,6 +1370,12 @@ function execTerminal(allocId, initialTask, initialCommand) {
         // Cleanup on destroy
         destroy() {
             this.disconnect();
+
+            // Remove reconnection listener
+            if (this._reconnectHandler) {
+                window.removeEventListener('connection:reconnect-requested', this._reconnectHandler);
+                this._reconnectHandler = null;
+            }
 
             if (this.resizeObserver) {
                 this.resizeObserver.disconnect();
@@ -1595,6 +1639,232 @@ function keyboardShortcuts(options = {}) {
 }
 
 /**
+ * CONNECTION STATUS PATTERN
+ *
+ * Global connection health monitor for SSE and WebSocket connections.
+ *
+ * Features:
+ * - Monitors global connection state
+ * - Visual indicator with color-coded status
+ * - Automatic reconnection detection
+ * - Connection health checks
+ * - Status text and tooltips
+ *
+ * Usage in Templ:
+ * ```html
+ * <div x-data="connectionStatus()" x-init="init()">
+ *   <div :class="state === 'connected' ? 'bg-green-500' : 'bg-red-500'"></div>
+ *   <span x-text="statusText"></span>
+ * </div>
+ * ```
+ *
+ * States:
+ * - "connected": All monitored connections are healthy
+ * - "disconnected": No active connections
+ * - "connecting": Attempting to establish connection
+ * - "reconnecting": Attempting to reconnect after disconnect
+ * - "error": Connection errors detected
+ */
+function connectionStatus(options = {}) {
+    const defaults = {
+        checkInterval: 5000, // Check connection health every 5 seconds
+        connectionTimeout: 30000, // Consider connection stale after 30 seconds
+        enableHealthCheck: true
+    };
+
+    const config = { ...defaults, ...options };
+
+    return {
+        state: 'disconnected', // connected, disconnected, connecting, reconnecting, error
+        lastConnectedAt: null,
+        lastHeartbeatAt: null,
+        retryCount: 0,
+        showTooltip: false,
+        healthCheckInterval: null,
+        connections: new Map(), // Track individual connections
+
+        get statusText() {
+            const stateTexts = {
+                'connected': 'Connected',
+                'disconnected': 'Disconnected',
+                'connecting': 'Connecting...',
+                'reconnecting': `Reconnecting... (${this.retryCount})`,
+                'error': 'Connection Error'
+            };
+            return stateTexts[this.state] || 'Unknown';
+        },
+
+        init() {
+            // Listen for SSE connection events
+            this.setupSSEListeners();
+
+            // Listen for WebSocket connection events
+            this.setupWebSocketListeners();
+
+            // Start health check if enabled
+            if (config.enableHealthCheck) {
+                this.startHealthCheck();
+            }
+
+            // Initial state check
+            this.updateState();
+        },
+
+        setupSSEListeners() {
+            // Listen for SSE connect events from sse-client.js
+            document.addEventListener('sse:connect', (event) => {
+                this.handleConnectionEvent('connect', 'sse', event.detail);
+            });
+
+            document.addEventListener('sse:disconnect', (event) => {
+                this.handleConnectionEvent('disconnect', 'sse', event.detail);
+            });
+
+            document.addEventListener('sse:error', (event) => {
+                this.handleConnectionEvent('error', 'sse', event.detail);
+            });
+
+            // Listen for SSE heartbeats (if available)
+            document.addEventListener('sse:heartbeat', (event) => {
+                this.handleHeartbeat('sse', event.detail);
+            });
+        },
+
+        setupWebSocketListeners() {
+            // Listen for WebSocket events
+            document.addEventListener('ws:connect', (event) => {
+                this.handleConnectionEvent('connect', 'websocket', event.detail);
+            });
+
+            document.addEventListener('ws:disconnect', (event) => {
+                this.handleConnectionEvent('disconnect', 'websocket', event.detail);
+            });
+
+            document.addEventListener('ws:error', (event) => {
+                this.handleConnectionEvent('error', 'websocket', event.detail);
+            });
+        },
+
+        handleConnectionEvent(eventType, connType, detail) {
+            const connId = detail?.id || `${connType}-default`;
+
+            if (eventType === 'connect') {
+                this.connections.set(connId, {
+                    type: connType,
+                    state: 'connected',
+                    connectedAt: new Date(),
+                    lastHeartbeatAt: new Date()
+                });
+                this.lastConnectedAt = this.formatTime(new Date());
+                this.retryCount = 0;
+            } else if (eventType === 'disconnect') {
+                const conn = this.connections.get(connId);
+                if (conn) {
+                    conn.state = 'disconnected';
+                }
+            } else if (eventType === 'error') {
+                const conn = this.connections.get(connId);
+                if (conn) {
+                    conn.state = 'error';
+                }
+            }
+
+            this.updateState();
+        },
+
+        handleHeartbeat(connType, detail) {
+            const connId = detail?.id || `${connType}-default`;
+            const conn = this.connections.get(connId);
+            if (conn) {
+                conn.lastHeartbeatAt = new Date();
+                this.lastHeartbeatAt = new Date();
+            }
+        },
+
+        updateState() {
+            if (this.connections.size === 0) {
+                this.state = 'disconnected';
+                return;
+            }
+
+            const states = Array.from(this.connections.values()).map(c => c.state);
+
+            // If any connection is connected, show connected
+            if (states.includes('connected')) {
+                this.state = 'connected';
+            }
+            // If any connection has an error, show error
+            else if (states.includes('error')) {
+                this.state = 'error';
+            }
+            // If all are disconnected, show disconnected
+            else if (states.every(s => s === 'disconnected')) {
+                this.state = 'disconnected';
+            }
+            // Otherwise, show connecting
+            else {
+                this.state = 'connecting';
+            }
+        },
+
+        startHealthCheck() {
+            this.healthCheckInterval = setInterval(() => {
+                this.checkConnectionHealth();
+            }, config.checkInterval);
+        },
+
+        checkConnectionHealth() {
+            const now = new Date();
+            let hasStaleConnection = false;
+
+            for (const [connId, conn] of this.connections.entries()) {
+                if (conn.state === 'connected') {
+                    const timeSinceHeartbeat = now - conn.lastHeartbeatAt;
+
+                    // If no heartbeat in connectionTimeout, mark as stale
+                    if (timeSinceHeartbeat > config.connectionTimeout) {
+                        conn.state = 'error';
+                        hasStaleConnection = true;
+                    }
+                }
+            }
+
+            if (hasStaleConnection) {
+                this.updateState();
+            }
+        },
+
+        reconnect() {
+            // Dispatch a custom event that connection consumers can listen to
+            window.dispatchEvent(new CustomEvent('connection:reconnect-requested'));
+
+            // Increment retry count
+            this.retryCount++;
+            this.state = 'reconnecting';
+
+            // Reset connections to trigger reconnection
+            this.connections.clear();
+            this.updateState();
+
+            // Close tooltip after clicking reconnect
+            this.showTooltip = false;
+        },
+
+        formatTime(date) {
+            if (!date) return '';
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
+
+        destroy() {
+            if (this.healthCheckInterval) {
+                clearInterval(this.healthCheckInterval);
+                this.healthCheckInterval = null;
+            }
+        }
+    };
+}
+
+/**
  * GLOBAL ALPINE CONFIGURATION
  *
  * Make patterns available globally if Alpine is loaded.
@@ -1611,6 +1881,7 @@ if (typeof window !== 'undefined') {
         logViewer,
         execTerminal,
         evaluationsPanel,
-        keyboardShortcuts
+        keyboardShortcuts,
+        connectionStatus
     };
 }

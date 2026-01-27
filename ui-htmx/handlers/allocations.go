@@ -85,7 +85,14 @@ func (h *AllocationsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.NotFound(w, r)
+	h.handler.RenderNotFound(w, r, NotFoundError{
+		Message:     "The allocation page you requested could not be found.",
+		RequestPath: path,
+		Suggestions: []string{
+			`Go to <a href="/ui/allocations" class="underline">Allocations List</a>`,
+			`Return to <a href="/ui/" class="underline">Home</a>`,
+		},
+	})
 }
 
 // List handles the allocations list page
@@ -569,15 +576,29 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	if len(shortID) > 8 {
 		shortID = shortID[:8]
 	}
+	// Build breadcrumbs - include job in the hierarchy if available
+	breadcrumbs := []components.Breadcrumb{
+		{Label: "Home", URL: "/ui/"},
+	}
+	if allocDetail.JobID != "" {
+		breadcrumbs = append(breadcrumbs,
+			components.Breadcrumb{Label: "Jobs", URL: "/ui/jobs"},
+			components.Breadcrumb{Label: allocDetail.JobID, URL: "/ui/jobs/" + allocDetail.JobID},
+			components.Breadcrumb{Label: shortID, URL: ""},
+		)
+	} else {
+		// Fallback if no job info
+		breadcrumbs = append(breadcrumbs,
+			components.Breadcrumb{Label: "Allocations", URL: "/ui/allocations"},
+			components.Breadcrumb{Label: shortID, URL: ""},
+		)
+	}
+
 	layoutProps := h.handler.BaseLayoutProps(
 		"Allocation "+shortID+" - Wander",
 		"Allocation detail for "+actualAllocID,
 		"/ui/allocations/"+actualAllocID,
-		[]components.Breadcrumb{
-			{Label: "Home", URL: "/ui/"},
-			{Label: "Allocations", URL: "/ui/allocations"},
-			{Label: shortID, URL: ""},
-		},
+		breadcrumbs,
 	)
 
 	// Render full page or partial based on HTMX request

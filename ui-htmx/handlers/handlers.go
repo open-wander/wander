@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
@@ -85,7 +87,10 @@ func (h *Handler) refreshNamespaces() {
 
 	namespaces, _, err := h.nomadClient.Namespaces().List(nil)
 	if err != nil {
-		h.logger.Warn("failed to fetch namespaces from Nomad", "error", err)
+		// Don't warn about cluster unavailability - it's expected during startup/elections
+		if !IsClusterUnavailableError(err) {
+			h.logger.Warn("failed to fetch namespaces from Nomad", "error", err)
+		}
 		return
 	}
 
@@ -150,4 +155,41 @@ func (h *Handler) BaseLayoutProps(title, description, currentPath string, breadc
 		CurrentNamespace:    h.appContext.CurrentNamespace,
 		AvailableNamespaces: h.appContext.AvailableNamespaces,
 	}
+}
+
+// CheckClusterError checks if an error indicates cluster unavailability and renders
+// an appropriate error page if so. Returns true if error was handled, false otherwise.
+// Handlers should check this before handling other types of errors.
+//
+// Example usage:
+//
+//	jobs, _, err := client.Jobs().List(opts)
+//	if err != nil {
+//	    if h.handler.CheckClusterError(w, r, err) {
+//	        return // Error page rendered
+//	    }
+//	    // Handle other errors
+//	}
+func (h *Handler) CheckClusterError(w http.ResponseWriter, r *http.Request, err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if IsClusterUnavailableError(err) {
+		h.logger.Warn("cluster unavailable error detected", "error", err)
+		h.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+			Message: "The Nomad cluster is currently unavailable. No cluster leader has been elected.",
+			Details: "This usually happens when the cluster is starting up, during a leader election, or when there are network issues between server nodes.",
+			Suggestions: []string{
+				"Wait a few moments for leader election to complete",
+				"Check that all Nomad server nodes are running and can communicate",
+				"Verify network connectivity between server nodes",
+				"Check server logs for leadership election issues",
+				"Contact your cluster administrator if the issue persists",
+			},
+		})
+		return true
+	}
+
+	return false
 }

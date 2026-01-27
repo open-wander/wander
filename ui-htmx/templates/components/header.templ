@@ -94,8 +94,12 @@ templ Header(props HeaderProps) {
 					<div id="global-search-results" class="relative"></div>
 				</div>
 			</div>
-			<!-- Right: Namespace selector and user menu -->
+			<!-- Right: Connection status, namespace selector and user menu -->
 			<div class="flex items-center space-x-4 flex-shrink-0">
+				<!-- Connection Status Indicator -->
+				@ConnectionStatus(ConnectionStatusProps{
+					ID: "global-connection-status",
+				})
 				<!-- Namespace Selector -->
 				if len(props.AvailableNamespaces) > 0 {
 					@Dropdown(DropdownProps{ID: "namespace-selector", Position: "right", Width: "md", Class: "hidden sm:inline-block"}) {

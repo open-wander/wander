@@ -71,7 +71,14 @@ func (h *ClientsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.NotFound(w, r)
+	h.handler.RenderNotFound(w, r, NotFoundError{
+		Message:     "The client page you requested could not be found.",
+		RequestPath: path,
+		Suggestions: []string{
+			`Go to <a href="/ui/clients" class="underline">Clients List</a>`,
+			`Return to <a href="/ui/" class="underline">Home</a>`,
+		},
+	})
 }
 
 // List handles the clients list page

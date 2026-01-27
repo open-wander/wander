@@ -126,7 +126,14 @@ func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.NotFound(w, r)
+	h.handler.RenderNotFound(w, r, NotFoundError{
+		Message:     "The job page you requested could not be found.",
+		RequestPath: path,
+		Suggestions: []string{
+			`Go to <a href="/ui/jobs" class="underline">Jobs List</a>`,
+			`Return to <a href="/ui/" class="underline">Home</a>`,
+		},
+	})
 }
 
 // List handles the jobs list page
@@ -162,6 +169,10 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Fetch jobs from Nomad API
 	jobsList, err := h.getJobsList(r, namespace, token)
 	if err != nil {
+		// Check if this is a cluster unavailability error first
+		if h.handler.CheckClusterError(w, r, err) {
+			return
+		}
 		h.handler.logger.Error("failed to fetch jobs", "error", err, "namespace", namespace)
 		http.Error(w, "Failed to fetch jobs from Nomad API", http.StatusInternalServerError)
 		return
@@ -284,6 +295,10 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Fetch job detail from Nomad API
 	jobDetail, err := h.getJobDetail(jobName, namespace, GetTokenFromRequest(r))
 	if err != nil {
+		// Check if this is a cluster unavailability error first
+		if h.handler.CheckClusterError(w, r, err) {
+			return
+		}
 		h.handler.logger.Error("failed to fetch job detail", "error", err, "jobID", actualJobID)
 		http.Error(w, "Failed to fetch job from Nomad API", http.StatusInternalServerError)
 		return
