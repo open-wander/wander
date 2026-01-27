@@ -304,3 +304,25 @@
 - Added conversion helpers for ResourcesExhausted/ScoreMetaData
 - Files: evaluations.go, evaluationspartials/detail_content.templ, pages/evaluations/detail.templ
 ---
+
+### 2026-01-27 - Tasks 27, 28: Job Plan and Submit
+
+**Task 27: Job plan with diff display**
+- Wired Jobs().Plan(job, true, writeOpts) for diff preview
+- Created formatJobDiff(), formatFieldDiff(), formatObjectDiff() helpers
+- Diff symbols: + (Added), - (Deleted), +/- (Edited)
+- Response includes create/update/destroy counts
+- Supports HCL/JSON input via ParseHCL() or unmarshal
+- Permission: CanSubmitJob check before planning
+- Pattern: Use WriteOptions (not QueryOptions) for plan
+- Files: jobs.go
+
+**Task 28: Job submit/register**
+- Wired Jobs().Register(job, writeOpts) for submission
+- Supports HCL (ParseHCL with canonicalize) and JSON
+- Returns: EvalID, JobID, Warnings
+- Permission: CanSubmitJob check before submit
+- Namespace extracted from jobID@namespace format
+- Pattern: WriteOptions.AuthToken for write operations
+- Files: jobs.go
+---

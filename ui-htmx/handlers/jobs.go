@@ -1557,19 +1557,25 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 	path = strings.TrimSuffix(path, "/plan")
 	jobID := path
 
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		namespace = jobID[idx+1:]
+	}
+
 	// Check permissions - need submit-job capability to plan
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanSubmitJob("default") {
+	if perms != nil && !perms.CanSubmitJob(namespace) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
 		_ = json.NewEncoder(w).Encode(PlanJobResponse{
-			Error: "Permission denied: you do not have the 'submit-job' capability in the default namespace",
+			Error: fmt.Sprintf("Permission denied: you do not have the 'submit-job' capability in the %s namespace", namespace),
 		})
 		return
 	}
 
 	// Log the request
-	h.handler.logger.Info("plan job request", "jobID", jobID)
+	h.handler.logger.Info("plan job request", "jobID", jobID, "namespace", namespace)
 
 	// Parse the request body
 	var req PlanJobRequest
@@ -1581,36 +1587,90 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: In a real implementation, this would:
-	// 1. Parse the job definition (HCL or JSON)
-	// 2. Call the Nomad API: client.Jobs().Plan(job, true, nil)
-	// 3. Return the actual plan result
-
-	// Mock plan result for demonstration
-	response := PlanJobResponse{
-		Created:   1,
-		Updated:   2,
-		Destroyed: 0,
-		Diff: `+/- Job: "` + jobID + `"
-+/- Task Group: "web" (2 create, 1 in-place update)
-  +/- Task: "nginx" (forces create/destroy update)
-    +/- Resources {
-      +/- CPU:    500 => 750
-      +/- Memory: 256 => 512
-    }
-+ Task Group: "cache" (1 create)
-  + Task: "redis"
-    + Resources {
-      + CPU:    250
-      + Memory: 128
-    }`,
-		Warnings: []string{},
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: "Nomad client not available"})
+		return
 	}
 
-	// Add a warning if the definition is very long (mock example)
-	if len(req.Definition) > 5000 {
-		response.Warnings = append(response.Warnings, "Large job definition may take longer to deploy")
+	// Parse the job definition based on format
+	var job *api.Job
+	var parseErr error
+
+	if req.Format == "json" {
+		// Parse JSON job definition
+		h.handler.logger.Debug("parsing JSON job definition", "length", len(req.Definition))
+		parseErr = json.Unmarshal([]byte(req.Definition), &job)
+		if parseErr != nil {
+			h.handler.logger.Error("failed to parse JSON job definition", "error", parseErr)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(PlanJobResponse{
+				Error: fmt.Sprintf("Invalid JSON job definition: %v", parseErr),
+			})
+			return
+		}
+	} else {
+		// Parse HCL job definition using Nomad API
+		h.handler.logger.Debug("parsing HCL job definition", "length", len(req.Definition))
+		job, parseErr = client.Jobs().ParseHCL(req.Definition, true)
+		if parseErr != nil {
+			h.handler.logger.Error("failed to parse HCL job definition", "error", parseErr)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(PlanJobResponse{
+				Error: fmt.Sprintf("Invalid HCL job definition: %v", parseErr),
+			})
+			return
+		}
 	}
+
+	// Ensure job has required fields
+	if job.ID == nil {
+		h.handler.logger.Error("job definition missing ID")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: "Job definition must include an ID"})
+		return
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build write options with namespace and token
+	writeOpts := &api.WriteOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Call the Plan API with diff=true
+	h.handler.logger.Debug("calling Nomad Plan API", "jobID", *job.ID, "namespace", namespace)
+	planResp, _, err := client.Jobs().Plan(job, true, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to plan job", "error", err, "jobID", *job.ID)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{
+			Error: fmt.Sprintf("Failed to plan job: %v", err),
+		})
+		return
+	}
+
+	// Build response with structured diff
+	response := h.buildPlanResponse(planResp)
+
+	h.handler.logger.Info("job plan completed",
+		"jobID", *job.ID,
+		"created", response.Created,
+		"updated", response.Updated,
+		"destroyed", response.Destroyed,
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -1627,19 +1687,25 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 	path = strings.TrimSuffix(path, "/run")
 	jobID := path
 
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		namespace = jobID[idx+1:]
+	}
+
 	// Check permissions - need submit-job capability to run
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanSubmitJob("default") {
+	if perms != nil && !perms.CanSubmitJob(namespace) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
 		_ = json.NewEncoder(w).Encode(RunJobResponse{
-			Error: "Permission denied: you do not have the 'submit-job' capability in the default namespace",
+			Error: fmt.Sprintf("Permission denied: you do not have the 'submit-job' capability in the %s namespace", namespace),
 		})
 		return
 	}
 
 	// Log the request
-	h.handler.logger.Info("run job request", "jobID", jobID)
+	h.handler.logger.Info("run job request", "jobID", jobID, "namespace", namespace)
 
 	// Parse the request body
 	var req RunJobRequest
@@ -1651,24 +1717,101 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: In a real implementation, this would:
-	// 1. Parse the job definition (HCL or JSON)
-	// 2. Call the Nomad API: client.Jobs().Register(job, nil)
-	// 3. Return the actual evaluation ID
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: "Nomad client not available"})
+		return
+	}
 
-	// Mock run result for demonstration
-	// Generate a mock evaluation ID
-	mockEvalID := generateMockEvalID()
+	// Parse the job definition based on format
+	var job *api.Job
+	var parseErr error
+
+	if req.Format == "hcl" || req.Format == "" {
+		// Parse HCL job definition
+		h.handler.logger.Debug("parsing HCL job definition", "length", len(req.Definition))
+		job, parseErr = client.Jobs().ParseHCL(req.Definition, true)
+		if parseErr != nil {
+			h.handler.logger.Error("failed to parse HCL job definition", "error", parseErr)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(RunJobResponse{
+				Error: fmt.Sprintf("Failed to parse HCL: %s", parseErr.Error()),
+			})
+			return
+		}
+	} else if req.Format == "json" {
+		// Parse JSON job definition
+		h.handler.logger.Debug("parsing JSON job definition", "length", len(req.Definition))
+		job = &api.Job{}
+		if err := json.Unmarshal([]byte(req.Definition), job); err != nil {
+			h.handler.logger.Error("failed to parse JSON job definition", "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(RunJobResponse{
+				Error: fmt.Sprintf("Failed to parse JSON: %s", err.Error()),
+			})
+			return
+		}
+	} else {
+		h.handler.logger.Error("invalid job format", "format", req.Format)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(RunJobResponse{
+			Error: fmt.Sprintf("Invalid format: %s (must be 'hcl' or 'json')", req.Format),
+		})
+		return
+	}
+
+	// Get ACL token for the request
+	token := GetTokenFromRequest(r)
+
+	// Build write options with namespace and token
+	writeOpts := &api.WriteOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Submit the job to Nomad
+	h.handler.logger.Info("submitting job to Nomad",
+		"jobID", safeString(job.ID),
+		"namespace", namespace,
+		"hasToken", token != "",
+	)
+
+	registerResp, _, err := client.Jobs().Register(job, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to register job", "error", err, "jobID", safeString(job.ID))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(RunJobResponse{
+			Error: fmt.Sprintf("Failed to register job: %s", err.Error()),
+		})
+		return
+	}
+
+	// Build response with eval ID and warnings
+	var warnings []string
+	if registerResp.Warnings != "" {
+		warnings = strings.Split(registerResp.Warnings, "\n")
+	}
 
 	response := RunJobResponse{
-		EvalID:   mockEvalID,
-		JobID:    jobID,
-		Warnings: []string{},
+		EvalID:   registerResp.EvalID,
+		JobID:    safeString(job.ID),
+		Warnings: warnings,
 	}
 
 	h.handler.logger.Info("job submitted successfully",
-		"jobID", jobID,
-		"evalID", mockEvalID,
+		"jobID", safeString(job.ID),
+		"evalID", registerResp.EvalID,
+		"warnings", len(warnings),
 	)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1987,4 +2130,207 @@ func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspar
 	})
 
 	return result
+}
+
+// buildPlanResponse converts a Nomad JobPlanResponse to our PlanJobResponse format.
+// It extracts the diff information and counts the number of creates/updates/destroys.
+func (h *JobsHandler) buildPlanResponse(planResp *api.JobPlanResponse) PlanJobResponse {
+	if planResp == nil {
+		return PlanJobResponse{
+			Error: "No plan response received",
+		}
+	}
+
+	response := PlanJobResponse{
+		Created:   0,
+		Updated:   0,
+		Destroyed: 0,
+		Diff:      "",
+		Warnings:  []string{},
+	}
+
+	// Add warnings if present
+	if planResp.Warnings != "" {
+		response.Warnings = append(response.Warnings, planResp.Warnings)
+	}
+
+	// Count creates/updates/destroys from annotations
+	if planResp.Annotations != nil && planResp.Annotations.DesiredTGUpdates != nil {
+		for _, update := range planResp.Annotations.DesiredTGUpdates {
+			if update != nil {
+				response.Created += int(update.Place)
+				response.Updated += int(update.InPlaceUpdate)
+				response.Destroyed += int(update.Stop + update.DestructiveUpdate)
+			}
+		}
+	}
+
+	// Build structured diff string from JobDiff
+	if planResp.Diff != nil {
+		response.Diff = h.formatJobDiff(planResp.Diff)
+	} else {
+		response.Diff = "No changes detected"
+	}
+
+	return response
+}
+
+// formatJobDiff converts a JobDiff structure to a human-readable string format.
+func (h *JobsHandler) formatJobDiff(diff *api.JobDiff) string {
+	if diff == nil {
+		return "No changes"
+	}
+
+	var builder strings.Builder
+
+	// Job-level header
+	if diff.Type != "None" {
+		builder.WriteString(h.diffTypeSymbol(diff.Type))
+		builder.WriteString(" Job: \"")
+		builder.WriteString(diff.ID)
+		builder.WriteString("\"\n")
+
+		// Job-level fields
+		for _, field := range diff.Fields {
+			h.formatFieldDiff(&builder, field, "  ")
+		}
+
+		// Job-level objects
+		for _, obj := range diff.Objects {
+			h.formatObjectDiff(&builder, obj, "  ")
+		}
+	}
+
+	// Task groups
+	for _, tg := range diff.TaskGroups {
+		if tg == nil {
+			continue
+		}
+
+		builder.WriteString(h.diffTypeSymbol(tg.Type))
+		builder.WriteString(" Task Group: \"")
+		builder.WriteString(tg.Name)
+		builder.WriteString("\"")
+
+		// Add update counts if available
+		if len(tg.Updates) > 0 {
+			builder.WriteString(" (")
+			var parts []string
+			for action, count := range tg.Updates {
+				if count > 0 {
+					parts = append(parts, fmt.Sprintf("%d %s", count, action))
+				}
+			}
+			builder.WriteString(strings.Join(parts, ", "))
+			builder.WriteString(")")
+		}
+		builder.WriteString("\n")
+
+		// Task group fields
+		for _, field := range tg.Fields {
+			h.formatFieldDiff(&builder, field, "  ")
+		}
+
+		// Task group objects
+		for _, obj := range tg.Objects {
+			h.formatObjectDiff(&builder, obj, "  ")
+		}
+
+		// Tasks
+		for _, task := range tg.Tasks {
+			if task == nil {
+				continue
+			}
+
+			builder.WriteString("  ")
+			builder.WriteString(h.diffTypeSymbol(task.Type))
+			builder.WriteString(" Task: \"")
+			builder.WriteString(task.Name)
+			builder.WriteString("\"\n")
+
+			// Task fields
+			for _, field := range task.Fields {
+				h.formatFieldDiff(&builder, field, "    ")
+			}
+
+			// Task objects
+			for _, obj := range task.Objects {
+				h.formatObjectDiff(&builder, obj, "    ")
+			}
+		}
+	}
+
+	return builder.String()
+}
+
+// formatFieldDiff formats a single field diff with proper indentation.
+func (h *JobsHandler) formatFieldDiff(builder *strings.Builder, field *api.FieldDiff, indent string) {
+	if field == nil {
+		return
+	}
+
+	builder.WriteString(indent)
+	builder.WriteString(h.diffTypeSymbol(field.Type))
+	builder.WriteString(" ")
+	builder.WriteString(field.Name)
+	builder.WriteString(": ")
+
+	switch field.Type {
+	case "Added":
+		builder.WriteString("\"")
+		builder.WriteString(field.New)
+		builder.WriteString("\"")
+	case "Deleted":
+		builder.WriteString("\"")
+		builder.WriteString(field.Old)
+		builder.WriteString("\"")
+	case "Edited":
+		builder.WriteString("\"")
+		builder.WriteString(field.Old)
+		builder.WriteString("\" => \"")
+		builder.WriteString(field.New)
+		builder.WriteString("\"")
+	}
+
+	builder.WriteString("\n")
+}
+
+// formatObjectDiff formats a nested object diff with proper indentation.
+func (h *JobsHandler) formatObjectDiff(builder *strings.Builder, obj *api.ObjectDiff, indent string) {
+	if obj == nil {
+		return
+	}
+
+	builder.WriteString(indent)
+	builder.WriteString(h.diffTypeSymbol(obj.Type))
+	builder.WriteString(" ")
+	builder.WriteString(obj.Name)
+	builder.WriteString(" {\n")
+
+	// Object fields
+	for _, field := range obj.Fields {
+		h.formatFieldDiff(builder, field, indent+"  ")
+	}
+
+	// Nested objects
+	for _, nestedObj := range obj.Objects {
+		h.formatObjectDiff(builder, nestedObj, indent+"  ")
+	}
+
+	builder.WriteString(indent)
+	builder.WriteString("}\n")
+}
+
+// diffTypeSymbol returns the symbol prefix for a diff type.
+func (h *JobsHandler) diffTypeSymbol(diffType string) string {
+	switch diffType {
+	case "Added":
+		return "+"
+	case "Deleted":
+		return "-"
+	case "Edited":
+		return "+/-"
+	default:
+		return " "
+	}
 }

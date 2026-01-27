@@ -43,8 +43,8 @@ Status: in-progress
 
 ### Phase 3: Write Operations (Actions)
 
-- [ ] 27. Implement job plan: client.Jobs().Plan() with diff display (needs: 8)
-- [ ] 28. Implement job submit/run: client.Jobs().Register() (needs: 27)
+- [x] 27. Implement job plan: client.Jobs().Plan() with diff display (needs: 8)
+- [x] 28. Implement job submit/run: client.Jobs().Register() (needs: 27)
 - [ ] 29. Implement job stop: client.Jobs().Deregister() (needs: 8)
 - [ ] 30. Implement force periodic job: client.Jobs().PeriodicForce() (needs: 8)
 - [ ] 31. Implement dispatch parameterized job: client.Jobs().Dispatch() (needs: 8)
