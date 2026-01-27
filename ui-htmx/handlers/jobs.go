@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"math/rand"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/jobs"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/jobspartials"
@@ -132,14 +134,20 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("jobs list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
-	// Check permissions - for list, we need to check "default" namespace
-	// In a real implementation, we'd check all namespaces or filter by accessible ones
+	// Parse query parameters
+	queryParams := r.URL.Query()
+	namespace := strings.TrimSpace(queryParams.Get("namespace"))
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// Check permissions for the requested namespace
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanListJobs("default") {
+	if perms != nil && !perms.CanListJobs(namespace) {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to list jobs",
 			Capability: "list-jobs",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Contact your administrator to request the 'list-jobs' capability",
 				"Ensure you are using a valid ACL token with appropriate permissions",
@@ -148,20 +156,28 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get mock job data
-	jobsList := h.getJobsList()
+	// Get ACL token from request context (if available)
+	token := GetTokenFromRequest(r)
+
+	// Fetch jobs from Nomad API
+	jobsList, err := h.getJobsList(r, namespace, token)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch jobs", "error", err, "namespace", namespace)
+		http.Error(w, "Failed to fetch jobs from Nomad API", http.StatusInternalServerError)
+		return
+	}
 
 	// Parse search query from query string
-	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
+	searchQuery := strings.TrimSpace(queryParams.Get("search"))
 
-	// Filter jobs by search query if provided
+	// Filter jobs by search query if provided (client-side)
 	if searchQuery != "" {
 		jobsList = h.filterJobs(jobsList, searchQuery)
 	}
 
 	// Parse sort parameters from query string
-	sortColumn := r.URL.Query().Get("sort")
-	sortDir := r.URL.Query().Get("dir")
+	sortColumn := queryParams.Get("sort")
+	sortDir := queryParams.Get("dir")
 
 	// Default sort if not specified
 	if sortColumn == "" {
@@ -173,8 +189,8 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	h.sortJobs(jobsList, sortColumn, sortDir)
 
 	// Parse pagination parameters
-	page := parsePage(r.URL.Query().Get("page"))
-	perPage := parsePerPage(r.URL.Query().Get("per_page"))
+	page := parsePage(queryParams.Get("page"))
+	perPage := parsePerPage(queryParams.Get("per_page"))
 
 	// Calculate total before pagination
 	total := len(jobsList)
@@ -202,7 +218,7 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the jobs list page
-	err := Render(w, r,
+	err = Render(w, r,
 		jobs.List(layoutProps, jobsList, sortColumn, sortDir, searchQuery, pagination),   // Full page with layout
 		jobspartials.ListContent(jobsList, sortColumn, sortDir, searchQuery, pagination), // Partial content for HTMX requests
 	)
@@ -286,21 +302,60 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getJobsList fetches jobs from the Nomad API.
-// Falls back to empty list if API is unavailable.
-func (h *JobsHandler) getJobsList() []jobspartials.JobSummary {
+// getJobsList fetches jobs from the Nomad API with the specified parameters.
+// Returns error if API is unavailable or request fails.
+func (h *JobsHandler) getJobsList(r *http.Request, namespace, token string) ([]jobspartials.JobSummary, error) {
 	client := h.handler.NomadClient()
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty job list")
-		return []jobspartials.JobSummary{}
+		return []jobspartials.JobSummary{}, nil
+	}
+
+	// Build query options
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Parse additional filter parameters from query string
+	queryParams := r.URL.Query()
+	filterExpr := strings.TrimSpace(queryParams.Get("filter"))
+	statusFilter := strings.TrimSpace(queryParams.Get("status"))
+	typeFilter := strings.TrimSpace(queryParams.Get("type"))
+
+	// Build Nomad filter expression if filters are specified
+	var filters []string
+	if statusFilter != "" {
+		filters = append(filters, fmt.Sprintf("Status == %q", statusFilter))
+	}
+	if typeFilter != "" {
+		filters = append(filters, fmt.Sprintf("Type == %q", typeFilter))
+	}
+	if filterExpr != "" {
+		filters = append(filters, filterExpr)
+	}
+	if len(filters) > 0 {
+		queryOpts.Filter = strings.Join(filters, " and ")
 	}
 
 	// Fetch jobs from the API
-	jobs, _, err := client.Jobs().List(nil)
+	h.handler.logger.Debug("fetching jobs from API",
+		"namespace", namespace,
+		"filter", queryOpts.Filter,
+		"hasToken", token != "",
+	)
+
+	jobs, _, err := client.Jobs().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch jobs from Nomad API", "error", err)
-		return []jobspartials.JobSummary{}
+		return nil, fmt.Errorf("failed to fetch jobs: %w", err)
 	}
+
+	h.handler.logger.Debug("fetched jobs from API", "count", len(jobs))
 
 	// Convert API response to our summary type
 	result := make([]jobspartials.JobSummary, 0, len(jobs))
@@ -320,7 +375,7 @@ func (h *JobsHandler) getJobsList() []jobspartials.JobSummary {
 		})
 	}
 
-	return result
+	return result, nil
 }
 
 // filterJobs filters the jobs list based on search query.

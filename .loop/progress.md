@@ -93,3 +93,14 @@
 - Pattern: Cookie path matches UI routes for proper scoping
 - Files: settings.go, settingspartials/token_form.templ
 ---
+
+### 2026-01-26 - Task 7: Jobs list real API
+- Replaced mock data with client.Jobs().List(queryOpts)
+- Query params: namespace, filter, status, type, search, sort, dir, page, per_page
+- Builds Nomad filter expressions from status/type params
+- Maps api.JobListStub to jobspartials.JobSummary
+- Token from context via GetTokenFromRequest()
+- Pagination/sorting client-side (Nomad API doesn't paginate jobs)
+- Pattern: Filter expression building with "and" combinator
+- Files: jobs.go
+---
