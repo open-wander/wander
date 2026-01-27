@@ -572,7 +572,7 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		jobDef := h.getJobDefinition(jobID)
 		err = RenderPartial(w, r, jobspartials.DefinitionTab(jobDef))
 	case "versions":
-		versions := h.getJobVersions(jobID)
+		versions := h.getJobVersions(r, jobID)
 		err = RenderPartial(w, r, jobspartials.VersionsTab(versions, jobID))
 	case "allocations":
 		// Parse pagination parameters for allocations
@@ -594,48 +594,113 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 	}
 }
 
-// getJobVersions returns mock job version data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *JobsHandler) getJobVersions(jobID string) []jobspartials.JobVersion {
-	now := time.Now()
-
-	return []jobspartials.JobVersion{
-		{
-			Version:    4,
-			Stable:     true,
-			SubmitTime: now.Add(-2 * time.Hour),
-			Active:     true,
-			Diff:       "/ui/jobs/" + jobID + "/versions/4/diff",
-		},
-		{
-			Version:    3,
-			Stable:     true,
-			SubmitTime: now.Add(-24 * time.Hour),
-			Active:     false,
-			Diff:       "/ui/jobs/" + jobID + "/versions/3/diff",
-		},
-		{
-			Version:    2,
-			Stable:     false,
-			SubmitTime: now.Add(-48 * time.Hour),
-			Active:     false,
-			Diff:       "/ui/jobs/" + jobID + "/versions/2/diff",
-		},
-		{
-			Version:    1,
-			Stable:     true,
-			SubmitTime: now.Add(-72 * time.Hour),
-			Active:     false,
-			Diff:       "/ui/jobs/" + jobID + "/versions/1/diff",
-		},
-		{
-			Version:    0,
-			Stable:     false,
-			SubmitTime: now.Add(-96 * time.Hour),
-			Active:     false,
-			Diff:       "", // No diff for version 0 (initial version)
-		},
+// getJobVersions fetches job version history from the Nomad API.
+// It returns a list of job versions sorted from newest to oldest.
+func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartials.JobVersion {
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	jobName := jobID
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		jobName = jobID[:idx]
+		namespace = jobID[idx+1:]
 	}
+
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty versions list")
+		return []jobspartials.JobVersion{}
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build query options
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Note: For now we're not requesting diffs from the API (diffs=false)
+	// because we compute diffs on-demand when the user clicks "Diff"
+	h.handler.logger.Debug("fetching job versions from API",
+		"jobID", jobName,
+		"namespace", namespace,
+		"hasToken", token != "",
+	)
+
+	versions, _, _, err := client.Jobs().Versions(jobName, false, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch job versions", "error", err, "jobID", jobName, "namespace", namespace)
+		return []jobspartials.JobVersion{}
+	}
+
+	h.handler.logger.Debug("fetched job versions from API", "count", len(versions))
+
+	if len(versions) == 0 {
+		return []jobspartials.JobVersion{}
+	}
+
+	// Find the current/active version (highest version number)
+	var maxVersion uint64
+	for _, v := range versions {
+		if v.Version != nil && *v.Version > maxVersion {
+			maxVersion = *v.Version
+		}
+	}
+
+	// Convert API response to our JobVersion type
+	result := make([]jobspartials.JobVersion, 0, len(versions))
+	for _, v := range versions {
+		if v == nil {
+			continue
+		}
+
+		// Extract version number (default to 0 if nil)
+		version := uint64(0)
+		if v.Version != nil {
+			version = *v.Version
+		}
+
+		// Extract stable flag (default to false if nil)
+		stable := false
+		if v.Stable != nil {
+			stable = *v.Stable
+		}
+
+		// Extract submit time (convert from nanoseconds to time.Time)
+		submitTime := time.Time{}
+		if v.SubmitTime != nil && *v.SubmitTime > 0 {
+			submitTime = time.Unix(0, *v.SubmitTime)
+		}
+
+		// Determine if this is the active version
+		active := (version == maxVersion)
+
+		// Set diff URL only if this is not version 0 (no previous version to compare)
+		diffURL := ""
+		if version > 0 {
+			diffURL = fmt.Sprintf("/ui/jobs/%s/versions/%d/diff/%d", jobID, version, version-1)
+		}
+
+		result = append(result, jobspartials.JobVersion{
+			Version:    int(version),
+			Stable:     stable,
+			SubmitTime: submitTime,
+			Active:     active,
+			Diff:       diffURL,
+		})
+	}
+
+	// Sort by version number descending (newest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Version > result[j].Version
+	})
+
+	return result
 }
 
 // getJobDefinition returns mock job definition data.

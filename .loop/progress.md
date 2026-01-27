@@ -115,3 +115,14 @@
 - Pattern: Safe pointer dereferencing with safeString()/safeInt()
 - Files: jobs.go
 ---
+
+### 2026-01-26 - Task 9: Job versions tab real API
+- Replaced mock getJobVersions with client.Jobs().Versions()
+- Extracts version number, stable flag, submit time from api.Job pointers
+- Determines active version as highest version number
+- Sorts versions descending (newest first)
+- Version 0 correctly excludes diff link (no previous)
+- ACL token passed via QueryOptions.AuthToken
+- Pattern: diffs=false for performance, compute on-demand
+- Files: jobs.go
+---
