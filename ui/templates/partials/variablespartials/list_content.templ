@@ -1,0 +1,220 @@
+package variablespartials
+
+import (
+	"time"
+	"fmt"
+	"net/url"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// VariableSummary represents a summary view of a variable for list display.
+type VariableSummary struct {
+	Path        string
+	Namespace   string
+	CreateIndex uint64
+	ModifyIndex uint64
+	ItemCount   int
+	Modified    time.Time
+	JobID       string // Associated job ID if this variable is job-related
+}
+
+// PaginationMeta holds pagination metadata for list views.
+type PaginationMeta struct {
+	Page       int // Current page (1-indexed)
+	PerPage    int // Items per page
+	Total      int // Total number of items
+	TotalPages int // Total number of pages
+}
+
+// ListContent renders the variables table content for HTMX partial updates.
+templ ListContent(variablesList []VariableSummary, sortColumn string, sortDir string, searchQuery string, pagination PaginationMeta) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Variables</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					View and manage Nomad variables
+				</p>
+			</div>
+			<div class="mt-4 sm:mt-0">
+				<a
+					href="/ui/variables/new"
+					class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+				>
+					<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+					</svg>
+					Create Variable
+				</a>
+			</div>
+		</div>
+		<!-- Search Bar -->
+		<div class="mb-6">
+			@components.SearchBar(components.SearchBarProps{
+				Name:        "search",
+				Placeholder: "Search variables by path or namespace...",
+				Value:       searchQuery,
+				SearchURL:   "/ui/variables",
+				ResultsID:   "variables-table-container",
+				Debounce:    300,
+				MinChars:    0,
+			})
+		</div>
+		<!-- Variables Table Container -->
+		<div id="variables-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "path", Label: "Path", Sortable: true, Align: "left", Width: "w-2/5"},
+					{Key: "namespace", Label: "Namespace", Sortable: true, Align: "left", Width: "w-32"},
+					{Key: "items", Label: "Items", Sortable: true, Align: "center", Width: "w-24"},
+					{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-32"},
+					{Key: "modified", Label: "Last Modified", Sortable: true, Align: "right"},
+				},
+				SortColumn: sortColumn,
+				SortDir:    sortDir,
+				Striped:    true,
+				Hover:      true,
+				SortURL:    "/ui/variables",
+			}) {
+				@components.TableBody() {
+					if len(variablesList) == 0 {
+						@components.TableEmptyState("No variables found", "There are no variables to display")
+					} else {
+						for _, variable := range variablesList {
+							@variableRow(variable)
+						}
+					}
+				}
+			}
+			<!-- Pagination -->
+			@components.Pagination(components.PaginationProps{
+				Page:     pagination.Page,
+				PerPage:  pagination.PerPage,
+				Total:    pagination.Total,
+				BaseURL:  buildVariablesURL(sortColumn, sortDir, searchQuery),
+				HxTarget: "#main-content",
+				HxSwap:   "innerHTML",
+			})
+		</div>
+	</div>
+}
+
+// buildVariablesURL constructs the base URL for pagination with sort and search params
+func buildVariablesURL(sortColumn, sortDir, searchQuery string) string {
+	baseURL := "/ui/variables?"
+	params := url.Values{}
+
+	if sortColumn != "" {
+		params.Add("sort", sortColumn)
+	}
+	if sortDir != "" {
+		params.Add("dir", sortDir)
+	}
+	if searchQuery != "" {
+		params.Add("search", searchQuery)
+	}
+
+	if len(params) > 0 {
+		return baseURL + params.Encode() + "&"
+	}
+	return baseURL
+}
+
+// variableRow renders a single variable row in the table
+templ variableRow(variable VariableSummary) {
+	<tr
+		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+		hx-get={ fmt.Sprintf("/ui/variables/%s", url.PathEscape(variable.Path)) }
+		hx-target="#main-content"
+		hx-swap="innerHTML"
+		hx-push-url="true"
+	>
+		@components.TableCell("left", "w-2/5") {
+			<div class="font-medium text-neutral-900 dark:text-neutral-100">
+				{ variable.Path }
+			</div>
+			<div class="text-xs text-neutral-500 dark:text-neutral-400">
+				Create: { fmt.Sprintf("%d", variable.CreateIndex) } | Modify: { fmt.Sprintf("%d", variable.ModifyIndex) }
+			</div>
+		}
+		@components.TableCell("left", "w-32") {
+			@components.Badge(components.BadgeProps{
+				Variant: namespaceVariant(variable.Namespace),
+				Size:    "sm",
+			}) {
+				{ variable.Namespace }
+			}
+		}
+		@components.TableCell("center", "w-24") {
+			<span class="text-neutral-700 dark:text-neutral-300">
+				{ fmt.Sprintf("%d", variable.ItemCount) }
+			</span>
+		}
+		@components.TableCell("left", "w-32") {
+			if variable.JobID != "" {
+				<a
+					href={ templ.SafeURL("/ui/jobs/" + variable.JobID) }
+					class="inline-flex items-center text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+					hx-get={ fmt.Sprintf("/ui/jobs/%s", variable.JobID) }
+					hx-target="#main-content"
+					hx-swap="innerHTML"
+					hx-push-url="true"
+					onclick="event.stopPropagation()"
+				>
+					<svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+					</svg>
+					{ variable.JobID }
+				</a>
+			} else {
+				<span class="text-neutral-400 dark:text-neutral-600">-</span>
+			}
+		}
+		@components.TableCell("right", "") {
+			<span class="text-neutral-600 dark:text-neutral-400">
+				{ formatTimeAgo(variable.Modified) }
+			</span>
+		}
+	</tr>
+}
+
+// namespaceVariant maps namespace to badge variant
+func namespaceVariant(namespace string) string {
+	switch namespace {
+	case "default":
+		return "neutral"
+	case "production":
+		return "danger"
+	case "staging":
+		return "warning"
+	default:
+		return "primary"
+	}
+}
+
+// formatTimeAgo formats a time.Time as a relative time string
+func formatTimeAgo(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+}

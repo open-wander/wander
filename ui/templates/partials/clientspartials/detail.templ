@@ -1,0 +1,1065 @@
+package clientspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui/templates/components"
+	"sort"
+	"time"
+)
+
+// ClientDetail represents detailed information about a client node
+type ClientDetail struct {
+	ID          string
+	Name        string
+	Status      string
+	Datacenter  string
+	Address     string
+	Version     string
+	Uptime      string
+	NodeClass   string
+	Drain       bool
+	Draining    bool // True if currently draining
+	Eligible    bool
+	Resources   ClientResources
+	Allocations []AllocationSummary
+	Attributes  map[string]string
+	Meta        map[string]string
+	Events      []ClientEvent
+	Drivers     map[string]DriverInfo
+	// Real-time resource stats from node (if available)
+	Stats *ClientStats
+	// Resource history for charts (mock data for now)
+	CPUHistory    []ResourceDataPoint
+	MemoryHistory []ResourceDataPoint
+}
+
+// ResourceDataPoint represents a single point in time-series resource data
+type ResourceDataPoint struct {
+	Time  time.Time
+	Value float64 // Percentage 0-100
+}
+
+// ClientEvent represents an event in the client's lifecycle
+type ClientEvent struct {
+	Time    time.Time
+	Type    string
+	Message string
+}
+
+// DriverInfo represents driver information on a client
+type DriverInfo struct {
+	Detected bool
+	Healthy  bool
+	Version  string
+}
+
+// ClientResources represents resource allocation and usage for a client
+type ClientResources struct {
+	CPUUsed   int
+	CPUTotal  int
+	MemUsed   int64
+	MemTotal  int64
+	DiskUsed  int64
+	DiskTotal int64
+}
+
+// ClientStats represents real-time resource utilization stats from a client node
+type ClientStats struct {
+	// CPU utilization percentage (0-100) averaged across all cores
+	CPUUtilization float64
+	// Per-core CPU stats
+	CPUCores []CPUCoreStat
+	// Memory stats
+	MemoryTotal     uint64
+	MemoryUsed      uint64
+	MemoryAvailable uint64
+	// Disk stats
+	DiskStats []DiskStat
+	// Uptime in seconds
+	Uptime uint64
+}
+
+// CPUCoreStat represents stats for a single CPU core
+type CPUCoreStat struct {
+	Core   string
+	User   float64
+	System float64
+	Idle   float64
+}
+
+// DiskStat represents stats for a disk mount
+type DiskStat struct {
+	Device      string
+	Mountpoint  string
+	Size        uint64
+	Used        uint64
+	Available   uint64
+	UsedPercent float64
+}
+
+// AllocationSummary represents a summary of an allocation running on this client
+type AllocationSummary struct {
+	ID        string
+	JobID     string
+	TaskGroup string
+	Status    string
+	CPUUsed   int
+	MemUsed   int64
+}
+
+// DetailContent renders the client detail page content (without layout)
+templ DetailContent(client ClientDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ drainModal: false, cancelDrainModal: false }">
+		<!-- Client Header -->
+		@components.Card(components.CardProps{
+			Shadow: true,
+			Border: false,
+			Class:  "mb-6",
+		}) {
+			@components.CardBody() {
+				<div class="flex items-start justify-between">
+					<div class="flex-1">
+						<div class="flex items-center space-x-4 mb-4">
+							<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ client.Name }</h1>
+							@components.Badge(components.BadgeProps{
+								Variant: statusToBadgeVariant(client.Status),
+								Dot:     true,
+								Size:    "md",
+							}) {
+								{ client.Status }
+							}
+							if client.Draining {
+								@components.Badge(components.BadgeProps{
+									Variant: "warning",
+									Size:    "md",
+								}) {
+									draining
+								}
+							}
+							if !client.Eligible {
+								@components.Badge(components.BadgeProps{
+									Variant: "neutral",
+									Size:    "md",
+								}) {
+									ineligible
+								}
+							}
+						</div>
+						<div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">ID:</span>
+								<span class="font-mono text-xs text-neutral-700 dark:text-neutral-300 ml-2" title={ client.ID }>{ truncateID(client.ID) }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Datacenter:</span>
+								<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Datacenter }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Address:</span>
+								<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Address }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Version:</span>
+								<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Version }</span>
+							</div>
+							<div>
+								<span class="text-neutral-600 dark:text-neutral-400">Node Class:</span>
+								if client.NodeClass != "" {
+									<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.NodeClass }</span>
+								} else {
+									<span class="text-neutral-400 dark:text-neutral-500 ml-2 italic">none</span>
+								}
+							</div>
+						</div>
+						<div class="mt-2 text-sm">
+							<span class="text-neutral-600 dark:text-neutral-400">Uptime:</span>
+							<span class="font-medium text-neutral-900 dark:text-neutral-100 ml-2">{ client.Uptime }</span>
+						</div>
+					</div>
+					<!-- Drain Controls -->
+					<div class="flex items-center space-x-2 ml-4">
+						if client.Draining {
+							@components.Button(components.ButtonProps{
+								Variant:     "warning",
+								Outline:     true,
+								Size:        "sm",
+								Icon:        "x-mark",
+								AlpineClick: "cancelDrainModal = true",
+							}, "Cancel Drain")
+						} else if client.Status == "ready" {
+							@components.Button(components.ButtonProps{
+								Variant:     "warning",
+								Size:        "sm",
+								AlpineClick: "drainModal = true",
+							}, "Drain Node")
+						}
+					</div>
+				</div>
+			}
+		}
+		<!-- Tabs Section -->
+		@components.Card(components.CardProps{
+			Shadow: true,
+			Border: false,
+		}) {
+			@components.CardBody() {
+				@components.Tabs(components.TabsProps{
+					Tabs: []components.Tab{
+						{
+							ID:      "overview",
+							Label:   "Overview",
+							Icon:    "chart",
+							Content: OverviewTab(client),
+							Active:  true,
+						},
+						{
+							ID:      "allocations",
+							Label:   fmt.Sprintf("Allocations (%d)", len(client.Allocations)),
+							Icon:    "cube",
+							Content: AllocationsTab(client),
+						},
+						{
+							ID:      "events",
+							Label:   fmt.Sprintf("Events (%d)", len(client.Events)),
+							Icon:    "clock",
+							Content: EventsTab(client),
+						},
+					},
+					ActiveTab: "overview",
+					Mode:      "static",
+					PanelID:   "client-detail-panel",
+				})
+			}
+		}
+		<!-- Drain Modals -->
+		@DrainNodeModal(client)
+		@CancelDrainModal(client)
+	</div>
+}
+
+// OverviewTab renders the overview tab with resources, attributes, meta, and drivers
+templ OverviewTab(client ClientDetail) {
+	<div class="space-y-6 pt-4">
+		<!-- Resource Usage Section -->
+		<div>
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Usage</h3>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+				<!-- CPU Usage -->
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+					<div class="flex items-center justify-between text-sm mb-2">
+						<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU</span>
+						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+							{ fmt.Sprintf("%d / %d MHz", client.Resources.CPUUsed, client.Resources.CPUTotal) }
+						</span>
+					</div>
+					@resourceBar(client.Resources.CPUUsed, client.Resources.CPUTotal)
+					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+						{ fmt.Sprintf("%d%% utilized", calculatePercentage(client.Resources.CPUUsed, client.Resources.CPUTotal)) }
+					</div>
+				</div>
+				<!-- Memory Usage -->
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+					<div class="flex items-center justify-between text-sm mb-2">
+						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory</span>
+						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+							{ formatMemory(client.Resources.MemUsed) } / { formatMemory(client.Resources.MemTotal) }
+						</span>
+					</div>
+					@memoryBar(client.Resources.MemUsed, client.Resources.MemTotal)
+					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.MemUsed, client.Resources.MemTotal)) }
+					</div>
+				</div>
+				<!-- Disk Usage -->
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+					<div class="flex items-center justify-between text-sm mb-2">
+						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk</span>
+						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+							{ formatMemory(client.Resources.DiskUsed) } / { formatMemory(client.Resources.DiskTotal) }
+						</span>
+					</div>
+					@memoryBar(client.Resources.DiskUsed, client.Resources.DiskTotal)
+					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Real-time Resource Stats Section -->
+		if client.Stats != nil {
+			<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Real-time Resource Stats</h3>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+					<!-- CPU Utilization -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU Utilization</span>
+							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+								{ fmt.Sprintf("%.1f%%", client.Stats.CPUUtilization) }
+							</span>
+						</div>
+						@utilizationBar(client.Stats.CPUUtilization)
+						if len(client.Stats.CPUCores) > 0 {
+							<div class="mt-3 text-xs text-neutral-600 dark:text-neutral-400">
+								<details class="cursor-pointer">
+									<summary class="hover:text-neutral-900 dark:hover:text-neutral-100">
+										{ fmt.Sprintf("%d cores", len(client.Stats.CPUCores)) }
+									</summary>
+									<div class="mt-2 space-y-1 pl-2">
+										for _, core := range client.Stats.CPUCores {
+											<div class="flex justify-between">
+												<span>{ core.Core }:</span>
+												<span>{ fmt.Sprintf("%.1f%% (U:%.1f%% S:%.1f%%)", 100-core.Idle, core.User, core.System) }</span>
+											</div>
+										}
+									</div>
+								</details>
+							</div>
+						}
+					</div>
+					<!-- Memory Usage -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory Usage</span>
+							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+								{ formatBytes(client.Stats.MemoryUsed) } / { formatBytes(client.Stats.MemoryTotal) }
+							</span>
+						</div>
+						@bytesBar(client.Stats.MemoryUsed, client.Stats.MemoryTotal)
+						<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+							{ fmt.Sprintf("%d%% used, %s available", calculateBytesPercentage(client.Stats.MemoryUsed, client.Stats.MemoryTotal), formatBytes(client.Stats.MemoryAvailable)) }
+						</div>
+					</div>
+					<!-- Disk Usage -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk Usage</span>
+						</div>
+						if len(client.Stats.DiskStats) > 0 {
+							<div class="space-y-2">
+								for _, disk := range client.Stats.DiskStats {
+									<div class="text-xs">
+										<div class="flex justify-between mb-1">
+											<span class="text-neutral-600 dark:text-neutral-400 truncate" title={ disk.Mountpoint }>{ disk.Mountpoint }</span>
+											<span class="text-neutral-900 dark:text-neutral-100 font-medium">{ fmt.Sprintf("%.1f%%", disk.UsedPercent) }</span>
+										</div>
+										@utilizationBar(disk.UsedPercent)
+										<div class="text-neutral-500 dark:text-neutral-500 mt-1">
+											{ formatBytes(disk.Used) } / { formatBytes(disk.Size) }
+										</div>
+									</div>
+								}
+							</div>
+						} else {
+							<div class="text-sm text-neutral-500 dark:text-neutral-400">No disk stats available</div>
+						}
+					</div>
+				</div>
+			</div>
+		}
+		<!-- Resource Utilization Charts Section -->
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Utilization History</h3>
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<!-- CPU Utilization Chart -->
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+					<div class="flex items-center justify-between mb-4">
+						<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">CPU Utilization</h4>
+						<span class="text-xs text-neutral-500 dark:text-neutral-400">Last 24 hours</span>
+					</div>
+					@components.ChartContainer(components.ChartContainerProps{
+						ID:     "cpu-utilization-chart-" + client.ID,
+						Height: "48",
+						Class:  "bg-white dark:bg-neutral-900 rounded",
+					}) {
+						@ResourceUtilizationChart(client.ID, "cpu", client.CPUHistory)
+					}
+				</div>
+				<!-- Memory Utilization Chart -->
+				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+					<div class="flex items-center justify-between mb-4">
+						<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Memory Utilization</h4>
+						<span class="text-xs text-neutral-500 dark:text-neutral-400">Last 24 hours</span>
+					</div>
+					@components.ChartContainer(components.ChartContainerProps{
+						ID:     "memory-utilization-chart-" + client.ID,
+						Height: "48",
+						Class:  "bg-white dark:bg-neutral-900 rounded",
+					}) {
+						@ResourceUtilizationChart(client.ID, "memory", client.MemoryHistory)
+					}
+				</div>
+			</div>
+		</div>
+		<!-- Drivers Section -->
+		if len(client.Drivers) > 0 {
+			<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Drivers</h3>
+				<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+					for name, driver := range client.Drivers {
+						<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3 flex items-center justify-between">
+							<div>
+								<div class="font-medium text-neutral-900 dark:text-neutral-100 text-sm">{ name }</div>
+								if driver.Version != "" {
+									<div class="text-xs text-neutral-500 dark:text-neutral-400">v{ driver.Version }</div>
+								}
+							</div>
+							<div class="flex items-center space-x-2">
+								if driver.Detected {
+									@components.Badge(components.BadgeProps{
+										Variant: driverHealthVariant(driver.Healthy),
+										Dot:     true,
+										Size:    "sm",
+									}) {
+										if driver.Healthy {
+											healthy
+										} else {
+											unhealthy
+										}
+									}
+								} else {
+									@components.Badge(components.BadgeProps{
+										Variant: "neutral",
+										Size:    "sm",
+									}) {
+										not detected
+									}
+								}
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+		}
+		<!-- Node Attributes Section -->
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Node Attributes</h3>
+			if len(client.Attributes) == 0 {
+				<p class="text-neutral-500 dark:text-neutral-400 text-sm">No attributes defined</p>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+					for _, key := range sortedKeys(client.Attributes) {
+						<div class="flex items-start py-2 border-b border-neutral-100 dark:border-neutral-800">
+							<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2 break-all">{ key }</span>
+							<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2 font-mono break-all">{ client.Attributes[key] }</span>
+						</div>
+					}
+				</div>
+			}
+		</div>
+		<!-- Meta Attributes Section -->
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Meta Attributes</h3>
+			if len(client.Meta) == 0 {
+				<p class="text-neutral-500 dark:text-neutral-400 text-sm">No meta attributes defined</p>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+					for _, key := range sortedKeys(client.Meta) {
+						<div class="flex items-start py-2 border-b border-neutral-100 dark:border-neutral-800">
+							<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2">{ key }</span>
+							<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2">{ client.Meta[key] }</span>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// AllocationsTab renders the allocations tab with a table of allocations on this client
+templ AllocationsTab(client ClientDetail) {
+	<div class="pt-4">
+		if len(client.Allocations) == 0 {
+			<div class="text-center py-12 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+				<svg class="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No allocations</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">There are no allocations running on this client.</p>
+			</div>
+		} else {
+			<div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
+				@components.Table(components.TableProps{
+					Columns: []components.Column{
+						{Key: "id", Label: "ID", Sortable: false, Align: "left", Width: "w-32"},
+						{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-1/4"},
+						{Key: "taskgroup", Label: "Task Group", Sortable: false, Align: "left", Width: "w-1/4"},
+						{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-32"},
+						{Key: "resources", Label: "Resources", Sortable: false, Align: "left"},
+					},
+					SortColumn: "",
+					SortDir:    "",
+					Striped:    true,
+					Hover:      true,
+					SortURL:    "",
+				}) {
+					@components.TableBody() {
+						for _, alloc := range client.Allocations {
+							@allocationRow(alloc)
+						}
+					}
+				}
+			</div>
+		}
+	</div>
+}
+
+// EventsTab renders the events tab with a timeline of client events
+templ EventsTab(client ClientDetail) {
+	<div class="pt-4">
+		if len(client.Events) == 0 {
+			<div class="text-center py-12 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
+				<svg class="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No events</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">No events recorded for this client.</p>
+			</div>
+		} else {
+			<div class="relative">
+				<!-- Timeline line -->
+				<div class="absolute left-4 top-0 bottom-0 w-0.5 bg-neutral-200 dark:bg-neutral-700"></div>
+				<div class="space-y-4">
+					for i, event := range client.Events {
+						<div class="relative flex items-start pl-10">
+							<!-- Timeline dot -->
+							<div class={ eventDotClasses(event.Type, i == 0) }></div>
+							<div class="flex-1 min-w-0 bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+								<div class="flex items-center justify-between mb-1">
+									<span class={ eventTypeTextClasses(event.Type) }>{ event.Type }</span>
+									<span class="text-xs text-neutral-500 dark:text-neutral-400">{ event.Time.Format("Jan 2, 2006 15:04:05") }</span>
+								</div>
+								if event.Message != "" {
+									<p class="text-sm text-neutral-600 dark:text-neutral-300">{ event.Message }</p>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// allocationRow renders a single allocation row in the table
+templ allocationRow(alloc AllocationSummary) {
+	<tr class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+		@components.TableCell("left", "w-32") {
+			<a
+				href={ templ.URL("/ui/allocations/" + alloc.ID) }
+				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-mono text-xs"
+			>
+				{ truncateID(alloc.ID) }
+			</a>
+		}
+		@components.TableCell("left", "w-1/4") {
+			<a
+				href={ templ.URL("/ui/jobs/" + alloc.JobID) }
+				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
+			>
+				{ alloc.JobID }
+			</a>
+		}
+		@components.TableCell("left", "w-1/4") {
+			<span class="text-neutral-700 dark:text-neutral-300">
+				{ alloc.TaskGroup }
+			</span>
+		}
+		@components.TableCell("center", "w-32") {
+			@components.Badge(components.BadgeProps{
+				Variant: allocationStatusVariant(alloc.Status),
+				Dot:     true,
+			}) {
+				{ alloc.Status }
+			}
+		}
+		@components.TableCell("left", "") {
+			<div class="space-y-1">
+				<div class="text-xs text-neutral-600 dark:text-neutral-400">
+					CPU: <span class="font-medium text-neutral-700 dark:text-neutral-300">{ fmt.Sprintf("%d MHz", alloc.CPUUsed) }</span>
+				</div>
+				<div class="text-xs text-neutral-600 dark:text-neutral-400">
+					Memory: <span class="font-medium text-neutral-700 dark:text-neutral-300">{ formatMemory(alloc.MemUsed) }</span>
+				</div>
+			</div>
+		}
+	</tr>
+}
+
+// statusToBadgeVariant maps client status to badge variant
+func statusToBadgeVariant(status string) string {
+	switch status {
+	case "ready":
+		return "success"
+	case "down":
+		return "error"
+	case "draining":
+		return "warning"
+	default:
+		return "neutral"
+	}
+}
+
+// allocationStatusVariant maps allocation status to badge variant
+func allocationStatusVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "complete":
+		return "info"
+	case "failed":
+		return "error"
+	default:
+		return "neutral"
+	}
+}
+
+// resourceBar renders a progress bar for CPU usage
+templ resourceBar(used int, total int) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", resourceBarColor(used, total) }
+			style={ fmt.Sprintf("width: %d%%", calculatePercentage(used, total)) }
+		></div>
+	</div>
+}
+
+// memoryBar renders a progress bar for memory usage
+templ memoryBar(used int64, total int64) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", memoryBarColor(used, total) }
+			style={ fmt.Sprintf("width: %d%%", calculateMemoryPercentage(used, total)) }
+		></div>
+	</div>
+}
+
+// resourceBarColor returns the appropriate color class based on usage percentage
+func resourceBarColor(used int, total int) string {
+	if total == 0 {
+		return "bg-neutral-400 dark:bg-neutral-500"
+	}
+
+	percentage := (used * 100) / total
+
+	if percentage >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percentage >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percentage >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// memoryBarColor returns the appropriate color class based on memory usage percentage
+func memoryBarColor(used int64, total int64) string {
+	if total == 0 {
+		return "bg-neutral-400 dark:bg-neutral-500"
+	}
+
+	percentage := (used * 100) / total
+
+	if percentage >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percentage >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percentage >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// utilizationBar renders a progress bar for utilization percentage (0-100)
+templ utilizationBar(percent float64) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", utilizationBarColor(percent) }
+			style={ fmt.Sprintf("width: %.1f%%", percent) }
+		></div>
+	</div>
+}
+
+// bytesBar renders a progress bar for bytes usage
+templ bytesBar(used uint64, total uint64) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", bytesBarColor(used, total) }
+			style={ fmt.Sprintf("width: %d%%", calculateBytesPercentage(used, total)) }
+		></div>
+	</div>
+}
+
+// utilizationBarColor returns the appropriate color class based on utilization percentage
+func utilizationBarColor(percent float64) string {
+	if percent >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percent >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percent >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// bytesBarColor returns the appropriate color class based on bytes usage percentage
+func bytesBarColor(used uint64, total uint64) string {
+	if total == 0 {
+		return "bg-neutral-400 dark:bg-neutral-500"
+	}
+
+	percentage := (used * 100) / total
+
+	if percentage >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percentage >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percentage >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// calculateBytesPercentage calculates percentage of bytes used
+func calculateBytesPercentage(used uint64, total uint64) int {
+	if total == 0 {
+		return 0
+	}
+	return int((used * 100) / total)
+}
+
+// formatBytes formats a byte count into a human-readable string
+func formatBytes(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := uint64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// sortedKeys returns keys of a map in sorted order
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// driverHealthVariant maps driver health to badge variant
+func driverHealthVariant(healthy bool) string {
+	if healthy {
+		return "success"
+	}
+	return "error"
+}
+
+// eventDotClasses returns CSS classes for timeline event dots
+func eventDotClasses(eventType string, isFirst bool) string {
+	base := "absolute left-2 w-4 h-4 rounded-full border-2 border-white dark:border-neutral-900 -translate-x-1/2 "
+	switch eventType {
+	case "Node registered", "Node up":
+		return base + "bg-green-500"
+	case "Node down", "Node lost", "Node drain started":
+		return base + "bg-red-500"
+	case "Node drain complete", "Node eligibility changed":
+		return base + "bg-yellow-500"
+	default:
+		if isFirst {
+			return base + "bg-primary-500"
+		}
+		return base + "bg-neutral-300 dark:bg-neutral-600"
+	}
+}
+
+// eventTypeTextClasses returns CSS classes for event type text
+func eventTypeTextClasses(eventType string) string {
+	base := "text-sm font-medium "
+	switch eventType {
+	case "Node registered", "Node up":
+		return base + "text-green-600 dark:text-green-400"
+	case "Node down", "Node lost", "Node drain started":
+		return base + "text-red-600 dark:text-red-400"
+	case "Node drain complete", "Node eligibility changed":
+		return base + "text-yellow-600 dark:text-yellow-400"
+	default:
+		return base + "text-neutral-900 dark:text-neutral-100"
+	}
+}
+
+// ResourceUtilizationChart renders a time-series area chart for resource utilization
+templ ResourceUtilizationChart(clientID string, resourceType string, data []ResourceDataPoint) {
+	<div
+		id={ "chart-" + resourceType + "-" + clientID }
+		class="w-full h-full"
+		x-data={ buildChartData(resourceType, data) }
+		x-init="initChart()"
+	>
+		<svg class="w-full h-full"></svg>
+	</div>
+}
+
+// buildChartData generates the Alpine.js data for the resource chart
+func buildChartData(resourceType string, data []ResourceDataPoint) string {
+	// Generate chart data points as JSON
+	dataPoints := "["
+	for i, point := range data {
+		if i > 0 {
+			dataPoints += ","
+		}
+		dataPoints += fmt.Sprintf(`{"time":%d,"value":%.1f}`, point.Time.Unix()*1000, point.Value)
+	}
+	dataPoints += "]"
+
+	color := "#3b82f6" // Blue for CPU
+	if resourceType == "memory" {
+		color = "#8b5cf6" // Purple for Memory
+	}
+
+	return fmt.Sprintf(`{
+		data: %s,
+		color: '%s',
+		initChart() {
+			const container = this.$el;
+			const svg = container.querySelector('svg');
+			if (!svg || this.data.length === 0) return;
+
+			const width = container.clientWidth;
+			const height = container.clientHeight;
+			const margin = { top: 10, right: 10, bottom: 25, left: 35 };
+			const innerWidth = width - margin.left - margin.right;
+			const innerHeight = height - margin.top - margin.bottom;
+
+			// Clear existing content
+			svg.innerHTML = '';
+
+			// Create SVG group
+			const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+			g.setAttribute('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+			svg.appendChild(g);
+
+			// Calculate scales
+			const xMin = Math.min(...this.data.map(d => d.time));
+			const xMax = Math.max(...this.data.map(d => d.time));
+			const yMax = 100;
+
+			// X Scale
+			const xScale = (t) => ((t - xMin) / (xMax - xMin)) * innerWidth;
+			const yScale = (v) => innerHeight - (v / yMax) * innerHeight;
+
+			// Create gradient
+			const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+			const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+			gradient.id = 'gradient-' + '%s' + '-' + Math.random().toString(36).substr(2, 9);
+			gradient.setAttribute('x1', '0%%');
+			gradient.setAttribute('y1', '0%%');
+			gradient.setAttribute('x2', '0%%');
+			gradient.setAttribute('y2', '100%%');
+
+			const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+			stop1.setAttribute('offset', '0%%');
+			stop1.setAttribute('stop-color', this.color);
+			stop1.setAttribute('stop-opacity', '0.3');
+			gradient.appendChild(stop1);
+
+			const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+			stop2.setAttribute('offset', '100%%');
+			stop2.setAttribute('stop-color', this.color);
+			stop2.setAttribute('stop-opacity', '0.05');
+			gradient.appendChild(stop2);
+
+			defs.appendChild(gradient);
+			svg.insertBefore(defs, svg.firstChild);
+
+			// Draw grid lines
+			for (let i = 0; i <= 4; i++) {
+				const y = (i / 4) * innerHeight;
+				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+				line.setAttribute('x1', '0');
+				line.setAttribute('y1', y);
+				line.setAttribute('x2', innerWidth);
+				line.setAttribute('y2', y);
+				line.setAttribute('stroke', '#e5e7eb');
+				line.setAttribute('stroke-width', '1');
+				line.setAttribute('class', 'dark:stroke-neutral-700');
+				g.appendChild(line);
+
+				// Y axis labels
+				const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+				text.setAttribute('x', '-5');
+				text.setAttribute('y', y + 4);
+				text.setAttribute('text-anchor', 'end');
+				text.setAttribute('class', 'text-xs fill-neutral-500 dark:fill-neutral-400');
+				text.textContent = (100 - i * 25) + '%%';
+				g.appendChild(text);
+			}
+
+			// Build area path
+			let areaPath = 'M ' + xScale(this.data[0].time) + ' ' + innerHeight;
+			for (const point of this.data) {
+				areaPath += ' L ' + xScale(point.time) + ' ' + yScale(point.value);
+			}
+			areaPath += ' L ' + xScale(this.data[this.data.length - 1].time) + ' ' + innerHeight + ' Z';
+
+			const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			area.setAttribute('d', areaPath);
+			area.setAttribute('fill', 'url(#' + gradient.id + ')');
+			g.appendChild(area);
+
+			// Build line path
+			let linePath = 'M';
+			for (let i = 0; i < this.data.length; i++) {
+				const point = this.data[i];
+				linePath += (i === 0 ? ' ' : ' L ') + xScale(point.time) + ' ' + yScale(point.value);
+			}
+
+			const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			line.setAttribute('d', linePath);
+			line.setAttribute('fill', 'none');
+			line.setAttribute('stroke', this.color);
+			line.setAttribute('stroke-width', '2');
+			g.appendChild(line);
+
+			// X axis labels (time)
+			const timeLabels = [xMin, xMin + (xMax - xMin) / 2, xMax];
+			for (const t of timeLabels) {
+				const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+				text.setAttribute('x', xScale(t));
+				text.setAttribute('y', innerHeight + 18);
+				text.setAttribute('text-anchor', 'middle');
+				text.setAttribute('class', 'text-xs fill-neutral-500 dark:fill-neutral-400');
+				const date = new Date(t);
+				text.textContent = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+				g.appendChild(text);
+			}
+		}
+	}`, dataPoints, color, resourceType)
+}
+
+// DrainNodeModal renders the modal for draining a node
+templ DrainNodeModal(client ClientDetail) {
+	<div
+		x-data="{
+		get isOpen() { return drainModal },
+		close() { drainModal = false },
+		deadline: '',
+		ignoreSystem: false
+	}"
+	>
+		@components.Modal(components.ModalProps{
+			ID:       "drain-node-modal",
+			Title:    "Drain Node",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<form id="drain-form" hx-post={ "/ui/clients/" + client.ID + "/drain" } hx-swap="none">
+					<div class="space-y-4">
+						<div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+							<div class="flex">
+								<svg class="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+								</svg>
+								<div class="ml-3">
+									<h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Warning</h3>
+									<p class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+										Draining will migrate all allocations off this node. New allocations will not be scheduled on this node while draining.
+									</p>
+								</div>
+							</div>
+						</div>
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
+							Are you sure you want to drain node <strong class="text-neutral-900 dark:text-neutral-100">{ client.Name }</strong>?
+						</p>
+						@components.FormField(components.FormFieldProps{
+							Label: "Deadline",
+							ID:    "drain-deadline",
+							Hint:  "Optional: Time limit for the drain (e.g., 1h, 30m). Leave empty for no deadline.",
+						}) {
+							@components.Input(components.InputProps{
+								Type:        "text",
+								ID:          "drain-deadline",
+								Name:        "deadline",
+								Placeholder: "e.g., 1h, 30m, 2h30m",
+							})
+						}
+						<div class="pt-2">
+							@components.Checkbox(components.CheckboxProps{
+								ID:    "ignore-system-jobs",
+								Name:  "ignore_system",
+								Value: "true",
+								Label: "Ignore system jobs (system jobs will not be drained)",
+							})
+						</div>
+					</div>
+				</form>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="submit"
+					form="drain-form"
+					@click="close"
+					class="btn btn-warning btn-sm"
+				>
+					Start Drain
+				</button>
+			}
+		}
+	</div>
+}
+
+// CancelDrainModal renders the modal for canceling a drain operation
+templ CancelDrainModal(client ClientDetail) {
+	<div x-data="{ get isOpen() { return cancelDrainModal }, close() { cancelDrainModal = false } }">
+		@components.Modal(components.ModalProps{
+			ID:       "cancel-drain-modal",
+			Title:    "Cancel Drain",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						Are you sure you want to cancel the drain operation on node <strong class="text-neutral-900 dark:text-neutral-100">{ client.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500 dark:text-neutral-500">
+						The node will become eligible for new allocations again. Any allocations that have already been migrated will not be returned.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Keep Draining
+				</button>
+				<button
+					type="button"
+					hx-post={ "/ui/clients/" + client.ID + "/drain/cancel" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-warning btn-sm"
+				>
+					Cancel Drain
+				</button>
+			}
+		}
+	</div>
+}

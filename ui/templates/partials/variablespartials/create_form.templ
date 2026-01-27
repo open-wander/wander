@@ -1,0 +1,190 @@
+package variablespartials
+
+import (
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// CreateContent renders the variable create page content (without layout)
+templ CreateContent() {
+	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="variableCreator()" x-init="init()">
+		<!-- Page Header -->
+		<div class="mb-6">
+			<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Create Variable</h1>
+			<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+				Create a new variable with key-value pairs for your Nomad jobs.
+			</p>
+		</div>
+		<!-- Create Form -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<form
+				hx-post="/ui/variables"
+				hx-encoding="multipart/form-data"
+			>
+				<!-- Path Field -->
+				@components.FormField(components.FormFieldProps{
+					Label:    "Path",
+					ID:       "path",
+					Required: true,
+					Hint:     "A unique path identifier for the variable (e.g., nomad/jobs/web)",
+				}) {
+					@components.Input(components.InputProps{
+						Type:        "text",
+						Name:        "path",
+						ID:          "path",
+						Placeholder: "nomad/jobs/web",
+						Required:    true,
+					})
+				}
+				<!-- Namespace Field -->
+				@components.FormField(components.FormFieldProps{
+					Label: "Namespace",
+					ID:    "namespace",
+					Hint:  "The Nomad namespace for this variable",
+				}) {
+					@components.Select(components.SelectProps{
+						Name:        "namespace",
+						ID:          "namespace",
+						Selected:    "default",
+						Placeholder: "Select a namespace",
+						Options: []components.SelectOption{
+							{Value: "default", Label: "default"},
+							{Value: "production", Label: "production"},
+							{Value: "staging", Label: "staging"},
+							{Value: "development", Label: "development"},
+						},
+					})
+				}
+				<!-- Key-Value Items Section -->
+				<div class="mt-6">
+					<div class="mb-4 flex items-center justify-between">
+						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+							Items
+							<span class="ml-1 text-sm font-normal text-neutral-500 dark:text-neutral-400">(Key-Value Pairs)</span>
+						</label>
+						<button
+							type="button"
+							@click="addItem()"
+							class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+						>
+							<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+							</svg>
+							Add Item
+						</button>
+					</div>
+					<!-- Key-Value Pairs -->
+					<div class="space-y-3">
+						<template x-for="(item, index) in items" :key="item.id">
+							<div class="flex items-start space-x-3">
+								<!-- Key Input -->
+								<div class="flex-1">
+									<input
+										type="text"
+										x-model="item.key"
+										:name="'key_' + index"
+										placeholder="Key"
+										class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+									/>
+								</div>
+								<!-- Value Input -->
+								<div class="flex-1">
+									<input
+										type="text"
+										x-model="item.value"
+										:name="'value_' + index"
+										placeholder="Value"
+										class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+									/>
+								</div>
+								<!-- Remove Button -->
+								<button
+									type="button"
+									@click="removeItem(index)"
+									class="inline-flex items-center p-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-sm text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+								>
+									<svg class="h-5 w-5 text-error-600 dark:text-error-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"></path>
+									</svg>
+								</button>
+							</div>
+						</template>
+						<!-- Empty State -->
+						<template x-if="items.length === 0">
+							<div class="text-center py-8 border-2 border-dashed border-neutral-300 dark:border-neutral-700 rounded-lg">
+								<svg class="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"></path>
+								</svg>
+								<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No items yet</h3>
+								<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Get started by adding a key-value pair.</p>
+								<div class="mt-4">
+									<button
+										type="button"
+										@click="addItem()"
+										class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+									>
+										<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+										</svg>
+										Add First Item
+									</button>
+								</div>
+							</div>
+						</template>
+					</div>
+					<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+						You can add items now or create the variable and add them later.
+					</p>
+				</div>
+				<!-- Action Buttons -->
+				<div class="mt-8 flex items-center justify-end space-x-3 pt-6 border-t border-neutral-200 dark:border-neutral-700">
+					<a
+						href="/ui/variables"
+						class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-sm text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					>
+						Cancel
+					</a>
+					<button
+						type="submit"
+						class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					>
+						<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+						</svg>
+						Create Variable
+					</button>
+				</div>
+			</form>
+		</div>
+		<!-- Alpine.js Component for Variable Creator -->
+		@templ.Raw(buildVariableCreatorScript())
+	</div>
+}
+
+// buildVariableCreatorScript generates the Alpine.js script for the variable creator
+func buildVariableCreatorScript() string {
+	return `<script type="text/javascript">
+		function variableCreator() {
+			return {
+				items: [],
+				nextId: 1,
+
+				init() {
+					// Start with one empty item
+					this.addItem();
+				},
+
+				addItem() {
+					this.items.push({
+						id: this.nextId++,
+						key: '',
+						value: ''
+					});
+				},
+
+				removeItem(index) {
+					this.items.splice(index, 1);
+				}
+			};
+		}
+	</script>`
+}

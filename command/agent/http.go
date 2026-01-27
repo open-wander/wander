@@ -38,7 +38,7 @@ import (
 	"github.com/open-wander/wander/nomad"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
-	uihandlers "github.com/open-wander/wander/ui-htmx/handlers"
+	uihandlers "github.com/open-wander/wander/ui/handlers"
 )
 
 const (

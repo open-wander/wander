@@ -1,0 +1,44 @@
+package pages
+
+import (
+	"github.com/open-wander/wander/ui/templates/components"
+	"github.com/open-wander/wander/ui/templates/layouts"
+)
+
+// ExamplePage demonstrates usage of the PageLayout template
+templ ExamplePage() {
+	@layouts.PageLayout(
+		layouts.PageLayoutProps{
+			Title:       "Example Page - Wander",
+			Description: "An example page demonstrating the base layout",
+			CurrentPath: "/example",
+			Breadcrumbs: []components.Breadcrumb{
+				{Label: "Home", URL: "/"},
+				{Label: "Example", URL: ""},
+			},
+		},
+		exampleContent(),
+	)
+}
+
+// exampleContent is the main content for the example page
+templ exampleContent() {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="bg-white shadow rounded-lg p-6">
+			<h2 class="text-2xl font-bold text-neutral-900 mb-4">
+				Welcome to Wander
+			</h2>
+			<p class="text-neutral-600 mb-4">
+				This is an example page demonstrating the base layout structure.
+				The layout includes:
+			</p>
+			<ul class="list-disc list-inside space-y-2 text-neutral-600">
+				<li>Responsive sidebar navigation</li>
+				<li>Header with breadcrumbs</li>
+				<li>Main content area</li>
+				<li>HTMX and Alpine.js integration</li>
+				<li>Tailwind CSS styling</li>
+			</ul>
+		</div>
+	</div>
+}

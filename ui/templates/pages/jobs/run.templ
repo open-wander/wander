@@ -1,0 +1,11 @@
+package jobs
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/jobspartials"
+)
+
+// Run renders the job submission page with full page layout
+templ Run(layoutProps layouts.PageLayoutProps, namespace string) {
+	@layouts.PageLayout(layoutProps, jobspartials.RunContent(namespace))
+}

@@ -1,0 +1,207 @@
+package jobspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// DiffLine represents a single line in a diff
+type DiffLine struct {
+	Type       string // "added", "removed", "unchanged", "context"
+	Content    string // The actual line content
+	OldLineNum int    // Line number in the old version (0 if added)
+	NewLineNum int    // Line number in the new version (0 if removed)
+}
+
+// VersionDiff represents the diff between two versions
+type VersionDiff struct {
+	JobID       string     // Job ID
+	OldVersion  int        // Previous version number
+	NewVersion  int        // New version number
+	Lines       []DiffLine // Diff lines
+	TotalAdded  int        // Total lines added
+	TotalRemoved int       // Total lines removed
+}
+
+// VersionDiffModal renders a modal with the diff between two versions
+templ VersionDiffModal(diff VersionDiff) {
+	<div
+		x-data="{ isOpen: true }"
+		x-init="$nextTick(() => { document.body.classList.add('overflow-hidden'); })"
+		x-effect="if (!isOpen) { document.body.classList.remove('overflow-hidden'); $el.remove(); }"
+	>
+		@components.Modal(components.ModalProps{
+			ID:       fmt.Sprintf("version-diff-%d-%d", diff.OldVersion, diff.NewVersion),
+			Title:    fmt.Sprintf("Version %d vs Version %d", diff.NewVersion, diff.OldVersion),
+			Size:     "full",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				@VersionDiffContent(diff)
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="isOpen = false"
+					class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+				>
+					Close
+				</button>
+			}
+		}
+	</div>
+}
+
+// VersionDiffContent renders the diff content (can be used inside modal or inline)
+templ VersionDiffContent(diff VersionDiff) {
+	<!-- Summary stats -->
+	<div class="mb-4 flex items-center gap-4 text-sm">
+		<span class="text-neutral-600">
+			Comparing version <span class="font-mono font-medium">{ fmt.Sprintf("%d", diff.NewVersion) }</span>
+			to version <span class="font-mono font-medium">{ fmt.Sprintf("%d", diff.OldVersion) }</span>
+		</span>
+		<span class="flex items-center gap-1 text-green-600">
+			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+			</svg>
+			{ fmt.Sprintf("%d additions", diff.TotalAdded) }
+		</span>
+		<span class="flex items-center gap-1 text-red-600">
+			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+			</svg>
+			{ fmt.Sprintf("%d deletions", diff.TotalRemoved) }
+		</span>
+	</div>
+
+	<!-- Diff view -->
+	<div class="border border-neutral-200 rounded-lg overflow-hidden">
+		<!-- Unified diff view -->
+		<div class="overflow-x-auto">
+			<table class="w-full text-sm font-mono">
+				<tbody>
+					if len(diff.Lines) == 0 {
+						<tr>
+							<td colspan="3" class="px-4 py-8 text-center text-neutral-500">
+								No differences found between versions
+							</td>
+						</tr>
+					} else {
+						for _, line := range diff.Lines {
+							@diffLineRow(line)
+						}
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+// diffLineRow renders a single line in the diff view
+templ diffLineRow(line DiffLine) {
+	<tr class={ diffLineClasses(line.Type) }>
+		<!-- Old line number -->
+		<td class="px-2 py-0.5 text-right text-neutral-400 select-none border-r border-neutral-200 w-12 bg-neutral-50">
+			if line.OldLineNum > 0 {
+				{ fmt.Sprintf("%d", line.OldLineNum) }
+			}
+		</td>
+		<!-- New line number -->
+		<td class="px-2 py-0.5 text-right text-neutral-400 select-none border-r border-neutral-200 w-12 bg-neutral-50">
+			if line.NewLineNum > 0 {
+				{ fmt.Sprintf("%d", line.NewLineNum) }
+			}
+		</td>
+		<!-- Line content with prefix -->
+		<td class="px-3 py-0.5 whitespace-pre">
+			<span class={ diffPrefixClasses(line.Type) }>{ diffPrefix(line.Type) }</span>
+			{ line.Content }
+		</td>
+	</tr>
+}
+
+// diffLineClasses returns CSS classes for diff line rows based on type
+func diffLineClasses(lineType string) string {
+	switch lineType {
+	case "added":
+		return "bg-green-50"
+	case "removed":
+		return "bg-red-50"
+	case "context":
+		return "bg-neutral-50"
+	default:
+		return ""
+	}
+}
+
+// diffPrefixClasses returns CSS classes for the diff prefix character
+func diffPrefixClasses(lineType string) string {
+	base := "mr-2 select-none font-bold"
+	switch lineType {
+	case "added":
+		return base + " text-green-600"
+	case "removed":
+		return base + " text-red-600"
+	default:
+		return base + " text-neutral-400"
+	}
+}
+
+// diffPrefix returns the prefix character for diff lines
+func diffPrefix(lineType string) string {
+	switch lineType {
+	case "added":
+		return "+"
+	case "removed":
+		return "-"
+	default:
+		return " "
+	}
+}
+
+// VersionDiffInline renders an inline expandable diff section
+templ VersionDiffInline(diff VersionDiff, expanded bool) {
+	<div
+		x-data={ fmt.Sprintf("{ expanded: %t }", expanded) }
+		class="border border-neutral-200 rounded-lg overflow-hidden mt-2"
+	>
+		<!-- Collapsible header -->
+		<button
+			type="button"
+			@click="expanded = !expanded"
+			class="w-full px-4 py-3 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors"
+		>
+			<span class="flex items-center gap-3">
+				<span class="text-sm font-medium text-neutral-700">
+					Changes from version { fmt.Sprintf("%d", diff.OldVersion) }
+				</span>
+				<span class="flex items-center gap-2 text-xs">
+					<span class="text-green-600">+{ fmt.Sprintf("%d", diff.TotalAdded) }</span>
+					<span class="text-red-600">-{ fmt.Sprintf("%d", diff.TotalRemoved) }</span>
+				</span>
+			</span>
+			<svg
+				:class="expanded ? 'rotate-180' : ''"
+				class="w-5 h-5 text-neutral-400 transition-transform duration-200"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+			</svg>
+		</button>
+
+		<!-- Expandable content -->
+		<div
+			x-show="expanded"
+			x-transition:enter="transition ease-out duration-200"
+			x-transition:enter-start="opacity-0 -translate-y-2"
+			x-transition:enter-end="opacity-100 translate-y-0"
+			x-transition:leave="transition ease-in duration-150"
+			x-transition:leave-start="opacity-100 translate-y-0"
+			x-transition:leave-end="opacity-0 -translate-y-2"
+		>
+			@VersionDiffContent(diff)
+		</div>
+	</div>
+}

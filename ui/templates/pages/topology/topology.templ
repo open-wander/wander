@@ -1,0 +1,11 @@
+package topology
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/topologypartials"
+)
+
+// List renders the full topology page with layout.
+templ List(layoutProps layouts.PageLayoutProps, data topologypartials.TopologyData) {
+	@layouts.PageLayout(layoutProps, topologypartials.ListContent(data))
+}

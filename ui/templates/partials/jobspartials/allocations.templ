@@ -1,0 +1,263 @@
+package jobspartials
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// JobAllocation represents an allocation summary for a specific job.
+// This extends the basic allocation data with CPU/Memory usage metrics.
+type JobAllocation struct {
+	ID        string
+	ShortID   string
+	TaskGroup string
+	NodeID    string
+	NodeName  string
+	Status    string
+	CPU       int     // CPU usage in MHz
+	CPUMax    int     // Max CPU allocation in MHz
+	Memory    int     // Memory usage in MB
+	MemoryMax int     // Max memory allocation in MB
+	Created   time.Time
+}
+
+// JobAllocationsPagination holds pagination info for the allocations tab.
+type JobAllocationsPagination struct {
+	Page       int
+	PerPage    int
+	Total      int
+	TotalPages int
+}
+
+// AllocationsTabData contains all data needed to render the allocations tab.
+type AllocationsTabData struct {
+	JobID       string
+	Allocations []JobAllocation
+	Pagination  JobAllocationsPagination
+	LastUpdated time.Time
+}
+
+// AllocationsTabWithData renders the job allocations tab with actual data.
+templ AllocationsTabWithData(data AllocationsTabData) {
+	<div class="p-6">
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Allocations</h3>
+			<div class="flex items-center gap-4">
+				<div
+					id="allocations-last-updated"
+					class="text-xs text-neutral-400 dark:text-neutral-500"
+					title={ data.LastUpdated.Format("2006-01-02 15:04:05") }
+				>
+					Updated { formatRelativeTime(data.LastUpdated) }
+				</div>
+				<div class="text-sm text-neutral-500 dark:text-neutral-400">
+					{ fmt.Sprintf("%d allocations", data.Pagination.Total) }
+				</div>
+			</div>
+		</div>
+		<div class="relative bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
+			<!-- Loading indicator positioned over the table -->
+			<div id="allocations-loading" class="htmx-indicator absolute top-2 right-2 z-10">
+				<div class="flex items-center gap-1.5 px-2 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-xs rounded-full shadow-sm">
+					<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span>Refreshing</span>
+				</div>
+			</div>
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "id", Label: "Short ID", Sortable: false, Align: "left", Width: "w-24"},
+					{Key: "taskgroup", Label: "Task Group", Sortable: false, Align: "left", Width: "w-1/6"},
+					{Key: "node", Label: "Node", Sortable: false, Align: "left", Width: "w-1/5"},
+					{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-28"},
+					{Key: "cpu", Label: "CPU", Sortable: false, Align: "right", Width: "w-28"},
+					{Key: "memory", Label: "Memory", Sortable: false, Align: "right", Width: "w-32"},
+					{Key: "created", Label: "Created", Sortable: false, Align: "right", Width: "w-32"},
+				},
+				Striped: true,
+				Hover:   true,
+			}) {
+				@AllocationsTableBody(data)
+			}
+			if data.Pagination.TotalPages > 1 {
+				@components.Pagination(components.PaginationProps{
+					Page:     data.Pagination.Page,
+					PerPage:  data.Pagination.PerPage,
+					Total:    data.Pagination.Total,
+					BaseURL:  "/ui/jobs/" + data.JobID + "/allocations",
+					HxTarget: "#job-detail-panel",
+					HxSwap:   "innerHTML",
+				})
+			}
+		</div>
+	</div>
+}
+
+// AllocationsTableBody renders just the table body with HTMX polling support.
+// This is used both for initial render and for polling updates.
+// The loading indicator (#allocations-loading) is defined in the parent container.
+templ AllocationsTableBody(data AllocationsTabData) {
+	<tbody
+		id="allocations-table-body"
+		class="bg-white divide-y divide-neutral-200 dark:bg-neutral-900 dark:divide-neutral-700"
+		hx-get={ fmt.Sprintf("/ui/jobs/%s/allocations/poll?page=%d&per_page=%d", data.JobID, data.Pagination.Page, data.Pagination.PerPage) }
+		hx-trigger="every 5s [document.visibilityState === 'visible']"
+		hx-swap="outerHTML"
+		hx-indicator="#allocations-loading"
+	>
+		if len(data.Allocations) == 0 {
+			@components.TableEmptyState("No allocations found", "This job has no allocations")
+		} else {
+			for _, alloc := range data.Allocations {
+				@jobAllocationRow(data.JobID, alloc)
+			}
+		}
+	</tbody>
+}
+
+// jobAllocationRow renders a single allocation row in the job allocations table.
+templ jobAllocationRow(jobID string, alloc JobAllocation) {
+	<tr class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+		@components.TableCell("left", "w-24") {
+			<a
+				href={ templ.SafeURL("/ui/allocations/" + alloc.ID) }
+				hx-get={ "/ui/allocations/" + alloc.ID }
+				hx-target="#main-content"
+				hx-push-url="true"
+				class="font-mono text-xs text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 hover:underline"
+			>
+				{ alloc.ShortID }
+			</a>
+		}
+		@components.TableCell("left", "w-1/6") {
+			<span class="text-neutral-700 dark:text-neutral-300">
+				{ alloc.TaskGroup }
+			</span>
+		}
+		@components.TableCell("left", "w-1/5") {
+			<div class="text-neutral-900 dark:text-neutral-100 text-sm">
+				{ alloc.NodeName }
+			</div>
+			<div class="text-xs font-mono text-neutral-500 dark:text-neutral-400">
+				{ truncateID(alloc.NodeID) }
+			</div>
+		}
+		@components.TableCell("center", "w-28") {
+			@components.Badge(components.BadgeProps{
+				Variant: allocationStatusVariant(alloc.Status),
+				Dot:     true,
+				Size:    "sm",
+			}) {
+				{ alloc.Status }
+			}
+		}
+		@components.TableCell("right", "w-28") {
+			@resourceUsageBar(alloc.CPU, alloc.CPUMax, "MHz")
+		}
+		@components.TableCell("right", "w-28") {
+			@resourceUsageBar(alloc.Memory, alloc.MemoryMax, "MB")
+		}
+		@components.TableCell("right", "w-32") {
+			<span class="text-sm text-neutral-500 dark:text-neutral-400" title={ alloc.Created.Format("2006-01-02 15:04:05") }>
+				{ formatRelativeTime(alloc.Created) }
+			</span>
+		}
+	</tr>
+}
+
+// resourceUsageBar renders a small progress bar with usage text.
+templ resourceUsageBar(used, max int, unit string) {
+	<div class="flex flex-col items-end gap-0.5">
+		<span class="text-xs text-neutral-600 dark:text-neutral-400">
+			{ fmt.Sprintf("%d / %d %s", used, max, unit) }
+		</span>
+		<div class="w-16 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+			<div
+				class={ getUsageBarColorClass(used, max) }
+				style={ fmt.Sprintf("width: %d%%", calculateUsagePercent(used, max)) }
+			></div>
+		</div>
+	</div>
+}
+
+// allocationStatusVariant maps allocation status to badge variant.
+func allocationStatusVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "complete":
+		return "info"
+	case "failed":
+		return "error"
+	case "lost":
+		return "error"
+	default:
+		return "neutral"
+	}
+}
+
+// truncateID returns the first 8 characters of an ID.
+func truncateID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
+// formatRelativeTime formats a time as relative (e.g., "2h ago").
+func formatRelativeTime(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1m ago"
+		}
+		return fmt.Sprintf("%dm ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1h ago"
+		}
+		return fmt.Sprintf("%dh ago", hours)
+	} else {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1d ago"
+		}
+		return fmt.Sprintf("%dd ago", days)
+	}
+}
+
+// calculateUsagePercent calculates the percentage of resource usage.
+func calculateUsagePercent(used, max int) int {
+	if max <= 0 {
+		return 0
+	}
+	percent := (used * 100) / max
+	if percent > 100 {
+		return 100
+	}
+	return percent
+}
+
+// getUsageBarColorClass returns the CSS class for the usage bar based on usage level.
+func getUsageBarColorClass(used, max int) string {
+	percent := calculateUsagePercent(used, max)
+	switch {
+	case percent >= 90:
+		return "h-full bg-error-500 rounded-full transition-all duration-300"
+	case percent >= 70:
+		return "h-full bg-warning-500 rounded-full transition-all duration-300"
+	default:
+		return "h-full bg-success-500 rounded-full transition-all duration-300"
+	}
+}

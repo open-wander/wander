@@ -1,0 +1,128 @@
+package searchpartials
+
+import "fmt"
+import "github.com/open-wander/wander/ui/templates/components"
+
+// SearchResultsProps contains parameters for rendering search results
+type SearchResultsProps struct {
+	Query   string
+	Results []SearchResultGroup
+}
+
+// SearchResultGroup represents a group of search results by type
+type SearchResultGroup struct {
+	Type       string             // e.g., "Jobs", "Allocations", "Nodes"
+	Items      []SearchResultItem
+	Truncated  bool               // Whether results were truncated
+	TotalCount int                // Total number of results in this group
+}
+
+// SearchResultItem represents a single search result
+type SearchResultItem struct {
+	ID    string   // The ID or name of the matched object
+	Scope []string // Parent hierarchy (e.g., [namespace, job, group])
+	URL   string   // URL to navigate to this result
+}
+
+// SearchResults renders the search results dropdown
+templ SearchResults(props SearchResultsProps) {
+	if props.Query == "" {
+		<!-- Empty state when no query -->
+		<div></div>
+	} else if len(props.Results) == 0 {
+		<!-- No results found -->
+		<div class="absolute z-50 mt-2 w-full bg-white rounded-lg shadow-lg border border-neutral-200 max-h-96 overflow-y-auto">
+			<div class="p-4 text-center">
+				<div class="flex flex-col items-center justify-center py-6">
+					@components.Icon(components.IconProps{Name: "search", Size: "lg", Class: "text-neutral-400 mb-2"})
+					<p class="text-sm text-neutral-600">No results found for "{ props.Query }"</p>
+					<p class="text-xs text-neutral-500 mt-1">Try a different search term</p>
+				</div>
+			</div>
+		</div>
+	} else {
+		<!-- Results dropdown -->
+		<div class="absolute z-50 mt-2 w-full bg-white rounded-lg shadow-lg border border-neutral-200 max-h-96 overflow-y-auto">
+			<div class="p-2">
+				<!-- Header -->
+				<div class="px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider border-b border-neutral-100 mb-2">
+					Search Results for "{ props.Query }"
+				</div>
+
+				<!-- Results grouped by type -->
+				for groupIdx, group := range props.Results {
+					<div class={ templ.KV("mt-4", groupIdx > 0) }>
+						<!-- Group header -->
+						<div class="px-3 py-1 text-xs font-semibold text-neutral-700 bg-neutral-50 rounded">
+							{ group.Type }
+							if group.Truncated {
+								<span class="text-neutral-500 font-normal ml-1">(showing first { fmt.Sprintf("%d", len(group.Items)) })</span>
+							}
+						</div>
+
+						<!-- Group items -->
+						<div class="mt-1 space-y-0.5">
+							for _, item := range group.Items {
+								@SearchResultItemComponent(item)
+							}
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	}
+}
+
+// SearchResultItemComponent renders a single search result item
+templ SearchResultItemComponent(item SearchResultItem) {
+	<a
+		href={ templ.SafeURL(item.URL) }
+		hx-get={ item.URL }
+		hx-target="#main-content"
+		hx-swap="innerHTML transition:true"
+		hx-push-url="true"
+		class="block px-3 py-2 rounded hover:bg-primary-50 transition-colors duration-150 group"
+	>
+		<div class="flex items-center justify-between">
+			<div class="flex-1 min-w-0">
+				<!-- ID/Name -->
+				<div class="text-sm font-medium text-neutral-900 group-hover:text-primary-700 truncate">
+					{ item.ID }
+				</div>
+
+				<!-- Scope/hierarchy breadcrumb -->
+				if len(item.Scope) > 0 {
+					<div class="text-xs text-neutral-500 mt-0.5 truncate">
+						{ formatScope(item.Scope) }
+					</div>
+				}
+			</div>
+
+			<!-- Arrow icon -->
+			<div class="ml-2 flex-shrink-0">
+				@components.Icon(components.IconProps{
+					Name:  "chevron-right",
+					Size:  "sm",
+					Class: "text-neutral-400 group-hover:text-primary-600",
+				})
+			</div>
+		</div>
+	</a>
+}
+
+// formatScope formats the scope array into a readable breadcrumb string
+func formatScope(scope []string) string {
+	if len(scope) == 0 {
+		return ""
+	}
+
+	// Join scope elements with "/"
+	result := ""
+	for i, s := range scope {
+		if i > 0 {
+			result += " / "
+		}
+		result += s
+	}
+	return result
+}

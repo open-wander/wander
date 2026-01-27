@@ -1,174 +1,108 @@
-# Project: UI Feature Parity - API Integration
+# Project: UI Migration - Rename and Feature Parity
 
-> Wire up HTMX UI to real Nomad API, replacing mock data with live cluster data
+> Rename ui-htmx to ui, then systematically compare and fix all pages for feature parity with old Ember.js UI
 
-Started: 2026-01-26
-Completed: 2026-01-27
-Status: complete
+Started: 2026-01-27
+Status: in-progress
 
 ---
 
 ## Tasks
 
-### Phase 1: ACL & Authentication (Foundation)
+### Phase 1: Directory Rename
 
-- [x] 1. Create ACL middleware to validate X-Nomad-Token header on all requests
-- [x] 2. Integrate token validation with Nomad ACL API (client.ACLTokens().Self())
-- [x] 3. Store user permissions in request context for downstream handlers
-- [x] 4. Add per-handler permission checks with proper 403 Forbidden responses
-- [x] 5. Implement token expiration handling and refresh logic
-- [x] 6. Wire up Settings page to real token management (store/clear token)
+- [x] 1. Commit current in-progress UI changes
+- [x] 2. Update import in http.go from ui-htmx to ui
+- [x] 3. Rename ui-htmx directory to ui with git mv
+- [x] 4. Regenerate templates and verify build
+- [ ] 5. Commit the rename
 
-### Phase 2: Detail Page API Integration
+### Phase 2: Jobs Section Comparison
 
-- [x] 7. Wire Jobs list to real API: client.Jobs().List() (needs: 1)
-- [x] 8. Wire Job detail to real API: client.Jobs().Info() (needs: 7)
-- [x] 9. Wire Job versions tab to real API: client.Jobs().Versions() (needs: 8)
-- [x] 10. Wire Job allocations tab to real API: client.Jobs().Allocations() (needs: 8)
-- [x] 11. Wire Job deployments tab to real API: client.Jobs().Deployments() (needs: 8)
-- [x] 12. Wire Job evaluations tab to real API: client.Jobs().Evaluations() (needs: 8)
-- [x] 13. Wire Allocations list to real API: client.Allocations().List() (needs: 1)
-- [x] 14. Wire Allocation detail to real API: client.Allocations().Info() (needs: 13)
-- [x] 15. Wire Allocation file browser to real API: client.AllocFS().List() (needs: 14)
-- [x] 16. Wire Allocation file content to real API: client.AllocFS().Cat()/Stat() (needs: 15)
-- [x] 17. Wire Allocation log streaming to real API: client.AllocFS().Logs() via SSE (needs: 14)
-- [x] 18. Wire Clients list to real API: client.Nodes().List() (needs: 1)
-- [x] 19. Wire Client detail to real API: client.Nodes().Info() (needs: 18)
-- [x] 20. Wire Client allocations to real API: client.Nodes().Allocations() (needs: 19)
-- [x] 21. Wire Client stats to real API: client.Nodes().Stats() (needs: 19)
-- [x] 22. Wire Servers list to real API: client.Agent().Members() (needs: 1)
-- [x] 23. Add Server detail page and handler with client.Agent().Self() (needs: 22)
-- [x] 24. Wire Evaluations list to real API: client.Evaluations().List() (needs: 1)
-- [x] 25. Add Evaluation detail page with client.Evaluations().Info() (needs: 24)
-- [x] 26. Wire Namespaces list to real API: client.Namespaces().List() (needs: 1)
+- [ ] 6. Compare Jobs list page vs old app/templates/jobs/index.hbs (needs: 5)
+- [ ] 7. Compare Jobs list filters vs old app/components/job-page.js (needs: 6)
+- [ ] 8. Compare Job detail overview vs old app/templates/jobs/job/index.hbs (needs: 5)
+- [ ] 9. Compare Job definition tab vs old app/templates/jobs/job/definition.hbs (needs: 8)
+- [ ] 10. Compare Job versions tab vs old app/templates/jobs/job/versions.hbs (needs: 8)
+- [ ] 11. Compare Job allocations tab vs old app/templates/jobs/job/allocations.hbs (needs: 8)
+- [ ] 12. Compare Job evaluations tab vs old app/templates/jobs/job/evaluations.hbs (needs: 8)
+- [ ] 13. Compare Job run/submit page vs old app/templates/jobs/run.hbs (needs: 5)
+- [ ] 14. Compare Task group detail vs old app/templates/jobs/job/task-group.hbs (needs: 8)
 
-### Phase 3: Write Operations (Actions)
+### Phase 3: Allocations Section Comparison
 
-- [x] 27. Implement job plan: client.Jobs().Plan() with diff display (needs: 8)
-- [x] 28. Implement job submit/run: client.Jobs().Register() (needs: 27)
-- [x] 29. Implement job stop: client.Jobs().Deregister() (needs: 8)
-- [x] 30. Implement force periodic job: client.Jobs().PeriodicForce() (needs: 8)
-- [x] 31. Implement dispatch parameterized job: client.Jobs().Dispatch() (needs: 8)
-- [x] 32. Implement job version revert: client.Jobs().Revert() (needs: 9)
-- [x] 33. Implement task group scaling: client.Jobs().Scale() (needs: 8)
-- [x] 34. Implement allocation restart: client.Allocations().Restart() (needs: 14)
-- [x] 35. Implement allocation stop: client.Allocations().Stop() (needs: 14)
-- [x] 36. Implement allocation exec: WebSocket to /v1/client/allocation/:id/exec (needs: 14)
-- [x] 37. Implement client drain: client.Nodes().UpdateDrain() (needs: 19)
-- [x] 38. Implement client eligibility toggle: client.Nodes().ToggleEligibility() (needs: 19)
-- [x] 39. Wire Variables list to real API: client.Variables().List() (needs: 1)
-- [x] 40. Wire Variable read to real API: client.Variables().Read() (needs: 39)
-- [x] 41. Implement Variable create: client.Variables().Create() (needs: 40)
-- [x] 42. Implement Variable update: client.Variables().Update() (needs: 40)
-- [x] 43. Implement Variable delete: client.Variables().Delete() (needs: 40)
-- [x] 44. Wire Policies list to real API: client.ACLPolicies().List() (needs: 1)
-- [x] 45. Wire Policy read to real API: client.ACLPolicies().Info() (needs: 44)
-- [x] 46. Implement Policy create/update: client.ACLPolicies().Upsert() (needs: 45)
-- [x] 47. Implement Policy delete: client.ACLPolicies().Delete() (needs: 45)
+- [ ] 15. Compare Allocations list vs old app/templates/allocations.hbs (needs: 5)
+- [ ] 16. Compare Allocation detail vs old app/templates/allocations/allocation/index.hbs (needs: 15)
+- [ ] 17. Compare Task logs vs old app/components/task-log.js (needs: 16)
+- [ ] 18. Compare Task files/FS vs old app/components/fs/browser.js (needs: 16)
+- [ ] 19. Compare Exec terminal vs old app/components/exec-terminal.js (needs: 16)
 
-### Phase 4: Missing Pages
+### Phase 4: Clients Section Comparison
 
-- [x] 48. Create Job submission page with CodeMirror editor (needs: 27, 28)
-- [x] 49. Add job template library to submission page (needs: 48)
-- [x] 50. Create Deployments list handler and page (needs: 11)
-- [x] 51. Create Deployment detail page with task group status (needs: 50)
-- [x] 52. Implement deployment promote action (needs: 51)
-- [x] 53. Implement deployment fail action (needs: 51)
-- [x] 54. Wire CSI Volumes list to real API: client.CSIVolumes().List() (needs: 1)
-- [x] 55. Wire CSI Volume detail to real API: client.CSIVolumes().Info() (needs: 54)
-- [x] 56. Wire CSI Plugins list to real API: client.CSIPlugins().List() (needs: 1)
-- [x] 57. Wire Topology page to real API: build from Nodes + Allocations (needs: 18, 13)
+- [ ] 20. Compare Clients list vs old app/templates/clients/index.hbs (needs: 5)
+- [ ] 21. Compare Client detail vs old app/templates/clients/client/index.hbs (needs: 20)
+- [ ] 22. Compare Client drain vs old app/components/drain-popover.js (needs: 21)
+- [ ] 23. Compare Node allocations display (needs: 21)
 
-### Phase 5: Real-Time Updates
+### Phase 5: Servers Section Comparison
 
-- [x] 58. Add HTMX polling to allocation status on job detail (needs: 10)
-- [x] 59. Implement SSE endpoint for real log streaming from Nomad (needs: 17)
-- [x] 60. Add HTMX polling for deployment progress (needs: 51)
-- [x] 61. Add HTMX polling for evaluation status (needs: 25)
-- [x] 62. Add connection status indicator with reconnection logic (needs: 59)
+- [ ] 24. Compare Servers list vs old app/templates/servers/index.hbs (needs: 5)
+- [ ] 25. Compare Server detail vs old app/templates/servers/server/index.hbs (needs: 24)
 
-### Phase 6: UX Enhancements
+### Phase 6: Topology Comparison
 
-- [x] 63. Implement keyboard shortcuts (g+j=Jobs, g+c=Clients, etc.) (needs: 7)
-- [x] 64. Implement global search with /v1/search/fuzzy endpoint (needs: 1)
-- [x] 65. Create 403 Forbidden error page with ACL message (needs: 4)
-- [x] 66. Create 404 Not Found error page (needs: 1)
-- [x] 67. Create No Leader error page for cluster unavailable state (needs: 1)
-- [x] 68. Verify breadcrumb navigation completeness across all pages (needs: 57)
-- [x] 69. Add region switcher to header with API region parameter (needs: 1)
-- [x] 70. Verify version diff viewer working with real data (needs: 9, 32)
+- [ ] 26. Compare Topology viz vs old app/components/topo-viz.js (needs: 5)
+- [ ] 27. Compare Datacenter view vs old app/components/topo-viz/datacenter.js (needs: 26)
+
+### Phase 7: Variables Section Comparison
+
+- [ ] 28. Compare Variables list vs old app/templates/variables/index.hbs (needs: 5)
+- [ ] 29. Compare Variable detail vs old app/templates/variables/variable/index.hbs (needs: 28)
+- [ ] 30. Compare Variable create/edit vs old app/components/variable-form.js (needs: 28)
+
+### Phase 8: Policies Section Comparison
+
+- [ ] 31. Compare Policies list vs old app/templates/policies/index.hbs (needs: 5)
+- [ ] 32. Compare Policy detail vs old app/templates/policies/policy.hbs (needs: 31)
+- [ ] 33. Compare Policy editor vs old app/components/policy-editor.js (needs: 32)
+
+### Phase 9: CSI Section Comparison
+
+- [ ] 34. Compare CSI Volumes list vs old app/templates/csi/volumes/index.hbs (needs: 5)
+- [ ] 35. Compare CSI Volume detail vs old app/templates/csi/volumes/volume/index.hbs (needs: 34)
+- [ ] 36. Compare CSI Plugins list vs old app/templates/csi/plugins/index.hbs (needs: 34)
+- [ ] 37. Compare CSI Plugin detail vs old app/templates/csi/plugins/plugin/index.hbs (needs: 36)
+
+### Phase 10: Settings & Global Components
+
+- [ ] 38. Compare Token management vs old app/templates/settings/tokens.hbs (needs: 5)
+- [ ] 39. Compare Sidebar/Nav vs old app/components/gutter-menu.js (needs: 5)
+- [ ] 40. Compare Header vs old app/components/global-header.js (needs: 5)
+- [ ] 41. Compare Global search vs old app/components/global-search.js (needs: 5)
+- [ ] 42. Compare Namespace switcher (needs: 39)
+- [ ] 43. Compare Region switcher vs old app/components/region-switcher.js (needs: 40)
+- [ ] 44. Compare Breadcrumbs vs old app/components/app-breadcrumbs.js (needs: 5)
+
+### Phase 11: Final Verification
+
+- [ ] 45. Run go build and go test for full verification (needs: 44)
+- [ ] 46. Runtime testing with wander agent -dev (needs: 45)
 
 ---
 
 ## Notes
 
-### Reference Codebase (IMPORTANT)
-The old Ember.js UI is available at `../wander-old/ui/` for feature parity reference:
-```
-../wander-old/ui/
-├── app/
-│   ├── routes/          # Route logic (jobs/, clients/, allocations/, etc.)
-│   ├── controllers/     # Controller logic with query params, actions
-│   ├── components/      # 123 components with behaviors
-│   ├── templates/       # HBS templates showing UI structure
-│   ├── models/          # Data models (55 models)
-│   ├── adapters/        # API adapters
-│   └── services/        # Services (token, system, etc.)
-```
+### Reference Paths
+- New UI: `/Users/stokvis/dev/wander/wander/ui-htmx/` (will become `/ui/`)
+- Old UI: `/Users/stokvis/dev/wander/wander-old/ui/`
 
-**When implementing a feature, check the old codebase:**
-1. `../wander-old/ui/app/routes/{feature}/` - Route logic
-2. `../wander-old/ui/app/controllers/{feature}.js` - Actions, query params
-3. `../wander-old/ui/app/templates/{feature}/` - UI structure
-4. `../wander-old/ui/app/components/` - Reusable behaviors
+### Comparison Process for Each Task
+1. Read old UI code to understand expected behavior
+2. Read new UI code to understand current implementation
+3. Identify gaps (missing data fetch, wrong template, broken action)
+4. Fix if needed
+5. Mark as done
 
-**Key files for common features:**
-- Jobs: `routes/jobs/`, `controllers/jobs/`, `templates/jobs/`
-- Allocations: `routes/allocations/`, `templates/allocations/`
-- Clients: `routes/clients/`, `templates/clients/`
-- ACL/Token: `services/token.js`, `routes/settings.js`
+### Key Integration File
+`command/agent/http.go:41` - UI import path
 
-### API Client Access
-The Nomad API client is available via the Handler struct. Each handler receives access through dependency injection:
-```go
-type Handler struct {
-    client *api.Client
-    // ...
-}
-```
-
-### ACL Flow
-1. Token comes from `X-Nomad-Token` header or cookie
-2. Middleware validates token via `client.ACLTokens().Self()`
-3. Permissions stored in context
-4. Handlers check permissions before operations
-
-### Error Handling
-- Invalid token: 401 Unauthorized
-- Missing permission: 403 Forbidden
-- Resource not found: 404 Not Found
-- Cluster unavailable: 503 Service Unavailable
-
-### Namespace Handling
-Many API calls require namespace parameter. Get from:
-1. Query parameter `?namespace=foo`
-2. Header `X-Nomad-Namespace`
-3. Default to "default" namespace
-
-### Real-Time Patterns
-- Log streaming: SSE with client.AllocFS().Logs()
-- Exec: WebSocket proxying to Nomad agent
-- Status updates: HTMX polling with `hx-trigger="every 5s"`
-
-### Testing Strategy
-After each task:
-1. Start dev cluster: `nomad agent -dev`
-2. Test with real data
-3. Test with/without ACL token
-4. Verify error handling
-
-### Agent Recommendations
-- Phase 1 (ACL): security-auditor + golang-pro
-- Phase 2-3 (API): golang-pro
-- Phase 4 (Pages): golang-pro + frontend-design
-- Phase 5-6 (Polish): golang-pro + javascript-pro

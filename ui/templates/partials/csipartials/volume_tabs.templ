@@ -1,0 +1,316 @@
+package csipartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// OverviewTab renders the overview tab content for a volume
+templ OverviewTab(volume VolumeDetail) {
+	<div class="p-6 space-y-6">
+		<!-- Volume Information -->
+		<section>
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Volume Information</h3>
+			<div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">ID</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 font-mono">{ volume.ID }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Name</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{ volume.Name }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Namespace</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{ volume.Namespace }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Plugin ID</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{ volume.PluginID }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Provider</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 font-mono">{ volume.Provider }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">External ID</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 font-mono">{ volume.ExternalID }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Access Mode</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{ formatAccessModeDetailed(volume.AccessMode) }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Attach Mode</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{ formatAttachMode(volume.AttachMode) }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Capacity</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{ formatBytes(volume.Capacity) }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Schedulable</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">
+							if volume.Schedulable {
+								<span class="text-green-600 dark:text-green-400">Yes</span>
+							} else {
+								<span class="text-red-600 dark:text-red-400">No</span>
+							}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Created</dt>
+						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">
+							{ volume.Created.Format("Jan 02, 2006 15:04:05 MST") }
+						</dd>
+					</div>
+					if volume.MountOptions != "" {
+						<div class="md:col-span-2">
+							<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Mount Options</dt>
+							<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100 font-mono">{ volume.MountOptions }</dd>
+						</div>
+					}
+				</dl>
+			</div>
+		</section>
+		<!-- Usage Statistics -->
+		<section>
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Usage Statistics</h3>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+					<div class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Total Allocations</div>
+					<div class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", volume.AllocationsCount) }</div>
+				</div>
+				<div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+					<div class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Read Allocations</div>
+					<div class="text-3xl font-bold text-blue-600 dark:text-blue-400">{ fmt.Sprintf("%d", volume.ReadAllocsCount) }</div>
+				</div>
+				<div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+					<div class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Write Allocations</div>
+					<div class="text-3xl font-bold text-primary-600 dark:text-primary-400">{ fmt.Sprintf("%d", volume.WriteAllocsCount) }</div>
+				</div>
+			</div>
+		</section>
+	</div>
+}
+
+// AllocationsTab renders the allocations tab content for a volume
+templ AllocationsTab(volume VolumeDetail) {
+	<div class="p-6">
+		<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Allocations Using This Volume</h3>
+		if len(volume.Allocations) == 0 {
+			<div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-8 text-center">
+				<p class="text-neutral-600 dark:text-neutral-400">No allocations are currently using this volume.</p>
+			</div>
+		} else {
+			<div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
+				<table class="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+					<thead class="bg-neutral-50 dark:bg-neutral-800">
+						<tr>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+								ID
+							</th>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+								Name
+							</th>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+								Job
+							</th>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+								Node
+							</th>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+								Mode
+							</th>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+								Status
+							</th>
+						</tr>
+					</thead>
+					<tbody class="bg-white dark:bg-neutral-900 divide-y divide-neutral-200 dark:divide-neutral-700">
+						for _, alloc := range volume.Allocations {
+							<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+								hx-get={ fmt.Sprintf("/ui/allocations/%s", alloc.ID) }
+								hx-target="#main-content"
+								hx-swap="innerHTML"
+								hx-push-url="true"
+							>
+								<td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-neutral-700 dark:text-neutral-300">
+									{ alloc.ID[:8] }...
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-neutral-100">
+									<a
+										href={ templ.SafeURL(fmt.Sprintf("/ui/allocations/%s", alloc.ID)) }
+										class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+										onclick="event.stopPropagation();"
+										hx-get={ fmt.Sprintf("/ui/allocations/%s", alloc.ID) }
+										hx-target="#main-content"
+										hx-swap="innerHTML"
+										hx-push-url="true"
+									>
+										{ alloc.Name }
+									</a>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-300">
+									<a
+										href={ templ.SafeURL(fmt.Sprintf("/ui/jobs/%s", alloc.JobID)) }
+										class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+										onclick="event.stopPropagation();"
+										hx-get={ fmt.Sprintf("/ui/jobs/%s", alloc.JobID) }
+										hx-target="#main-content"
+										hx-swap="innerHTML"
+										hx-push-url="true"
+									>
+										{ alloc.JobID }
+									</a>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-300">
+									<a
+										href={ templ.SafeURL(fmt.Sprintf("/ui/clients/%s", alloc.NodeID)) }
+										class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+										onclick="event.stopPropagation();"
+										hx-get={ fmt.Sprintf("/ui/clients/%s", alloc.NodeID) }
+										hx-target="#main-content"
+										hx-swap="innerHTML"
+										hx-push-url="true"
+									>
+										{ alloc.NodeName }
+									</a>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap">
+									if alloc.ReadOnly {
+										@components.Badge(components.BadgeProps{
+											Variant: "info",
+											Size:    "sm",
+										}) {
+											Read Only
+										}
+									} else {
+										@components.Badge(components.BadgeProps{
+											Variant: "warning",
+											Size:    "sm",
+										}) {
+											Read/Write
+										}
+									}
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap">
+									@components.Badge(components.BadgeProps{
+										Variant: allocStatusToBadgeVariant(alloc.Status),
+										Dot:     true,
+										Size:    "sm",
+									}) {
+										{ alloc.Status }
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
+
+// HealthTab renders the health tab content for a volume
+templ HealthTab(volume VolumeDetail) {
+	<div class="p-6 space-y-6">
+		<!-- Controller Health -->
+		if volume.ControllerRequired {
+			<section>
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Controller Health</h3>
+				<div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+						<div>
+							<div class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Expected Controllers</div>
+							<div class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", volume.ControllersExpected) }</div>
+						</div>
+						<div>
+							<div class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Healthy Controllers</div>
+							<div class="text-2xl font-bold">
+								if volume.ControllersHealthy >= volume.ControllersExpected {
+									<span class="text-green-600 dark:text-green-400">{ fmt.Sprintf("%d", volume.ControllersHealthy) }</span>
+								} else {
+									<span class="text-red-600 dark:text-red-400">{ fmt.Sprintf("%d", volume.ControllersHealthy) }</span>
+								}
+							</div>
+						</div>
+					</div>
+					<div class="mt-4">
+						if volume.ControllersHealthy >= volume.ControllersExpected {
+							<div class="flex items-center text-sm text-green-600 dark:text-green-400">
+								<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+								</svg>
+								All controllers are healthy
+							</div>
+						} else {
+							<div class="flex items-center text-sm text-red-600 dark:text-red-400">
+								<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+								</svg>
+								Some controllers are unhealthy
+							</div>
+						}
+					</div>
+				</div>
+			</section>
+		}
+		<!-- Node Health -->
+		<section>
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Node Health</h3>
+			<div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-6">
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<div>
+						<div class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Expected Nodes</div>
+						<div class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", volume.NodesExpected) }</div>
+					</div>
+					<div>
+						<div class="text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Healthy Nodes</div>
+						<div class="text-2xl font-bold">
+							if volume.NodesHealthy >= volume.NodesExpected {
+								<span class="text-green-600 dark:text-green-400">{ fmt.Sprintf("%d", volume.NodesHealthy) }</span>
+							} else {
+								<span class="text-red-600 dark:text-red-400">{ fmt.Sprintf("%d", volume.NodesHealthy) }</span>
+							}
+						</div>
+					</div>
+				</div>
+				<div class="mt-4">
+					if volume.NodesHealthy >= volume.NodesExpected {
+						<div class="flex items-center text-sm text-green-600 dark:text-green-400">
+							<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+							</svg>
+							All nodes are healthy
+						</div>
+					} else {
+						<div class="flex items-center text-sm text-red-600 dark:text-red-400">
+							<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+							</svg>
+							Some nodes are unhealthy
+						</div>
+					}
+				</div>
+			</div>
+		</section>
+	</div>
+}
+
+// allocStatusToBadgeVariant maps allocation status to badge variant
+func allocStatusToBadgeVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "complete":
+		return "info"
+	case "failed":
+		return "error"
+	default:
+		return "neutral"
+	}
+}

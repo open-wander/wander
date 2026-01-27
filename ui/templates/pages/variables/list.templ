@@ -1,0 +1,11 @@
+package variables
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/variablespartials"
+)
+
+// List renders the full variables list page with layout.
+templ List(layoutProps layouts.PageLayoutProps, variablesList []variablespartials.VariableSummary, sortColumn string, sortDir string, searchQuery string, pagination variablespartials.PaginationMeta) {
+	@layouts.PageLayout(layoutProps, variablespartials.ListContent(variablesList, sortColumn, sortDir, searchQuery, pagination))
+}
