@@ -62,9 +62,16 @@ templ serverRow(server ServerSummary) {
 	<tr class={ serverRowClasses(server.Leader) }>
 		@components.TableCell("left", "") {
 			<div class="flex items-center gap-2">
-				<span class="font-medium text-neutral-900 dark:text-neutral-100">
+				<a
+					href={ templ.URL("/ui/servers/" + server.Name) }
+					hx-get={ "/ui/servers/" + server.Name }
+					hx-target="#main-content"
+					hx-swap="innerHTML"
+					hx-push-url="true"
+					class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline"
+				>
 					{ server.Name }
-				</span>
+				</a>
 				if server.Leader {
 					@components.Badge(components.BadgeProps{
 						Variant: "primary",

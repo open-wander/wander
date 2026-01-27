@@ -270,3 +270,37 @@
 - Pattern: Job counts need separate API calls per namespace
 - Files: namespaces.go
 ---
+
+### 2026-01-27 - Tasks 20, 21, 23, 25: Parallel Implementation
+
+**Task 20: Client allocations real API**
+- Switched from Allocations().List() to Nodes().Allocations()
+- More efficient: direct endpoint for node's allocations
+- Pre-allocated result slice, improved error logging
+- Files: clients.go
+
+**Task 21: Client stats real API**
+- Added getNodeStats() using Nodes().Stats(nodeID, queryOpts)
+- Created ClientStats struct with CPU, Memory, Disk breakdown
+- Added utilization bars with color coding (green/yellow/red)
+- Graceful nil handling for unreachable nodes
+- Pattern: Stats endpoint may fail if node unreachable
+- Files: clients.go, detail.templ
+
+**Task 23: Server detail page**
+- Created ServerDetail struct with all server metadata
+- Uses Agent().Members() to find server by name
+- Shows: Name, Address, Status, Leader, Region, DC, versions
+- Tags map display, Stats map (if Self())
+- Made server names clickable links in list
+- Pattern: Agent endpoints don't require ACL tokens
+- Files: servers.go, serverspartials/detail.templ, pages/servers/detail.templ
+
+**Task 25: Evaluation detail page**
+- Created detail page with client.Evaluations().Info()
+- Shows: placement failures, related evals, queued allocations
+- Links to Job, Node, Deployment, related evaluations
+- Comprehensive FailedTGAllocs display with metrics
+- Added conversion helpers for ResourcesExhausted/ScoreMetaData
+- Files: evaluations.go, evaluationspartials/detail_content.templ, pages/evaluations/detail.templ
+---

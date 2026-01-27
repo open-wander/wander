@@ -523,6 +523,9 @@ func (h *ClientsHandler) getClientDetail(clientID string, token string) (clients
 	// Fetch allocations for this node
 	allocations := h.getNodeAllocations(clientID, token)
 
+	// Fetch real-time stats from the node
+	stats := h.getNodeStats(clientID, token)
+
 	// Generate mock resource history (TODO: implement real metrics from Nomad)
 	now := time.Now()
 	cpuHistory := make([]clientspartials.ResourceDataPoint, 0, 48)
@@ -568,6 +571,7 @@ func (h *ClientsHandler) getClientDetail(clientID string, token string) (clients
 			DiskUsed:  diskUsed,
 			DiskTotal: diskTotal,
 		},
+		Stats:         stats,
 		CPUHistory:    cpuHistory,
 		MemoryHistory: memoryHistory,
 		Allocations:   allocations,
@@ -592,20 +596,16 @@ func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clien
 		queryOpts.AuthToken = token
 	}
 
-	// Fetch allocations from the API
-	allocs, _, err := client.Allocations().List(queryOpts)
+	// Fetch allocations for this specific node using the more efficient Nodes API
+	allocs, _, err := client.Nodes().Allocations(nodeID, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch allocations from Nomad API", "error", err)
+		h.handler.logger.Error("failed to fetch node allocations from Nomad API", "nodeID", nodeID, "error", err)
 		return []clientspartials.AllocationSummary{}
 	}
 
-	// Filter allocations for this node and convert to summary
-	result := make([]clientspartials.AllocationSummary, 0)
+	// Convert to summary format
+	result := make([]clientspartials.AllocationSummary, 0, len(allocs))
 	for _, alloc := range allocs {
-		if alloc.NodeID != nodeID {
-			continue
-		}
-
 		// Get resource info from allocation - sum across all tasks
 		cpuUsed := 0
 		var memUsed int64
@@ -626,6 +626,84 @@ func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clien
 			CPUUsed:   cpuUsed,
 			MemUsed:   memUsed,
 		})
+	}
+
+	return result
+}
+
+// getNodeStats fetches real-time resource stats for a specific node.
+// Returns nil if stats are unavailable (e.g., node is down or unreachable).
+func (h *ClientsHandler) getNodeStats(nodeID string, token string) *clientspartials.ClientStats {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, cannot fetch node stats")
+		return nil
+	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch stats from the API
+	stats, err := client.Nodes().Stats(nodeID, queryOpts)
+	if err != nil {
+		h.handler.logger.Warn("failed to fetch node stats from Nomad API", "nodeID", nodeID, "error", err)
+		return nil
+	}
+
+	// Convert API stats to our template type
+	result := &clientspartials.ClientStats{
+		Uptime: stats.Uptime,
+	}
+
+	// Process memory stats
+	if stats.Memory != nil {
+		result.MemoryTotal = stats.Memory.Total
+		result.MemoryUsed = stats.Memory.Used
+		result.MemoryAvailable = stats.Memory.Available
+	}
+
+	// Process CPU stats and calculate average utilization
+	if len(stats.CPU) > 0 {
+		result.CPUCores = make([]clientspartials.CPUCoreStat, 0, len(stats.CPU))
+		totalUtilization := 0.0
+		for _, cpu := range stats.CPU {
+			if cpu != nil {
+				coreStat := clientspartials.CPUCoreStat{
+					Core:   cpu.CPU,
+					User:   cpu.User,
+					System: cpu.System,
+					Idle:   cpu.Idle,
+				}
+				result.CPUCores = append(result.CPUCores, coreStat)
+				// Calculate utilization as 100 - idle
+				totalUtilization += (100.0 - cpu.Idle)
+			}
+		}
+		// Average across all cores
+		if len(result.CPUCores) > 0 {
+			result.CPUUtilization = totalUtilization / float64(len(result.CPUCores))
+		}
+	}
+
+	// Process disk stats
+	if len(stats.DiskStats) > 0 {
+		result.DiskStats = make([]clientspartials.DiskStat, 0, len(stats.DiskStats))
+		for _, disk := range stats.DiskStats {
+			if disk != nil {
+				diskStat := clientspartials.DiskStat{
+					Device:      disk.Device,
+					Mountpoint:  disk.Mountpoint,
+					Size:        disk.Size,
+					Used:        disk.Used,
+					Available:   disk.Available,
+					UsedPercent: disk.UsedPercent,
+				}
+				result.DiskStats = append(result.DiskStats, diskStat)
+			}
+		}
 	}
 
 	return result

@@ -3,7 +3,9 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/servers"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/serverspartials"
@@ -21,7 +23,7 @@ func NewServersHandler(h *Handler) *ServersHandler {
 	}
 }
 
-// ServeHTTP handles GET requests to the servers list page.
+// ServeHTTP handles requests to the servers endpoints.
 // It renders the servers list using the page layout, supporting both
 // full page loads and HTMX partial updates.
 func (h *ServersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +38,12 @@ func (h *ServersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Handle /ui/servers exactly (list page)
 	if path == "/ui/servers" {
 		h.List(w, r)
+		return
+	}
+
+	// Handle /ui/servers/{name} (detail page)
+	if strings.HasPrefix(path, "/ui/servers/") {
+		h.Detail(w, r)
 		return
 	}
 
@@ -151,4 +159,130 @@ func (h *ServersHandler) getServersList() []serverspartials.ServerSummary {
 
 	h.handler.logger.Debug("fetched server members from Nomad API", "count", len(result))
 	return result
+}
+
+// Detail handles the server detail page
+func (h *ServersHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	// Extract server name from path
+	serverName := strings.TrimPrefix(r.URL.Path, "/ui/servers/")
+	serverName = strings.TrimSuffix(serverName, "/")
+
+	// Log the request
+	h.handler.logger.Debug("server detail request", "serverName", serverName, "htmx", IsHTMXFromRequest(r))
+
+	// Get server detail data from Nomad API
+	serverDetail, found := h.getServerDetail(serverName)
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		serverDetail.Name+" - Server Detail - Wander",
+		"Server detail for "+serverDetail.Name,
+		"/ui/servers/"+serverName,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Servers", URL: "/ui/servers"},
+			{Label: serverDetail.Name, URL: ""},
+		},
+	)
+
+	// Render full page or partial based on HTMX request
+	err := Render(w, r,
+		servers.Detail(layoutProps, serverDetail),                // Full page with layout
+		serverspartials.DetailContent(serverDetail), // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render server detail", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// getServerDetail fetches detailed information for a specific server by name.
+// It uses both Members() to get the server info and Self() if it's the connected server.
+func (h *ServersHandler) getServerDetail(serverName string) (serverspartials.ServerDetail, bool) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty server detail")
+		return serverspartials.ServerDetail{}, false
+	}
+
+	// Fetch server members from the API
+	serverMembers, err := client.Agent().Members()
+	if err != nil {
+		h.handler.logger.Error("failed to fetch server members from Nomad API", "error", err)
+		return serverspartials.ServerDetail{}, false
+	}
+
+	// Find the requested server in the members list
+	var targetMember *api.AgentMember
+	for _, member := range serverMembers.Members {
+		if member.Name == serverName {
+			targetMember = member
+			break
+		}
+	}
+
+	if targetMember == nil {
+		h.handler.logger.Debug("server not found in members list", "serverName", serverName)
+		return serverspartials.ServerDetail{}, false
+	}
+
+	// Get the current leader to check if this server is the leader
+	leaderAddr := ""
+	if leaderInfo, err := client.Status().Leader(); err == nil {
+		leaderAddr = leaderInfo
+	}
+
+	// Build the full address
+	addr := fmt.Sprintf("%s:%d", targetMember.Addr, targetMember.Port)
+
+	// Check if this member is the leader
+	isLeader := false
+	if leaderAddr != "" {
+		isLeader = addr == leaderAddr || targetMember.Addr+":4647" == leaderAddr
+	}
+
+	// Extract values from tags
+	region := targetMember.Tags["region"]
+	if region == "" {
+		region = serverMembers.ServerRegion
+	}
+	dc := targetMember.Tags["dc"]
+	if dc == "" {
+		dc = serverMembers.ServerDC
+	}
+	version := targetMember.Tags["build"]
+	raftVersion := targetMember.Tags["raft_vsn"]
+
+	// Build protocol version string
+	protocolVersion := fmt.Sprintf("%d (min: %d, max: %d)",
+		targetMember.ProtocolCur, targetMember.ProtocolMin, targetMember.ProtocolMax)
+
+	// Try to get additional stats from Self() if we're looking at the connected server
+	var stats map[string]map[string]string
+	selfInfo, err := client.Agent().Self()
+	if err == nil && selfInfo.Member.Name == serverName {
+		stats = selfInfo.Stats
+	}
+
+	return serverspartials.ServerDetail{
+		Name:            targetMember.Name,
+		Address:         addr,
+		Status:          targetMember.Status,
+		Leader:          isLeader,
+		Region:          region,
+		Datacenter:      dc,
+		Version:         version,
+		ProtocolVersion: protocolVersion,
+		RaftVersion:     raftVersion,
+		BuildDate:       targetMember.Tags["build_date"],
+		Revision:        targetMember.Tags["revision"],
+		Tags:            targetMember.Tags,
+		Stats:           stats,
+	}, true
 }

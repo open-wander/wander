@@ -26,6 +26,8 @@ type ClientDetail struct {
 	Meta        map[string]string
 	Events      []ClientEvent
 	Drivers     map[string]DriverInfo
+	// Real-time resource stats from node (if available)
+	Stats *ClientStats
 	// Resource history for charts (mock data for now)
 	CPUHistory    []ResourceDataPoint
 	MemoryHistory []ResourceDataPoint
@@ -59,6 +61,40 @@ type ClientResources struct {
 	MemTotal  int64
 	DiskUsed  int64
 	DiskTotal int64
+}
+
+// ClientStats represents real-time resource utilization stats from a client node
+type ClientStats struct {
+	// CPU utilization percentage (0-100) averaged across all cores
+	CPUUtilization float64
+	// Per-core CPU stats
+	CPUCores []CPUCoreStat
+	// Memory stats
+	MemoryTotal     uint64
+	MemoryUsed      uint64
+	MemoryAvailable uint64
+	// Disk stats
+	DiskStats []DiskStat
+	// Uptime in seconds
+	Uptime uint64
+}
+
+// CPUCoreStat represents stats for a single CPU core
+type CPUCoreStat struct {
+	Core   string
+	User   float64
+	System float64
+	Idle   float64
+}
+
+// DiskStat represents stats for a disk mount
+type DiskStat struct {
+	Device      string
+	Mountpoint  string
+	Size        uint64
+	Used        uint64
+	Available   uint64
+	UsedPercent float64
 }
 
 // AllocationSummary represents a summary of an allocation running on this client
@@ -249,6 +285,78 @@ templ OverviewTab(client ClientDetail) {
 				</div>
 			</div>
 		</div>
+		<!-- Real-time Resource Stats Section -->
+		if client.Stats != nil {
+			<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Real-time Resource Stats</h3>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+					<!-- CPU Utilization -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU Utilization</span>
+							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+								{ fmt.Sprintf("%.1f%%", client.Stats.CPUUtilization) }
+							</span>
+						</div>
+						@utilizationBar(client.Stats.CPUUtilization)
+						if len(client.Stats.CPUCores) > 0 {
+							<div class="mt-3 text-xs text-neutral-600 dark:text-neutral-400">
+								<details class="cursor-pointer">
+									<summary class="hover:text-neutral-900 dark:hover:text-neutral-100">
+										{ fmt.Sprintf("%d cores", len(client.Stats.CPUCores)) }
+									</summary>
+									<div class="mt-2 space-y-1 pl-2">
+										for _, core := range client.Stats.CPUCores {
+											<div class="flex justify-between">
+												<span>{ core.Core }:</span>
+												<span>{ fmt.Sprintf("%.1f%% (U:%.1f%% S:%.1f%%)", 100-core.Idle, core.User, core.System) }</span>
+											</div>
+										}
+									</div>
+								</details>
+							</div>
+						}
+					</div>
+					<!-- Memory Usage -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory Usage</span>
+							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+								{ formatBytes(client.Stats.MemoryUsed) } / { formatBytes(client.Stats.MemoryTotal) }
+							</span>
+						</div>
+						@bytesBar(client.Stats.MemoryUsed, client.Stats.MemoryTotal)
+						<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+							{ fmt.Sprintf("%d%% used, %s available", calculateBytesPercentage(client.Stats.MemoryUsed, client.Stats.MemoryTotal), formatBytes(client.Stats.MemoryAvailable)) }
+						</div>
+					</div>
+					<!-- Disk Usage -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk Usage</span>
+						</div>
+						if len(client.Stats.DiskStats) > 0 {
+							<div class="space-y-2">
+								for _, disk := range client.Stats.DiskStats {
+									<div class="text-xs">
+										<div class="flex justify-between mb-1">
+											<span class="text-neutral-600 dark:text-neutral-400 truncate" title={ disk.Mountpoint }>{ disk.Mountpoint }</span>
+											<span class="text-neutral-900 dark:text-neutral-100 font-medium">{ fmt.Sprintf("%.1f%%", disk.UsedPercent) }</span>
+										</div>
+										@utilizationBar(disk.UsedPercent)
+										<div class="text-neutral-500 dark:text-neutral-500 mt-1">
+											{ formatBytes(disk.Used) } / { formatBytes(disk.Size) }
+										</div>
+									</div>
+								}
+							</div>
+						} else {
+							<div class="text-sm text-neutral-500 dark:text-neutral-400">No disk stats available</div>
+						}
+					</div>
+				</div>
+			</div>
+		}
 		<!-- Resource Utilization Charts Section -->
 		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
 			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Utilization History</h3>
@@ -562,6 +670,78 @@ func memoryBarColor(used int64, total int64) string {
 		return "bg-yellow-500 dark:bg-yellow-600"
 	}
 	return "bg-green-500 dark:bg-green-600"
+}
+
+// utilizationBar renders a progress bar for utilization percentage (0-100)
+templ utilizationBar(percent float64) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", utilizationBarColor(percent) }
+			style={ fmt.Sprintf("width: %.1f%%", percent) }
+		></div>
+	</div>
+}
+
+// bytesBar renders a progress bar for bytes usage
+templ bytesBar(used uint64, total uint64) {
+	<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2">
+		<div
+			class={ "h-2 rounded-full transition-all duration-300", bytesBarColor(used, total) }
+			style={ fmt.Sprintf("width: %d%%", calculateBytesPercentage(used, total)) }
+		></div>
+	</div>
+}
+
+// utilizationBarColor returns the appropriate color class based on utilization percentage
+func utilizationBarColor(percent float64) string {
+	if percent >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percent >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percent >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// bytesBarColor returns the appropriate color class based on bytes usage percentage
+func bytesBarColor(used uint64, total uint64) string {
+	if total == 0 {
+		return "bg-neutral-400 dark:bg-neutral-500"
+	}
+
+	percentage := (used * 100) / total
+
+	if percentage >= 90 {
+		return "bg-red-500 dark:bg-red-600"
+	} else if percentage >= 75 {
+		return "bg-orange-500 dark:bg-orange-600"
+	} else if percentage >= 50 {
+		return "bg-yellow-500 dark:bg-yellow-600"
+	}
+	return "bg-green-500 dark:bg-green-600"
+}
+
+// calculateBytesPercentage calculates percentage of bytes used
+func calculateBytesPercentage(used uint64, total uint64) int {
+	if total == 0 {
+		return 0
+	}
+	return int((used * 100) / total)
+}
+
+// formatBytes formats a byte count into a human-readable string
+func formatBytes(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := uint64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 // sortedKeys returns keys of a map in sorted order

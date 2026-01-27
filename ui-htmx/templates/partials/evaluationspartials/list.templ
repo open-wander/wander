@@ -92,7 +92,7 @@ templ List(evalsList []EvaluationSummary) {
 // evaluationCard renders a single evaluation card
 templ evaluationCard(eval EvaluationSummary) {
 	<a
-		href={ templ.SafeURL("/ui/jobs/" + eval.JobID) }
+		href={ templ.SafeURL("/ui/evaluations/" + eval.ID) }
 		class="block bg-white rounded-lg border border-neutral-200 p-4 hover:border-primary-500 hover:shadow-md transition-all duration-150 cursor-pointer"
 	>
 		<div class="flex items-start justify-between">

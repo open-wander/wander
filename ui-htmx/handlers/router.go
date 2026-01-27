@@ -188,8 +188,9 @@ func (r *Router) registerSettingsRoutes() {
 func (r *Router) registerEvaluationsRoutes() {
 	evaluationsHandler := NewEvaluationsHandler(r.handler)
 
-	// Evaluations handler returns the list of recent evaluations
+	// Evaluations handler handles both list and detail pages
 	r.mux.Handle("/ui/evaluations", r.wrapMiddleware(evaluationsHandler))
+	r.mux.Handle("/ui/evaluations/", r.wrapMiddleware(evaluationsHandler))
 }
 
 // registerAPIRoutes sets up API routes for HTMX actions.
