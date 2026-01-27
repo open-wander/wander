@@ -585,7 +585,8 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		deployments := h.getJobDeployments(r, jobID)
 		err = RenderPartial(w, r, jobspartials.DeploymentsTab(deployments, jobID))
 	case "evaluations":
-		err = RenderPartial(w, r, jobspartials.EvaluationsTab())
+		evaluations := h.getJobEvaluations(r, jobID)
+		err = RenderPartial(w, r, jobspartials.EvaluationsTab(evaluations, jobID))
 	default:
 		http.NotFound(w, r)
 		return
@@ -1864,6 +1865,126 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 
 		result = append(result, deployment)
 	}
+
+	return result
+}
+
+// getJobEvaluations fetches evaluations for a specific job from the Nomad API.
+func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspartials.JobEvaluation {
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	jobName := jobID
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		jobName = jobID[:idx]
+		namespace = jobID[idx+1:]
+	}
+
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty evaluations list")
+		return []jobspartials.JobEvaluation{}
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build query options with namespace
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch evaluations from the API
+	h.handler.logger.Debug("fetching job evaluations from API",
+		"jobID", jobName,
+		"namespace", namespace,
+	)
+
+	evals, _, err := client.Jobs().Evaluations(jobName, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch job evaluations from Nomad API", "error", err)
+		return []jobspartials.JobEvaluation{}
+	}
+
+	h.handler.logger.Debug("fetched job evaluations from API", "count", len(evals))
+
+	// Convert API evaluations to our template type
+	result := make([]jobspartials.JobEvaluation, 0, len(evals))
+	for _, eval := range evals {
+		if eval == nil {
+			continue
+		}
+
+		// Convert create time from nanoseconds to time.Time
+		created := time.Time{}
+		if eval.CreateTime > 0 {
+			created = time.Unix(0, eval.CreateTime)
+		}
+
+		// Check if there are placement failures
+		hasPlacementFailures := len(eval.FailedTGAllocs) > 0
+
+		// Extract placement failures details if any
+		var placementFailures []jobspartials.PlacementFailure
+		if hasPlacementFailures {
+			for tgName, metrics := range eval.FailedTGAllocs {
+				if metrics == nil {
+					continue
+				}
+
+				// Build a summary of the failure reasons
+				var reasons []string
+				if metrics.NodesExhausted > 0 {
+					reasons = append(reasons, fmt.Sprintf("%d nodes exhausted", metrics.NodesExhausted))
+				}
+				if metrics.NodesAvailable != nil {
+					for dc, count := range metrics.NodesAvailable {
+						if count == 0 {
+							reasons = append(reasons, fmt.Sprintf("No nodes available in %s", dc))
+						}
+					}
+				}
+				if metrics.ClassFiltered != nil && len(metrics.ClassFiltered) > 0 {
+					reasons = append(reasons, fmt.Sprintf("%d node classes filtered", len(metrics.ClassFiltered)))
+				}
+				if metrics.ConstraintFiltered != nil && len(metrics.ConstraintFiltered) > 0 {
+					reasons = append(reasons, fmt.Sprintf("%d constraints filtered", len(metrics.ConstraintFiltered)))
+				}
+
+				reasonStr := strings.Join(reasons, ", ")
+				if reasonStr == "" {
+					reasonStr = "Placement failed"
+				}
+
+				placementFailures = append(placementFailures, jobspartials.PlacementFailure{
+					TaskGroup: tgName,
+					Reason:    reasonStr,
+				})
+			}
+		}
+
+		jobEval := jobspartials.JobEvaluation{
+			ID:                   eval.ID,
+			ShortID:              eval.ID[:8], // First 8 chars for short ID
+			Status:               eval.Status,
+			StatusDescription:    eval.StatusDescription,
+			TriggeredBy:          eval.TriggeredBy,
+			Created:              created,
+			HasPlacementFailures: hasPlacementFailures,
+			PlacementFailures:    placementFailures,
+		}
+
+		result = append(result, jobEval)
+	}
+
+	// Sort by creation time (newest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Created.After(result[j].Created)
+	})
 
 	return result
 }

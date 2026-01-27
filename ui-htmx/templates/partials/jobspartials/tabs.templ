@@ -817,10 +817,173 @@ func formatDeploymentTime(t time.Time) string {
 	return t.Format("Jan 2, 2006 at 3:04 PM")
 }
 
-// EvaluationsTab renders the job evaluations tab (placeholder)
-templ EvaluationsTab() {
+// JobEvaluation represents an evaluation for a job
+type JobEvaluation struct {
+	ID                   string
+	ShortID              string
+	Status               string
+	StatusDescription    string
+	TriggeredBy          string
+	Created              time.Time
+	HasPlacementFailures bool
+	PlacementFailures    []PlacementFailure
+}
+
+// PlacementFailure represents a placement failure for a task group
+type PlacementFailure struct {
+	TaskGroup string
+	Reason    string
+}
+
+// EvaluationsTab renders the job evaluations tab with evaluation history
+templ EvaluationsTab(evaluations []JobEvaluation, jobID string) {
 	<div class="p-6">
-		<h3 class="text-lg font-medium text-neutral-900 mb-4">Evaluations</h3>
-		<p class="text-neutral-600">Job evaluations will be displayed here.</p>
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-medium text-neutral-900">Evaluations</h3>
+			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d evaluations", len(evaluations)) }</span>
+		</div>
+		if len(evaluations) == 0 {
+			<div class="text-center py-12">
+				<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900">No evaluations</h3>
+				<p class="mt-1 text-sm text-neutral-500">This job has no evaluation history.</p>
+			</div>
+		} else {
+			<div class="space-y-4">
+				for _, evaluation := range evaluations {
+					@evaluationCard(evaluation, jobID)
+				}
+			</div>
+		}
 	</div>
+}
+
+// evaluationCard renders a single evaluation card
+templ evaluationCard(evaluation JobEvaluation, jobID string) {
+	<div class="bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+		<div class="flex items-start justify-between mb-3">
+			<div class="flex items-center gap-3">
+				<div>
+					<div class="flex items-center gap-2">
+						<span class="text-sm font-mono text-neutral-600">{ evaluation.ShortID }</span>
+						@components.Badge(components.BadgeProps{
+							Variant: evaluationStatusToBadgeVariant(evaluation.Status),
+							Size:    "sm",
+							Dot:     true,
+						}) {
+							{ evaluation.Status }
+						}
+					</div>
+					<div class="mt-1 text-xs text-neutral-500">
+						Triggered by: <span class="font-medium">{ formatTriggeredBy(evaluation.TriggeredBy) }</span> • { formatEvaluationTime(evaluation.Created) }
+					</div>
+				</div>
+			</div>
+		</div>
+		if evaluation.StatusDescription != "" {
+			<p class="text-sm text-neutral-600 mb-3">{ evaluation.StatusDescription }</p>
+		}
+		if evaluation.HasPlacementFailures && len(evaluation.PlacementFailures) > 0 {
+			<div class="mt-3 bg-danger-50 border border-danger-200 rounded-lg p-3">
+				<div class="flex items-start">
+					<svg class="h-5 w-5 text-danger-400 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+					</svg>
+					<div class="flex-1">
+						<h4 class="text-sm font-medium text-danger-800 mb-2">Placement Failures</h4>
+						<ul class="space-y-1">
+							for _, failure := range evaluation.PlacementFailures {
+								<li class="text-sm text-danger-700">
+									<span class="font-medium">{ failure.TaskGroup }:</span> { failure.Reason }
+								</li>
+							}
+						</ul>
+					</div>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// evaluationStatusToBadgeVariant maps evaluation status to badge variant
+func evaluationStatusToBadgeVariant(status string) string {
+	switch status {
+	case "pending":
+		return "warning"
+	case "complete":
+		return "success"
+	case "failed":
+		return "danger"
+	case "blocked":
+		return "warning"
+	case "cancelled":
+		return "neutral"
+	default:
+		return "neutral"
+	}
+}
+
+// formatTriggeredBy formats the triggered by value to be more human-readable
+func formatTriggeredBy(triggeredBy string) string {
+	switch triggeredBy {
+	case "job-register":
+		return "Job Registration"
+	case "job-deregister":
+		return "Job Deregistration"
+	case "periodic-job":
+		return "Periodic Job"
+	case "node-update":
+		return "Node Update"
+	case "node-drain":
+		return "Node Drain"
+	case "alloc-stop":
+		return "Allocation Stop"
+	case "deployment-watcher":
+		return "Deployment Watcher"
+	case "failed-follow-up":
+		return "Failed Follow-up"
+	case "max-disconnect-timeout":
+		return "Max Disconnect Timeout"
+	case "scheduled":
+		return "Scheduled"
+	case "rolling-update":
+		return "Rolling Update"
+	case "queued-allocs":
+		return "Queued Allocations"
+	case "preemption":
+		return "Preemption"
+	default:
+		return triggeredBy
+	}
+}
+
+// formatEvaluationTime formats the evaluation creation time
+func formatEvaluationTime(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else if duration < 7*24*time.Hour {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+	// For older evaluations, show the full date
+	return t.Format("Jan 2, 2006 at 3:04 PM")
 }

@@ -148,3 +148,14 @@
 - Pattern: Only jobs with update stanza have deployments
 - Files: jobs.go, tabs.templ, detail.templ
 ---
+
+### 2026-01-26 - Task 12: Job evaluations tab real API
+- Implemented getJobEvaluations() with client.Jobs().Evaluations()
+- Maps api.Evaluation to jobspartials.JobEvaluation
+- Shows: ID (short), status, triggered by, created time
+- Processes placement failures from FailedTGAllocs map
+- Status badges: pending=warning, complete=success, failed/blocked=danger
+- Formats trigger codes to readable text (job-register, alloc-stop, etc.)
+- Sorts evaluations by creation time (newest first)
+- Files: jobs.go, tabs.templ
+---
