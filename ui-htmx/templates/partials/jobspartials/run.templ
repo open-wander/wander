@@ -63,18 +63,49 @@ templ RunContent(namespace string) {
 							</svg>
 							Clear
 						</button>
-						<!-- Load example button -->
-						<button
-							type="button"
-							@click="loadExample"
-							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
-							title="Load example job"
-						>
-							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-							</svg>
-							Example
-						</button>
+						<!-- Template selector dropdown -->
+						<div class="relative" x-data="{ open: false }" @click.away="open = false">
+							<button
+								type="button"
+								@click="open = !open"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								title="Load job template"
+							>
+								<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+								</svg>
+								Templates
+								<svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
+							</button>
+							<!-- Dropdown menu -->
+							<div
+								x-show="open"
+								x-transition:enter="transition ease-out duration-100"
+								x-transition:enter-start="transform opacity-0 scale-95"
+								x-transition:enter-end="transform opacity-100 scale-100"
+								x-transition:leave="transition ease-in duration-75"
+								x-transition:leave-start="transform opacity-100 scale-100"
+								x-transition:leave-end="transform opacity-0 scale-95"
+								class="absolute left-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
+								style="display: none;"
+							>
+								<div class="py-1" role="menu">
+									<template x-for="template in getTemplates()" :key="template.id">
+										<button
+											type="button"
+											@click="loadTemplate(template.id); open = false"
+											class="w-full text-left px-4 py-3 text-sm hover:bg-neutral-100 focus:outline-none focus:bg-neutral-100"
+											role="menuitem"
+										>
+											<div class="font-medium text-neutral-900" x-text="template.name"></div>
+											<div class="mt-1 text-xs text-neutral-500" x-text="template.description"></div>
+										</button>
+									</template>
+								</div>
+							</div>
+						</div>
 						<!-- Upload file button -->
 						<label
 							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
