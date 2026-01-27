@@ -326,3 +326,30 @@
 - Pattern: WriteOptions.AuthToken for write operations
 - Files: jobs.go
 ---
+
+### 2026-01-27 - Tasks 29, 32, 34, 35: Write Operations
+
+**Task 29: Job stop**
+- Wired Jobs().Deregister(jobID, false, writeOpts)
+- purge=false to stop without removing from system
+- Permission: CanSubmitJob, returns eval ID
+- Files: jobs_api.go
+
+**Task 32: Job version revert**
+- Wired Jobs().Revert(jobID, version, nil, writeOpts, "", "")
+- Namespace extracted from jobID@namespace format
+- Permission: CanSubmitJob, returns eval ID
+- Files: jobs.go
+
+**Task 34: Allocation restart**
+- Wired Allocations().Restart(alloc, "", queryOpts)
+- Fetches alloc first via Info(), empty taskName = all tasks
+- Permission: alloc-lifecycle capability
+- Files: allocations.go
+
+**Task 35: Allocation stop**
+- Wired Allocations().Stop(alloc, queryOpts)
+- Fetches alloc first, returns eval ID from response
+- Permission: alloc-lifecycle capability
+- Files: allocations.go
+---

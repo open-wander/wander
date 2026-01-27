@@ -1322,10 +1322,45 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	// Log the restart request
 	h.handler.logger.Info("restart allocation request", "allocID", allocID)
 
-	// TODO: In a real implementation, this would call the Nomad API:
-	// client.Allocations().Restart(allocID, "", nil)
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available for restart operation")
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Service Unavailable", "message": "Unable to connect to Nomad API.", "duration": 5000}}`)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 
-	// For now, simulate the restart operation
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch allocation info to get the allocation object
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for restart", "allocID", allocID, "error", err)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Error", "message": "Failed to fetch allocation details.", "duration": 5000}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Call the Nomad API to restart the allocation (all tasks)
+	// Empty taskName means restart all tasks
+	err = client.Allocations().Restart(alloc, "", queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to restart allocation", "allocID", allocID, "error", err)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Restart Failed", "message": "Failed to restart allocation.", "duration": 5000}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	h.handler.logger.Info("allocation restarted successfully", "allocID", allocID)
+
 	// Send HX-Trigger header to show toast notification
 	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Restarted", "message": "The allocation `+allocID[:8]+`... has been restarted successfully.", "duration": 5000}}`)
 	// Trigger a page refresh after a short delay to show updated status
@@ -1353,12 +1388,47 @@ func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	// Log the stop request
 	h.handler.logger.Info("stop allocation request", "allocID", allocID)
 
-	// TODO: In a real implementation, this would call the Nomad API:
-	// client.Allocations().Stop(allocID, nil)
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available for stop operation")
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Service Unavailable", "message": "Unable to connect to Nomad API.", "duration": 5000}}`)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 
-	// For now, simulate the stop operation
-	// Send HX-Trigger header to show toast notification
-	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Stopped", "message": "The allocation `+allocID[:8]+`... has been stopped.", "duration": 5000}}`)
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch allocation info first to get the allocation object
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for stop", "allocID", allocID, "error", err)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Allocation Not Found", "message": "Unable to find allocation `+allocID[:8]+`...", "duration": 5000}}`)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Call Allocations().Stop() to stop the allocation
+	stopResp, err := client.Allocations().Stop(alloc, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to stop allocation", "allocID", allocID, "error", err)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Stop Failed", "message": "Failed to stop allocation: `+err.Error()+`", "duration": 5000}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Log success with eval ID
+	h.handler.logger.Info("allocation stopped successfully", "allocID", allocID, "evalID", stopResp.EvalID)
+
+	// Send HX-Trigger header to show toast notification with eval ID
+	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Stopped", "message": "The allocation `+allocID[:8]+`... has been stopped. Evaluation ID: `+stopResp.EvalID[:8]+`...", "duration": 5000}}`)
 	// Trigger a page refresh after a short delay to show updated status
 	w.Header().Set("HX-Refresh", "true")
 	w.WriteHeader(http.StatusOK)

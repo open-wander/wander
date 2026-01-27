@@ -3,6 +3,8 @@ package handlers
 import (
 	"net/http"
 	"strings"
+
+	"github.com/open-wander/wander/api"
 )
 
 // JobsAPIHandler handles API requests for job actions.
@@ -67,12 +69,58 @@ func (h *JobsAPIHandler) StartJob(w http.ResponseWriter, r *http.Request, jobID 
 
 // StopJob handles stopping a job.
 func (h *JobsAPIHandler) StopJob(w http.ResponseWriter, r *http.Request, jobID string) {
-	// TODO: Implement actual Nomad API call to stop the job
-	h.handler.logger.Info("stopping job", "jobID", jobID)
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	jobName := jobID
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		jobName = jobID[:idx]
+		namespace = jobID[idx+1:]
+	}
 
-	// For now, just return a success toast
-	// In production, this would call the Nomad API and handle errors
-	w.Header().Set("HX-Trigger", `{"showToast": {"message": "Job stopped successfully", "type": "success"}}`)
+	// Check permissions - need submit-job capability to stop jobs
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanSubmitJob(namespace) {
+		h.handler.logger.Warn("stop permission denied", "jobID", jobID, "namespace", namespace)
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Permission denied: you do not have the 'submit-job' capability", "type": "error"}}`)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	h.handler.logger.Info("stopping job", "jobID", jobName, "namespace", namespace)
+
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Nomad client not available", "type": "error"}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build write options with namespace and token
+	writeOpts := &api.WriteOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Stop the job (purge=false means just stop, don't remove from system)
+	evalID, _, err := client.Jobs().Deregister(jobName, false, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to stop job", "error", err, "jobID", jobName, "namespace", namespace)
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Failed to stop job: `+err.Error()+`", "type": "error"}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	h.handler.logger.Info("job stopped successfully", "jobID", jobName, "namespace", namespace, "evalID", evalID)
+
+	// Return success with eval ID
+	w.Header().Set("HX-Trigger", `{"showToast": {"message": "Job stopped successfully (Eval: `+evalID[:8]+`...)", "type": "success"}}`)
 	w.WriteHeader(http.StatusOK)
 }
 

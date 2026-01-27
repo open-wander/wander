@@ -1864,14 +1864,20 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 	jobID := parts[0]
 	versionStr := parts[1]
 
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		namespace = jobID[idx+1:]
+	}
+
 	// Check permissions - need submit-job capability to revert versions
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanSubmitJob("default") {
-		h.handler.logger.Warn("revert permission denied", "jobID", jobID, "version", versionStr)
+	if perms != nil && !perms.CanSubmitJob(namespace) {
+		h.handler.logger.Warn("revert permission denied", "jobID", jobID, "version", versionStr, "namespace", namespace)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
 		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{
-			Error: "Permission denied: you do not have the 'submit-job' capability in the default namespace",
+			Error: fmt.Sprintf("Permission denied: you do not have the 'submit-job' capability in the %s namespace", namespace),
 		})
 		return
 	}
@@ -1885,32 +1891,68 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract job name from job ID (remove namespace suffix)
+	jobName := jobID
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		jobName = jobID[:idx]
+	}
+
 	// Log the revert operation
 	h.handler.logger.Info("revert job request",
-		"jobID", jobID,
+		"jobID", jobName,
+		"namespace", namespace,
 		"version", version,
 	)
 
-	// TODO: In a real implementation, this would:
-	// 1. Fetch the job definition for the specified version from Nomad API
-	//    using client.Jobs().Versions(jobID, false, nil)
-	// 2. Find the version in the returned list
-	// 3. Re-submit the job with that version's configuration
-	//    using client.Jobs().Register(job, nil)
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{Error: "Nomad client not available"})
+		return
+	}
 
-	// Mock revert result for demonstration
-	mockEvalID := generateMockEvalID()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build write options with namespace and token
+	writeOpts := &api.WriteOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Call the Revert API
+	h.handler.logger.Debug("calling Nomad Revert API",
+		"jobID", jobName,
+		"namespace", namespace,
+		"version", version,
+	)
+
+	registerResp, _, err := client.Jobs().Revert(jobName, uint64(version), nil, writeOpts, "", "")
+	if err != nil {
+		h.handler.logger.Error("failed to revert job", "error", err, "jobID", jobName, "version", version)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{
+			Error: fmt.Sprintf("Failed to revert job: %v", err),
+		})
+		return
+	}
 
 	response := RevertToVersionResponse{
-		EvalID:  mockEvalID,
-		JobID:   jobID,
+		EvalID:  registerResp.EvalID,
+		JobID:   jobName,
 		Version: version,
 	}
 
 	h.handler.logger.Info("job reverted successfully",
-		"jobID", jobID,
+		"jobID", jobName,
 		"version", version,
-		"evalID", mockEvalID,
+		"evalID", registerResp.EvalID,
 	)
 
 	w.Header().Set("Content-Type", "application/json")
