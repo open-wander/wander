@@ -19,7 +19,8 @@ var (
 	GitDescribe string
 
 	// The main version number that is being run at the moment.
-	Version = "0.1.0"
+	// Must be >= 0.8.0 for autopilot to initialize properly
+	Version = "1.0.0"
 
 	// A pre-release marker for the version. If this is "" (empty string)
 	// then it means that it is a final release. Otherwise, this is a pre-release
