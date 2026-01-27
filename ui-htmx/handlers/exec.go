@@ -1,13 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/open-wander/wander/api"
 )
 
 // WebSocket message types for exec terminal communication
@@ -31,19 +33,6 @@ type ExecMessage struct {
 	Rows    int    `json:"rows,omitempty"`    // For resize: terminal rows
 }
 
-// ExecSession represents an active exec session.
-// In production, this would manage the connection to Nomad's exec API.
-type ExecSession struct {
-	allocID string
-	task    string
-	command string
-	cols    int
-	rows    int
-	ws      *websocket.Conn
-	done    chan struct{}
-	mu      sync.Mutex
-}
-
 // ExecHandler handles WebSocket connections for exec sessions.
 type ExecHandler struct {
 	handler  *Handler
@@ -55,8 +44,8 @@ func NewExecHandler(h *Handler) *ExecHandler {
 	return &ExecHandler{
 		handler: h,
 		upgrader: websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
+			ReadBufferSize:  4096,
+			WriteBufferSize: 4096,
 			// In production, add proper origin checking
 			CheckOrigin: func(r *http.Request) bool {
 				return true
@@ -66,7 +55,7 @@ func NewExecHandler(h *Handler) *ExecHandler {
 }
 
 // ServeHTTP handles WebSocket connections for exec.
-// Route: GET /ui/allocations/{id}/exec/ws?task=<task>&command=<cmd>
+// Route: GET /ui/allocations/{id}/exec/ws?task=<task>&command=<cmd>&tty=<bool>
 func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Only handle WebSocket upgrade requests
 	if r.Method != http.MethodGet {
@@ -85,15 +74,70 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Get query parameters
 	task := r.URL.Query().Get("task")
-	command := r.URL.Query().Get("command")
-	if command == "" {
-		command = "/bin/sh"
+	commandStr := r.URL.Query().Get("command")
+	if commandStr == "" {
+		commandStr = "/bin/sh"
+	}
+
+	// Parse command - for now, treat as single string
+	// In production, may want to parse as JSON array
+	command := []string{commandStr}
+
+	// Parse TTY flag (default: true for interactive terminal)
+	tty := true
+	if ttyStr := r.URL.Query().Get("tty"); ttyStr == "false" {
+		tty = false
+	}
+
+	// Validate required parameters
+	if task == "" {
+		h.handler.logger.Warn("exec missing task parameter", "allocID", allocID)
+		http.Error(w, "Missing required parameter: task", http.StatusBadRequest)
+		return
+	}
+
+	// Check permissions - need alloc-exec capability
+	perms := GetPermissionsFromRequest(r)
+	token := GetTokenFromRequest(r)
+
+	// Get allocation to determine namespace
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available for exec")
+		http.Error(w, "Nomad client not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for exec", "allocID", allocID, "error", err)
+		http.Error(w, "Failed to fetch allocation", http.StatusInternalServerError)
+		return
+	}
+
+	namespace := alloc.Namespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// Check alloc-exec permission
+	if perms != nil && !perms.CanExec(namespace) {
+		h.handler.logger.Warn("exec permission denied", "allocID", allocID, "namespace", namespace)
+		http.Error(w, "Permission denied: alloc-exec capability required", http.StatusForbidden)
+		return
 	}
 
 	h.handler.logger.Info("exec WebSocket connection",
 		"allocID", allocID,
 		"task", task,
 		"command", command,
+		"tty", tty,
+		"namespace", namespace,
 		"remoteAddr", r.RemoteAddr,
 	)
 
@@ -104,183 +148,196 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create exec session
-	session := &ExecSession{
-		allocID: allocID,
-		task:    task,
-		command: command,
-		cols:    80,  // default
-		rows:    24,  // default
-		ws:      ws,
-		done:    make(chan struct{}),
-	}
-
-	// Handle the exec session
-	h.handleSession(session)
+	// Handle the exec session with real Nomad API
+	h.handleSession(ws, alloc, task, command, tty, token)
 }
 
 // handleSession manages the bidirectional communication for an exec session.
-// In production, this would connect to Nomad's exec API and proxy data.
-func (h *ExecHandler) handleSession(session *ExecSession) {
-	defer func() {
-		close(session.done)
-		session.ws.Close()
-		h.handler.logger.Info("exec session closed",
-			"allocID", session.allocID,
-			"task", session.task,
-		)
+// Connects to Nomad's exec API and proxies data between client WebSocket and Nomad.
+func (h *ExecHandler) handleSession(clientWS *websocket.Conn, alloc *api.Allocation, task string, command []string, tty bool, token string) {
+	defer clientWS.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create pipes for stdin/stdout/stderr
+	stdinReader, stdinWriter := io.Pipe()
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+
+	// Terminal size channel for TTY resize events
+	termSizeCh := make(chan api.TerminalSize, 1)
+
+	// WaitGroup to track goroutines
+	var wg sync.WaitGroup
+
+	// Goroutine to read from client WebSocket and write to Nomad stdin
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer stdinWriter.Close()
+		h.readFromClientWebSocket(clientWS, stdinWriter, termSizeCh, cancel)
 	}()
 
-	// Start a goroutine for reading from the WebSocket (client -> server)
-	go h.readFromClient(session)
+	// Goroutine to read from Nomad stdout and write to client WebSocket
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		h.writeToClientWebSocket(clientWS, stdoutReader, MsgTypeOutput, cancel)
+	}()
 
-	// For mock implementation: start a demo session
-	h.runMockSession(session)
+	// Goroutine to read from Nomad stderr and write to client WebSocket (if not TTY)
+	if !tty {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			h.writeToClientWebSocket(clientWS, stderrReader, MsgTypeOutput, cancel)
+		}()
+	}
+
+	// Build query options with token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Call Nomad exec API - this blocks until command completes
+	client := h.handler.NomadClient()
+	exitCode, err := client.Allocations().Exec(
+		ctx,
+		alloc,
+		task,
+		tty,
+		command,
+		stdinReader,
+		stdoutWriter,
+		stderrWriter,
+		termSizeCh,
+		queryOpts,
+	)
+
+	// Close output pipes to signal readers to stop
+	stdoutWriter.Close()
+	stderrWriter.Close()
+
+	// Wait for all goroutines to finish
+	wg.Wait()
+
+	// Send exit message to client
+	exitMsg := &ExecMessage{
+		Type: MsgTypeExit,
+		Code: exitCode,
+	}
+
+	if err != nil {
+		h.handler.logger.Error("exec command failed", "allocID", alloc.ID, "task", task, "error", err)
+		exitMsg.Message = err.Error()
+		// If there's an error, also send an error message
+		errMsg := &ExecMessage{
+			Type:    MsgTypeError,
+			Message: err.Error(),
+		}
+		h.sendMessageToClient(clientWS, errMsg)
+	}
+
+	h.sendMessageToClient(clientWS, exitMsg)
+
+	h.handler.logger.Info("exec session completed",
+		"allocID", alloc.ID,
+		"task", task,
+		"exitCode", exitCode,
+	)
 }
 
-// readFromClient reads messages from the WebSocket client.
-func (h *ExecHandler) readFromClient(session *ExecSession) {
+// readFromClientWebSocket reads messages from the client WebSocket and processes them.
+// Handles input data and TTY resize events.
+func (h *ExecHandler) readFromClientWebSocket(ws *websocket.Conn, stdinWriter io.WriteCloser, termSizeCh chan<- api.TerminalSize, cancel context.CancelFunc) {
 	for {
-		select {
-		case <-session.done:
+		_, message, err := ws.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
+				h.handler.logger.Error("WebSocket read error", "error", err)
+			}
+			cancel()
 			return
-		default:
-			_, message, err := session.ws.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					h.handler.logger.Error("WebSocket read error", "error", err)
+		}
+
+		// Parse the message
+		var msg ExecMessage
+		if err := json.Unmarshal(message, &msg); err != nil {
+			h.handler.logger.Warn("invalid message format", "error", err)
+			continue
+		}
+
+		switch msg.Type {
+		case MsgTypeInput:
+			// Write input to stdin pipe (goes to Nomad)
+			if msg.Data != "" {
+				_, err := stdinWriter.Write([]byte(msg.Data))
+				if err != nil {
+					h.handler.logger.Error("failed to write stdin", "error", err)
+					cancel()
+					return
 				}
+			}
+
+		case MsgTypeResize:
+			// Send terminal resize event
+			if msg.Cols > 0 && msg.Rows > 0 {
+				select {
+				case termSizeCh <- api.TerminalSize{Height: msg.Rows, Width: msg.Cols}:
+				default:
+					// Channel full, skip this resize event
+				}
+			}
+
+		case MsgTypeClose:
+			h.handler.logger.Info("client requested close")
+			cancel()
+			return
+
+		default:
+			h.handler.logger.Warn("unknown message type", "type", msg.Type)
+		}
+	}
+}
+
+// writeToClientWebSocket reads from a pipe and writes to the client WebSocket.
+// Used for stdout and stderr streams.
+func (h *ExecHandler) writeToClientWebSocket(ws *websocket.Conn, reader io.Reader, msgType string, cancel context.CancelFunc) {
+	buf := make([]byte, 4096)
+
+	for {
+		n, err := reader.Read(buf)
+		if n > 0 {
+			// Send data to client
+			msg := &ExecMessage{
+				Type: msgType,
+				Data: string(buf[:n]),
+			}
+
+			if err := h.sendMessageToClient(ws, msg); err != nil {
+				h.handler.logger.Error("failed to send to client", "error", err)
+				cancel()
 				return
 			}
+		}
 
-			// Parse the message
-			var msg ExecMessage
-			if err := json.Unmarshal(message, &msg); err != nil {
-				h.handler.logger.Warn("invalid message format", "error", err)
-				continue
+		if err != nil {
+			if err != io.EOF {
+				h.handler.logger.Error("failed to read output", "error", err)
 			}
-
-			h.handleClientMessage(session, &msg)
+			return
 		}
 	}
 }
 
-// handleClientMessage processes messages from the client.
-func (h *ExecHandler) handleClientMessage(session *ExecSession, msg *ExecMessage) {
-	switch msg.Type {
-	case MsgTypeInput:
-		// In production: forward input to Nomad exec
-		h.handler.logger.Debug("exec input received",
-			"allocID", session.allocID,
-			"data", msg.Data,
-		)
-		// For mock: echo back the input (simulate a shell)
-		h.handleMockInput(session, msg.Data)
-
-	case MsgTypeResize:
-		// Update terminal dimensions
-		session.mu.Lock()
-		session.cols = msg.Cols
-		session.rows = msg.Rows
-		session.mu.Unlock()
-
-		h.handler.logger.Debug("exec resize received",
-			"allocID", session.allocID,
-			"cols", msg.Cols,
-			"rows", msg.Rows,
-		)
-		// In production: send resize to Nomad exec
-
-	case MsgTypeClose:
-		h.handler.logger.Info("client requested close",
-			"allocID", session.allocID,
-		)
-		// Signal session to close
-		select {
-		case <-session.done:
-		default:
-			// Send exit message before closing
-			h.sendMessage(session, &ExecMessage{
-				Type: MsgTypeExit,
-				Code: 0,
-			})
-		}
-
-	default:
-		h.handler.logger.Warn("unknown message type",
-			"type", msg.Type,
-		)
-	}
-}
-
-// sendMessage sends a message to the WebSocket client.
-func (h *ExecHandler) sendMessage(session *ExecSession, msg *ExecMessage) error {
-	session.mu.Lock()
-	defer session.mu.Unlock()
-
+// sendMessageToClient sends a message to the WebSocket client.
+func (h *ExecHandler) sendMessageToClient(ws *websocket.Conn, msg *ExecMessage) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 
-	return session.ws.WriteMessage(websocket.TextMessage, data)
-}
-
-// sendOutput sends terminal output to the client.
-func (h *ExecHandler) sendOutput(session *ExecSession, output string) error {
-	return h.sendMessage(session, &ExecMessage{
-		Type: MsgTypeOutput,
-		Data: output,
-	})
-}
-
-// runMockSession runs a mock exec session for demonstration purposes.
-// This simulates a basic shell with some predefined responses.
-func (h *ExecHandler) runMockSession(session *ExecSession) {
-	// Send initial prompt
-	time.Sleep(100 * time.Millisecond) // Small delay for realism
-	h.sendOutput(session, "\r\n")
-	h.sendOutput(session, "\033[32m"+session.task+"\033[0m@\033[34malloc-"+session.allocID[:8]+"\033[0m:~$ ")
-
-	// Wait for session to end
-	<-session.done
-}
-
-// handleMockInput simulates shell input processing.
-// This is a mock implementation - in production, input would be sent to Nomad exec.
-func (h *ExecHandler) handleMockInput(session *ExecSession, input string) {
-	// Echo the input character by character (simulating terminal behavior)
-	for _, char := range input {
-		switch char {
-		case '\r', '\n':
-			// Enter pressed - process command
-			h.sendOutput(session, "\r\n")
-			h.processMockCommand(session)
-		case '\x03':
-			// Ctrl+C
-			h.sendOutput(session, "^C\r\n")
-			h.sendOutput(session, "\033[32m"+session.task+"\033[0m@\033[34malloc-"+session.allocID[:8]+"\033[0m:~$ ")
-		case '\x04':
-			// Ctrl+D - exit
-			h.sendOutput(session, "\r\n")
-			h.sendOutput(session, "\033[33mlogout\033[0m\r\n")
-			h.sendMessage(session, &ExecMessage{
-				Type: MsgTypeExit,
-				Code: 0,
-			})
-		case '\x7f', '\b':
-			// Backspace - send cursor back, space, cursor back
-			h.sendOutput(session, "\b \b")
-		default:
-			// Echo the character
-			h.sendOutput(session, string(char))
-		}
-	}
-}
-
-// processMockCommand simulates command execution.
-func (h *ExecHandler) processMockCommand(session *ExecSession) {
-	// For the mock, we just show a new prompt
-	// In a real implementation, we'd parse the command and show appropriate output
-	h.sendOutput(session, "\033[32m"+session.task+"\033[0m@\033[34malloc-"+session.allocID[:8]+"\033[0m:~$ ")
+	return ws.WriteMessage(websocket.TextMessage, data)
 }
