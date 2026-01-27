@@ -1,0 +1,246 @@
+package deploymentspartials
+
+import (
+	"fmt"
+	"time"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// DeploymentDetail represents detailed information about a deployment
+type DeploymentDetail struct {
+	ID                string
+	ShortID           string
+	JobID             string
+	JobVersion        uint64
+	Namespace         string
+	Status            string
+	StatusDescription string
+	IsMultiregion     bool
+	CreateTime        time.Time
+	CreateTimeAgo     string
+	ModifyTime        time.Time
+	ModifyTimeAgo     string
+	TaskGroups        []TaskGroupStatus
+}
+
+// TaskGroupStatus represents the deployment status of a task group
+type TaskGroupStatus struct {
+	Name            string
+	AutoRevert      bool
+	Promoted        bool
+	DesiredCanaries int
+	DesiredTotal    int
+	PlacedCanaries  int
+	PlacedAllocs    int
+	HealthyAllocs   int
+	UnhealthyAllocs int
+}
+
+// DetailContent renders the deployment detail page content (without layout)
+templ DetailContent(deploy DeploymentDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Deployment Header -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6">
+			<div class="flex items-center justify-between mb-4">
+				<div class="flex items-center space-x-4">
+					<h1 class="text-3xl font-bold text-neutral-900">Deployment</h1>
+					<span class="text-xl font-mono text-neutral-600">{ deploy.ShortID }</span>
+					@components.Badge(components.BadgeProps{
+						Variant: deploymentStatusVariant(deploy.Status),
+						Dot:     true,
+						Size:    "md",
+					}) {
+						{ deploy.Status }
+					}
+				</div>
+			</div>
+
+			<!-- Basic Information Grid -->
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+				<!-- Job ID -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Job</label>
+					<a
+						href={ templ.SafeURL("/ui/jobs/" + deploy.JobID) }
+						class="text-primary-600 hover:text-primary-700 font-medium"
+					>
+						{ deploy.JobID }
+					</a>
+				</div>
+
+				<!-- Job Version -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Job Version</label>
+					<p class="text-neutral-900">{ fmt.Sprintf("%d", deploy.JobVersion) }</p>
+				</div>
+
+				<!-- Namespace -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Namespace</label>
+					<p class="text-neutral-900">{ deploy.Namespace }</p>
+				</div>
+
+				<!-- Status Description -->
+				if deploy.StatusDescription != "" {
+					<div class="md:col-span-2 lg:col-span-3">
+						<label class="block text-sm font-medium text-neutral-500 mb-1">Status Description</label>
+						<p class="text-neutral-900">{ deploy.StatusDescription }</p>
+					</div>
+				}
+
+				<!-- Is Multiregion -->
+				if deploy.IsMultiregion {
+					<div>
+						<label class="block text-sm font-medium text-neutral-500 mb-1">Multi-region</label>
+						<p class="text-neutral-900">Yes</p>
+					</div>
+				}
+
+				<!-- Created -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Created</label>
+					<p class="text-neutral-900">{ deploy.CreateTimeAgo }</p>
+					<p class="text-xs text-neutral-500">{ deploy.CreateTime.Format("2006-01-02 15:04:05 MST") }</p>
+				</div>
+
+				<!-- Modified -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Modified</label>
+					<p class="text-neutral-900">{ deploy.ModifyTimeAgo }</p>
+					<p class="text-xs text-neutral-500">{ deploy.ModifyTime.Format("2006-01-02 15:04:05 MST") }</p>
+				</div>
+			</div>
+		</div>
+
+		<!-- Task Groups Status -->
+		if len(deploy.TaskGroups) > 0 {
+			<div class="bg-white shadow rounded-lg p-6 mb-6">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Task Groups</h2>
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-neutral-200">
+						<thead>
+							<tr>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Promoted</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Auto Revert</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Canaries</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Placed</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Desired</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Healthy</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Unhealthy</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Progress</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-neutral-200">
+							for _, tg := range deploy.TaskGroups {
+								<tr class="hover:bg-neutral-50">
+									<td class="px-6 py-4 whitespace-nowrap">
+										<span class="text-sm font-medium text-neutral-900">{ tg.Name }</span>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										if tg.Promoted {
+											<span class="text-sm text-success-600 font-medium">Yes</span>
+										} else {
+											<span class="text-sm text-neutral-500">No</span>
+										}
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										if tg.AutoRevert {
+											<span class="text-sm text-warning-600 font-medium">Yes</span>
+										} else {
+											<span class="text-sm text-neutral-500">No</span>
+										}
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<span class="text-sm text-neutral-900">
+											{ fmt.Sprintf("%d / %d", tg.PlacedCanaries, tg.DesiredCanaries) }
+										</span>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<span class="text-sm text-neutral-900">{ fmt.Sprintf("%d", tg.PlacedAllocs) }</span>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<span class="text-sm text-neutral-900">{ fmt.Sprintf("%d", tg.DesiredTotal) }</span>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<span class="text-sm text-success-600 font-medium">{ fmt.Sprintf("%d", tg.HealthyAllocs) }</span>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										if tg.UnhealthyAllocs > 0 {
+											<span class="text-sm text-error-600 font-medium">{ fmt.Sprintf("%d", tg.UnhealthyAllocs) }</span>
+										} else {
+											<span class="text-sm text-neutral-500">0</span>
+										}
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<div class="flex items-center space-x-2">
+											<div class="flex-1 bg-neutral-200 rounded-full h-2 w-24">
+												if tg.DesiredTotal > 0 {
+													<div
+														class={ "h-2 rounded-full", progressBarColor(tg.HealthyAllocs, tg.DesiredTotal, tg.UnhealthyAllocs) }
+														style={ templ.SafeCSS(fmt.Sprintf("width: %d%%", (tg.HealthyAllocs*100)/tg.DesiredTotal)) }
+													></div>
+												}
+											</div>
+											<span class="text-xs text-neutral-600 font-medium">
+												{ fmt.Sprintf("%d%%", progressPercentage(tg.HealthyAllocs, tg.DesiredTotal)) }
+											</span>
+										</div>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		}
+
+		<!-- Full ID Section -->
+		<div class="bg-white shadow rounded-lg p-6">
+			<h2 class="text-lg font-semibold text-neutral-900 mb-4">Full ID</h2>
+			<div class="bg-neutral-50 rounded p-4">
+				<code class="text-sm font-mono text-neutral-900 break-all">{ deploy.ID }</code>
+			</div>
+		</div>
+	</div>
+}
+
+// deploymentStatusVariant returns the badge variant for a deployment status
+func deploymentStatusVariant(status string) string {
+	switch status {
+	case "running":
+		return "info"
+	case "successful":
+		return "success"
+	case "paused":
+		return "warning"
+	case "failed":
+		return "error"
+	case "cancelled":
+		return "neutral"
+	default:
+		return "neutral"
+	}
+}
+
+// progressBarColor returns the CSS class for the progress bar color
+func progressBarColor(healthy, desired, unhealthy int) string {
+	if desired == 0 {
+		return "bg-neutral-400"
+	}
+	if unhealthy > 0 {
+		return "bg-error-500"
+	}
+	if healthy >= desired {
+		return "bg-success-500"
+	}
+	return "bg-primary-500"
+}
+
+// progressPercentage calculates the progress percentage
+func progressPercentage(healthy, desired int) int {
+	if desired == 0 {
+		return 0
+	}
+	return (healthy * 100) / desired
+}

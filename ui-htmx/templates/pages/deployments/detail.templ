@@ -1,0 +1,11 @@
+package deployments
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/deploymentspartials"
+)
+
+// Detail renders the deployment detail page with full page layout
+templ Detail(layoutProps layouts.PageLayoutProps, deploy deploymentspartials.DeploymentDetail) {
+	@layouts.PageLayout(layoutProps, deploymentspartials.DetailContent(deploy))
+}

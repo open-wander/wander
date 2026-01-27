@@ -215,6 +215,15 @@ func (h *PoliciesHandler) updatePolicy(w http.ResponseWriter, r *http.Request, p
 	// Log the request
 	h.handler.logger.Debug("policy update request", "policy", policyName)
 
+	// Check permissions - policies require management token
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.IsManagement() {
+		h.handler.logger.Warn("policy update permission denied", "policy", policyName)
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Permission denied: management token required", "type": "error"}}`)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		h.handler.logger.Error("failed to parse form", "error", err)
@@ -226,11 +235,46 @@ func (h *PoliciesHandler) updatePolicy(w http.ResponseWriter, r *http.Request, p
 	description := r.FormValue("description")
 	rules := r.FormValue("rules")
 
-	// Log the update (in real implementation, this would call Nomad API)
 	h.handler.logger.Info("policy update", "policy", policyName, "description", description, "rules_length", len(rules))
 
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Nomad client not available", "type": "error"}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build write options with token
+	writeOpts := &api.WriteOptions{}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Build policy object for upsert
+	policy := &api.ACLPolicy{
+		Name:        policyName,
+		Description: description,
+		Rules:       rules,
+	}
+
+	// Upsert the policy via Nomad API
+	_, err := client.ACLPolicies().Upsert(policy, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to upsert policy", "error", err, "policy", policyName)
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Failed to update policy: `+err.Error()+`", "type": "error"}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	h.handler.logger.Info("policy updated successfully", "policy", policyName)
+
 	// Return success response (HTMX will show a toast)
-	w.Header().Set("HX-Trigger", `{"toast": {"message": "Policy updated successfully", "type": "success"}}`)
+	w.Header().Set("HX-Trigger", `{"showToast": {"message": "Policy updated successfully", "type": "success"}}`)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -239,12 +283,49 @@ func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, p
 	// Log the request
 	h.handler.logger.Debug("policy delete request", "policy", policyName)
 
-	// In real implementation, this would call Nomad API
+	// Check permissions - policies require management token
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.IsManagement() {
+		h.handler.logger.Warn("policy delete permission denied", "policy", policyName)
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Permission denied: management token required", "type": "error"}}`)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
 	h.handler.logger.Info("policy delete", "policy", policyName)
+
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Nomad client not available", "type": "error"}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build write options with token
+	writeOpts := &api.WriteOptions{}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Delete the policy via Nomad API
+	_, err := client.ACLPolicies().Delete(policyName, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to delete policy", "error", err, "policy", policyName)
+		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Failed to delete policy: `+err.Error()+`", "type": "error"}}`)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	h.handler.logger.Info("policy deleted successfully", "policy", policyName)
 
 	// Return success response and redirect to policies list
 	w.Header().Set("HX-Redirect", "/ui/policies")
-	w.Header().Set("HX-Trigger", `{"toast": {"message": "Policy deleted successfully", "type": "success"}}`)
+	w.Header().Set("HX-Trigger", `{"showToast": {"message": "Policy deleted successfully", "type": "success"}}`)
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -34,7 +34,21 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.List(w, r)
+	path := r.URL.Path
+
+	// Handle /ui/deployments exactly (list page)
+	if path == "/ui/deployments" {
+		h.List(w, r)
+		return
+	}
+
+	// Handle /ui/deployments/{id} (detail page)
+	if strings.HasPrefix(path, "/ui/deployments/") {
+		h.Detail(w, r)
+		return
+	}
+
+	http.NotFound(w, r)
 }
 
 // DeploymentSummary represents a summary view of a deployment for processing.
@@ -328,4 +342,134 @@ func (h *DeploymentsHandler) sortDeployments(deploys []DeploymentSummary, column
 		}
 		return less
 	})
+}
+
+// Detail handles the deployment detail page
+func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	// Extract deployment ID from path
+	deploymentID := strings.TrimPrefix(r.URL.Path, "/ui/deployments/")
+	deploymentID = strings.TrimSuffix(deploymentID, "/")
+
+	// Log the request
+	h.handler.logger.Debug("deployment detail request", "deploymentID", deploymentID, "htmx", IsHTMXFromRequest(r))
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get deployment detail from Nomad API
+	deploymentDetail, found := h.getDeploymentDetail(deploymentID, token)
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		deploymentDetail.ShortID+" - Deployment Detail - Wander",
+		"Deployment detail for "+deploymentDetail.ShortID,
+		"/ui/deployments/"+deploymentID,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Deployments", URL: "/ui/deployments"},
+			{Label: deploymentDetail.ShortID, URL: ""},
+		},
+	)
+
+	// Render full page or partial based on HTMX request
+	err := Render(w, r,
+		deployments.Detail(layoutProps, deploymentDetail),                // Full page with layout
+		deploymentspartials.DetailContent(deploymentDetail), // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render deployment detail", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// getDeploymentDetail fetches a specific deployment from the Nomad API.
+func (h *DeploymentsHandler) getDeploymentDetail(deploymentID, token string) (deploymentspartials.DeploymentDetail, bool) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available")
+		return deploymentspartials.DeploymentDetail{}, false
+	}
+
+	// Build query options
+	queryOpts := &api.QueryOptions{}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching deployment from API",
+		"deploymentID", deploymentID,
+		"hasToken", token != "",
+	)
+
+	// Fetch deployment from the API
+	deploy, _, err := client.Deployments().Info(deploymentID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch deployment from Nomad API", "error", err)
+		return deploymentspartials.DeploymentDetail{}, false
+	}
+
+	if deploy == nil {
+		h.handler.logger.Debug("deployment not found", "deploymentID", deploymentID)
+		return deploymentspartials.DeploymentDetail{}, false
+	}
+
+	// Get short ID (first 8 characters)
+	shortID := deploy.ID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+
+	// Calculate time from CreateIndex (not perfect but reasonable)
+	createTime := time.Now().Add(-time.Duration(deploy.ModifyIndex-deploy.CreateIndex) * time.Second)
+	createTimeAgo := formatTimeAgo(createTime)
+
+	// Calculate modify time from ModifyIndex (not perfect but reasonable)
+	modifyTime := time.Now()
+	modifyTimeAgo := formatTimeAgo(modifyTime)
+
+	// Convert task groups to detail format
+	taskGroups := make([]deploymentspartials.TaskGroupStatus, 0, len(deploy.TaskGroups))
+	for name, tg := range deploy.TaskGroups {
+		taskGroups = append(taskGroups, deploymentspartials.TaskGroupStatus{
+			Name:            name,
+			AutoRevert:      tg.AutoRevert,
+			Promoted:        tg.Promoted,
+			DesiredCanaries: tg.DesiredCanaries,
+			DesiredTotal:    tg.DesiredTotal,
+			PlacedCanaries:  len(tg.PlacedCanaries),
+			PlacedAllocs:    tg.PlacedAllocs,
+			HealthyAllocs:   tg.HealthyAllocs,
+			UnhealthyAllocs: tg.UnhealthyAllocs,
+		})
+	}
+
+	// Sort task groups by name for consistent display
+	sort.Slice(taskGroups, func(i, j int) bool {
+		return taskGroups[i].Name < taskGroups[j].Name
+	})
+
+	return deploymentspartials.DeploymentDetail{
+		ID:                deploy.ID,
+		ShortID:           shortID,
+		JobID:             deploy.JobID,
+		JobVersion:        deploy.JobVersion,
+		Namespace:         deploy.Namespace,
+		Status:            deploy.Status,
+		StatusDescription: deploy.StatusDescription,
+		IsMultiregion:     deploy.IsMultiregion,
+		CreateTime:        createTime,
+		CreateTimeAgo:     createTimeAgo,
+		ModifyTime:        modifyTime,
+		ModifyTimeAgo:     modifyTimeAgo,
+		TaskGroups:        taskGroups,
+	}, true
 }

@@ -453,14 +453,6 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Info("variable create request")
 
-	// Check permissions - need write capability to create variables
-	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanWriteVariables("default", "*") {
-		h.handler.logger.Warn("create variable permission denied")
-		http.Error(w, "Permission denied: you do not have the 'write' capability for variables", http.StatusForbidden)
-		return
-	}
-
 	// Parse the form data
 	if err := r.ParseForm(); err != nil {
 		h.handler.logger.Error("failed to parse form", "error", err)
@@ -471,6 +463,19 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Get form values
 	path := strings.TrimSpace(r.FormValue("path"))
 	namespace := strings.TrimSpace(r.FormValue("namespace"))
+
+	// Default namespace if not provided
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// Check permissions - need write capability to create variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanWriteVariables(namespace, path) {
+		h.handler.logger.Warn("create variable permission denied", "namespace", namespace, "path", path)
+		http.Error(w, "Permission denied: you do not have the 'write' capability for variables", http.StatusForbidden)
+		return
+	}
 
 	// Validate path (required)
 	if path == "" {
@@ -486,21 +491,64 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default namespace if not provided
-	if namespace == "" {
-		namespace = "default"
+	// Parse key-value pairs from the form
+	// Form fields are named: item_key_0, item_value_0, item_key_1, item_value_1, etc.
+	items := make(map[string]string)
+	for key, values := range r.Form {
+		if strings.HasPrefix(key, "item_key_") && len(values) > 0 {
+			// Extract the index from item_key_N
+			idx := strings.TrimPrefix(key, "item_key_")
+			itemKey := strings.TrimSpace(values[0])
+
+			// Get corresponding value from item_value_N
+			valueKey := "item_value_" + idx
+			if itemValues, ok := r.Form[valueKey]; ok && len(itemValues) > 0 {
+				itemValue := itemValues[0] // Don't trim value - preserve whitespace
+				if itemKey != "" {
+					items[itemKey] = itemValue
+				}
+			}
+		}
 	}
 
-	// TODO: In a real implementation, this would:
-	// 1. Parse the key-value pairs from the form
-	// 2. Call the Nomad API: client.Variables().Create(variable, nil)
-	// 3. Return success/error response
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		http.Error(w, "Nomad client not available", http.StatusInternalServerError)
+		return
+	}
 
-	// For now, simulate success
-	h.handler.logger.Info("variable created successfully", "path", path, "namespace", namespace)
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build the variable
+	variable := &api.Variable{
+		Namespace: namespace,
+		Path:      path,
+		Items:     items,
+	}
+
+	// Build write options with namespace and token
+	writeOpts := &api.WriteOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Create the variable via Nomad API
+	createdVar, _, err := client.Variables().Create(variable, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to create variable", "error", err, "path", path, "namespace", namespace)
+		http.Error(w, "Failed to create variable: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.handler.logger.Info("variable created successfully", "path", createdVar.Path, "namespace", createdVar.Namespace, "itemCount", len(createdVar.Items))
 
 	// Redirect to the detail page for the new variable
-	w.Header().Set("HX-Redirect", "/ui/variables/"+path)
+	w.Header().Set("HX-Redirect", "/ui/variables/"+url.PathEscape(createdVar.Path))
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -581,20 +629,20 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // Update handles POST/PUT requests to update a variable
 func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
-	// Extract variable path from URL
-	variablePath := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
-	variablePath = strings.TrimSuffix(variablePath, "/")
+	// Extract variable path from URL (URL-encoded)
+	variablePathEncoded := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
+	variablePathEncoded = strings.TrimSuffix(variablePathEncoded, "/")
+
+	// URL decode the path
+	variablePath, err := url.PathUnescape(variablePathEncoded)
+	if err != nil {
+		h.handler.logger.Error("failed to decode variable path", "error", err, "path", variablePathEncoded)
+		http.Error(w, "Invalid variable path", http.StatusBadRequest)
+		return
+	}
 
 	// Log the request
 	h.handler.logger.Info("variable update request", "path", variablePath)
-
-	// Check permissions - need write capability to update variables
-	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanWriteVariables("default", variablePath) {
-		h.handler.logger.Warn("update variable permission denied", "path", variablePath)
-		http.Error(w, "Permission denied: you do not have the 'write' capability for this variable path", http.StatusForbidden)
-		return
-	}
 
 	// Parse the form data
 	if err := r.ParseForm(); err != nil {
@@ -603,13 +651,94 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: In a real implementation, this would:
-	// 1. Parse the key-value pairs from the form
-	// 2. Call the Nomad API: client.Variables().Update(variable, nil)
-	// 3. Return success/error response
+	// Get namespace from query param or form
+	namespace := r.URL.Query().Get("namespace")
+	if namespace == "" {
+		namespace = strings.TrimSpace(r.FormValue("namespace"))
+	}
+	if namespace == "" {
+		namespace = "default"
+	}
 
-	// For now, simulate success
-	h.handler.logger.Info("variable updated successfully", "path", variablePath)
+	// Check permissions - need write capability to update variables
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanWriteVariables(namespace, variablePath) {
+		h.handler.logger.Warn("update variable permission denied", "path", variablePath, "namespace", namespace)
+		http.Error(w, "Permission denied: you do not have the 'write' capability for this variable path", http.StatusForbidden)
+		return
+	}
+
+	// Parse key-value pairs from the form
+	// Form fields are named: item_key_0, item_value_0, item_key_1, item_value_1, etc.
+	items := make(map[string]string)
+	for key, values := range r.Form {
+		if strings.HasPrefix(key, "item_key_") && len(values) > 0 {
+			// Extract the index from item_key_N
+			idx := strings.TrimPrefix(key, "item_key_")
+			itemKey := strings.TrimSpace(values[0])
+
+			// Get corresponding value from item_value_N
+			valueKey := "item_value_" + idx
+			if itemValues, ok := r.Form[valueKey]; ok && len(itemValues) > 0 {
+				itemValue := itemValues[0] // Don't trim value - preserve whitespace
+				if itemKey != "" {
+					items[itemKey] = itemValue
+				}
+			}
+		}
+	}
+
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		http.Error(w, "Nomad client not available", http.StatusInternalServerError)
+		return
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build write options with namespace and token
+	writeOpts := &api.WriteOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// First, read the existing variable to get its ModifyIndex (for proper CAS updates)
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	existingVar, _, err := client.Variables().Read(variablePath, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to read existing variable", "error", err, "path", variablePath, "namespace", namespace)
+		http.Error(w, "Failed to read existing variable: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build the updated variable with the existing ModifyIndex
+	variable := &api.Variable{
+		Namespace:   namespace,
+		Path:        variablePath,
+		Items:       items,
+		ModifyIndex: existingVar.ModifyIndex,
+	}
+
+	// Update the variable via Nomad API
+	updatedVar, _, err := client.Variables().Update(variable, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to update variable", "error", err, "path", variablePath, "namespace", namespace)
+		http.Error(w, "Failed to update variable: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.handler.logger.Info("variable updated successfully", "path", updatedVar.Path, "namespace", updatedVar.Namespace, "itemCount", len(updatedVar.Items))
 
 	// Return success response for HTMX
 	w.Header().Set("Content-Type", "text/html")
@@ -630,27 +759,63 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE requests to delete a variable
 func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	// Extract variable path from URL
-	variablePath := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
-	variablePath = strings.TrimSuffix(variablePath, "/")
+	// Extract variable path from URL (URL-encoded)
+	variablePathEncoded := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
+	variablePathEncoded = strings.TrimSuffix(variablePathEncoded, "/")
+
+	// URL decode the path
+	variablePath, err := url.PathUnescape(variablePathEncoded)
+	if err != nil {
+		h.handler.logger.Error("failed to decode variable path", "error", err, "path", variablePathEncoded)
+		http.Error(w, "Invalid variable path", http.StatusBadRequest)
+		return
+	}
+
+	// Get namespace from query param
+	namespace := r.URL.Query().Get("namespace")
+	if namespace == "" {
+		namespace = "default"
+	}
 
 	// Log the request
-	h.handler.logger.Info("variable delete request", "path", variablePath)
+	h.handler.logger.Info("variable delete request", "path", variablePath, "namespace", namespace)
 
 	// Check permissions - need destroy capability to delete variables
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanDestroyVariables("default", variablePath) {
-		h.handler.logger.Warn("delete variable permission denied", "path", variablePath)
+	if perms != nil && !perms.CanDestroyVariables(namespace, variablePath) {
+		h.handler.logger.Warn("delete variable permission denied", "path", variablePath, "namespace", namespace)
 		http.Error(w, "Permission denied: you do not have the 'destroy' capability for this variable path", http.StatusForbidden)
 		return
 	}
 
-	// TODO: In a real implementation, this would:
-	// 1. Call the Nomad API: client.Variables().Delete(path, nil)
-	// 2. Return success/error response
+	// Get Nomad client
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		http.Error(w, "Nomad client not available", http.StatusInternalServerError)
+		return
+	}
 
-	// For now, simulate success
-	h.handler.logger.Info("variable deleted successfully", "path", variablePath)
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build write options with namespace and token
+	writeOpts := &api.WriteOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		writeOpts.AuthToken = token
+	}
+
+	// Delete the variable via Nomad API
+	_, err = client.Variables().Delete(variablePath, writeOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to delete variable", "error", err, "path", variablePath, "namespace", namespace)
+		http.Error(w, "Failed to delete variable: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.handler.logger.Info("variable deleted successfully", "path", variablePath, "namespace", namespace)
 
 	// Return success response that redirects to list
 	w.Header().Set("HX-Redirect", "/ui/variables")
