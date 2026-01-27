@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/policies"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/policiespartials"
@@ -71,8 +72,17 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get mock policy data
-	policiesList := h.getPoliciesList()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get policy data - try real API first, fall back to mock
+	var policiesList []policiespartials.PolicySummary
+	if h.handler.HasNomadClient() {
+		policiesList = h.getPoliciesFromAPI(token)
+	}
+	if len(policiesList) == 0 {
+		policiesList = h.getPoliciesList()
+	}
 
 	// Parse search query from query string
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
@@ -226,6 +236,48 @@ func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, p
 	w.Header().Set("HX-Redirect", "/ui/policies")
 	w.Header().Set("HX-Trigger", `{"toast": {"message": "Policy deleted successfully", "type": "success"}}`)
 	w.WriteHeader(http.StatusOK)
+}
+
+// getPoliciesFromAPI fetches policies from the Nomad API.
+func (h *PoliciesHandler) getPoliciesFromAPI(token string) []policiespartials.PolicySummary {
+	client := h.handler.NomadClient()
+	if client == nil {
+		return nil
+	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching policies from API", "hasToken", token != "")
+
+	// Fetch policies from the API
+	policiesList, _, err := client.ACLPolicies().List(queryOpts)
+	if err != nil {
+		h.handler.logger.Warn("failed to fetch policies from API", "error", err)
+		return nil
+	}
+
+	h.handler.logger.Debug("fetched policies from API", "count", len(policiesList))
+
+	result := make([]policiespartials.PolicySummary, 0, len(policiesList))
+	for _, policy := range policiesList {
+		// Note: ACLPolicyListStub doesn't include timestamps, only Raft indexes
+		// We use zero time values which templates can handle gracefully
+		result = append(result, policiespartials.PolicySummary{
+			Name:        policy.Name,
+			Description: policy.Description,
+			CreateIndex: policy.CreateIndex,
+			ModifyIndex: policy.ModifyIndex,
+			CreatedAt:   time.Time{}, // ACL policies don't have timestamps in the API
+			ModifiedAt:  time.Time{}, // ACL policies don't have timestamps in the API
+		})
+	}
+
+	return result
 }
 
 // getPoliciesList returns mock policy data.

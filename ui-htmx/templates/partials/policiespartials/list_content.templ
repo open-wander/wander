@@ -120,15 +120,28 @@ templ policyRow(policy PolicySummary) {
 			<div class="text-neutral-600 dark:text-neutral-400">
 				<div>{ formatTimeAgo(policy.ModifiedAt) }</div>
 				<div class="text-xs text-neutral-500 dark:text-neutral-500">
-					{ policy.ModifiedAt.Format("Jan 2, 2006 15:04") }
+					{ formatTimeShort(policy.ModifiedAt) }
 				</div>
 			</div>
 		}
 	</tr>
 }
 
+// formatTimeShort formats a time.Time in short format
+func formatTimeShort(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("Jan 2, 2006 15:04")
+}
+
 // formatTimeAgo formats a time.Time as a relative time string
 func formatTimeAgo(t time.Time) string {
+	// Handle zero time (when timestamp is not available)
+	if t.IsZero() {
+		return "unknown"
+	}
+
 	duration := time.Since(t)
 
 	if duration < time.Minute {

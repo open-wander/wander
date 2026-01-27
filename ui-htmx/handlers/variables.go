@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/variables"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/variablespartials"
@@ -81,14 +82,22 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("variables list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Parse query parameters
+	namespace := r.URL.Query().Get("namespace")
+	if namespace == "" {
+		namespace = "*" // Default to all namespaces
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
 	// Check permissions - need list capability for variables
-	// For now, checking against "*" path to list all variables
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanListVariables("default", "*") {
+	if perms != nil && !perms.CanListVariables(namespace, "*") {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to list variables",
 			Capability: "variables: list",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Contact your administrator to request the 'list' capability for variables",
 				"Variables require specific path-based permissions",
@@ -97,8 +106,8 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get mock variable data
-	variablesList := h.getVariablesList()
+	// Get variable data from API or fallback to mock
+	variablesList := h.getVariablesList(namespace, token)
 
 	// Parse search query from query string
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
@@ -163,9 +172,76 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getVariablesList returns mock variable data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *VariablesHandler) getVariablesList() []variablespartials.VariableSummary {
+// getVariablesList fetches variables from the Nomad API.
+// Falls back to mock data if API is unavailable.
+func (h *VariablesHandler) getVariablesList(namespace, token string) []variablespartials.VariableSummary {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, using mock data")
+		return h.getMockVariablesList()
+	}
+
+	// Build query options with namespace and token
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching variables from API",
+		"namespace", namespace,
+		"hasToken", token != "",
+	)
+
+	// Fetch variables from the API
+	varsList, _, err := client.Variables().List(queryOpts)
+	if err != nil {
+		h.handler.logger.Warn("failed to fetch variables from API", "error", err)
+		return h.getMockVariablesList()
+	}
+
+	h.handler.logger.Debug("fetched variables from API", "count", len(varsList))
+
+	// Convert API response to template format
+	result := make([]variablespartials.VariableSummary, 0, len(varsList))
+	for _, v := range varsList {
+		// Convert ModifyTime (unix nano) to time.Time
+		modifiedTime := time.Unix(0, v.ModifyTime)
+
+		// Extract JobID from path if it follows the pattern nomad/jobs/{jobid}
+		jobID := ""
+		if strings.HasPrefix(v.Path, "nomad/jobs/") {
+			parts := strings.Split(v.Path, "/")
+			if len(parts) >= 3 {
+				jobID = parts[2]
+			}
+		}
+
+		// Note: The API returns VariableMetadata which doesn't include item count
+		// We would need to fetch the full variable to get item count, but that
+		// would be expensive for a list view. For now, set to 0.
+		// TODO: Consider adding item count to VariableMetadata in the API
+		itemCount := 0
+
+		result = append(result, variablespartials.VariableSummary{
+			Path:        v.Path,
+			Namespace:   v.Namespace,
+			CreateIndex: v.CreateIndex,
+			ModifyIndex: v.ModifyIndex,
+			ItemCount:   itemCount,
+			Modified:    modifiedTime,
+			JobID:       jobID,
+		})
+	}
+
+	return result
+}
+
+// getMockVariablesList returns mock variable data.
+// This is used as a fallback when the Nomad API is not available.
+func (h *VariablesHandler) getMockVariablesList() []variablespartials.VariableSummary {
 	now := time.Now()
 
 	return []variablespartials.VariableSummary{

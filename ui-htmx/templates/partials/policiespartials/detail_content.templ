@@ -293,5 +293,8 @@ func escapeForJS(s string) string {
 
 // formatTime formats a time for display
 func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return "unknown"
+	}
 	return t.Format("Jan 2, 2006 at 3:04 PM")
 }

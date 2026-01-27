@@ -197,12 +197,16 @@ func (r *Router) registerEvaluationsRoutes() {
 func (r *Router) registerAPIRoutes() {
 	jobsAPIHandler := NewJobsAPIHandler(r.handler)
 	namespaceAPIHandler := NewNamespaceAPIHandler(r.handler)
+	clientsAPIHandler := NewClientsAPIHandler(r.handler)
 
 	// Job action endpoints
 	r.mux.Handle("/api/jobs/", r.wrapMiddleware(jobsAPIHandler))
 
 	// Namespace API endpoints
 	r.mux.Handle("/api/namespace/", r.wrapMiddleware(namespaceAPIHandler))
+
+	// Client node action endpoints
+	r.mux.Handle("/api/clients/", r.wrapMiddleware(clientsAPIHandler))
 
 	// Auth endpoints for token management
 	r.mux.HandleFunc("/api/v1/auth/token-info", func(w http.ResponseWriter, req *http.Request) {
