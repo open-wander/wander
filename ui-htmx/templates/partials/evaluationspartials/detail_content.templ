@@ -62,7 +62,15 @@ type NodeScoreMeta struct {
 
 // DetailContent renders the evaluation detail page content (without layout)
 templ DetailContent(eval EvaluationDetail) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div
+		id="evaluation-detail"
+		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+		if !isEvaluationTerminal(eval.Status) {
+			hx-get={ "/ui/evaluations/" + eval.ID }
+			hx-trigger="every 3s [document.visibilityState === 'visible']"
+			hx-swap="outerHTML"
+		}
+	>
 		<!-- Evaluation Header -->
 		<div class="bg-white shadow rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between mb-4">
@@ -321,4 +329,32 @@ templ DetailContent(eval EvaluationDetail) {
 			</div>
 		</div>
 	</div>
+}
+
+// isEvaluationTerminal returns true if the evaluation is in a terminal state
+func isEvaluationTerminal(status string) bool {
+	switch status {
+	case "complete", "failed", "canceled":
+		return true
+	default:
+		return false
+	}
+}
+
+// statusVariant returns the badge variant for an evaluation status
+func statusVariant(status string) string {
+	switch status {
+	case "complete":
+		return "success"
+	case "failed":
+		return "error"
+	case "canceled":
+		return "neutral"
+	case "blocked":
+		return "warning"
+	case "pending":
+		return "info"
+	default:
+		return "neutral"
+	}
 }

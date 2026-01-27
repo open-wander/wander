@@ -38,7 +38,15 @@ type TaskGroupStatus struct {
 
 // DetailContent renders the deployment detail page content (without layout)
 templ DetailContent(deploy DeploymentDetail) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div
+		id="deployment-detail"
+		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+		if !isDeploymentTerminal(deploy.Status) {
+			hx-get={ "/ui/deployments/" + deploy.ID }
+			hx-trigger="every 5s [document.visibilityState === 'visible']"
+			hx-swap="outerHTML"
+		}
+	>
 		<!-- Deployment Header -->
 		<div class="bg-white shadow rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between mb-4">
@@ -243,4 +251,14 @@ func progressPercentage(healthy, desired int) int {
 		return 0
 	}
 	return (healthy * 100) / desired
+}
+
+// isDeploymentTerminal returns true if the deployment is in a terminal state
+func isDeploymentTerminal(status string) bool {
+	switch status {
+	case "successful", "failed", "cancelled":
+		return true
+	default:
+		return false
+	}
 }

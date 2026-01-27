@@ -3,8 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/topology"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/topologypartials"
@@ -56,8 +58,11 @@ func (h *TopologyHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("topology request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
-	// Get mock topology data
-	topologyData := h.getTopologyData()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get topology data from Nomad API
+	topologyData := h.getTopologyData(token)
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(
@@ -90,8 +95,11 @@ func (h *TopologyHandler) Data(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("topology data request", "path", r.URL.Path)
 
-	// Get topology data
-	topologyData := h.getTopologyData()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get topology data from Nomad API
+	topologyData := h.getTopologyData(token)
 
 	// Convert to JSON response format
 	response := struct {
@@ -109,104 +117,127 @@ func (h *TopologyHandler) Data(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getTopologyData returns mock topology data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *TopologyHandler) getTopologyData() topologypartials.TopologyData {
-	now := time.Now()
-
-	// Mock datacenters with nodes
-	datacenters := []topologypartials.Datacenter{
-		{
-			Name:   "dc1",
-			Region: "us-west-2",
-			Nodes: []topologypartials.Node{
-				{
-					ID:           "node-1a2b3c4d",
-					Name:         "worker-01.dc1",
-					Status:       "ready",
-					Datacenter:   "dc1",
-					NodeClass:    "compute",
-					Allocations:  5,
-					CPUUsed:      2400,
-					CPUTotal:     8000,
-					MemoryUsed:   8589934592,  // 8 GB
-					MemoryTotal:  17179869184, // 16 GB
-					LastHeartbeat: now.Add(-30 * time.Second),
-				},
-				{
-					ID:           "node-2b3c4d5e",
-					Name:         "worker-02.dc1",
-					Status:       "ready",
-					Datacenter:   "dc1",
-					NodeClass:    "compute",
-					Allocations:  3,
-					CPUUsed:      4200,
-					CPUTotal:     8000,
-					MemoryUsed:   12884901888, // 12 GB
-					MemoryTotal:  17179869184, // 16 GB
-					LastHeartbeat: now.Add(-15 * time.Second),
-				},
-				{
-					ID:           "node-4d5e6f7g",
-					Name:         "worker-04.dc1",
-					Status:       "ready",
-					Datacenter:   "dc1",
-					NodeClass:    "high-memory",
-					Allocations:  8,
-					CPUUsed:      6800,
-					CPUTotal:     16000,
-					MemoryUsed:   25769803776, // 24 GB
-					MemoryTotal:  34359738368, // 32 GB
-					LastHeartbeat: now.Add(-45 * time.Second),
-				},
-			},
-		},
-		{
-			Name:   "dc2",
-			Region: "us-east-1",
-			Nodes: []topologypartials.Node{
-				{
-					ID:           "node-3c4d5e6f",
-					Name:         "worker-03.dc2",
-					Status:       "down",
-					Datacenter:   "dc2",
-					NodeClass:    "storage",
-					Allocations:  0,
-					CPUUsed:      0,
-					CPUTotal:     8000,
-					MemoryUsed:   0,
-					MemoryTotal:  17179869184, // 16 GB
-					LastHeartbeat: now.Add(-5 * time.Minute),
-				},
-				{
-					ID:           "node-5e6f7g8h",
-					Name:         "worker-05.dc2",
-					Status:       "draining",
-					Datacenter:   "dc2",
-					NodeClass:    "compute",
-					Allocations:  2,
-					CPUUsed:      1200,
-					CPUTotal:     8000,
-					MemoryUsed:   4294967296,  // 4 GB
-					MemoryTotal:  17179869184, // 16 GB
-					LastHeartbeat: now.Add(-20 * time.Second),
-				},
-				{
-					ID:           "node-6f7g8h9i",
-					Name:         "worker-06.dc2",
-					Status:       "ready",
-					Datacenter:   "dc2",
-					NodeClass:    "gpu",
-					Allocations:  6,
-					CPUUsed:      5400,
-					CPUTotal:     8000,
-					MemoryUsed:   10737418240, // 10 GB
-					MemoryTotal:  17179869184, // 16 GB
-					LastHeartbeat: now.Add(-10 * time.Second),
-				},
-			},
-		},
+// getTopologyData fetches topology data from the Nomad API.
+// It combines data from Nodes().List() and Allocations().List().
+func (h *TopologyHandler) getTopologyData(token string) topologypartials.TopologyData {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty topology data")
+		return topologypartials.TopologyData{}
 	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch all nodes from the API
+	nodeStubs, _, err := client.Nodes().List(queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch nodes from Nomad API", "error", err)
+		return topologypartials.TopologyData{}
+	}
+
+	h.handler.logger.Debug("fetched nodes from API", "count", len(nodeStubs))
+
+	// Fetch all allocations from the API
+	allocStubs, _, err := client.Allocations().List(queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocations from Nomad API", "error", err)
+		return topologypartials.TopologyData{}
+	}
+
+	h.handler.logger.Debug("fetched allocations from API", "count", len(allocStubs))
+
+	// Group allocations by node ID
+	allocsByNode := make(map[string][]*api.AllocationListStub)
+	for _, alloc := range allocStubs {
+		// Only count running allocations
+		if alloc.ClientStatus == "running" {
+			allocsByNode[alloc.NodeID] = append(allocsByNode[alloc.NodeID], alloc)
+		}
+	}
+
+	// Group nodes by datacenter
+	nodesByDC := make(map[string][]topologypartials.Node)
+	regionByDC := make(map[string]string) // datacenter -> region mapping
+
+	// Build node data
+	for _, nodeStub := range nodeStubs {
+		// Determine composite status
+		status := nodeStub.Status // "ready", "down", "initializing", "disconnected"
+		if nodeStub.Drain {
+			status = "draining"
+		} else if nodeStub.SchedulingEligibility == "ineligible" {
+			status = "ineligible"
+		}
+
+		// Get resource info
+		var cpuTotal, memTotal int64
+		if nodeStub.NodeResources != nil {
+			cpuTotal = nodeStub.NodeResources.Cpu.CpuShares
+			memTotal = nodeStub.NodeResources.Memory.MemoryMB * 1024 * 1024
+		}
+
+		// Calculate used resources from allocations on this node
+		var cpuUsed int64
+		var memUsed int64
+		nodeAllocs := allocsByNode[nodeStub.ID]
+		for _, alloc := range nodeAllocs {
+			if alloc.AllocatedResources != nil && alloc.AllocatedResources.Tasks != nil {
+				for _, taskRes := range alloc.AllocatedResources.Tasks {
+					if taskRes != nil {
+						cpuUsed += int64(taskRes.Cpu.CpuShares)
+						memUsed += int64(taskRes.Memory.MemoryMB) * 1024 * 1024
+					}
+				}
+			}
+		}
+
+		// For topology view, we use current time as a placeholder for last heartbeat
+		// since NodeListStub doesn't include StatusUpdatedAt.
+		// In a detail view, we would fetch the full Node to get the actual StatusUpdatedAt.
+		lastHeartbeat := time.Now()
+
+		node := topologypartials.Node{
+			ID:            nodeStub.ID,
+			Name:          nodeStub.Name,
+			Status:        status,
+			Datacenter:    nodeStub.Datacenter,
+			NodeClass:     nodeStub.NodeClass,
+			Allocations:   len(nodeAllocs),
+			CPUUsed:       int(cpuUsed),
+			CPUTotal:      int(cpuTotal),
+			MemoryUsed:    memUsed,
+			MemoryTotal:   memTotal,
+			LastHeartbeat: lastHeartbeat,
+		}
+
+		nodesByDC[nodeStub.Datacenter] = append(nodesByDC[nodeStub.Datacenter], node)
+
+		// Store region for this datacenter (will be the same for all nodes in the DC)
+		if _, exists := regionByDC[nodeStub.Datacenter]; !exists {
+			// Try to determine region from node attributes or use a default
+			// Nomad doesn't directly expose region in node stubs, so we'll leave it empty or use a sensible default
+			regionByDC[nodeStub.Datacenter] = "" // Can be enhanced by fetching full node details if needed
+		}
+	}
+
+	// Build datacenter list
+	datacenters := make([]topologypartials.Datacenter, 0, len(nodesByDC))
+	for dcName, nodes := range nodesByDC {
+		datacenters = append(datacenters, topologypartials.Datacenter{
+			Name:   dcName,
+			Region: regionByDC[dcName],
+			Nodes:  nodes,
+		})
+	}
+
+	// Sort datacenters by name for consistent ordering
+	sort.Slice(datacenters, func(i, j int) bool {
+		return datacenters[i].Name < datacenters[j].Name
+	})
 
 	// Calculate cluster-wide statistics
 	totalNodes := 0

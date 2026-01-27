@@ -28,13 +28,29 @@ func NewEvaluationsHandler(h *Handler) *EvaluationsHandler {
 
 // ServeHTTP handles GET requests to the evaluations endpoint.
 func (h *EvaluationsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Only allow GET requests
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	path := r.URL.Path
+
+	// Handle /ui/evaluations exactly (list page)
+	if path == "/ui/evaluations" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.List(w, r)
 		return
 	}
 
-	h.List(w, r)
+	// Handle /ui/evaluations/{id} (detail page)
+	if strings.HasPrefix(path, "/ui/evaluations/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.Detail(w, r)
+		return
+	}
+
+	http.NotFound(w, r)
 }
 
 // EvaluationSummary represents a summary view of an evaluation for processing.
@@ -172,6 +188,171 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+// Detail handles the evaluation detail request
+func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
+	// Extract evaluation ID from path
+	evalID := strings.TrimPrefix(r.URL.Path, "/ui/evaluations/")
+	evalID = strings.TrimSuffix(evalID, "/")
+
+	// Log the request
+	h.handler.logger.Debug("evaluation detail request", "evalID", evalID, "htmx", IsHTMXFromRequest(r))
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get evaluation detail
+	evalDetail, found := h.getEvaluationDetail(evalID, token)
+	if !found {
+		http.Error(w, "Evaluation not found", http.StatusNotFound)
+		return
+	}
+
+	// Build layout props
+	layoutProps := h.handler.BaseLayoutProps(
+		"Evaluation "+evalDetail.ShortID+" - Wander",
+		"View Nomad evaluation details",
+		"/ui/evaluations/"+evalID,
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Evaluations", URL: "/ui/evaluations"},
+			{Label: evalDetail.ShortID, URL: ""},
+		},
+	)
+
+	// Render full page or partial based on HTMX request
+	err := Render(w, r,
+		evaluations.Detail(layoutProps, evalDetail),           // Full page with layout
+		evaluationspartials.DetailContent(evalDetail),         // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render evaluation detail", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// getEvaluationDetail fetches a single evaluation from the Nomad API.
+func (h *EvaluationsHandler) getEvaluationDetail(evalID string, token string) (evaluationspartials.EvaluationDetail, bool) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty evaluation detail")
+		return evaluationspartials.EvaluationDetail{ID: evalID}, false
+	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch evaluation from the API
+	eval, _, err := client.Evaluations().Info(evalID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch evaluation from Nomad API", "error", err, "evalID", evalID)
+		return evaluationspartials.EvaluationDetail{ID: evalID}, false
+	}
+
+	// Get short ID (first 8 characters)
+	shortID := evalID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+
+	// Parse timestamps
+	createTime := time.Time{}
+	if eval.CreateTime > 0 {
+		createTime = time.Unix(0, eval.CreateTime)
+	}
+	modifyTime := time.Time{}
+	if eval.ModifyTime > 0 {
+		modifyTime = time.Unix(0, eval.ModifyTime)
+	}
+
+	// Convert failed task group allocations
+	failedTGAllocs := make(map[string]evaluationspartials.AllocationMetric)
+	if eval.FailedTGAllocs != nil {
+		for tgName, metrics := range eval.FailedTGAllocs {
+			failedTGAllocs[tgName] = evaluationspartials.AllocationMetric{
+				NodesEvaluated:     metrics.NodesEvaluated,
+				NodesFiltered:      metrics.NodesFiltered,
+				NodesAvailable:     metrics.NodesAvailable,
+				NodesExhausted:     metrics.NodesExhausted,
+				ClassFiltered:      metrics.ClassFiltered,
+				ConstraintFiltered: metrics.ConstraintFiltered,
+				ClassExhausted:     metrics.ClassExhausted,
+				DimensionExhausted: metrics.DimensionExhausted,
+				QuotaExhausted:     metrics.QuotaExhausted,
+				ResourcesExhausted: convertResourcesMap(metrics.ResourcesExhausted),
+				Scores:             metrics.Scores,
+				ScoreMetaData:      convertScoreMetaData(metrics.ScoreMetaData),
+			}
+		}
+	}
+
+	// Build detail struct
+	detail := evaluationspartials.EvaluationDetail{
+		ID:                eval.ID,
+		ShortID:           shortID,
+		JobID:             eval.JobID,
+		Namespace:         eval.Namespace,
+		Status:            eval.Status,
+		StatusDescription: eval.StatusDescription,
+		Type:              eval.Type,
+		TriggeredBy:       eval.TriggeredBy,
+		Priority:          eval.Priority,
+		CreateTime:        createTime,
+		CreateTimeAgo:     formatTimeAgo(createTime),
+		ModifyTime:        modifyTime,
+		ModifyTimeAgo:     formatTimeAgo(modifyTime),
+		NodeID:            eval.NodeID,
+		DeploymentID:      eval.DeploymentID,
+		NextEval:          eval.NextEval,
+		PreviousEval:      eval.PreviousEval,
+		BlockedEval:       eval.BlockedEval,
+		FailedTGAllocs:    failedTGAllocs,
+		QueuedAllocations: eval.QueuedAllocations,
+	}
+
+	return detail, true
+}
+
+// convertResourcesMap converts API Resources to template Resources
+func convertResourcesMap(resources map[string]*api.Resources) map[string]*evaluationspartials.Resources {
+	if resources == nil {
+		return nil
+	}
+	result := make(map[string]*evaluationspartials.Resources)
+	for k, v := range resources {
+		if v != nil {
+			result[k] = &evaluationspartials.Resources{
+				CPU:      *v.CPU,
+				MemoryMB: *v.MemoryMB,
+				DiskMB:   *v.DiskMB,
+			}
+		}
+	}
+	return result
+}
+
+// convertScoreMetaData converts API NodeScoreMeta to template NodeScoreMeta
+func convertScoreMetaData(scores []*api.NodeScoreMeta) []*evaluationspartials.NodeScoreMeta {
+	if scores == nil {
+		return nil
+	}
+	result := make([]*evaluationspartials.NodeScoreMeta, len(scores))
+	for i, score := range scores {
+		if score != nil {
+			result[i] = &evaluationspartials.NodeScoreMeta{
+				NodeID:    score.NodeID,
+				Scores:    score.Scores,
+				NormScore: score.NormScore,
+			}
+		}
+	}
+	return result
 }
 
 // getEvaluationsList fetches evaluations from the Nomad API with server-side filtering.
