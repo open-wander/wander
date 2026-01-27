@@ -7,6 +7,8 @@ type HeaderProps struct {
 	Breadcrumbs         []Breadcrumb
 	CurrentNamespace    string           // Current selected namespace
 	AvailableNamespaces []NamespaceInfo  // List of available namespaces
+	CurrentRegion       string           // Current selected region
+	AvailableRegions    []RegionInfo     // List of available regions
 }
 
 // UserInfo contains user details for display
@@ -25,6 +27,11 @@ type Breadcrumb struct {
 type NamespaceInfo struct {
 	Name        string // e.g., "default", "production"
 	Description string // e.g., "Default namespace"
+}
+
+// RegionInfo represents a region option
+type RegionInfo struct {
+	Name string // e.g., "us-east-1", "global"
 }
 
 // Header provides the top navigation bar with breadcrumbs, mobile menu toggle, and user menu.
@@ -94,12 +101,48 @@ templ Header(props HeaderProps) {
 					<div id="global-search-results" class="relative"></div>
 				</div>
 			</div>
-			<!-- Right: Connection status, namespace selector and user menu -->
+			<!-- Right: Connection status, region selector, namespace selector and user menu -->
 			<div class="flex items-center space-x-4 flex-shrink-0">
 				<!-- Connection Status Indicator -->
 				@ConnectionStatus(ConnectionStatusProps{
 					ID: "global-connection-status",
 				})
+				<!-- Region Selector -->
+				if len(props.AvailableRegions) > 1 {
+					@Dropdown(DropdownProps{ID: "region-selector", Position: "right", Width: "md", Class: "hidden sm:inline-block"}) {
+						@DropdownTrigger() {
+							<button
+								type="button"
+								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+								aria-label="Select region"
+							>
+								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+								</svg>
+								<span class="text-neutral-700 font-medium">
+									if props.CurrentRegion != "" {
+										{ props.CurrentRegion }
+									} else {
+										global
+									}
+								</span>
+								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+								</svg>
+							</button>
+						}
+						@DropdownMenu(DropdownProps{Position: "right", Width: "md"}) {
+							for _, region := range props.AvailableRegions {
+								@DropdownItemComponent(DropdownItem{
+									Label:    region.Name,
+									HxPost:   "/api/region/select?region=" + region.Name,
+									HxTarget: "body",
+									HxSwap:   "none",
+								})
+							}
+						}
+					}
+				}
 				<!-- Namespace Selector -->
 				if len(props.AvailableNamespaces) > 0 {
 					@Dropdown(DropdownProps{ID: "namespace-selector", Position: "right", Width: "md", Class: "hidden sm:inline-block"}) {

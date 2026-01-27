@@ -20,12 +20,16 @@ type Handler struct {
 	nomadClient *api.Client
 	// Track if we've done the initial namespace fetch
 	namespacesRefreshed bool
+	// Track if we've done the initial regions fetch
+	regionsRefreshed bool
 }
 
-// AppContext holds shared application state like current namespace and user info
+// AppContext holds shared application state like current namespace, region and user info
 type AppContext struct {
 	CurrentNamespace    string
 	AvailableNamespaces []components.NamespaceInfo
+	CurrentRegion       string
+	AvailableRegions    []components.RegionInfo
 	User                *components.UserInfo
 }
 
@@ -66,6 +70,10 @@ func NewHandler(logger hclog.Logger) *Handler {
 			AvailableNamespaces: []components.NamespaceInfo{
 				{Name: "default", Description: "Default namespace"},
 			},
+			CurrentRegion: "global",
+			AvailableRegions: []components.RegionInfo{
+				{Name: "global"},
+			},
 			User: &components.UserInfo{
 				Name:  "Anonymous",
 				Email: "",
@@ -73,8 +81,8 @@ func NewHandler(logger hclog.Logger) *Handler {
 		},
 	}
 
-	// NOTE: Do NOT call refreshNamespaces() here - it would block during server startup
-	// because the HTTP server isn't ready yet. Namespace refresh happens lazily on first request.
+	// NOTE: Do NOT call refreshNamespaces() or refreshRegions() here - it would block during
+	// server startup because the HTTP server isn't ready yet. These refresh lazily on first request.
 
 	return h
 }
@@ -103,6 +111,31 @@ func (h *Handler) refreshNamespaces() {
 	}
 
 	h.logger.Debug("fetched namespaces from Nomad", "count", len(namespaces))
+}
+
+// refreshRegions fetches the list of regions from Nomad and updates the app context.
+func (h *Handler) refreshRegions() {
+	if h.nomadClient == nil {
+		return
+	}
+
+	regions, err := h.nomadClient.Regions().List()
+	if err != nil {
+		// Don't warn about cluster unavailability - it's expected during startup/elections
+		if !IsClusterUnavailableError(err) {
+			h.logger.Warn("failed to fetch regions from Nomad", "error", err)
+		}
+		return
+	}
+
+	h.appContext.AvailableRegions = make([]components.RegionInfo, 0, len(regions))
+	for _, region := range regions {
+		h.appContext.AvailableRegions = append(h.appContext.AvailableRegions, components.RegionInfo{
+			Name: region,
+		})
+	}
+
+	h.logger.Debug("fetched regions from Nomad", "count", len(regions))
 }
 
 // Logger returns the handler's logger instance.
@@ -136,14 +169,29 @@ func (h *Handler) SetCurrentNamespace(ns string) {
 	}
 }
 
+// SetCurrentRegion updates the current region in the app context.
+func (h *Handler) SetCurrentRegion(region string) {
+	h.appContext.CurrentRegion = region
+	// Also update the Nomad client's region
+	if h.nomadClient != nil {
+		h.nomadClient.SetRegion(region)
+	}
+}
+
 // BaseLayoutProps returns PageLayoutProps with common fields pre-filled from app context.
 // Handlers should use this and then fill in page-specific fields.
-// On first call, it lazily fetches namespaces from Nomad if a client is available.
+// On first call, it lazily fetches namespaces and regions from Nomad if a client is available.
 func (h *Handler) BaseLayoutProps(title, description, currentPath string, breadcrumbs []components.Breadcrumb) layouts.PageLayoutProps {
 	// Lazy refresh namespaces on first request
 	if !h.namespacesRefreshed && h.nomadClient != nil {
 		h.refreshNamespaces()
 		h.namespacesRefreshed = true
+	}
+
+	// Lazy refresh regions on first request
+	if !h.regionsRefreshed && h.nomadClient != nil {
+		h.refreshRegions()
+		h.regionsRefreshed = true
 	}
 
 	return layouts.PageLayoutProps{
@@ -154,6 +202,8 @@ func (h *Handler) BaseLayoutProps(title, description, currentPath string, breadc
 		User:                h.appContext.User,
 		CurrentNamespace:    h.appContext.CurrentNamespace,
 		AvailableNamespaces: h.appContext.AvailableNamespaces,
+		CurrentRegion:       h.appContext.CurrentRegion,
+		AvailableRegions:    h.appContext.AvailableRegions,
 	}
 }
 

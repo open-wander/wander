@@ -1,0 +1,321 @@
+package jobspartials
+
+// RunContent renders the job submission form with CodeMirror editor
+templ RunContent(namespace string) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Run a Job</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					Submit a new job definition to Nomad
+				</p>
+			</div>
+		</div>
+		<!-- Job Submission Form -->
+		<div
+			class="bg-white dark:bg-neutral-900 shadow rounded-lg"
+			x-data="jobSubmissionEditor('', 'hcl', '')"
+		>
+			<!-- Header with controls -->
+			<div class="border-b border-neutral-200 dark:border-neutral-700 p-6">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-4">
+						<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Job Definition</h3>
+						<!-- Format Toggle -->
+						<div class="flex items-center gap-2">
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">Format:</span>
+							<div class="inline-flex rounded-md shadow-sm" role="group">
+								<button
+									type="button"
+									@click="setFormat('hcl')"
+									:class="format === 'hcl' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+									class="px-3 py-1.5 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
+								>
+									HCL
+								</button>
+								<button
+									type="button"
+									@click="setFormat('json')"
+									:class="format === 'json' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+									class="px-3 py-1.5 text-sm font-medium border border-l-0 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
+								>
+									JSON
+								</button>
+							</div>
+						</div>
+						<!-- Namespace Display -->
+						<div class="flex items-center gap-2">
+							<span class="text-sm text-neutral-500 dark:text-neutral-400">Namespace:</span>
+							<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">{ namespace }</span>
+						</div>
+					</div>
+					<!-- Action Buttons -->
+					<div class="flex items-center gap-2">
+						<!-- Clear button -->
+						<button
+							type="button"
+							@click="clearEditor"
+							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+							title="Clear editor"
+						>
+							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+							Clear
+						</button>
+						<!-- Load example button -->
+						<button
+							type="button"
+							@click="loadExample"
+							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+							title="Load example job"
+						>
+							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+							</svg>
+							Example
+						</button>
+						<!-- Upload file button -->
+						<label
+							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+							title="Upload job file"
+						>
+							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+							</svg>
+							Upload
+							<input
+								type="file"
+								accept=".hcl,.nomad,.json"
+								@change="uploadFile($event)"
+								class="hidden"
+							/>
+						</label>
+						<!-- Plan button -->
+						<button
+							type="button"
+							@click="planJob"
+							:disabled="isPlanning || isRunning || !hasContent"
+							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							<svg x-show="isPlanning" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<svg x-show="!isPlanning" class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+							</svg>
+							<span x-text="isPlanning ? 'Planning...' : 'Plan'"></span>
+						</button>
+						<!-- Submit button -->
+						<button
+							type="button"
+							@click="showRunConfirm"
+							:disabled="isPlanning || isRunning || !hasContent"
+							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							<svg x-show="isRunning" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<svg x-show="!isRunning" class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+							<span x-text="isRunning ? 'Submitting...' : 'Submit'"></span>
+						</button>
+					</div>
+				</div>
+			</div>
+			<!-- Editor Container -->
+			<div class="p-6">
+				<div class="border border-neutral-300 dark:border-neutral-600 rounded-md overflow-hidden">
+					<div x-ref="editorContainer" class="min-h-[500px]"></div>
+				</div>
+			</div>
+			<!-- Help Text -->
+			<div class="border-t border-neutral-200 dark:border-neutral-700 p-6 bg-neutral-50 dark:bg-neutral-800">
+				<div class="flex items-start gap-3">
+					<svg class="w-5 h-5 text-neutral-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+					</svg>
+					<div class="text-sm text-neutral-600 dark:text-neutral-300">
+						<p class="font-medium mb-1">Getting started:</p>
+						<ul class="list-disc list-inside space-y-1">
+							<li>Write or paste your job definition in HCL or JSON format</li>
+							<li>Click "Example" to load a sample job definition</li>
+							<li>Click "Plan" to preview changes before submitting</li>
+							<li>Click "Submit" to register the job with Nomad</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Plan Modal -->
+		<template x-if="showPlanModal">
+			<div class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="closePlanModal">
+				<!-- Backdrop -->
+				<div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closePlanModal"></div>
+				<!-- Modal positioning container -->
+				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+					<!-- Modal content -->
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl">
+						<!-- Modal Header -->
+						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+							<div class="flex items-center justify-between">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+									Job Plan Results
+								</h3>
+								<button
+									type="button"
+									@click="closePlanModal"
+									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+								>
+									<span class="sr-only">Close</span>
+									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<!-- Modal Body -->
+						<div class="px-6 py-4 max-h-[60vh] overflow-y-auto">
+							<!-- Summary Stats -->
+							<div class="grid grid-cols-3 gap-4 mb-6">
+								<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+									<div class="text-2xl font-bold text-green-700" x-text="planResult.created || 0"></div>
+									<div class="text-sm text-green-600">Allocations to create</div>
+								</div>
+								<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+									<div class="text-2xl font-bold text-blue-700" x-text="planResult.updated || 0"></div>
+									<div class="text-sm text-blue-600">Allocations to update</div>
+								</div>
+								<div class="bg-red-50 border border-red-200 rounded-lg p-4">
+									<div class="text-2xl font-bold text-red-700" x-text="planResult.destroyed || 0"></div>
+									<div class="text-sm text-red-600">Allocations to destroy</div>
+								</div>
+							</div>
+							<!-- Warnings -->
+							<template x-if="planResult.warnings && planResult.warnings.length > 0">
+								<div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+									<div class="flex items-start">
+										<svg class="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+										</svg>
+										<div class="ml-3">
+											<h4 class="text-sm font-medium text-yellow-800 mb-2">Warnings:</h4>
+											<template x-for="warning in planResult.warnings" :key="warning">
+												<p class="text-sm text-yellow-700" x-text="warning"></p>
+											</template>
+										</div>
+									</div>
+								</div>
+							</template>
+							<!-- Diff Output -->
+							<div class="mb-4">
+								<h4 class="text-sm font-medium text-neutral-900 mb-2">Changes:</h4>
+								<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4 font-mono text-sm overflow-x-auto">
+									<pre class="whitespace-pre-wrap" x-text="planResult.diff || 'No changes detected'"></pre>
+								</div>
+							</div>
+						</div>
+						<!-- Modal Footer -->
+						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+							<div class="flex justify-end space-x-3">
+								<button
+									type="button"
+									@click="closePlanModal"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								>
+									Close
+								</button>
+								<button
+									type="button"
+									@click="closePlanModal(); showRunConfirm()"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								>
+									Submit Job
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</template>
+		<!-- Run Confirmation Modal -->
+		<template x-if="showRunModal">
+			<div class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="closeRunModal">
+				<!-- Backdrop -->
+				<div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closeRunModal"></div>
+				<!-- Modal positioning container -->
+				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+					<!-- Modal content -->
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+						<!-- Modal Header -->
+						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+							<div class="flex items-center justify-between">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+									Submit Job
+								</h3>
+								<button
+									type="button"
+									@click="closeRunModal"
+									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+								>
+									<span class="sr-only">Close</span>
+									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<!-- Modal Body -->
+						<div class="px-6 py-4">
+							<div class="flex items-start">
+								<div class="flex-shrink-0">
+									<svg class="h-6 w-6 text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+									</svg>
+								</div>
+								<div class="ml-3">
+									<p class="text-sm text-neutral-700">
+										Are you sure you want to submit this job? This will register the job with Nomad and may create allocations.
+									</p>
+									<p class="mt-2 text-sm text-neutral-500">
+										Namespace: <span class="font-mono font-medium">{ namespace }</span>
+									</p>
+								</div>
+							</div>
+						</div>
+						<!-- Modal Footer -->
+						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+							<div class="flex justify-end space-x-3">
+								<button
+									type="button"
+									@click="closeRunModal"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								>
+									Cancel
+								</button>
+								<button
+									type="button"
+									@click="runJob"
+									:disabled="isRunning"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									<svg x-show="isRunning" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									<span x-text="isRunning ? 'Submitting...' : 'Submit Job'"></span>
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</template>
+	</div>
+	<!-- Load CodeMirror bundle -->
+	<script src="/ui/static/js/codemirror-bundle.js"></script>
+}

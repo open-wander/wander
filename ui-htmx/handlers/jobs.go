@@ -96,6 +96,16 @@ func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle /ui/jobs/run (job submission page) - must come before /plan and /run POST handlers
+	if path == "/ui/jobs/run" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.RunPage(w, r)
+		return
+	}
+
 	// Handle /ui/jobs/{id}/plan (plan job)
 	if strings.HasSuffix(path, "/plan") {
 		if r.Method != http.MethodPost {
@@ -236,6 +246,58 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		h.handler.logger.Error("failed to render jobs list", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// RunPage handles the job submission page (GET /ui/jobs/run)
+func (h *JobsHandler) RunPage(w http.ResponseWriter, r *http.Request) {
+	// Parse namespace from query parameters
+	queryParams := r.URL.Query()
+	namespace := strings.TrimSpace(queryParams.Get("namespace"))
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// Log the request
+	h.handler.logger.Debug("job submission page request", "namespace", namespace, "htmx", IsHTMXFromRequest(r))
+
+	// Check permissions - need submit-job capability to access submission page
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.CanSubmitJob(namespace) {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to submit jobs",
+			Capability: "submit-job",
+			Namespace:  namespace,
+			Suggestions: []string{
+				"Contact your administrator to request the 'submit-job' capability",
+				"Ensure you are using a valid ACL token with appropriate permissions",
+			},
+		})
+		return
+	}
+
+	// Build layout props with app context
+	layoutProps := h.handler.BaseLayoutProps(
+		"Run Job - Wander",
+		"Submit a new job to Nomad",
+		"/ui/jobs/run",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Jobs", URL: "/ui/jobs"},
+			{Label: "Run Job", URL: ""},
+		},
+	)
+
+	// Render the job submission page
+	err := Render(w, r,
+		jobs.Run(layoutProps, namespace),              // Full page with layout
+		jobspartials.RunContent(namespace),            // Partial content for HTMX requests
+	)
+
+	if err != nil {
+		h.handler.logger.Error("failed to render job submission page", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -912,16 +974,36 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	jobName := jobID
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		jobName = jobID[:idx]
+		namespace = jobID[idx+1:]
+	}
+
 	h.handler.logger.Debug("version diff request",
-		"jobID", jobID,
+		"jobID", jobName,
+		"namespace", namespace,
 		"newVersion", newVersion,
 		"oldVersion", oldVersion,
 		"htmx", IsHTMXFromRequest(r),
 	)
 
-	// Get mock definitions for both versions
-	oldDef := h.getJobDefinitionForVersion(jobID, oldVersion)
-	newDef := h.getJobDefinitionForVersion(jobID, newVersion)
+	// Get job definitions from Nomad API
+	oldDef, err := h.getJobVersionDefinition(r, jobName, namespace, oldVersion)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch old version", "error", err, "version", oldVersion)
+		http.Error(w, "Failed to fetch old version from Nomad API", http.StatusInternalServerError)
+		return
+	}
+
+	newDef, err := h.getJobVersionDefinition(r, jobName, namespace, newVersion)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch new version", "error", err, "version", newVersion)
+		http.Error(w, "Failed to fetch new version from Nomad API", http.StatusInternalServerError)
+		return
+	}
 
 	// Compute the diff
 	diffLines := computeDiff(oldDef, newDef)
@@ -944,177 +1026,62 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getJobDefinitionForVersion returns mock job definition for a specific version.
-// This simulates version differences for demonstration purposes.
-func (h *JobsHandler) getJobDefinitionForVersion(jobID string, version int) string {
-	// Base definition
-	base := `job "` + jobID + `" {
-  region      = "global"
-  datacenters = ["dc1", "dc2"]
-  type        = "service"
-  priority    = 50
-
-  update {
-    max_parallel      = 1
-    min_healthy_time  = "10s"
-    healthy_deadline  = "3m"
-    progress_deadline = "10m"
-    auto_revert       = true
-    canary            = 0
-  }
-
-  group "web" {
-    count = 3
-
-    network {
-      port "http" {
-        to = 8080
-      }
-    }
-
-    task "nginx" {
-      driver = "docker"
-
-      config {
-        image = "nginx:1.21-alpine"
-        ports = ["http"]
-      }
-
-      resources {
-        cpu    = 500
-        memory = 256
-      }
-    }
-  }
-}`
-
-	// Simulate changes based on version
-	switch version {
-	case 0:
-		// Initial version - minimal config
-		return `job "` + jobID + `" {
-  region      = "global"
-  datacenters = ["dc1"]
-  type        = "service"
-  priority    = 50
-
-  group "web" {
-    count = 1
-
-    task "nginx" {
-      driver = "docker"
-
-      config {
-        image = "nginx:1.20-alpine"
-      }
-
-      resources {
-        cpu    = 256
-        memory = 128
-      }
-    }
-  }
-}`
-	case 1:
-		// Version 1 - added network config
-		return `job "` + jobID + `" {
-  region      = "global"
-  datacenters = ["dc1"]
-  type        = "service"
-  priority    = 50
-
-  group "web" {
-    count = 2
-
-    network {
-      port "http" {
-        to = 8080
-      }
-    }
-
-    task "nginx" {
-      driver = "docker"
-
-      config {
-        image = "nginx:1.20-alpine"
-        ports = ["http"]
-      }
-
-      resources {
-        cpu    = 256
-        memory = 128
-      }
-    }
-  }
-}`
-	case 2:
-		// Version 2 - increased resources
-		return `job "` + jobID + `" {
-  region      = "global"
-  datacenters = ["dc1"]
-  type        = "service"
-  priority    = 50
-
-  group "web" {
-    count = 2
-
-    network {
-      port "http" {
-        to = 8080
-      }
-    }
-
-    task "nginx" {
-      driver = "docker"
-
-      config {
-        image = "nginx:1.21-alpine"
-        ports = ["http"]
-      }
-
-      resources {
-        cpu    = 500
-        memory = 256
-      }
-    }
-  }
-}`
-	case 3:
-		// Version 3 - added second datacenter
-		return `job "` + jobID + `" {
-  region      = "global"
-  datacenters = ["dc1", "dc2"]
-  type        = "service"
-  priority    = 50
-
-  group "web" {
-    count = 2
-
-    network {
-      port "http" {
-        to = 8080
-      }
-    }
-
-    task "nginx" {
-      driver = "docker"
-
-      config {
-        image = "nginx:1.21-alpine"
-        ports = ["http"]
-      }
-
-      resources {
-        cpu    = 500
-        memory = 256
-      }
-    }
-  }
-}`
-	default:
-		// Latest version (4+) - added update stanza and increased count
-		return base
+// getJobVersionDefinition fetches a specific job version from the Nomad API
+// and returns it as an HCL string for diff comparison.
+func (h *JobsHandler) getJobVersionDefinition(r *http.Request, jobName, namespace string, version int) (string, error) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		return "", fmt.Errorf("no Nomad client available")
 	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build query options
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch all versions with diffs=false (we don't need the built-in diffs)
+	h.handler.logger.Debug("fetching job versions for diff",
+		"jobID", jobName,
+		"namespace", namespace,
+		"targetVersion", version,
+	)
+
+	versions, _, _, err := client.Jobs().Versions(jobName, false, queryOpts)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch job versions: %w", err)
+	}
+
+	// Find the specific version we need
+	var targetJob *api.Job
+	for _, v := range versions {
+		if v == nil || v.Version == nil {
+			continue
+		}
+		if int(*v.Version) == version {
+			targetJob = v
+			break
+		}
+	}
+
+	if targetJob == nil {
+		return "", fmt.Errorf("version %d not found", version)
+	}
+
+	// Convert the Job struct to JSON, then to HCL using Nomad's parser
+	// For now, we'll convert to JSON as a string representation
+	// In a future enhancement, we could use the Nomad HCL formatter
+	jobJSON, err := json.MarshalIndent(targetJob, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal job to JSON: %w", err)
+	}
+
+	return string(jobJSON), nil
 }
 
 // ScaleTaskGroup handles the scale task group action

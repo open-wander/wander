@@ -12,6 +12,8 @@ type PageLayoutProps struct {
 	ExpandedSections    []string                   // Sidebar sections to expand by default
 	CurrentNamespace    string                     // Current selected namespace
 	AvailableNamespaces []components.NamespaceInfo // List of available namespaces
+	CurrentRegion       string                     // Current selected region
+	AvailableRegions    []components.RegionInfo    // List of available regions
 }
 
 // PageLayout provides the full page structure with header, sidebar, and main content area.
@@ -40,6 +42,8 @@ templ pageContent(props PageLayoutProps, content templ.Component) {
 				Breadcrumbs:         props.Breadcrumbs,
 				CurrentNamespace:    props.CurrentNamespace,
 				AvailableNamespaces: props.AvailableNamespaces,
+				CurrentRegion:       props.CurrentRegion,
+				AvailableRegions:    props.AvailableRegions,
 			})
 			<!-- Main Content Component -->
 			@components.Main(components.MainProps{}, content)

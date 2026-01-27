@@ -1255,4 +1255,297 @@
     };
   };
 
+  /**
+   * Alpine.js component for job submission editor (new jobs).
+   * Similar to jobDefinitionEditor but for creating new jobs without a jobId.
+   *
+   * @param {string} initialValue - Initial editor content (usually empty)
+   * @param {string} format - Initial format ('hcl' or 'json')
+   * @param {string} namespace - Nomad namespace for job submission
+   * @returns {object} Alpine.js component
+   */
+  window.jobSubmissionEditor = function(initialValue, format, namespace) {
+    return {
+      editor: null,
+      format: format || 'hcl',
+      namespace: namespace || 'default',
+      currentValue: initialValue || '',
+      hasContent: false,
+      isPlanning: false,
+      isRunning: false,
+      showPlanModal: false,
+      showRunModal: false,
+      planResult: {},
+      error: null,
+
+      init() {
+        this.$nextTick(() => {
+          this.editor = new WanderEditor(this.$refs.editorContainer, {
+            value: this.currentValue,
+            language: this.format,
+            readOnly: false,
+            lineNumbers: true,
+            onChange: (value) => {
+              this.currentValue = value;
+              this.hasContent = value.trim().length > 0;
+            },
+            onSave: () => {
+              // Ctrl+S to plan the job
+              if (this.hasContent) {
+                this.planJob();
+              }
+            }
+          });
+          this.hasContent = this.currentValue.trim().length > 0;
+        });
+      },
+
+      setFormat(newFormat) {
+        this.format = newFormat;
+        if (this.editor) {
+          this.editor.setLanguage(newFormat);
+        }
+      },
+
+      clearEditor() {
+        this.currentValue = '';
+        this.hasContent = false;
+        if (this.editor) {
+          this.editor.setValue('');
+        }
+      },
+
+      loadExample() {
+        const exampleHCL = `job "example" {
+  region      = "global"
+  datacenters = ["dc1"]
+  type        = "service"
+
+  group "web" {
+    count = 3
+
+    network {
+      port "http" {
+        to = 8080
+      }
+    }
+
+    service {
+      name = "example-web"
+      port = "http"
+
+      check {
+        name     = "health"
+        type     = "http"
+        path     = "/health"
+        interval = "10s"
+        timeout  = "2s"
+      }
+    }
+
+    task "nginx" {
+      driver = "docker"
+
+      config {
+        image = "nginx:alpine"
+        ports = ["http"]
+      }
+
+      resources {
+        cpu    = 500
+        memory = 256
+      }
+    }
+  }
+}`;
+
+        const exampleJSON = `{
+  "Job": {
+    "ID": "example",
+    "Name": "example",
+    "Type": "service",
+    "Datacenters": ["dc1"],
+    "TaskGroups": [
+      {
+        "Name": "web",
+        "Count": 3,
+        "Tasks": [
+          {
+            "Name": "nginx",
+            "Driver": "docker",
+            "Config": {
+              "image": "nginx:alpine"
+            },
+            "Resources": {
+              "CPU": 500,
+              "MemoryMB": 256
+            }
+          }
+        ]
+      }
+    ]
+  }
+}`;
+
+        const example = this.format === 'hcl' ? exampleHCL : exampleJSON;
+        this.currentValue = example;
+        this.hasContent = true;
+        if (this.editor) {
+          this.editor.setValue(example);
+        }
+      },
+
+      uploadFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.currentValue = e.target.result;
+          this.hasContent = true;
+          if (this.editor) {
+            this.editor.setValue(this.currentValue);
+          }
+
+          // Auto-detect format from file extension
+          const ext = file.name.split('.').pop().toLowerCase();
+          if (ext === 'json') {
+            this.setFormat('json');
+          } else {
+            this.setFormat('hcl');
+          }
+
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: `Loaded file: ${file.name}`,
+              type: 'success'
+            }
+          }));
+        };
+        reader.onerror = () => {
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to read file',
+              type: 'error'
+            }
+          }));
+        };
+        reader.readAsText(file);
+
+        // Reset the file input so the same file can be loaded again
+        event.target.value = '';
+      },
+
+      async planJob() {
+        if (this.isPlanning || this.isRunning || !this.hasContent) return;
+
+        this.isPlanning = true;
+        this.error = null;
+
+        try {
+          // For new job submission, parse the job to extract the ID.
+          // The backend will use the job ID from the definition for the plan endpoint.
+          // We use a placeholder "new-job" path which the backend will handle.
+          const response = await fetch('/ui/jobs/_new/plan', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              definition: this.currentValue,
+              format: this.format
+            })
+          });
+
+          const result = await response.json();
+
+          if (!response.ok || result.error) {
+            throw new Error(result.error || 'Failed to plan job');
+          }
+
+          this.planResult = result;
+          this.showPlanModal = true;
+
+        } catch (err) {
+          this.error = err.message;
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to plan job: ' + err.message,
+              type: 'error'
+            }
+          }));
+        } finally {
+          this.isPlanning = false;
+        }
+      },
+
+      closePlanModal() {
+        this.showPlanModal = false;
+        this.planResult = {};
+      },
+
+      showRunConfirm() {
+        this.showRunModal = true;
+      },
+
+      closeRunModal() {
+        this.showRunModal = false;
+      },
+
+      async runJob() {
+        if (this.isRunning || !this.hasContent) return;
+
+        this.isRunning = true;
+        this.error = null;
+
+        try {
+          const response = await fetch('/ui/jobs/_new/run', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              definition: this.currentValue,
+              format: this.format
+            })
+          });
+
+          const result = await response.json();
+
+          if (!response.ok || result.error) {
+            throw new Error(result.error || 'Failed to submit job');
+          }
+
+          // Close the modal
+          this.closeRunModal();
+
+          // Show success message
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: `Job submitted successfully. Job ID: ${result.jobId}. Evaluation ID: ${result.evalId}`,
+              type: 'success',
+              duration: 5000
+            }
+          }));
+
+          // Redirect to the job detail page after a short delay
+          setTimeout(() => {
+            window.location.href = `/ui/jobs/${result.jobId}`;
+          }, 1500);
+
+        } catch (err) {
+          this.error = err.message;
+          window.dispatchEvent(new CustomEvent('wander:toast', {
+            detail: {
+              message: 'Failed to submit job: ' + err.message,
+              type: 'error'
+            }
+          }));
+        } finally {
+          this.isRunning = false;
+        }
+      }
+    };
+  };
+
 })(window);

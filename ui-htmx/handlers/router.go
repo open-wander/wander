@@ -220,6 +220,7 @@ func (r *Router) registerSearchRoutes() {
 func (r *Router) registerAPIRoutes() {
 	jobsAPIHandler := NewJobsAPIHandler(r.handler)
 	namespaceAPIHandler := NewNamespaceAPIHandler(r.handler)
+	regionAPIHandler := NewRegionAPIHandler(r.handler)
 	clientsAPIHandler := NewClientsAPIHandler(r.handler)
 	deploymentsAPIHandler := NewDeploymentsAPIHandler(r.handler)
 
@@ -228,6 +229,9 @@ func (r *Router) registerAPIRoutes() {
 
 	// Namespace API endpoints
 	r.mux.Handle("/api/namespace/", r.wrapMiddleware(namespaceAPIHandler))
+
+	// Region API endpoints
+	r.mux.Handle("/api/region/", r.wrapMiddleware(regionAPIHandler))
 
 	// Client node action endpoints
 	r.mux.Handle("/api/clients/", r.wrapMiddleware(clientsAPIHandler))
