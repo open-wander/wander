@@ -557,8 +557,11 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mock allocation detail data
-	allocDetail := h.getAllocationDetail(actualAllocID)
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
+
+	// Fetch allocation detail data from API
+	allocDetail := h.getAllocationDetail(actualAllocID, token)
 
 	// Build layout props - use short ID for display
 	shortID := actualAllocID
@@ -589,180 +592,166 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getAllocationDetail returns mock allocation detail data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *AllocationsHandler) getAllocationDetail(allocID string) allocationspartials.AllocationDetail {
-	now := time.Now()
+// getAllocationDetail fetches allocation details from the Nomad API.
+// Returns allocation detail structure for template rendering.
+func (h *AllocationsHandler) getAllocationDetail(allocID, token string) allocationspartials.AllocationDetail {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty allocation detail")
+		return allocationspartials.AllocationDetail{ID: allocID}
+	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch allocation from the API
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation from Nomad API", "allocID", allocID, "error", err)
+		return allocationspartials.AllocationDetail{ID: allocID}
+	}
+
+	h.handler.logger.Debug("fetched allocation from API", "allocID", allocID, "status", alloc.ClientStatus)
+
+	// Convert timestamps
+	created := time.Time{}
+	if alloc.CreateTime > 0 {
+		created = time.Unix(0, alloc.CreateTime)
+	}
+	modified := time.Time{}
+	if alloc.ModifyTime > 0 {
+		modified = time.Unix(0, alloc.ModifyTime)
+	}
+
+	// Convert task states to TaskStatus
+	tasks := make([]allocationspartials.TaskStatus, 0, len(alloc.TaskStates))
+	for taskName, taskState := range alloc.TaskStates {
+		// Convert task events
+		events := make([]allocationspartials.TaskEvent, 0, len(taskState.Events))
+		for _, event := range taskState.Events {
+			eventTime := time.Time{}
+			if event.Time > 0 {
+				eventTime = time.Unix(0, event.Time)
+			}
+
+			// Use DisplayMessage if available, otherwise construct from other fields
+			displayMsg := event.DisplayMessage
+			if displayMsg == "" && event.Message != "" {
+				displayMsg = event.Message
+			}
+
+			events = append(events, allocationspartials.TaskEvent{
+				Type:       event.Type,
+				Time:       eventTime,
+				DisplayMsg: displayMsg,
+				FailsTask:  event.FailsTask,
+			})
+		}
+
+		// Get task resources from allocation
+		taskResources := allocationspartials.TaskResources{}
+		if alloc.TaskResources != nil {
+			if res, ok := alloc.TaskResources[taskName]; ok && res != nil {
+				if res.CPU != nil {
+					taskResources.CPU = *res.CPU
+				}
+				if res.MemoryMB != nil {
+					taskResources.Memory = *res.MemoryMB
+				}
+			}
+		}
+
+		// Alternatively, check AllocatedResources for more detailed info
+		if alloc.AllocatedResources != nil && alloc.AllocatedResources.Tasks != nil {
+			if taskAlloc, ok := alloc.AllocatedResources.Tasks[taskName]; ok && taskAlloc != nil {
+				if taskAlloc.Cpu.CpuShares > 0 {
+					taskResources.CPU = int(taskAlloc.Cpu.CpuShares)
+				}
+				if taskAlloc.Memory.MemoryMB > 0 {
+					taskResources.Memory = int(taskAlloc.Memory.MemoryMB)
+				}
+			}
+		}
+
+		// Note: CPU and memory usage percentages are not available from Info() call
+		// These would require metrics/stats endpoint, so we leave them at 0 for now
+
+		tasks = append(tasks, allocationspartials.TaskStatus{
+			Name:       taskName,
+			State:      taskState.State,
+			Failed:     taskState.Failed,
+			StartedAt:  taskState.StartedAt,
+			FinishedAt: taskState.FinishedAt,
+			Restarts:   int(taskState.Restarts),
+			Resources:  taskResources,
+			Events:     events,
+		})
+	}
+
+	// Sort tasks by name for consistent display
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Name < tasks[j].Name
+	})
+
+	// Calculate total resources
+	resources := allocationspartials.ResourceUsage{}
+	if alloc.AllocatedResources != nil {
+		// Get disk from shared resources
+		resources.Disk = int(alloc.AllocatedResources.Shared.DiskMB)
+
+		// Sum up task resources for CPU and Memory
+		for _, taskAlloc := range alloc.AllocatedResources.Tasks {
+			if taskAlloc != nil {
+				resources.CPU += int(taskAlloc.Cpu.CpuShares)
+				resources.Memory += int(taskAlloc.Memory.MemoryMB)
+			}
+		}
+	}
+
+	// Build allocation-level events from task states
+	// In the real API, allocation events come from TaskStates events
+	allocEvents := make([]allocationspartials.AllocationEvent, 0)
+
+	// Add a received event based on creation time
+	if !created.IsZero() {
+		allocEvents = append(allocEvents, allocationspartials.AllocationEvent{
+			Type:    "Received",
+			Time:    created,
+			Message: "Allocation received by client",
+		})
+	}
+
+	// Add task start events from task states
+	for _, task := range tasks {
+		if !task.StartedAt.IsZero() {
+			allocEvents = append(allocEvents, allocationspartials.AllocationEvent{
+				Type:    "Task Started",
+				Time:    task.StartedAt,
+				Message: fmt.Sprintf("Task '%s' started", task.Name),
+			})
+		}
+	}
+
+	// Sort events by time (most recent last for display purposes)
+	sort.Slice(allocEvents, func(i, j int) bool {
+		return allocEvents[i].Time.Before(allocEvents[j].Time)
+	})
 
 	return allocationspartials.AllocationDetail{
-		ID:        allocID,
-		JobID:     "web-frontend",
-		TaskGroup: "web",
-		NodeID:    "node-1234",
-		NodeName:  "worker-01.example.com",
-		Status:    "running",
-		Created:   now.Add(-2 * time.Hour),
-		Modified:  now.Add(-5 * time.Minute),
-		Tasks: []allocationspartials.TaskStatus{
-			{
-				Name:       "nginx",
-				State:      "running",
-				Failed:     false,
-				StartedAt:  now.Add(-2 * time.Hour),
-				FinishedAt: time.Time{}, // Running, so no finish time
-				Restarts:   0,
-				Resources: allocationspartials.TaskResources{
-					CPU:      256,
-					Memory:   512,
-					CPUUsage: 35,
-					MemUsage: 62,
-				},
-				Events: []allocationspartials.TaskEvent{
-					{
-						Type:       "Started",
-						Time:       now.Add(-2 * time.Hour),
-						DisplayMsg: "Task started by client",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Task Setup",
-						Time:       now.Add(-125 * time.Minute),
-						DisplayMsg: "Building Task Directory",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Driver",
-						Time:       now.Add(-124 * time.Minute),
-						DisplayMsg: "Downloading image nginx:1.25-alpine",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Received",
-						Time:       now.Add(-126 * time.Minute),
-						DisplayMsg: "Task received by client",
-						FailsTask:  false,
-					},
-				},
-			},
-			{
-				Name:       "redis",
-				State:      "running",
-				Failed:     false,
-				StartedAt:  now.Add(-2 * time.Hour),
-				FinishedAt: time.Time{}, // Running, so no finish time
-				Restarts:   2,
-				Resources: allocationspartials.TaskResources{
-					CPU:      256,
-					Memory:   512,
-					CPUUsage: 12,
-					MemUsage: 78,
-				},
-				Events: []allocationspartials.TaskEvent{
-					{
-						Type:       "Started",
-						Time:       now.Add(-30 * time.Minute),
-						DisplayMsg: "Task started by client",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Restarting",
-						Time:       now.Add(-31 * time.Minute),
-						DisplayMsg: "Task restarting in 10s",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Terminated",
-						Time:       now.Add(-32 * time.Minute),
-						DisplayMsg: "Exit Code: 137, Signal: 9",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Started",
-						Time:       now.Add(-1 * time.Hour),
-						DisplayMsg: "Task started by client",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Restarting",
-						Time:       now.Add(-61 * time.Minute),
-						DisplayMsg: "Task restarting in 10s",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Terminated",
-						Time:       now.Add(-62 * time.Minute),
-						DisplayMsg: "Exit Code: 1, OOM Killed",
-						FailsTask:  true,
-					},
-					{
-						Type:       "Started",
-						Time:       now.Add(-2 * time.Hour),
-						DisplayMsg: "Task started by client",
-						FailsTask:  false,
-					},
-				},
-			},
-			{
-				Name:       "sidecar",
-				State:      "dead",
-				Failed:     false,
-				StartedAt:  now.Add(-2 * time.Hour),
-				FinishedAt: now.Add(-1 * time.Hour),
-				Restarts:   0,
-				Resources: allocationspartials.TaskResources{
-					CPU:      100,
-					Memory:   128,
-					CPUUsage: 0,
-					MemUsage: 0,
-				},
-				Events: []allocationspartials.TaskEvent{
-					{
-						Type:       "Terminated",
-						Time:       now.Add(-1 * time.Hour),
-						DisplayMsg: "Exit Code: 0, Signal: 0",
-						FailsTask:  false,
-					},
-					{
-						Type:       "Started",
-						Time:       now.Add(-2 * time.Hour),
-						DisplayMsg: "Task started by client",
-						FailsTask:  false,
-					},
-				},
-			},
-		},
-		Resources: allocationspartials.ResourceUsage{
-			CPU:    612,
-			Memory: 1152,
-			Disk:   2048,
-		},
-		Events: []allocationspartials.AllocationEvent{
-			{
-				Type:    "Allocation Healthy",
-				Time:    now.Add(-115 * time.Minute),
-				Message: "All tasks are running",
-			},
-			{
-				Type:    "Task Started",
-				Time:    now.Add(-119 * time.Minute),
-				Message: "Task 'nginx' started",
-			},
-			{
-				Type:    "Task Started",
-				Time:    now.Add(-119 * time.Minute),
-				Message: "Task 'redis' started",
-			},
-			{
-				Type:    "Task Started",
-				Time:    now.Add(-120 * time.Minute),
-				Message: "Task 'sidecar' started",
-			},
-			{
-				Type:    "Received",
-				Time:    now.Add(-2 * time.Hour),
-				Message: "Allocation received by client",
-			},
-		},
+		ID:        alloc.ID,
+		JobID:     alloc.JobID,
+		TaskGroup: alloc.TaskGroup,
+		NodeID:    alloc.NodeID,
+		NodeName:  alloc.NodeName,
+		Status:    alloc.ClientStatus,
+		Created:   created,
+		Modified:  modified,
+		Tasks:     tasks,
+		Resources: resources,
+		Events:    allocEvents,
 	}
 }
 
@@ -819,8 +808,9 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// Get allocation detail data
-	allocDetail := h.getAllocationDetail(allocID)
+	// Get ACL token and allocation detail data
+	token := GetTokenFromRequest(r)
+	allocDetail := h.getAllocationDetail(allocID, token)
 
 	var err error
 	switch tabName {
@@ -833,7 +823,7 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 		if logType == "" {
 			logType = "stdout"
 		}
-		tasks := h.getTasksForAllocation(allocID)
+		tasks := h.getTasksForAllocation(allocID, token)
 		if task == "" && len(tasks) > 0 {
 			task = tasks[0]
 		}
@@ -848,7 +838,7 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 		// Render the exec terminal tab
 		task := r.URL.Query().Get("task")
 		command := r.URL.Query().Get("command")
-		tasks := h.getTasksForAllocation(allocID)
+		tasks := h.getTasksForAllocation(allocID, token)
 		if task == "" && len(tasks) > 0 {
 			task = tasks[0]
 		}
@@ -1115,10 +1105,34 @@ func (h *AllocationsHandler) getTaskNames(alloc allocationspartials.AllocationDe
 }
 
 // getTasksForAllocation returns the list of tasks for an allocation.
-// In production, this would query the Nomad API.
-func (h *AllocationsHandler) getTasksForAllocation(allocID string) []string {
-	// Mock task list - in production, query Nomad API
-	return []string{"nginx", "redis", "sidecar"}
+// Fetches from Nomad API and returns task names.
+func (h *AllocationsHandler) getTasksForAllocation(allocID, token string) []string {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available for task list")
+		return []string{}
+	}
+
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for task list", "allocID", allocID, "error", err)
+		return []string{}
+	}
+
+	// Extract task names from TaskStates
+	tasks := make([]string, 0, len(alloc.TaskStates))
+	for taskName := range alloc.TaskStates {
+		tasks = append(tasks, taskName)
+	}
+
+	// Sort for consistent display
+	sort.Strings(tasks)
+	return tasks
 }
 
 // getMockFiles returns mock file entries for testing

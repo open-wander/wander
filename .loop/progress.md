@@ -170,3 +170,14 @@
 - Pattern: Filter expressions combined with "and" operators
 - Files: allocations.go
 ---
+
+### 2026-01-26 - Task 14: Allocation detail real API
+- Replaced mock getAllocationDetail with client.Allocations().Info()
+- Maps api.Allocation to template with task states and events
+- Extracts resources from TaskResources and AllocatedResources.Tasks
+- Converts task events with Type, Time, DisplayMessage, FailsTask
+- Updated getTasksForAllocation() to use real API
+- ACL token passed via QueryOptions.AuthToken
+- Note: CPU/Mem usage % requires separate stats endpoint
+- Files: allocations.go
+---
