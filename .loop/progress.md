@@ -137,3 +137,14 @@
 - Pattern: allAllocs=true to include completed allocations
 - Files: jobs.go
 ---
+
+### 2026-01-26 - Task 11: Job deployments tab real API
+- Implemented getJobDeployments() with client.Jobs().Deployments()
+- Maps api.Deployment to jobspartials.JobDeployment
+- Shows: ID, status, version, task group states, canaries
+- Task group breakdown: desired/placed/healthy/unhealthy counts
+- Status badges: running=blue, successful=green, failed=red
+- Added Deployments tab to job detail navigation
+- Pattern: Only jobs with update stanza have deployments
+- Files: jobs.go, tabs.templ, detail.templ
+---

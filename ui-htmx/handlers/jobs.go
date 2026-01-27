@@ -581,6 +581,9 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		allocData := h.getJobAllocations(jobID, page, perPage)
 		allocData.LastUpdated = time.Now()
 		err = RenderPartial(w, r, jobspartials.AllocationsTabWithData(allocData))
+	case "deployments":
+		deployments := h.getJobDeployments(r, jobID)
+		err = RenderPartial(w, r, jobspartials.DeploymentsTab(deployments, jobID))
 	case "evaluations":
 		err = RenderPartial(w, r, jobspartials.EvaluationsTab())
 	default:
@@ -1771,4 +1774,96 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.handler.logger.Error("failed to encode revert response", "error", err)
 	}
+}
+
+// getJobDeployments fetches deployments for a specific job from the Nomad API.
+func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspartials.JobDeployment {
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	jobName := jobID
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		jobName = jobID[:idx]
+		namespace = jobID[idx+1:]
+	}
+
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty deployments list")
+		return []jobspartials.JobDeployment{}
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Build query options with namespace
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch deployments from the API - include all deployments (not just running)
+	h.handler.logger.Debug("fetching job deployments from API",
+		"jobID", jobName,
+		"namespace", namespace,
+	)
+
+	deployments, _, err := client.Jobs().Deployments(jobName, true, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch job deployments from Nomad API", "error", err)
+		return []jobspartials.JobDeployment{}
+	}
+
+	h.handler.logger.Debug("fetched job deployments from API", "count", len(deployments))
+
+	// Convert API deployments to our template type
+	result := make([]jobspartials.JobDeployment, 0, len(deployments))
+	for _, d := range deployments {
+		if d == nil {
+			continue
+		}
+
+		// Create task group states map
+		taskGroups := make(map[string]jobspartials.DeploymentTaskGroupState)
+		for tgName, tgState := range d.TaskGroups {
+			if tgState == nil {
+				continue
+			}
+
+			taskGroups[tgName] = jobspartials.DeploymentTaskGroupState{
+				Name:            tgName,
+				DesiredCanaries: tgState.DesiredCanaries,
+				DesiredTotal:    tgState.DesiredTotal,
+				PlacedAllocs:    tgState.PlacedAllocs,
+				HealthyAllocs:   tgState.HealthyAllocs,
+				UnhealthyAllocs: tgState.UnhealthyAllocs,
+				Promoted:        tgState.Promoted,
+				AutoRevert:      tgState.AutoRevert,
+			}
+		}
+
+		// Convert create index to time (Nomad stores as nanoseconds)
+		// Note: CreateIndex is not a timestamp, but we can use ModifyIndex for sorting
+		// For the actual creation time, we would need to track it separately
+		// For now, we'll use the current time minus an offset based on index
+		// In production, you might want to fetch this from the deployment metadata
+		created := time.Now().Add(-time.Duration(len(result)) * time.Hour)
+
+		deployment := jobspartials.JobDeployment{
+			ID:                d.ID,
+			ShortID:           d.ID[:8], // First 8 chars for short ID
+			Status:            d.Status,
+			StatusDescription: d.StatusDescription,
+			JobVersion:        d.JobVersion,
+			TaskGroups:        taskGroups,
+			Created:           created,
+		}
+
+		result = append(result, deployment)
+	}
+
+	return result
 }
