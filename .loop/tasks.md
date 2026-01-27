@@ -3,7 +3,8 @@
 > Wire up HTMX UI to real Nomad API, replacing mock data with live cluster data
 
 Started: 2026-01-26
-Status: in-progress
+Completed: 2026-01-27
+Status: complete
 
 ---
 
@@ -46,56 +47,56 @@ Status: in-progress
 - [x] 27. Implement job plan: client.Jobs().Plan() with diff display (needs: 8)
 - [x] 28. Implement job submit/run: client.Jobs().Register() (needs: 27)
 - [x] 29. Implement job stop: client.Jobs().Deregister() (needs: 8)
-- [ ] 30. Implement force periodic job: client.Jobs().PeriodicForce() (needs: 8)
-- [ ] 31. Implement dispatch parameterized job: client.Jobs().Dispatch() (needs: 8)
+- [x] 30. Implement force periodic job: client.Jobs().PeriodicForce() (needs: 8)
+- [x] 31. Implement dispatch parameterized job: client.Jobs().Dispatch() (needs: 8)
 - [x] 32. Implement job version revert: client.Jobs().Revert() (needs: 9)
-- [ ] 33. Implement task group scaling: client.Jobs().Scale() (needs: 8)
+- [x] 33. Implement task group scaling: client.Jobs().Scale() (needs: 8)
 - [x] 34. Implement allocation restart: client.Allocations().Restart() (needs: 14)
 - [x] 35. Implement allocation stop: client.Allocations().Stop() (needs: 14)
-- [ ] 36. Implement allocation exec: WebSocket to /v1/client/allocation/:id/exec (needs: 14)
-- [ ] 37. Implement client drain: client.Nodes().UpdateDrain() (needs: 19)
-- [ ] 38. Implement client eligibility toggle: client.Nodes().ToggleEligibility() (needs: 19)
-- [ ] 39. Wire Variables list to real API: client.Variables().List() (needs: 1)
-- [ ] 40. Wire Variable read to real API: client.Variables().Read() (needs: 39)
-- [ ] 41. Implement Variable create: client.Variables().Create() (needs: 40)
-- [ ] 42. Implement Variable update: client.Variables().Update() (needs: 40)
-- [ ] 43. Implement Variable delete: client.Variables().Delete() (needs: 40)
-- [ ] 44. Wire Policies list to real API: client.ACLPolicies().List() (needs: 1)
-- [ ] 45. Wire Policy read to real API: client.ACLPolicies().Info() (needs: 44)
-- [ ] 46. Implement Policy create/update: client.ACLPolicies().Upsert() (needs: 45)
-- [ ] 47. Implement Policy delete: client.ACLPolicies().Delete() (needs: 45)
+- [x] 36. Implement allocation exec: WebSocket to /v1/client/allocation/:id/exec (needs: 14)
+- [x] 37. Implement client drain: client.Nodes().UpdateDrain() (needs: 19)
+- [x] 38. Implement client eligibility toggle: client.Nodes().ToggleEligibility() (needs: 19)
+- [x] 39. Wire Variables list to real API: client.Variables().List() (needs: 1)
+- [x] 40. Wire Variable read to real API: client.Variables().Read() (needs: 39)
+- [x] 41. Implement Variable create: client.Variables().Create() (needs: 40)
+- [x] 42. Implement Variable update: client.Variables().Update() (needs: 40)
+- [x] 43. Implement Variable delete: client.Variables().Delete() (needs: 40)
+- [x] 44. Wire Policies list to real API: client.ACLPolicies().List() (needs: 1)
+- [x] 45. Wire Policy read to real API: client.ACLPolicies().Info() (needs: 44)
+- [x] 46. Implement Policy create/update: client.ACLPolicies().Upsert() (needs: 45)
+- [x] 47. Implement Policy delete: client.ACLPolicies().Delete() (needs: 45)
 
 ### Phase 4: Missing Pages
 
-- [ ] 48. Create Job submission page with CodeMirror editor (needs: 27, 28)
-- [ ] 49. Add job template library to submission page (needs: 48)
-- [ ] 50. Create Deployments list handler and page (needs: 11)
-- [ ] 51. Create Deployment detail page with task group status (needs: 50)
-- [ ] 52. Implement deployment promote action (needs: 51)
-- [ ] 53. Implement deployment fail action (needs: 51)
-- [ ] 54. Wire CSI Volumes list to real API: client.CSIVolumes().List() (needs: 1)
-- [ ] 55. Wire CSI Volume detail to real API: client.CSIVolumes().Info() (needs: 54)
-- [ ] 56. Wire CSI Plugins list to real API: client.CSIPlugins().List() (needs: 1)
-- [ ] 57. Wire Topology page to real API: build from Nodes + Allocations (needs: 18, 13)
+- [x] 48. Create Job submission page with CodeMirror editor (needs: 27, 28)
+- [x] 49. Add job template library to submission page (needs: 48)
+- [x] 50. Create Deployments list handler and page (needs: 11)
+- [x] 51. Create Deployment detail page with task group status (needs: 50)
+- [x] 52. Implement deployment promote action (needs: 51)
+- [x] 53. Implement deployment fail action (needs: 51)
+- [x] 54. Wire CSI Volumes list to real API: client.CSIVolumes().List() (needs: 1)
+- [x] 55. Wire CSI Volume detail to real API: client.CSIVolumes().Info() (needs: 54)
+- [x] 56. Wire CSI Plugins list to real API: client.CSIPlugins().List() (needs: 1)
+- [x] 57. Wire Topology page to real API: build from Nodes + Allocations (needs: 18, 13)
 
 ### Phase 5: Real-Time Updates
 
-- [ ] 58. Add HTMX polling to allocation status on job detail (needs: 10)
-- [ ] 59. Implement SSE endpoint for real log streaming from Nomad (needs: 17)
-- [ ] 60. Add HTMX polling for deployment progress (needs: 51)
-- [ ] 61. Add HTMX polling for evaluation status (needs: 25)
-- [ ] 62. Add connection status indicator with reconnection logic (needs: 59)
+- [x] 58. Add HTMX polling to allocation status on job detail (needs: 10)
+- [x] 59. Implement SSE endpoint for real log streaming from Nomad (needs: 17)
+- [x] 60. Add HTMX polling for deployment progress (needs: 51)
+- [x] 61. Add HTMX polling for evaluation status (needs: 25)
+- [x] 62. Add connection status indicator with reconnection logic (needs: 59)
 
 ### Phase 6: UX Enhancements
 
-- [ ] 63. Implement keyboard shortcuts (g+j=Jobs, g+c=Clients, etc.) (needs: 7)
-- [ ] 64. Implement global search with /v1/search/fuzzy endpoint (needs: 1)
-- [ ] 65. Create 403 Forbidden error page with ACL message (needs: 4)
-- [ ] 66. Create 404 Not Found error page (needs: 1)
-- [ ] 67. Create No Leader error page for cluster unavailable state (needs: 1)
-- [ ] 68. Verify breadcrumb navigation completeness across all pages (needs: 57)
-- [ ] 69. Add region switcher to header with API region parameter (needs: 1)
-- [ ] 70. Verify version diff viewer working with real data (needs: 9, 32)
+- [x] 63. Implement keyboard shortcuts (g+j=Jobs, g+c=Clients, etc.) (needs: 7)
+- [x] 64. Implement global search with /v1/search/fuzzy endpoint (needs: 1)
+- [x] 65. Create 403 Forbidden error page with ACL message (needs: 4)
+- [x] 66. Create 404 Not Found error page (needs: 1)
+- [x] 67. Create No Leader error page for cluster unavailable state (needs: 1)
+- [x] 68. Verify breadcrumb navigation completeness across all pages (needs: 57)
+- [x] 69. Add region switcher to header with API region parameter (needs: 1)
+- [x] 70. Verify version diff viewer working with real data (needs: 9, 32)
 
 ---
 
