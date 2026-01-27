@@ -3,8 +3,12 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/evaluations"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/evaluationspartials"
@@ -33,13 +37,118 @@ func (h *EvaluationsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.List(w, r)
 }
 
+// EvaluationSummary represents a summary view of an evaluation for processing.
+type EvaluationSummary struct {
+	ID          string
+	JobID       string
+	Namespace   string
+	Status      string
+	Type        string
+	TriggeredBy string
+	Priority    int
+	CreateTime  time.Time
+	NodeID      string
+}
+
 // List handles the evaluations list request and returns the partial content
 func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("evaluations list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
-	// Get mock evaluation data
-	evalsList := h.getEvaluationsList()
+	// Parse query parameters
+	query := r.URL.Query()
+	namespace := query.Get("namespace")
+	if namespace == "" {
+		namespace = "default"
+	}
+	statusFilter := query.Get("status")
+	typeFilter := query.Get("type")
+	jobFilter := query.Get("job")
+	searchQuery := query.Get("search")
+	sortColumn := query.Get("sort")
+	sortDir := query.Get("dir")
+	pageStr := query.Get("page")
+	perPageStr := query.Get("per_page")
+
+	// Default sorting
+	if sortColumn == "" {
+		sortColumn = "created"
+	}
+	if sortDir == "" {
+		sortDir = "desc"
+	}
+
+	// Default pagination
+	page := 1
+	perPage := 25
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
+	if pp, err := strconv.Atoi(perPageStr); err == nil && pp > 0 && pp <= 100 {
+		perPage = pp
+	}
+
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get all evaluations with server-side filtering
+	allEvaluations := h.getEvaluationsList(namespace, token, statusFilter, typeFilter, jobFilter)
+
+	// Apply client-side search filter (status/type/job already filtered server-side)
+	filteredEvaluations := h.filterEvaluations(allEvaluations, "", "", "", searchQuery)
+
+	// Apply sorting
+	h.sortEvaluations(filteredEvaluations, sortColumn, sortDir)
+
+	// Calculate pagination
+	total := len(filteredEvaluations)
+	totalPages := (total + perPage - 1) / perPage // Ceiling division
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	// Apply pagination
+	startIdx := (page - 1) * perPage
+	endIdx := startIdx + perPage
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	if endIdx > total {
+		endIdx = total
+	}
+	if startIdx > total {
+		startIdx = total
+	}
+
+	paginatedEvaluations := filteredEvaluations[startIdx:endIdx]
+
+	// Convert to template format
+	evalsList := make([]evaluationspartials.EvaluationSummary, len(paginatedEvaluations))
+	for i, eval := range paginatedEvaluations {
+		// Get short ID (first 8 characters)
+		shortID := eval.ID
+		if len(shortID) > 8 {
+			shortID = shortID[:8]
+		}
+
+		// Calculate time ago from CreateTime
+		timeAgo := formatTimeAgo(eval.CreateTime)
+
+		evalsList[i] = evaluationspartials.EvaluationSummary{
+			ID:          eval.ID,
+			ShortID:     shortID,
+			JobID:       eval.JobID,
+			JobName:     eval.JobID, // JobName is same as JobID in the API
+			Status:      eval.Status,
+			Type:        eval.Type,
+			TriggeredBy: eval.TriggeredBy,
+			Priority:    eval.Priority,
+			TimeAgo:     timeAgo,
+		}
+	}
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(
@@ -54,8 +163,8 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		evaluations.List(layoutProps, evalsList),                    // Full page with layout
-		evaluationspartials.ListContent(evalsList),    // Partial content for HTMX requests
+		evaluations.List(layoutProps, evalsList),       // Full page with layout
+		evaluationspartials.ListContent(evalsList),     // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -65,52 +174,161 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getEvaluationsList fetches evaluations from the Nomad API.
-func (h *EvaluationsHandler) getEvaluationsList() []evaluationspartials.EvaluationSummary {
+// getEvaluationsList fetches evaluations from the Nomad API with server-side filtering.
+// Falls back to empty list if API is unavailable.
+func (h *EvaluationsHandler) getEvaluationsList(namespace, token, statusFilter, typeFilter, jobFilter string) []EvaluationSummary {
 	client := h.handler.NomadClient()
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty evaluations list")
-		return []evaluationspartials.EvaluationSummary{}
+		return []EvaluationSummary{}
 	}
+
+	// Build query options with namespace
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Build Nomad filter expression for server-side filtering
+	var filters []string
+	if statusFilter != "" {
+		filters = append(filters, fmt.Sprintf("Status == %q", statusFilter))
+	}
+	if typeFilter != "" {
+		filters = append(filters, fmt.Sprintf("Type == %q", typeFilter))
+	}
+	if jobFilter != "" {
+		filters = append(filters, fmt.Sprintf("JobID == %q", jobFilter))
+	}
+	if len(filters) > 0 {
+		queryOpts.Filter = strings.Join(filters, " and ")
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching evaluations from API",
+		"namespace", namespace,
+		"filter", queryOpts.Filter,
+		"hasToken", token != "",
+	)
 
 	// Fetch evaluations from the API
-	evals, _, err := client.Evaluations().List(nil)
+	evals, _, err := client.Evaluations().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch evaluations from Nomad API", "error", err)
-		return []evaluationspartials.EvaluationSummary{}
+		return []EvaluationSummary{}
 	}
 
-	if len(evals) == 0 {
-		h.handler.logger.Debug("no evaluations returned from Nomad API")
-		return []evaluationspartials.EvaluationSummary{}
-	}
+	h.handler.logger.Debug("fetched evaluations from API", "count", len(evals))
 
-	result := make([]evaluationspartials.EvaluationSummary, 0, len(evals))
+	// Convert API response to our summary type
+	result := make([]EvaluationSummary, 0, len(evals))
 	for _, eval := range evals {
-		// Get short ID (first 8 characters)
-		shortID := eval.ID
-		if len(shortID) > 8 {
-			shortID = shortID[:8]
+		createTime := time.Time{}
+		if eval.CreateTime > 0 {
+			createTime = time.Unix(0, eval.CreateTime)
 		}
 
-		// Calculate time ago from CreateTime (in nanoseconds)
-		timeAgo := formatTimeAgo(time.Unix(0, eval.CreateTime))
-
-		result = append(result, evaluationspartials.EvaluationSummary{
+		result = append(result, EvaluationSummary{
 			ID:          eval.ID,
-			ShortID:     shortID,
 			JobID:       eval.JobID,
-			JobName:     eval.JobID, // JobName is same as JobID in the API
+			Namespace:   eval.Namespace,
 			Status:      eval.Status,
 			Type:        eval.Type,
 			TriggeredBy: eval.TriggeredBy,
 			Priority:    eval.Priority,
-			TimeAgo:     timeAgo,
+			CreateTime:  createTime,
+			NodeID:      eval.NodeID,
 		})
 	}
 
-	h.handler.logger.Debug("fetched evaluations from Nomad API", "count", len(result))
 	return result
+}
+
+// filterEvaluations applies client-side filtering to the evaluations list.
+// Note: status, type, and job filters are already applied server-side.
+func (h *EvaluationsHandler) filterEvaluations(evals []EvaluationSummary, status, evalType, job, search string) []EvaluationSummary {
+	if search == "" && status == "" && evalType == "" && job == "" {
+		return evals
+	}
+
+	searchLower := strings.ToLower(strings.TrimSpace(search))
+	result := make([]EvaluationSummary, 0, len(evals))
+
+	for _, eval := range evals {
+		// Apply status filter if provided (usually already handled server-side)
+		if status != "" && eval.Status != status {
+			continue
+		}
+
+		// Apply type filter if provided (usually already handled server-side)
+		if evalType != "" && eval.Type != evalType {
+			continue
+		}
+
+		// Apply job filter if provided (usually already handled server-side)
+		if job != "" && eval.JobID != job {
+			continue
+		}
+
+		// Apply search filter across multiple fields
+		if searchLower != "" {
+			idLower := strings.ToLower(eval.ID)
+			jobLower := strings.ToLower(eval.JobID)
+			statusLower := strings.ToLower(eval.Status)
+			typeLower := strings.ToLower(eval.Type)
+			triggeredByLower := strings.ToLower(eval.TriggeredBy)
+			nodeLower := strings.ToLower(eval.NodeID)
+
+			if !strings.Contains(idLower, searchLower) &&
+				!strings.Contains(jobLower, searchLower) &&
+				!strings.Contains(statusLower, searchLower) &&
+				!strings.Contains(typeLower, searchLower) &&
+				!strings.Contains(triggeredByLower, searchLower) &&
+				!strings.Contains(nodeLower, searchLower) {
+				continue
+			}
+		}
+
+		result = append(result, eval)
+	}
+
+	return result
+}
+
+// sortEvaluations sorts the evaluations list by the specified column
+func (h *EvaluationsHandler) sortEvaluations(evals []EvaluationSummary, column, dir string) {
+	sort.Slice(evals, func(i, j int) bool {
+		var less bool
+
+		switch column {
+		case "id":
+			less = evals[i].ID < evals[j].ID
+		case "job":
+			less = evals[i].JobID < evals[j].JobID
+		case "status":
+			less = evals[i].Status < evals[j].Status
+		case "type":
+			less = evals[i].Type < evals[j].Type
+		case "triggered":
+			less = evals[i].TriggeredBy < evals[j].TriggeredBy
+		case "priority":
+			less = evals[i].Priority < evals[j].Priority
+		case "created":
+			less = evals[i].CreateTime.Before(evals[j].CreateTime)
+		default:
+			// Default to sorting by created time
+			less = evals[i].CreateTime.Before(evals[j].CreateTime)
+		}
+
+		if dir == "desc" {
+			return !less
+		}
+		return less
+	})
 }
 
 // formatTimeAgo formats a time as a human-readable "time ago" string.

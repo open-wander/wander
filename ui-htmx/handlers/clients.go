@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -229,8 +230,15 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mock client detail data
-	clientDetail := h.getClientDetail(clientID)
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get client detail data from Nomad API
+	clientDetail, found := h.getClientDetail(clientID, token)
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(
@@ -413,17 +421,115 @@ func (h *ClientsHandler) getClientsList(token string) []clientspartials.ClientSu
 	return result
 }
 
-// getClientDetail returns mock client detail data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.ClientDetail {
-	now := time.Now()
+// getClientDetail fetches client node detail from the Nomad API.
+// Returns the client detail and a boolean indicating if the node was found.
+func (h *ClientsHandler) getClientDetail(clientID string, token string) (clientspartials.ClientDetail, bool) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty client detail")
+		return clientspartials.ClientDetail{ID: clientID}, false
+	}
 
-	// Generate mock CPU history data (last 24 hours, every 30 minutes)
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch node from the API
+	node, _, err := client.Nodes().Info(clientID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch node from Nomad API", "clientID", clientID, "error", err)
+		return clientspartials.ClientDetail{ID: clientID}, false
+	}
+
+	h.handler.logger.Debug("fetched node from API", "clientID", clientID, "status", node.Status)
+
+	// Determine composite status
+	status := node.Status // "ready", "down", "initializing", "disconnected"
+	draining := node.Drain
+	eligible := node.SchedulingEligibility != "ineligible"
+
+	// Override status based on draining/eligibility
+	if node.Drain {
+		status = "draining"
+	} else if node.SchedulingEligibility == "ineligible" {
+		status = "ineligible"
+	}
+
+	// Get version from attributes
+	version := ""
+	if node.Attributes != nil {
+		if v, ok := node.Attributes["nomad.version"]; ok {
+			version = v
+		}
+	}
+
+	// Calculate uptime from StatusUpdatedAt
+	uptime := ""
+	if node.StatusUpdatedAt > 0 {
+		statusTime := time.Unix(node.StatusUpdatedAt, 0)
+		duration := time.Since(statusTime)
+		uptime = formatUptime(duration)
+	}
+
+	// Get resource info
+	var cpuTotal, memTotal, diskTotal int64
+	if node.NodeResources != nil {
+		cpuTotal = node.NodeResources.Cpu.CpuShares
+		memTotal = node.NodeResources.Memory.MemoryMB * 1024 * 1024
+		diskTotal = node.NodeResources.Disk.DiskMB * 1024 * 1024
+	}
+
+	// Get reserved/used resources
+	var cpuUsed, memUsed, diskUsed int64
+	if node.ReservedResources != nil {
+		cpuUsed = int64(node.ReservedResources.Cpu.CpuShares)
+		memUsed = int64(node.ReservedResources.Memory.MemoryMB) * 1024 * 1024
+		diskUsed = int64(node.ReservedResources.Disk.DiskMB) * 1024 * 1024
+	}
+
+	// Convert drivers
+	drivers := make(map[string]clientspartials.DriverInfo)
+	if node.Drivers != nil {
+		for name, driver := range node.Drivers {
+			version := ""
+			// Extract version from attributes if available
+			if driver.Attributes != nil {
+				if v, ok := driver.Attributes["driver.version"]; ok {
+					version = v
+				}
+			}
+			drivers[name] = clientspartials.DriverInfo{
+				Detected: driver.Detected,
+				Healthy:  driver.Healthy,
+				Version:  version,
+			}
+		}
+	}
+
+	// Convert node events
+	events := make([]clientspartials.ClientEvent, 0, len(node.Events))
+	if node.Events != nil {
+		for _, event := range node.Events {
+			events = append(events, clientspartials.ClientEvent{
+				Time:    event.Timestamp,
+				Type:    event.Subsystem,
+				Message: event.Message,
+			})
+		}
+	}
+
+	// Fetch allocations for this node
+	allocations := h.getNodeAllocations(clientID, token)
+
+	// Generate mock resource history (TODO: implement real metrics from Nomad)
+	now := time.Now()
 	cpuHistory := make([]clientspartials.ResourceDataPoint, 0, 48)
 	memoryHistory := make([]clientspartials.ResourceDataPoint, 0, 48)
 	for i := 47; i >= 0; i-- {
 		t := now.Add(-time.Duration(i) * 30 * time.Minute)
-		// Simulate varying CPU usage between 20-50%
+		// Mock data - in the future, this would come from metrics API
 		cpuValue := 25.0 + 15.0*float64((i+7)%10)/10.0 + 5.0*float64(i%5)
 		if cpuValue > 50 {
 			cpuValue = 50
@@ -432,7 +538,6 @@ func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.Client
 			Time:  t,
 			Value: cpuValue,
 		})
-		// Simulate varying memory usage between 40-60%
 		memValue := 45.0 + 10.0*float64((i+3)%8)/8.0 + 5.0*float64(i%4)
 		if memValue > 60 {
 			memValue = 60
@@ -444,144 +549,108 @@ func (h *ClientsHandler) getClientDetail(clientID string) clientspartials.Client
 	}
 
 	return clientspartials.ClientDetail{
-		ID:         clientID,
-		Name:       "client-node-1",
-		Status:     "ready",
-		Datacenter: "dc1",
-		Address:    "192.168.1.100:4646",
-		Version:    "1.7.2",
-		Uptime:     "5d 12h 30m",
-		NodeClass:  "compute",
-		Drain:      false,
-		Draining:   false,
-		Eligible:   true,
+		ID:         node.ID,
+		Name:       node.Name,
+		Status:     status,
+		Datacenter: node.Datacenter,
+		Address:    node.HTTPAddr,
+		Version:    version,
+		Uptime:     uptime,
+		NodeClass:  node.NodeClass,
+		Drain:      node.Drain,
+		Draining:   draining,
+		Eligible:   eligible,
 		Resources: clientspartials.ClientResources{
-			CPUUsed:   2400,
-			CPUTotal:  8000,
-			MemUsed:   8589934592,   // 8 GB in bytes
-			MemTotal:  17179869184,  // 16 GB in bytes
-			DiskUsed:  53687091200,  // 50 GB in bytes
-			DiskTotal: 107374182400, // 100 GB in bytes
+			CPUUsed:   int(cpuUsed),
+			CPUTotal:  int(cpuTotal),
+			MemUsed:   memUsed,
+			MemTotal:  memTotal,
+			DiskUsed:  diskUsed,
+			DiskTotal: diskTotal,
 		},
 		CPUHistory:    cpuHistory,
 		MemoryHistory: memoryHistory,
-		Allocations: []clientspartials.AllocationSummary{
-			{
-				ID:        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-				JobID:     "web-frontend",
-				TaskGroup: "web",
-				Status:    "running",
-				CPUUsed:   500,
-				MemUsed:   1073741824, // 1 GB
-			},
-			{
-				ID:        "b2c3d4e5-f6g7-8901-bcde-f12345678901",
-				JobID:     "api-gateway",
-				TaskGroup: "api",
-				Status:    "running",
-				CPUUsed:   800,
-				MemUsed:   2147483648, // 2 GB
-			},
-			{
-				ID:        "c3d4e5f6-g7h8-9012-cdef-123456789012",
-				JobID:     "cache-service",
-				TaskGroup: "cache",
-				Status:    "running",
-				CPUUsed:   400,
-				MemUsed:   1610612736, // 1.5 GB
-			},
-			{
-				ID:        "d4e5f6g7-h8i9-0123-def1-234567890123",
-				JobID:     "data-processor",
-				TaskGroup: "processor",
-				Status:    "running",
-				CPUUsed:   600,
-				MemUsed:   2684354560, // 2.5 GB
-			},
-			{
-				ID:        "e5f6g7h8-i9j0-1234-ef12-345678901234",
-				JobID:     "metrics-collector",
-				TaskGroup: "metrics",
-				Status:    "running",
-				CPUUsed:   100,
-				MemUsed:   536870912, // 512 MB
-			},
-		},
-		Attributes: map[string]string{
-			"kernel.name":               "linux",
-			"kernel.version":            "5.15.0-91-generic",
-			"os.name":                   "ubuntu",
-			"os.version":                "22.04",
-			"cpu.arch":                  "amd64",
-			"cpu.numcores":              "8",
-			"cpu.totalcompute":          "8000",
-			"memory.totalbytes":         "17179869184",
-			"unique.hostname":           "client-node-1",
-			"unique.network.ip-address": "192.168.1.100",
-			"driver.docker":             "1",
-			"driver.docker.version":     "24.0.7",
-			"driver.raw_exec":           "1",
-		},
-		Meta: map[string]string{
-			"environment":    "production",
-			"region":         "us-west-2",
-			"zone":           "us-west-2a",
-			"instance_type":  "m5.2xlarge",
-			"cloud_provider": "aws",
-		},
-		Drivers: map[string]clientspartials.DriverInfo{
-			"docker": {
-				Detected: true,
-				Healthy:  true,
-				Version:  "24.0.7",
-			},
-			"raw_exec": {
-				Detected: true,
-				Healthy:  true,
-				Version:  "",
-			},
-			"exec": {
-				Detected: true,
-				Healthy:  true,
-				Version:  "",
-			},
-			"java": {
-				Detected: false,
-				Healthy:  false,
-				Version:  "",
-			},
-		},
-		Events: []clientspartials.ClientEvent{
-			{
-				Time:    now.Add(-5 * time.Minute),
-				Type:    "Allocation placed",
-				Message: "Allocation e5f6g7h8 placed on node",
-			},
-			{
-				Time:    now.Add(-2 * time.Hour),
-				Type:    "Allocation placed",
-				Message: "Allocation d4e5f6g7 placed on node",
-			},
-			{
-				Time:    now.Add(-1 * 24 * time.Hour),
-				Type:    "Node eligibility changed",
-				Message: "Node eligibility set to eligible",
-			},
-			{
-				Time:    now.Add(-3 * 24 * time.Hour),
-				Type:    "Node drain complete",
-				Message: "Drain completed successfully",
-			},
-			{
-				Time:    now.Add(-3*24*time.Hour - 30*time.Minute),
-				Type:    "Node drain started",
-				Message: "Drain initiated for maintenance",
-			},
-			{
-				Time:    now.Add(-5 * 24 * time.Hour),
-				Type:    "Node registered",
-				Message: "Node successfully registered with cluster",
-			},
-		},
+		Allocations:   allocations,
+		Attributes:    node.Attributes,
+		Meta:          node.Meta,
+		Drivers:       drivers,
+		Events:        events,
+	}, true
+}
+
+// getNodeAllocations fetches all allocations running on a specific node.
+func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clientspartials.AllocationSummary {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty allocations list")
+		return []clientspartials.AllocationSummary{}
 	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch allocations from the API
+	allocs, _, err := client.Allocations().List(queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocations from Nomad API", "error", err)
+		return []clientspartials.AllocationSummary{}
+	}
+
+	// Filter allocations for this node and convert to summary
+	result := make([]clientspartials.AllocationSummary, 0)
+	for _, alloc := range allocs {
+		if alloc.NodeID != nodeID {
+			continue
+		}
+
+		// Get resource info from allocation - sum across all tasks
+		cpuUsed := 0
+		var memUsed int64
+		if alloc.AllocatedResources != nil && alloc.AllocatedResources.Tasks != nil {
+			for _, taskRes := range alloc.AllocatedResources.Tasks {
+				if taskRes != nil {
+					cpuUsed += int(taskRes.Cpu.CpuShares)
+					memUsed += int64(taskRes.Memory.MemoryMB) * 1024 * 1024
+				}
+			}
+		}
+
+		result = append(result, clientspartials.AllocationSummary{
+			ID:        alloc.ID,
+			JobID:     alloc.JobID,
+			TaskGroup: alloc.TaskGroup,
+			Status:    alloc.ClientStatus,
+			CPUUsed:   cpuUsed,
+			MemUsed:   memUsed,
+		})
+	}
+
+	return result
+}
+
+// formatUptime formats a duration into a human-readable uptime string.
+func formatUptime(d time.Duration) string {
+	if d < 0 {
+		return "unknown"
+	}
+
+	days := int(d.Hours() / 24)
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+
+	if days > 0 {
+		if hours > 0 {
+			return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
+		}
+		return fmt.Sprintf("%dd %dm", days, minutes)
+	}
+
+	if hours > 0 {
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	}
+
+	return fmt.Sprintf("%dm", minutes)
 }

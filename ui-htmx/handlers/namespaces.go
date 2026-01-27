@@ -39,10 +39,13 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("namespaces list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
 	// Get namespace data - try real API first, fall back to mock
 	var namespacesList []namespacespartials.NamespaceSummary
 	if h.handler.HasNomadClient() {
-		namespacesList = h.getNamespacesFromAPI()
+		namespacesList = h.getNamespacesFromAPI(token)
 	}
 	if len(namespacesList) == 0 {
 		namespacesList = h.getMockNamespacesList()
@@ -74,23 +77,43 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getNamespacesFromAPI fetches namespaces from the Nomad API.
-func (h *NamespacesHandler) getNamespacesFromAPI() []namespacespartials.NamespaceSummary {
+func (h *NamespacesHandler) getNamespacesFromAPI(token string) []namespacespartials.NamespaceSummary {
 	client := h.handler.NomadClient()
 	if client == nil {
 		return nil
 	}
 
-	nsList, _, err := client.Namespaces().List(nil)
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching namespaces from API", "hasToken", token != "")
+
+	// Fetch namespaces from the API
+	nsList, _, err := client.Namespaces().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Warn("failed to fetch namespaces from API", "error", err)
 		return nil
 	}
 
+	h.handler.logger.Debug("fetched namespaces from API", "count", len(nsList))
+
 	result := make([]namespacespartials.NamespaceSummary, 0, len(nsList))
 	for _, ns := range nsList {
+		// Build query options for job count with the same token
+		jobQueryOpts := &api.QueryOptions{
+			Namespace: ns.Name,
+		}
+		if token != "" {
+			jobQueryOpts.AuthToken = token
+		}
+
 		// Get job count for this namespace
 		jobCount := 0
-		if jobs, _, err := client.Jobs().List(&api.QueryOptions{Namespace: ns.Name}); err == nil {
+		if jobs, _, err := client.Jobs().List(jobQueryOpts); err == nil {
 			jobCount = len(jobs)
 		}
 
@@ -109,7 +132,6 @@ func (h *NamespacesHandler) getNamespacesFromAPI() []namespacespartials.Namespac
 		})
 	}
 
-	h.handler.logger.Debug("fetched namespaces from API", "count", len(result))
 	return result
 }
 

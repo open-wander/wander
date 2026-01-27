@@ -233,3 +233,40 @@
 - Pattern: Composite status derived by prioritizing special states
 - Files: clients.go, list_content.templ, clients_test.go
 ---
+
+### 2026-01-27 - Tasks 19, 22, 24, 26: Parallel API Integration
+
+**Task 19: Client detail real API**
+- Wired client.Nodes().Info(nodeID, queryOpts) for node details
+- Added getNodeAllocations() helper for allocations on node
+- Maps: attributes, drivers, events, resources, meta
+- Version from node.Attributes["nomad.version"]
+- Uptime calculated from StatusUpdatedAt timestamp
+- Pattern: AllocatedResources.Tasks map for CPU/Memory sums
+- Files: clients.go
+
+**Task 22: Servers list (verified already complete)**
+- Already uses client.Agent().Members() and Status().Leader()
+- Maps member tags: region, datacenter, build, raft_vsn
+- Leader detection by comparing addr:port with leader
+- Pattern: Agent endpoints don't require ACL tokens
+- Files: servers.go (no changes needed)
+
+**Task 24: Evaluations list real API**
+- Added ACL token via GetTokenFromRequest + QueryOptions.AuthToken
+- Server-side filters: status, type, job via Filter expressions
+- Client-side: search across ID, JobID, Status, Type, TriggeredBy
+- Sorting by: id, job, status, type, triggered, priority, created
+- Pagination: 25 default, max 100 per page
+- Time formatting: Unix nano to "time ago" strings
+- Pattern: Two-stage filtering (server + client side)
+- Files: evaluations.go
+
+**Task 26: Namespaces list real API**
+- Added ACL token via GetTokenFromRequest + QueryOptions.AuthToken
+- Maps: Name, Description, Quota, CreateIndex, ModifyIndex
+- Job count via Jobs().List() per namespace (N+1 pattern)
+- Maintains mock fallback when API unavailable
+- Pattern: Job counts need separate API calls per namespace
+- Files: namespaces.go
+---
