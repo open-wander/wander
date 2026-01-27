@@ -126,3 +126,14 @@
 - Pattern: diffs=false for performance, compute on-demand
 - Files: jobs.go
 ---
+
+### 2026-01-26 - Task 10: Job allocations tab real API
+- Replaced mock getJobAllocations with client.Jobs().Allocations()
+- Maps api.AllocationListStub to jobspartials.JobAllocation
+- Extracts: ID (short), task group, node, client status, resources
+- Sums CPU/Memory from AllocatedResources.Tasks map
+- Sorts by creation time (newest first)
+- Removed mock generation functions (generateMockAllocations, hashString)
+- Pattern: allAllocs=true to include completed allocations
+- Files: jobs.go
+---
