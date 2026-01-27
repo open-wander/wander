@@ -159,3 +159,14 @@
 - Sorts evaluations by creation time (newest first)
 - Files: jobs.go, tabs.templ
 ---
+
+### 2026-01-26 - Task 13: Allocations list real API
+- Replaced mock data with client.Allocations().List()
+- Server-side filtering via Nomad filter expressions
+- Filters: status (ClientStatus), job (JobID), node (NodeID/NodeName)
+- Namespace and ACL token passed via QueryOptions
+- Maps api.AllocationListStub to template structure
+- Client-side: search (ID prefix), sort, pagination
+- Pattern: Filter expressions combined with "and" operators
+- Files: allocations.go
+---

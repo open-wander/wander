@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/allocations"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/allocationspartials"
@@ -90,13 +92,20 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("allocations list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Parse query parameters first to get namespace
+	query := r.URL.Query()
+	namespace := strings.TrimSpace(query.Get("namespace"))
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	// Check permissions - allocations inherit job permissions
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanListJobs("default") {
+	if perms != nil && !perms.CanListJobs(namespace) {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to list allocations",
 			Capability: "list-jobs",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Allocations inherit job permissions. You need the 'list-jobs' capability",
 				"Contact your administrator to request appropriate permissions",
@@ -104,9 +113,6 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	// Parse query parameters
-	query := r.URL.Query()
 	statusFilter := query.Get("status")
 	jobFilter := query.Get("job")
 	nodeFilter := query.Get("node")
@@ -134,14 +140,17 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 		perPage = pp
 	}
 
-	// Get all allocations
-	allAllocations := h.getAllocationsList()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get all allocations with server-side filtering
+	allAllocations := h.getAllocationsList(namespace, token, statusFilter, jobFilter, nodeFilter)
 
 	// Extract filter options from all allocations (before filtering)
 	filterOptions := h.extractFilterOptions(allAllocations)
 
-	// Apply filters
-	filteredAllocations := h.filterAllocations(allAllocations, statusFilter, jobFilter, nodeFilter, searchQuery)
+	// Apply client-side search filter (status/job/node already filtered server-side)
+	filteredAllocations := h.filterAllocations(allAllocations, "", "", "", searchQuery)
 
 	// Apply sorting
 	h.sortAllocations(filteredAllocations, sortColumn, sortDir)
@@ -418,21 +427,56 @@ func (h *AllocationsHandler) sortAllocations(allocs []AllocationSummary, column,
 	})
 }
 
-// getAllocationsList fetches allocations from the Nomad API.
+// getAllocationsList fetches allocations from the Nomad API with server-side filtering.
 // Falls back to empty list if API is unavailable.
-func (h *AllocationsHandler) getAllocationsList() []AllocationSummary {
+func (h *AllocationsHandler) getAllocationsList(namespace, token, statusFilter, jobFilter, nodeFilter string) []AllocationSummary {
 	client := h.handler.NomadClient()
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty allocation list")
 		return []AllocationSummary{}
 	}
 
+	// Build query options with namespace
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Build Nomad filter expression for server-side filtering
+	var filters []string
+	if statusFilter != "" {
+		filters = append(filters, fmt.Sprintf("ClientStatus == %q", statusFilter))
+	}
+	if jobFilter != "" {
+		filters = append(filters, fmt.Sprintf("JobID == %q", jobFilter))
+	}
+	if nodeFilter != "" {
+		// NodeFilter can match by NodeID or NodeName
+		filters = append(filters, fmt.Sprintf("(NodeID == %q or NodeName == %q)", nodeFilter, nodeFilter))
+	}
+	if len(filters) > 0 {
+		queryOpts.Filter = strings.Join(filters, " and ")
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching allocations from API",
+		"namespace", namespace,
+		"filter", queryOpts.Filter,
+		"hasToken", token != "",
+	)
+
 	// Fetch allocations from the API
-	allocs, _, err := client.Allocations().List(nil)
+	allocs, _, err := client.Allocations().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch allocations from Nomad API", "error", err)
 		return []AllocationSummary{}
 	}
+
+	h.handler.logger.Debug("fetched allocations from API", "count", len(allocs))
 
 	// Convert API response to our summary type
 	result := make([]AllocationSummary, 0, len(allocs))
