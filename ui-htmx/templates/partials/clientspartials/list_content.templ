@@ -72,10 +72,12 @@ templ ListContent(clientsList []ClientSummary, filters ClientFilters, options Cl
 						Placeholder: "All Statuses",
 						Selected:    filters.Status,
 						Options: []components.SelectOption{
+							{Value: "initializing", Label: "Initializing"},
 							{Value: "ready", Label: "Ready"},
 							{Value: "down", Label: "Down"},
-							{Value: "draining", Label: "Draining"},
+							{Value: "disconnected", Label: "Disconnected"},
 							{Value: "ineligible", Label: "Ineligible"},
+							{Value: "draining", Label: "Draining"},
 						},
 						Size:      "sm",
 						HxGet:     buildClientsFilterURL(filters, "status"),
@@ -280,10 +282,16 @@ func statusVariant(status string) string {
 	switch status {
 	case "ready":
 		return "success"
+	case "initializing":
+		return "info"
 	case "down":
+		return "error"
+	case "disconnected":
 		return "error"
 	case "draining":
 		return "warning"
+	case "ineligible":
+		return "neutral"
 	default:
 		return "neutral"
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/clients"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/clientspartials"
@@ -99,8 +100,11 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 		Search:     r.URL.Query().Get("search"),
 	}
 
-	// Get mock client data
-	allClients := h.getClientsList()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get client data from Nomad API
+	allClients := h.getClientsList(token)
 
 	// Extract filter options from all clients (before filtering)
 	filterOptions := h.extractFilterOptions(allClients)
@@ -319,15 +323,26 @@ func (h *ClientsHandler) CancelDrain(w http.ResponseWriter, r *http.Request) {
 
 // getClientsList fetches client nodes from the Nomad API.
 // Falls back to empty list if API is unavailable.
-func (h *ClientsHandler) getClientsList() []clientspartials.ClientSummary {
+func (h *ClientsHandler) getClientsList(token string) []clientspartials.ClientSummary {
 	client := h.handler.NomadClient()
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty client list")
 		return []clientspartials.ClientSummary{}
 	}
 
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching nodes from API", "hasToken", token != "")
+
 	// Fetch nodes from the API
-	nodes, _, err := client.Nodes().List(nil)
+	nodes, _, err := client.Nodes().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch nodes from Nomad API", "error", err)
 		return []clientspartials.ClientSummary{}
@@ -336,11 +351,16 @@ func (h *ClientsHandler) getClientsList() []clientspartials.ClientSummary {
 	// Convert API response to our summary type
 	result := make([]clientspartials.ClientSummary, 0, len(nodes))
 	for _, node := range nodes {
-		// Determine status
-		status := node.Status
-		if node.SchedulingEligibility == "ineligible" {
+		// Determine composite status
+		// Prioritize draining status, then check eligibility, then use base status
+		status := node.Status // "ready", "down", "initializing", "disconnected"
+
+		// Override with ineligible if node is not eligible for scheduling
+		if node.SchedulingEligibility == "ineligible" && !node.Drain {
 			status = "ineligible"
 		}
+
+		// Override with draining if node is actively draining
 		if node.Drain {
 			status = "draining"
 		}

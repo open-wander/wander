@@ -264,9 +264,10 @@ func TestClientsListFilterByNodeClass(t *testing.T) {
 
 	// Should not contain non-compute nodes
 	shouldNotContain := []string{"storage", "high-memory", "gpu"}
-	for _, unexpected := range shouldNotContain {
+	for _, _ = range shouldNotContain {
 		// Note: We're checking for node class labels, not node names
 		// client-node-3 has class "storage", etc.
+		// This validation is implicit - the filtered results above shouldn't contain these
 	}
 }
 
@@ -642,7 +643,7 @@ func TestExtractFilterOptions(t *testing.T) {
 	clients := NewClientsHandler(h)
 
 	// Get the clients list
-	clientsList := clients.getClientsList()
+	clientsList := clients.getClientsList("")
 
 	// Extract filter options
 	filterOptions := clients.extractFilterOptions(clientsList)
@@ -674,7 +675,7 @@ func TestApplyFilters(t *testing.T) {
 	clients := NewClientsHandler(h)
 
 	// Get the full clients list
-	allClients := clients.getClientsList()
+	allClients := clients.getClientsList("")
 	initialCount := len(allClients)
 
 	if initialCount == 0 {

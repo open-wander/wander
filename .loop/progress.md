@@ -220,3 +220,16 @@
 - Pattern: Nomad streaming uses two channels (frames, errs)
 - Files: allocation_logs.go
 ---
+
+### 2026-01-27 - Task 18: Clients list real API
+- Added ACL token integration via GetTokenFromRequest(r)
+- QueryOptions.AuthToken for authenticated API calls
+- Enhanced composite status from Status + SchedulingEligibility + Drain
+- Statuses: ready, down, initializing, disconnected, draining, ineligible
+- Template filter dropdown updated with all status options
+- Client-side filtering: status, datacenter, node class, search
+- Maps NodeListStub to ClientSummary with resource conversion
+- Note: Allocations count still 0 (would need separate API call)
+- Pattern: Composite status derived by prioritizing special states
+- Files: clients.go, list_content.templ, clients_test.go
+---
