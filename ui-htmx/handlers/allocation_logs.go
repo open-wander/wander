@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"encoding/json"
-	"fmt"
-	"math/rand"
+	"encoding/base64"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
-	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/allocationspartials"
 )
 
@@ -78,9 +78,11 @@ func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, 
 		logType = "stdout"
 	}
 
-	// Get allocation details to get task list
-	// In a real implementation, this would query Nomad API
-	tasks := h.getTasksForAllocation(allocID)
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
+
+	// Get allocation details to get task list from Nomad API
+	tasks := h.getTasksForAllocation(allocID, token)
 
 	if task == "" && len(tasks) > 0 {
 		task = tasks[0]
@@ -108,7 +110,41 @@ func (h *AllocationLogsHandler) StreamLogs(w http.ResponseWriter, r *http.Reques
 		logType = "stdout"
 	}
 
-	h.handler.logger.Debug("starting log stream", "allocID", allocID, "task", task, "type", logType)
+	// Parse follow parameter (default: true for streaming)
+	follow := true
+	if followStr := r.URL.Query().Get("follow"); followStr != "" {
+		follow = followStr == "true"
+	}
+
+	// Parse offset parameter (default: 0)
+	offset := int64(0)
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if parsedOffset, err := strconv.ParseInt(offsetStr, 10, 64); err == nil {
+			offset = parsedOffset
+		}
+	}
+
+	// Parse origin parameter (default: "end" for tailing)
+	origin := "end"
+	if originStr := r.URL.Query().Get("origin"); originStr != "" {
+		origin = originStr
+	}
+
+	h.handler.logger.Debug("starting log stream",
+		"allocID", allocID,
+		"task", task,
+		"type", logType,
+		"follow", follow,
+		"offset", offset,
+		"origin", origin,
+	)
+
+	// Validate required parameters
+	if task == "" {
+		h.handler.logger.Warn("log stream missing task parameter", "allocID", allocID)
+		http.Error(w, "Missing required parameter: task", http.StatusBadRequest)
+		return
+	}
 
 	// Create SSE handler
 	sse, err := NewSSEHandler(w, r)
@@ -119,113 +155,132 @@ func (h *AllocationLogsHandler) StreamLogs(w http.ResponseWriter, r *http.Reques
 	}
 	defer sse.Close()
 
-	// In a real implementation, this would:
-	// 1. Connect to Nomad's log streaming API
-	// 2. Forward log frames to the SSE connection
-	// For now, we simulate log output
+	// Get ACL token from request
+	token := GetTokenFromRequest(r)
 
-	h.simulateLogStream(sse, r, allocID, task, logType)
+	// Stream logs from Nomad API
+	h.streamLogsFromNomad(sse, r, allocID, task, logType, follow, offset, origin, token)
 }
 
-// simulateLogStream generates mock log data for demonstration.
-// In production, this would be replaced with actual Nomad API calls.
-func (h *AllocationLogsHandler) simulateLogStream(sse *SSEHandler, r *http.Request, allocID, task, logType string) {
-	// Sample log messages for simulation
-	stdoutMessages := []string{
-		"Starting application...",
-		"Configuration loaded successfully",
-		"Connecting to database...",
-		"Database connection established",
-		"Listening on port 8080",
-		"Request received: GET /health",
-		"Response sent: 200 OK (12ms)",
-		"Request received: GET /api/users",
-		"Response sent: 200 OK (45ms)",
-		"Cache hit for key: user:123",
-		"Request received: POST /api/orders",
-		"Order created: #12345",
-		"Response sent: 201 Created (156ms)",
-		"Garbage collection completed in 23ms",
-		"Health check passed",
-		"Metrics exported to /metrics",
-		"Connection pool: 10 active, 5 idle",
-		"Memory usage: 256MB / 512MB",
-		"CPU usage: 35%",
-		"Processing batch job...",
-		"Batch job completed: 1000 items processed",
+// streamLogsFromNomad streams logs from the Nomad API via SSE.
+func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Request, allocID, task, logType string, follow bool, offset int64, origin string, token string) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available for log streaming")
+		sse.WriteJSON("error", map[string]string{
+			"message": "Nomad client not available",
+		})
+		return
 	}
 
-	stderrMessages := []string{
-		"[WARN] High memory usage detected",
-		"[ERROR] Connection timeout to external service",
-		"[WARN] Retry attempt 1/3 for database query",
-		"[ERROR] Failed to parse JSON payload",
-		"[WARN] Rate limit approaching for API key",
-		"[ERROR] Permission denied for file /var/log/app.log",
-		"[WARN] Deprecated API endpoint called",
-		"[DEBUG] Stack trace for debugging",
-		"[ERROR] Unhandled exception in worker thread",
-		"[WARN] SSL certificate expires in 7 days",
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
 	}
 
-	// Choose message set based on log type
-	var messages []string
-	switch logType {
-	case "stderr":
-		messages = stderrMessages
-	case "both":
-		// Combine both stdout and stderr messages for "both" mode
-		messages = append(messages, stdoutMessages...)
-		messages = append(messages, stderrMessages...)
-	default: // stdout
-		messages = stdoutMessages
+	// Fetch allocation info
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for log streaming", "allocID", allocID, "error", err)
+		sse.WriteJSON("error", map[string]string{
+			"message": "Failed to fetch allocation: " + err.Error(),
+		})
+		return
 	}
 
-	// Send initial historical logs (simulating log tail)
-	for i := 0; i < 20; i++ {
-		msg := messages[rand.Intn(len(messages))]
-		timestamp := time.Now().Add(time.Duration(-20+i) * time.Second)
+	// Create cancel channel from request context
+	ctx := r.Context()
+	cancel := make(chan struct{})
+	go func() {
+		<-ctx.Done()
+		close(cancel)
+	}()
 
-		line := LogLine{
-			Timestamp: timestamp.Format("2006-01-02 15:04:05"),
-			Message:   msg,
-			Level:     h.detectLogLevel(msg),
-		}
+	// Stream logs from Nomad API
+	// AllocFS().Logs returns two channels: frames and errors
+	frames, errs := client.AllocFS().Logs(alloc, follow, task, logType, origin, offset, cancel, queryOpts)
 
-		if err := sse.WriteJSON("log", line); err != nil {
-			return
-		}
-	}
+	h.handler.logger.Debug("log stream connected to Nomad API",
+		"allocID", allocID,
+		"task", task,
+		"type", logType,
+		"follow", follow,
+	)
 
-	// Stream new logs periodically
-	ticker := time.NewTicker(time.Duration(500+rand.Intn(2000)) * time.Millisecond)
-	defer ticker.Stop()
-
+	// Process frames and errors
 	for {
 		select {
-		case <-r.Context().Done():
+		case <-ctx.Done():
 			h.handler.logger.Debug("log stream client disconnected", "allocID", allocID)
 			return
+
 		case <-sse.Done():
 			h.handler.logger.Debug("log stream SSE handler closed", "allocID", allocID)
 			return
-		case <-ticker.C:
-			msg := messages[rand.Intn(len(messages))]
 
-			line := LogLine{
-				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
-				Message:   fmt.Sprintf("[%s/%s] %s", task, logType, msg),
-				Level:     h.detectLogLevel(msg),
-			}
-
-			data, _ := json.Marshal(line)
-			if err := sse.Write("log", string(data)); err != nil {
-				h.handler.logger.Debug("log stream write error", "error", err)
+		case frame, ok := <-frames:
+			if !ok {
+				// Frames channel closed, stream ended
+				h.handler.logger.Debug("log stream frames channel closed", "allocID", allocID)
 				return
 			}
 
-			// Vary the interval for realistic feel
-			ticker.Reset(time.Duration(500+rand.Intn(2000)) * time.Millisecond)
+			if frame == nil {
+				continue
+			}
+
+			// Skip heartbeat frames (empty frames sent to keep connection alive)
+			if frame.IsHeartbeat() {
+				continue
+			}
+
+			// Decode frame data - Nomad sends log data as raw bytes
+			// We need to handle potential binary data by base64 encoding it
+			message := string(frame.Data)
+
+			// Try to detect if data is binary (contains non-printable characters)
+			// If binary, encode as base64
+			isBinary := false
+			for _, b := range frame.Data {
+				if b < 32 && b != '\n' && b != '\r' && b != '\t' {
+					isBinary = true
+					break
+				}
+			}
+
+			if isBinary {
+				message = base64.StdEncoding.EncodeToString(frame.Data)
+			}
+
+			// Send log line to client
+			// Frame.Offset contains the byte offset of this data
+			// Frame.File contains the log file name
+			line := LogLine{
+				Timestamp: "", // Nomad doesn't provide timestamps in log frames
+				Message:   message,
+				Level:     h.detectLogLevel(message),
+			}
+
+			if err := sse.WriteJSON("log", line); err != nil {
+				h.handler.logger.Debug("log stream write error", "error", err, "allocID", allocID)
+				return
+			}
+
+		case err, ok := <-errs:
+			if !ok {
+				// Errors channel closed
+				h.handler.logger.Debug("log stream errors channel closed", "allocID", allocID)
+				return
+			}
+
+			if err != nil {
+				h.handler.logger.Error("log stream error from Nomad", "allocID", allocID, "error", err)
+				sse.WriteJSON("error", map[string]string{
+					"message": err.Error(),
+				})
+				return
+			}
 		}
 	}
 }
@@ -249,8 +304,33 @@ func (h *AllocationLogsHandler) detectLogLevel(msg string) string {
 }
 
 // getTasksForAllocation returns the list of tasks for an allocation.
-// In production, this would query the Nomad API.
-func (h *AllocationLogsHandler) getTasksForAllocation(allocID string) []string {
-	// Mock task list - in production, query Nomad API
-	return []string{"nginx", "redis", "sidecar"}
+// Fetches from Nomad API and returns task names.
+func (h *AllocationLogsHandler) getTasksForAllocation(allocID, token string) []string {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available for task list")
+		return []string{}
+	}
+
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for task list", "allocID", allocID, "error", err)
+		return []string{}
+	}
+
+	// Extract task names from TaskStates
+	tasks := make([]string, 0, len(alloc.TaskStates))
+	for taskName := range alloc.TaskStates {
+		tasks = append(tasks, taskName)
+	}
+
+	// Sort for consistent display
+	sort.Strings(tasks)
+
+	return tasks
 }

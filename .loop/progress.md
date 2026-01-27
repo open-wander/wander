@@ -192,3 +192,31 @@
 - ACL token passed for authenticated requests
 - Files: allocations.go
 ---
+
+### 2026-01-27 - Task 16: Allocation file content real API
+- VERIFIED: Already fully implemented in Task 15
+- AllocFS().Stat() for file metadata (size, content type)
+- AllocFS().ReadAt() for file content reading (not Cat())
+- Binary vs text detection via ContentType and file extensions
+- MaxPreviewSize = 100KB for large file truncation
+- Log file detection: .stdout.0, .stderr.0
+- File download handler with proper MIME types
+- ACL token authentication via GetTokenFromRequest()
+- No changes needed - task requirement already satisfied
+- Pattern: ReadAt() preferred over Cat() for partial reads
+- Files: allocations.go (verified, no changes)
+---
+
+### 2026-01-27 - Task 17: Allocation log streaming real API
+- Replaced mock streamLogsFromNomad() with real client.AllocFS().Logs()
+- Updated getTasksForAllocation() to fetch real task names from API
+- SSE endpoint: GET /ui/allocations/{id}/logs/stream
+- Query params: task (required), type (stdout/stderr), follow, offset, origin
+- Uses StreamFrame channels pattern from Nomad SDK
+- Heartbeat frame filtering via IsHeartbeat() helper
+- Binary data detection with base64 encoding for non-text logs
+- Context cancellation via request context for cleanup on disconnect
+- ACL token passed via QueryOptions.AuthToken
+- Pattern: Nomad streaming uses two channels (frames, errs)
+- Files: allocation_logs.go
+---
