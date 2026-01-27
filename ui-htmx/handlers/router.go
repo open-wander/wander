@@ -71,6 +71,9 @@ func (r *Router) registerRoutes() {
 	// Evaluations routes
 	r.registerEvaluationsRoutes()
 
+	// Deployments routes
+	r.registerDeploymentsRoutes()
+
 	// API routes
 	r.registerAPIRoutes()
 }
@@ -191,6 +194,15 @@ func (r *Router) registerEvaluationsRoutes() {
 	// Evaluations handler handles both list and detail pages
 	r.mux.Handle("/ui/evaluations", r.wrapMiddleware(evaluationsHandler))
 	r.mux.Handle("/ui/evaluations/", r.wrapMiddleware(evaluationsHandler))
+}
+
+// registerDeploymentsRoutes sets up routes for the deployments panel.
+func (r *Router) registerDeploymentsRoutes() {
+	deploymentsHandler := NewDeploymentsHandler(r.handler)
+
+	// Deployments handler handles both list and detail pages
+	r.mux.Handle("/ui/deployments", r.wrapMiddleware(deploymentsHandler))
+	r.mux.Handle("/ui/deployments/", r.wrapMiddleware(deploymentsHandler))
 }
 
 // registerAPIRoutes sets up API routes for HTMX actions.

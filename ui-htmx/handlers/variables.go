@@ -3,6 +3,7 @@ package handlers
 import (
 	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -505,20 +506,34 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Detail handles the variable detail/edit page
 func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
-	// Extract variable path from URL
-	variablePath := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
-	variablePath = strings.TrimSuffix(variablePath, "/")
+	// Extract variable path from URL (URL-encoded)
+	variablePathEncoded := strings.TrimPrefix(r.URL.Path, "/ui/variables/")
+	variablePathEncoded = strings.TrimSuffix(variablePathEncoded, "/")
+
+	// URL decode the path
+	variablePath, err := url.PathUnescape(variablePathEncoded)
+	if err != nil {
+		h.handler.logger.Error("failed to decode variable path", "error", err, "path", variablePathEncoded)
+		http.Error(w, "Invalid variable path", http.StatusBadRequest)
+		return
+	}
+
+	// Get namespace from query param
+	namespace := r.URL.Query().Get("namespace")
+	if namespace == "" {
+		namespace = "default" // Default to default namespace
+	}
 
 	// Log the request
-	h.handler.logger.Debug("variable detail request", "path", variablePath, "htmx", IsHTMXFromRequest(r))
+	h.handler.logger.Debug("variable detail request", "path", variablePath, "namespace", namespace, "htmx", IsHTMXFromRequest(r))
 
 	// Check permissions - need read capability to view variables
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanReadVariables("default", variablePath) {
+	if perms != nil && !perms.CanReadVariables(namespace, variablePath) {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to read this variable",
 			Capability: "variables: read",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Contact your administrator to request the 'read' capability for this variable path",
 				"Variable permissions are path-specific",
@@ -527,8 +542,11 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get mock variable detail data
-	variableDetail := h.getVariableDetail(variablePath)
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get variable detail from API or fallback to mock
+	variableDetail := h.getVariableDetail(variablePath, namespace, token)
 
 	// If not found, return 404
 	if variableDetail == nil {
@@ -540,7 +558,7 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	layoutProps := h.handler.BaseLayoutProps(
 		variableDetail.Path+" - Variable - Wander",
 		"View and edit variable "+variableDetail.Path,
-		"/ui/variables/"+variablePath,
+		"/ui/variables/"+variablePathEncoded,
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
 			{Label: "Variables", URL: "/ui/variables"},
@@ -549,7 +567,7 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		variables.Detail(layoutProps, *variableDetail),                // Full page with layout
 		variablespartials.DetailContent(*variableDetail), // Partial content for HTMX requests
 	)
@@ -639,9 +657,61 @@ func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// getVariableDetail returns mock variable detail data.
-// Returns nil if the variable is not found.
-func (h *VariablesHandler) getVariableDetail(path string) *variablespartials.VariableDetail {
+// getVariableDetail fetches a variable by path from the Nomad API.
+// Falls back to mock data if API is unavailable. Returns nil if not found.
+func (h *VariablesHandler) getVariableDetail(path, namespace, token string) *variablespartials.VariableDetail {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, using mock data")
+		return h.getMockVariableDetail(path)
+	}
+
+	// Build query options with namespace and token
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching variable from API",
+		"path", path,
+		"namespace", namespace,
+		"hasToken", token != "",
+	)
+
+	// Fetch the variable from the API
+	variable, _, err := client.Variables().Read(path, queryOpts)
+	if err != nil {
+		// Check if it's a 404 (not found) error
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "not found") {
+			h.handler.logger.Debug("variable not found", "path", path, "namespace", namespace)
+			return nil
+		}
+		h.handler.logger.Warn("failed to fetch variable from API", "error", err, "path", path)
+		return h.getMockVariableDetail(path)
+	}
+
+	h.handler.logger.Debug("fetched variable from API", "path", path, "itemCount", len(variable.Items))
+
+	// Convert ModifyTime (unix nano) to time.Time
+	modifiedTime := time.Unix(0, variable.ModifyTime)
+
+	// Convert api.Variable to template format
+	return &variablespartials.VariableDetail{
+		Path:        variable.Path,
+		Namespace:   variable.Namespace,
+		CreateIndex: variable.CreateIndex,
+		ModifyIndex: variable.ModifyIndex,
+		Modified:    modifiedTime,
+		Items:       variable.Items,
+	}
+}
+
+// getMockVariableDetail returns mock variable detail data.
+// Returns nil if the variable is not found in mock data.
+func (h *VariablesHandler) getMockVariableDetail(path string) *variablespartials.VariableDetail {
 	now := time.Now()
 
 	// Mock variable data - match some paths from the list
@@ -653,11 +723,11 @@ func (h *VariablesHandler) getVariableDetail(path string) *variablespartials.Var
 			ModifyIndex: 1250,
 			Modified:    now.Add(-24 * time.Hour),
 			Items: map[string]string{
-				"database_url":      "postgresql://localhost:5432/nomad",
-				"redis_host":        "redis.service.consul",
-				"api_timeout":       "30s",
-				"max_connections":   "100",
-				"enable_debugging":  "false",
+				"database_url":     "postgresql://localhost:5432/nomad",
+				"redis_host":       "redis.service.consul",
+				"api_timeout":      "30s",
+				"max_connections":  "100",
+				"enable_debugging": "false",
 			},
 		},
 		"nomad/jobs/web": {
@@ -667,10 +737,10 @@ func (h *VariablesHandler) getVariableDetail(path string) *variablespartials.Var
 			ModifyIndex: 1300,
 			Modified:    now.Add(-2 * time.Hour),
 			Items: map[string]string{
-				"port":             "8080",
-				"log_level":        "info",
-				"static_assets":    "/var/www/public",
-				"session_timeout":  "3600",
+				"port":            "8080",
+				"log_level":       "info",
+				"static_assets":   "/var/www/public",
+				"session_timeout": "3600",
 			},
 		},
 		"nomad/jobs/api": {
@@ -680,9 +750,9 @@ func (h *VariablesHandler) getVariableDetail(path string) *variablespartials.Var
 			ModifyIndex: 1350,
 			Modified:    now.Add(-5 * time.Hour),
 			Items: map[string]string{
-				"api_key":          "test-key-12345",
-				"rate_limit":       "1000",
-				"cors_origins":     "*",
+				"api_key":      "test-key-12345",
+				"rate_limit":   "1000",
+				"cors_origins": "*",
 			},
 		},
 		"app/config": {
@@ -706,9 +776,9 @@ func (h *VariablesHandler) getVariableDetail(path string) *variablespartials.Var
 			ModifyIndex: 2150,
 			Modified:    now.Add(-3 * 24 * time.Hour),
 			Items: map[string]string{
-				"jwt_secret":       "super-secret-key",
-				"encryption_key":   "aes-256-key",
-				"api_token":        "Bearer token123",
+				"jwt_secret":     "super-secret-key",
+				"encryption_key": "aes-256-key",
+				"api_token":      "Bearer token123",
 			},
 		},
 	}
@@ -717,15 +787,6 @@ func (h *VariablesHandler) getVariableDetail(path string) *variablespartials.Var
 		return &detail
 	}
 
-	// Return a default variable for any other path (for testing)
-	return &variablespartials.VariableDetail{
-		Path:        path,
-		Namespace:   "default",
-		CreateIndex: 1000,
-		ModifyIndex: 1000,
-		Modified:    now,
-		Items: map[string]string{
-			"example_key": "example_value",
-		},
-	}
+	// Return nil if not found (real behavior)
+	return nil
 }

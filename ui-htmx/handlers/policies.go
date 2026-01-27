@@ -168,8 +168,18 @@ func (h *PoliciesHandler) showDetail(w http.ResponseWriter, r *http.Request, pol
 		return
 	}
 
-	// Get policy data (mock for now)
-	policy, exists := h.getPolicyDetail(policyName)
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get policy data - try real API first, fall back to mock
+	var policy policiespartials.PolicyDetail
+	var exists bool
+	if h.handler.HasNomadClient() {
+		policy, exists = h.getPolicyFromAPI(policyName, token)
+	}
+	if !exists {
+		policy, exists = h.getPolicyDetail(policyName)
+	}
 	if !exists {
 		http.NotFound(w, r)
 		return
@@ -278,6 +288,44 @@ func (h *PoliciesHandler) getPoliciesFromAPI(token string) []policiespartials.Po
 	}
 
 	return result
+}
+
+// getPolicyFromAPI fetches a single policy from the Nomad API.
+func (h *PoliciesHandler) getPolicyFromAPI(name string, token string) (policiespartials.PolicyDetail, bool) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		return policiespartials.PolicyDetail{}, false
+	}
+
+	// Build query options with ACL token
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching policy from API", "policy", name, "hasToken", token != "")
+
+	// Fetch policy from the API
+	policy, _, err := client.ACLPolicies().Info(name, queryOpts)
+	if err != nil {
+		h.handler.logger.Warn("failed to fetch policy from API", "policy", name, "error", err)
+		return policiespartials.PolicyDetail{}, false
+	}
+
+	h.handler.logger.Debug("fetched policy from API", "policy", name)
+
+	// Map API policy to template policy
+	// Note: ACL policies don't have timestamps in the API, only Raft indexes
+	return policiespartials.PolicyDetail{
+		Name:        policy.Name,
+		Description: policy.Description,
+		Rules:       policy.Rules,
+		CreateIndex: policy.CreateIndex,
+		ModifyIndex: policy.ModifyIndex,
+		CreatedAt:   time.Time{}, // ACL policies don't have timestamps in the API
+		ModifiedAt:  time.Time{}, // ACL policies don't have timestamps in the API
+	}, true
 }
 
 // getPoliciesList returns mock policy data.

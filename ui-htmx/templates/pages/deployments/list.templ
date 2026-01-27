@@ -1,0 +1,11 @@
+package deployments
+
+import (
+	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/ui-htmx/templates/partials/deploymentspartials"
+)
+
+// List renders the full deployments list page with layout.
+templ List(layoutProps layouts.PageLayoutProps, deploymentsList []deploymentspartials.DeploymentSummary) {
+	@layouts.PageLayout(layoutProps, deploymentspartials.ListContent(deploymentsList))
+}

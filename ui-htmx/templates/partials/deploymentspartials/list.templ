@@ -1,0 +1,199 @@
+package deploymentspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+)
+
+// DeploymentSummary represents a summary view of a deployment.
+type DeploymentSummary struct {
+	ID                string
+	ShortID           string
+	JobID             string
+	JobName           string
+	JobVersion        uint64
+	Status            string
+	StatusDescription string
+	IsMultiregion     bool
+	TimeAgo           string
+	DesiredTotal      int
+	PlacedAllocs      int
+	HealthyAllocs     int
+	UnhealthyAllocs   int
+}
+
+// ListContent renders the deployments list content for the full page.
+templ ListContent(deploymentsList []DeploymentSummary) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Deployments</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					View recent Nomad deployments
+				</p>
+			</div>
+		</div>
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+			<div class="p-4 space-y-3">
+				if len(deploymentsList) == 0 {
+					<div class="text-center py-12">
+						<svg
+							class="mx-auto h-12 w-12 text-neutral-400"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							aria-hidden="true"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+							></path>
+						</svg>
+						<h3 class="mt-2 text-sm font-medium text-neutral-900">No deployments</h3>
+						<p class="mt-1 text-sm text-neutral-500">No recent deployments to display.</p>
+					</div>
+				} else {
+					for _, deploy := range deploymentsList {
+						@deploymentCard(deploy)
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// List renders the deployments list content for the panel (sidebar).
+templ List(deploymentsList []DeploymentSummary) {
+	<div class="p-4 space-y-3">
+		if len(deploymentsList) == 0 {
+			<div class="text-center py-12">
+				<svg
+					class="mx-auto h-12 w-12 text-neutral-400"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					aria-hidden="true"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+					></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900">No deployments</h3>
+				<p class="mt-1 text-sm text-neutral-500">No recent deployments to display.</p>
+			</div>
+		} else {
+			for _, deploy := range deploymentsList {
+				@deploymentCard(deploy)
+			}
+		}
+	</div>
+}
+
+// deploymentCard renders a single deployment card
+templ deploymentCard(deploy DeploymentSummary) {
+	<a
+		href={ templ.SafeURL("/ui/deployments/" + deploy.ID) }
+		class="block bg-white rounded-lg border border-neutral-200 p-4 hover:border-primary-500 hover:shadow-md transition-all duration-150 cursor-pointer"
+	>
+		<div class="flex items-start justify-between">
+			<div class="flex-1 min-w-0">
+				<!-- Job Name, Version and Short ID -->
+				<div class="flex items-center gap-2 mb-2">
+					<h3 class="text-sm font-semibold text-neutral-900 truncate">
+						{ deploy.JobName }
+					</h3>
+					<span class="text-xs text-neutral-600">
+						v{ templ.EscapeString(formatUint64(deploy.JobVersion)) }
+					</span>
+					<span class="text-xs font-mono text-neutral-500">
+						{ deploy.ShortID }
+					</span>
+					if deploy.IsMultiregion {
+						<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+							Multi-region
+						</span>
+					}
+				</div>
+				<!-- Status Badge -->
+				<div class="flex items-center gap-2 mb-2">
+					@components.Badge(components.BadgeProps{
+						Variant: statusVariant(deploy.Status),
+						Dot:     true,
+						Size:    "sm",
+					}) {
+						{ deploy.Status }
+					}
+					if deploy.StatusDescription != "" {
+						<span class="text-xs text-neutral-600 truncate">
+							{ deploy.StatusDescription }
+						</span>
+					}
+				</div>
+				<!-- Allocation Progress -->
+				<div class="flex items-center gap-3 text-xs text-neutral-600">
+					<div class="flex items-center gap-1">
+						<svg class="h-3.5 w-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+						</svg>
+						<span>{ templ.EscapeString(formatInt(deploy.PlacedAllocs)) }/{ templ.EscapeString(formatInt(deploy.DesiredTotal)) } placed</span>
+					</div>
+					if deploy.HealthyAllocs > 0 || deploy.UnhealthyAllocs > 0 {
+						<div class="flex items-center gap-1">
+							<svg class="h-3.5 w-3.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+							<span class="text-green-600">{ templ.EscapeString(formatInt(deploy.HealthyAllocs)) } healthy</span>
+						</div>
+					}
+					if deploy.UnhealthyAllocs > 0 {
+						<div class="flex items-center gap-1">
+							<svg class="h-3.5 w-3.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+							<span class="text-red-600">{ templ.EscapeString(formatInt(deploy.UnhealthyAllocs)) } unhealthy</span>
+						</div>
+					}
+				</div>
+			</div>
+			<!-- Time Ago -->
+			<div class="flex-shrink-0 ml-4">
+				<span class="text-xs text-neutral-500 whitespace-nowrap">
+					{ deploy.TimeAgo }
+				</span>
+			</div>
+		</div>
+	</a>
+}
+
+// statusVariant maps deployment status to badge variant
+func statusVariant(status string) string {
+	switch status {
+	case "successful":
+		return "success"
+	case "running":
+		return "info"
+	case "paused":
+		return "warning"
+	case "failed":
+		return "error"
+	case "cancelled":
+		return "neutral"
+	default:
+		return "neutral"
+	}
+}
+
+// formatInt formats an integer as a string
+func formatInt(n int) string {
+	return fmt.Sprintf("%d", n)
+}
+
+// formatUint64 formats a uint64 as a string
+func formatUint64(n uint64) string {
+	return fmt.Sprintf("%d", n)
+}

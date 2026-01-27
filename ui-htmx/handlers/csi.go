@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/pages/csi"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/csipartials"
@@ -88,13 +89,20 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("csi volumes list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
+	// Parse query parameters
+	query := r.URL.Query()
+	namespace := query.Get("namespace")
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	// Check permissions - need csi-list-volume capability
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanListCSI("default") {
+	if perms != nil && !perms.CanListCSI(namespace) {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to list CSI volumes",
 			Capability: "csi-list-volume",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Contact your administrator to request the 'csi-list-volume' capability",
 				"This capability allows viewing CSI volume information",
@@ -103,8 +111,6 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse query parameters
-	query := r.URL.Query()
 	pluginFilter := query.Get("plugin")
 	providerFilter := query.Get("provider")
 	schedulableFilter := query.Get("schedulable")
@@ -132,8 +138,11 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 		perPage = pp
 	}
 
-	// Get all volumes
-	allVolumes := h.getVolumesList()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get all volumes from Nomad API
+	allVolumes := h.getVolumesList(namespace, token)
 
 	// Extract filter options from all volumes (before filtering)
 	filterOptions := h.extractFilterOptions(allVolumes)
@@ -345,123 +354,66 @@ func (h *CSIHandler) sortVolumes(volumes []VolumeSummary, column, dir string) {
 	})
 }
 
-// getVolumesList returns mock CSI volume data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *CSIHandler) getVolumesList() []VolumeSummary {
-	now := time.Now()
-
-	return []VolumeSummary{
-		{
-			ID:          "vol-01-postgres-data",
-			Name:        "postgres-data",
-			PluginID:    "aws-ebs0",
-			Provider:    "ebs.csi.aws.com",
-			Schedulable: true,
-			AccessMode:  "single-node-writer",
-			AttachMode:  "file-system",
-			Allocations: 1,
-			Created:     now.Add(-168 * time.Hour), // 7 days ago
-		},
-		{
-			ID:          "vol-02-redis-cache",
-			Name:        "redis-cache",
-			PluginID:    "aws-ebs0",
-			Provider:    "ebs.csi.aws.com",
-			Schedulable: true,
-			AccessMode:  "single-node-writer",
-			AttachMode:  "file-system",
-			Allocations: 1,
-			Created:     now.Add(-120 * time.Hour), // 5 days ago
-		},
-		{
-			ID:          "vol-03-shared-assets",
-			Name:        "shared-assets",
-			PluginID:    "aws-efs0",
-			Provider:    "efs.csi.aws.com",
-			Schedulable: true,
-			AccessMode:  "multi-node-multi-writer",
-			AttachMode:  "file-system",
-			Allocations: 3,
-			Created:     now.Add(-240 * time.Hour), // 10 days ago
-		},
-		{
-			ID:          "vol-04-mysql-data",
-			Name:        "mysql-data",
-			PluginID:    "aws-ebs0",
-			Provider:    "ebs.csi.aws.com",
-			Schedulable: false,
-			AccessMode:  "single-node-writer",
-			AttachMode:  "file-system",
-			Allocations: 1,
-			Created:     now.Add(-336 * time.Hour), // 14 days ago
-		},
-		{
-			ID:          "vol-05-app-logs",
-			Name:        "app-logs",
-			PluginID:    "aws-efs0",
-			Provider:    "efs.csi.aws.com",
-			Schedulable: true,
-			AccessMode:  "multi-node-reader-only",
-			AttachMode:  "file-system",
-			Allocations: 5,
-			Created:     now.Add(-72 * time.Hour), // 3 days ago
-		},
-		{
-			ID:          "vol-06-elasticsearch-data",
-			Name:        "elasticsearch-data",
-			PluginID:    "ceph-rbd0",
-			Provider:    "rbd.csi.ceph.com",
-			Schedulable: true,
-			AccessMode:  "single-node-writer",
-			AttachMode:  "block-device",
-			Allocations: 1,
-			Created:     now.Add(-480 * time.Hour), // 20 days ago
-		},
-		{
-			ID:          "vol-07-prometheus-metrics",
-			Name:        "prometheus-metrics",
-			PluginID:    "aws-ebs0",
-			Provider:    "ebs.csi.aws.com",
-			Schedulable: true,
-			AccessMode:  "single-node-writer",
-			AttachMode:  "file-system",
-			Allocations: 1,
-			Created:     now.Add(-96 * time.Hour), // 4 days ago
-		},
-		{
-			ID:          "vol-08-grafana-dashboards",
-			Name:        "grafana-dashboards",
-			PluginID:    "aws-efs0",
-			Provider:    "efs.csi.aws.com",
-			Schedulable: true,
-			AccessMode:  "multi-node-reader-only",
-			AttachMode:  "file-system",
-			Allocations: 2,
-			Created:     now.Add(-192 * time.Hour), // 8 days ago
-		},
-		{
-			ID:          "vol-09-backup-archive",
-			Name:        "backup-archive",
-			PluginID:    "ceph-rbd0",
-			Provider:    "rbd.csi.ceph.com",
-			Schedulable: false,
-			AccessMode:  "single-node-writer",
-			AttachMode:  "file-system",
-			Allocations: 0,
-			Created:     now.Add(-720 * time.Hour), // 30 days ago
-		},
-		{
-			ID:          "vol-10-media-content",
-			Name:        "media-content",
-			PluginID:    "aws-efs0",
-			Provider:    "efs.csi.aws.com",
-			Schedulable: true,
-			AccessMode:  "multi-node-multi-writer",
-			AttachMode:  "file-system",
-			Allocations: 4,
-			Created:     now.Add(-144 * time.Hour), // 6 days ago
-		},
+// getVolumesList fetches CSI volumes from the Nomad API.
+// Falls back to empty list if API is unavailable.
+func (h *CSIHandler) getVolumesList(namespace, token string) []VolumeSummary {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty volumes list")
+		return []VolumeSummary{}
 	}
+
+	// Build query options with namespace and ACL token
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching CSI volumes from API",
+		"namespace", namespace,
+		"hasToken", token != "")
+
+	// Fetch volumes from the API
+	volumes, _, err := client.CSIVolumes().List(queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch CSI volumes from Nomad API", "error", err)
+		return []VolumeSummary{}
+	}
+
+	// Convert API response to our summary type
+	result := make([]VolumeSummary, 0, len(volumes))
+	for _, vol := range volumes {
+		// Calculate total allocations (readers + writers)
+		totalAllocs := vol.CurrentReaders + vol.CurrentWriters
+
+		// Convert CreateIndex to a timestamp (approximate - uses current time as base)
+		// Note: Nomad doesn't expose actual creation time, so we use ModifyIndex as proxy
+		created := time.Now()
+		if vol.CreateIndex > 0 {
+			// Rough approximation: subtract some time based on index difference
+			// This is not accurate but gives relative ordering
+			created = created.Add(-time.Duration(vol.ModifyIndex-vol.CreateIndex) * time.Minute)
+		}
+
+		result = append(result, VolumeSummary{
+			ID:          vol.ID,
+			Name:        vol.Name,
+			PluginID:    vol.PluginID,
+			Provider:    vol.Provider,
+			Schedulable: vol.Schedulable,
+			AccessMode:  string(vol.AccessMode),
+			AttachMode:  string(vol.AttachmentMode),
+			Allocations: totalAllocs,
+			Created:     created,
+		})
+	}
+
+	return result
 }
 
 // VolumeDetail represents detailed information about a CSI volume.
