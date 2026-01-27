@@ -210,6 +210,7 @@ func (r *Router) registerAPIRoutes() {
 	jobsAPIHandler := NewJobsAPIHandler(r.handler)
 	namespaceAPIHandler := NewNamespaceAPIHandler(r.handler)
 	clientsAPIHandler := NewClientsAPIHandler(r.handler)
+	deploymentsAPIHandler := NewDeploymentsAPIHandler(r.handler)
 
 	// Job action endpoints
 	r.mux.Handle("/api/jobs/", r.wrapMiddleware(jobsAPIHandler))
@@ -219,6 +220,9 @@ func (r *Router) registerAPIRoutes() {
 
 	// Client node action endpoints
 	r.mux.Handle("/api/clients/", r.wrapMiddleware(clientsAPIHandler))
+
+	// Deployment action endpoints
+	r.mux.Handle("/api/deployments/", r.wrapMiddleware(deploymentsAPIHandler))
 
 	// Auth endpoints for token management
 	r.mux.HandleFunc("/api/v1/auth/token-info", func(w http.ResponseWriter, req *http.Request) {
@@ -242,10 +246,12 @@ func (r *Router) registerAPIRoutes() {
 // - RequireToken - enforces authentication (blocks unauthenticated requests)
 //
 // To enable token validation, modify this function to:
-//   return ACLMiddleware(r.handler.TokenValidationMiddleware(HTMXMiddleware(h)))
+//
+//	return ACLMiddleware(r.handler.TokenValidationMiddleware(HTMXMiddleware(h)))
 //
 // To enforce authentication on specific routes, wrap them with:
-//   r.handler.RequireToken(handler)
+//
+//	r.handler.RequireToken(handler)
 func (r *Router) wrapMiddleware(h http.Handler) http.Handler {
 	// Apply middleware in order:
 	// 1. ACL middleware extracts and stores token from headers/cookies

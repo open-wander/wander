@@ -463,13 +463,20 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 		"volumeID", volumeID,
 		"htmx", IsHTMXFromRequest(r))
 
+	// Parse query parameters
+	query := r.URL.Query()
+	namespace := query.Get("namespace")
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	// Check permissions - need csi-read-volume capability
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanReadCSI("default") {
+	if perms != nil && !perms.CanReadCSI(namespace) {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to view CSI volume details",
 			Capability: "csi-read-volume",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Contact your administrator to request the 'csi-read-volume' capability",
 				"This capability allows viewing detailed CSI volume information",
@@ -478,8 +485,11 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 		return
 	}
 
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
 	// Get volume details
-	volume := h.getVolumeDetail(volumeID)
+	volume := h.getVolumeDetail(volumeID, namespace, token)
 	if volume == nil {
 		http.NotFound(w, r)
 		return
@@ -551,144 +561,122 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 	}
 }
 
-// getVolumeDetail returns mock volume detail data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *CSIHandler) getVolumeDetail(volumeID string) *VolumeDetail {
-	now := time.Now()
-
-	// Mock data for different volumes
-	volumes := map[string]*VolumeDetail{
-		"vol-01-postgres-data": {
-			ID:                  "vol-01-postgres-data",
-			Name:                "postgres-data",
-			Namespace:           "default",
-			PluginID:            "aws-ebs0",
-			Provider:            "ebs.csi.aws.com",
-			Schedulable:         true,
-			AccessMode:          "single-node-writer",
-			AttachMode:          "file-system",
-			MountOptions:        "defaults",
-			Capacity:            107374182400, // 100 GB
-			AllocationsCount:    1,
-			ReadAllocsCount:     0,
-			WriteAllocsCount:    1,
-			Created:             now.Add(-168 * time.Hour),
-			ExternalID:          "vol-0abc123def456",
-			ControllerRequired:  true,
-			ControllersHealthy:  2,
-			ControllersExpected: 2,
-			NodesHealthy:        3,
-			NodesExpected:       3,
-			Allocations: []AllocationInfo{
-				{
-					ID:        "alloc-postgres-001",
-					Name:      "postgres.db[0]",
-					JobID:     "postgres",
-					TaskGroup: "db",
-					NodeID:    "node-001",
-					NodeName:  "node-1.example.com",
-					Status:    "running",
-					ReadOnly:  false,
-					Created:   now.Add(-24 * time.Hour),
-				},
-			},
-		},
-		"vol-02-redis-cache": {
-			ID:                  "vol-02-redis-cache",
-			Name:                "redis-cache",
-			Namespace:           "default",
-			PluginID:            "aws-ebs0",
-			Provider:            "ebs.csi.aws.com",
-			Schedulable:         true,
-			AccessMode:          "single-node-writer",
-			AttachMode:          "file-system",
-			MountOptions:        "defaults",
-			Capacity:            53687091200, // 50 GB
-			AllocationsCount:    1,
-			ReadAllocsCount:     0,
-			WriteAllocsCount:    1,
-			Created:             now.Add(-120 * time.Hour),
-			ExternalID:          "vol-1def456abc789",
-			ControllerRequired:  true,
-			ControllersHealthy:  2,
-			ControllersExpected: 2,
-			NodesHealthy:        3,
-			NodesExpected:       3,
-			Allocations: []AllocationInfo{
-				{
-					ID:        "alloc-redis-001",
-					Name:      "redis.cache[0]",
-					JobID:     "redis",
-					TaskGroup: "cache",
-					NodeID:    "node-002",
-					NodeName:  "node-2.example.com",
-					Status:    "running",
-					ReadOnly:  false,
-					Created:   now.Add(-12 * time.Hour),
-				},
-			},
-		},
-		"vol-03-shared-assets": {
-			ID:                  "vol-03-shared-assets",
-			Name:                "shared-assets",
-			Namespace:           "default",
-			PluginID:            "aws-efs0",
-			Provider:            "efs.csi.aws.com",
-			Schedulable:         true,
-			AccessMode:          "multi-node-multi-writer",
-			AttachMode:          "file-system",
-			MountOptions:        "nfsvers=4.1,rsize=1048576,wsize=1048576",
-			Capacity:            0, // EFS is elastic
-			AllocationsCount:    3,
-			ReadAllocsCount:     1,
-			WriteAllocsCount:    2,
-			Created:             now.Add(-240 * time.Hour),
-			ExternalID:          "fs-0123456789abcdef",
-			ControllerRequired:  false,
-			ControllersHealthy:  0,
-			ControllersExpected: 0,
-			NodesHealthy:        3,
-			NodesExpected:       3,
-			Allocations: []AllocationInfo{
-				{
-					ID:        "alloc-webapp-001",
-					Name:      "webapp.web[0]",
-					JobID:     "webapp",
-					TaskGroup: "web",
-					NodeID:    "node-001",
-					NodeName:  "node-1.example.com",
-					Status:    "running",
-					ReadOnly:  false,
-					Created:   now.Add(-48 * time.Hour),
-				},
-				{
-					ID:        "alloc-webapp-002",
-					Name:      "webapp.web[1]",
-					JobID:     "webapp",
-					TaskGroup: "web",
-					NodeID:    "node-002",
-					NodeName:  "node-2.example.com",
-					Status:    "running",
-					ReadOnly:  false,
-					Created:   now.Add(-47 * time.Hour),
-				},
-				{
-					ID:        "alloc-worker-001",
-					Name:      "worker.processor[0]",
-					JobID:     "worker",
-					TaskGroup: "processor",
-					NodeID:    "node-003",
-					NodeName:  "node-3.example.com",
-					Status:    "running",
-					ReadOnly:  true,
-					Created:   now.Add(-36 * time.Hour),
-				},
-			},
-		},
+// getVolumeDetail fetches CSI volume details from the Nomad API.
+// Returns nil if volume not found or API is unavailable.
+func (h *CSIHandler) getVolumeDetail(volumeID, namespace, token string) *VolumeDetail {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, cannot fetch volume detail")
+		return nil
 	}
 
-	// Return the requested volume or nil if not found
-	return volumes[volumeID]
+	// Build query options with namespace and ACL token
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching CSI volume detail from API",
+		"volumeID", volumeID,
+		"namespace", namespace,
+		"hasToken", token != "")
+
+	// Fetch volume from the API
+	vol, _, err := client.CSIVolumes().Info(volumeID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch CSI volume from Nomad API",
+			"volumeID", volumeID,
+			"namespace", namespace,
+			"error", err)
+		return nil
+	}
+
+	// Convert timestamps - use CreateIndex as approximate creation time
+	created := time.Now()
+	if vol.CreateIndex > 0 {
+		// Rough approximation: subtract some time based on index difference
+		// This is not accurate but gives relative ordering
+		created = created.Add(-time.Duration(vol.ModifyIndex-vol.CreateIndex) * time.Minute)
+	}
+
+	// Format mount options
+	mountOptions := ""
+	if vol.MountOptions != nil {
+		if vol.MountOptions.FSType != "" {
+			mountOptions = "fs_type=" + vol.MountOptions.FSType
+		}
+		if len(vol.MountOptions.MountFlags) > 0 {
+			if mountOptions != "" {
+				mountOptions += ", "
+			}
+			mountOptions += strings.Join(vol.MountOptions.MountFlags, ",")
+		}
+	}
+	if mountOptions == "" {
+		mountOptions = "defaults"
+	}
+
+	// Convert allocations from the Allocations list
+	allocations := make([]AllocationInfo, 0, len(vol.Allocations))
+	for _, alloc := range vol.Allocations {
+		// Determine if this allocation is a reader or writer
+		isReadOnly := false
+		if vol.ReadAllocs != nil {
+			_, isReadOnly = vol.ReadAllocs[alloc.ID]
+		}
+
+		// Convert allocation timestamps
+		allocCreated := time.Time{}
+		if alloc.CreateTime > 0 {
+			allocCreated = time.Unix(0, alloc.CreateTime)
+		}
+
+		allocations = append(allocations, AllocationInfo{
+			ID:        alloc.ID,
+			Name:      alloc.Name,
+			JobID:     alloc.JobID,
+			TaskGroup: alloc.TaskGroup,
+			NodeID:    alloc.NodeID,
+			NodeName:  alloc.NodeName,
+			Status:    alloc.ClientStatus,
+			ReadOnly:  isReadOnly,
+			Created:   allocCreated,
+		})
+	}
+
+	// Calculate allocation counts
+	readCount := len(vol.ReadAllocs)
+	writeCount := len(vol.WriteAllocs)
+	totalCount := len(vol.Allocations)
+
+	return &VolumeDetail{
+		ID:                  vol.ID,
+		Name:                vol.Name,
+		Namespace:           vol.Namespace,
+		PluginID:            vol.PluginID,
+		Provider:            vol.Provider,
+		Schedulable:         vol.Schedulable,
+		AccessMode:          string(vol.AccessMode),
+		AttachMode:          string(vol.AttachmentMode),
+		MountOptions:        mountOptions,
+		Capacity:            vol.Capacity,
+		AllocationsCount:    totalCount,
+		ReadAllocsCount:     readCount,
+		WriteAllocsCount:    writeCount,
+		Created:             created,
+		ExternalID:          vol.ExternalID,
+		ControllerRequired:  vol.ControllerRequired,
+		ControllersHealthy:  vol.ControllersHealthy,
+		ControllersExpected: vol.ControllersExpected,
+		NodesHealthy:        vol.NodesHealthy,
+		NodesExpected:       vol.NodesExpected,
+		Allocations:         allocations,
+	}
 }
 
 // PluginSummary represents a summary view of a CSI plugin for list display.
@@ -708,15 +696,16 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("csi plugins list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
-	// Check permissions - CSI plugins require read capability
+	// Check permissions - CSI plugins require list capability
+	// Note: CSI plugins are cluster-wide resources, not namespaced
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanReadCSI("default") {
+	if perms != nil && !perms.CanListCSI("default") {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to view CSI plugins",
-			Capability: "csi-read-volume",
+			Capability: "csi-list-volume",
 			Namespace:  "default",
 			Suggestions: []string{
-				"Contact your administrator to request the 'csi-read-volume' capability",
+				"Contact your administrator to request the 'csi-list-volume' capability",
 				"This capability allows viewing CSI plugin information",
 			},
 		})
@@ -737,8 +726,11 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 		sortDir = "asc"
 	}
 
-	// Get all plugins
-	allPlugins := h.getPluginsList()
+	// Get ACL token from request context
+	token := GetTokenFromRequest(r)
+
+	// Get all plugins from Nomad API
+	allPlugins := h.getPluginsList(token)
 
 	// Apply search filter
 	filteredPlugins := h.filterPlugins(allPlugins, searchQuery)
@@ -847,45 +839,48 @@ func (h *CSIHandler) sortPlugins(plugins []PluginSummary, column, dir string) {
 	})
 }
 
-// getPluginsList returns mock CSI plugin data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *CSIHandler) getPluginsList() []PluginSummary {
-	return []PluginSummary{
-		{
-			ID:                  "aws-ebs0",
-			Provider:            "ebs.csi.aws.com",
-			ControllerRequired:  true,
-			ControllersHealthy:  2,
-			ControllersExpected: 2,
-			NodesHealthy:        3,
-			NodesExpected:       3,
-		},
-		{
-			ID:                  "aws-efs0",
-			Provider:            "efs.csi.aws.com",
-			ControllerRequired:  false,
-			ControllersHealthy:  0,
-			ControllersExpected: 0,
-			NodesHealthy:        3,
-			NodesExpected:       3,
-		},
-		{
-			ID:                  "ceph-rbd0",
-			Provider:            "rbd.csi.ceph.com",
-			ControllerRequired:  true,
-			ControllersHealthy:  2,
-			ControllersExpected: 2,
-			NodesHealthy:        3,
-			NodesExpected:       4,
-		},
-		{
-			ID:                  "nfs-csi0",
-			Provider:            "nfs.csi.k8s.io",
-			ControllerRequired:  false,
-			ControllersHealthy:  0,
-			ControllersExpected: 0,
-			NodesHealthy:        3,
-			NodesExpected:       3,
-		},
+// getPluginsList fetches CSI plugins from the Nomad API.
+// Falls back to empty list if API is unavailable.
+// Note: CSI plugins are cluster-wide resources, not namespaced.
+func (h *CSIHandler) getPluginsList(token string) []PluginSummary {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available, returning empty plugins list")
+		return []PluginSummary{}
 	}
+
+	// Build query options with ACL token (no namespace - plugins are cluster-wide)
+	queryOpts := &api.QueryOptions{}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Log the request for debugging
+	h.handler.logger.Debug("fetching CSI plugins from API",
+		"hasToken", token != "")
+
+	// Fetch plugins from the API
+	plugins, _, err := client.CSIPlugins().List(queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch CSI plugins from Nomad API", "error", err)
+		return []PluginSummary{}
+	}
+
+	// Convert API response to our summary type
+	result := make([]PluginSummary, 0, len(plugins))
+	for _, plugin := range plugins {
+		result = append(result, PluginSummary{
+			ID:                  plugin.ID,
+			Provider:            plugin.Provider,
+			ControllerRequired:  plugin.ControllerRequired,
+			ControllersHealthy:  plugin.ControllersHealthy,
+			ControllersExpected: plugin.ControllersExpected,
+			NodesHealthy:        plugin.NodesHealthy,
+			NodesExpected:       plugin.NodesExpected,
+		})
+	}
+
+	return result
 }
