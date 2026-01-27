@@ -109,7 +109,7 @@ templ evaluationCard(eval EvaluationSummary) {
 				<!-- Status Badge -->
 				<div class="flex items-center gap-2 mb-2">
 					@components.Badge(components.BadgeProps{
-						Variant: statusVariant(eval.Status),
+						Variant: evalStatusVariant(eval.Status),
 						Dot:     true,
 						Size:    "sm",
 					}) {
@@ -137,8 +137,8 @@ templ evaluationCard(eval EvaluationSummary) {
 	</a>
 }
 
-// statusVariant maps evaluation status to badge variant
-func statusVariant(status string) string {
+// evalStatusVariant maps evaluation status to badge variant
+func evalStatusVariant(status string) string {
 	switch status {
 	case "complete":
 		return "success"

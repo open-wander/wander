@@ -79,6 +79,21 @@ templ Header(props HeaderProps) {
 					</nav>
 				}
 			</div>
+			<!-- Center: Global Search Bar (hidden on mobile) -->
+			<div class="hidden md:flex items-center justify-center flex-1 max-w-md mx-4">
+				<div class="w-full relative" x-data="{ searchFocused: false }">
+					@SearchBar(SearchBarProps{
+						Name:        "global-search",
+						Placeholder: "Search jobs, allocations, nodes...",
+						SearchURL:   "/ui/search",
+						ResultsID:   "global-search-results",
+						Debounce:    300,
+						MinChars:    2,
+					})
+					<!-- Search results container -->
+					<div id="global-search-results" class="relative"></div>
+				</div>
+			</div>
 			<!-- Right: Namespace selector and user menu -->
 			<div class="flex items-center space-x-4 flex-shrink-0">
 				<!-- Namespace Selector -->

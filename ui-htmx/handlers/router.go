@@ -74,6 +74,9 @@ func (r *Router) registerRoutes() {
 	// Deployments routes
 	r.registerDeploymentsRoutes()
 
+	// Search routes
+	r.registerSearchRoutes()
+
 	// API routes
 	r.registerAPIRoutes()
 }
@@ -203,6 +206,14 @@ func (r *Router) registerDeploymentsRoutes() {
 	// Deployments handler handles both list and detail pages
 	r.mux.Handle("/ui/deployments", r.wrapMiddleware(deploymentsHandler))
 	r.mux.Handle("/ui/deployments/", r.wrapMiddleware(deploymentsHandler))
+}
+
+// registerSearchRoutes sets up routes for global search functionality.
+func (r *Router) registerSearchRoutes() {
+	searchHandler := NewSearchHandler(r.handler)
+
+	// Search endpoint for HTMX autocomplete
+	r.mux.Handle("/ui/search", r.wrapMiddleware(searchHandler))
 }
 
 // registerAPIRoutes sets up API routes for HTMX actions.

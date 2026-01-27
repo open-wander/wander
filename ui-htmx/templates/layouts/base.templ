@@ -38,7 +38,7 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			<!-- xterm-addon-fit - Auto-resize terminal to container -->
 			<script src="/ui/static/js/xterm-addon-fit.min.js"></script>
 		</head>
-		<body class="h-full bg-neutral-50 text-neutral-900 antialiased" hx-ext="head-support">
+		<body class="h-full bg-neutral-50 text-neutral-900 antialiased" hx-ext="head-support" x-data="keyboardShortcuts()" x-init="init()" @keydown.window="handleKeyDown($event)" @keyup.window="handleKeyUp($event)">
 			<!-- HTMX Configuration -->
 			<meta name="htmx-config" content='{"historyCacheSize":20,"defaultSwapStyle":"innerHTML","defaultSwapDelay":0,"timeout":30000}'/>
 			<!-- Main Content Container -->

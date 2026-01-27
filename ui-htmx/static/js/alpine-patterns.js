@@ -1393,6 +1393,208 @@ function evaluationsPanel(initialOpen = false) {
 }
 
 /**
+ * KEYBOARD SHORTCUTS PATTERN
+ *
+ * Global keyboard navigation shortcuts for common actions.
+ *
+ * Features:
+ * - Two-key sequences (g+j for Jobs, g+c for Clients, etc.)
+ * - Single-key shortcuts (/ for search, ? for help)
+ * - Ignores shortcuts when typing in inputs/textareas
+ * - Configurable key buffer timeout
+ * - Visual hint system (optional)
+ *
+ * Usage in Templ (add to base layout):
+ * ```html
+ * <div x-data="keyboardShortcuts()"
+ *      x-init="init()"
+ *      @keydown.window="handleKeyDown($event)"
+ *      @keyup.window="handleKeyUp($event)">
+ *   <!-- Rest of page content -->
+ * </div>
+ * ```
+ *
+ * Default shortcuts:
+ * - g+j: Go to Jobs
+ * - g+c: Go to Clients
+ * - g+a: Go to Allocations
+ * - g+s: Go to Servers
+ * - g+e: Go to Evaluations
+ * - g+v: Go to Variables
+ * - g+t: Go to Topology
+ * - /: Focus search input
+ * - ?: Show keyboard shortcuts help modal (optional)
+ */
+function keyboardShortcuts(options = {}) {
+    const defaults = {
+        enabled: true,
+        bufferTimeout: 750,
+        shortcuts: {
+            'g j': { label: 'Go to Jobs', action: () => window.location.href = '/ui/jobs' },
+            'g c': { label: 'Go to Clients', action: () => window.location.href = '/ui/clients' },
+            'g a': { label: 'Go to Allocations', action: () => window.location.href = '/ui/allocations' },
+            'g s': { label: 'Go to Servers', action: () => window.location.href = '/ui/servers' },
+            'g e': { label: 'Go to Evaluations', action: () => window.location.href = '/ui/evaluations' },
+            'g v': { label: 'Go to Variables', action: () => window.location.href = '/ui/variables' },
+            'g t': { label: 'Go to Topology', action: () => window.location.href = '/ui/topology' },
+            'g r': { label: 'Go to Storage', action: () => window.location.href = '/ui/csi/volumes' },
+            '/': {
+                label: 'Focus Search',
+                action: () => {
+                    const searchInput = document.querySelector('input[type="search"], input[placeholder*="Search"]');
+                    if (searchInput) {
+                        searchInput.focus();
+                        searchInput.select();
+                    }
+                }
+            },
+            '?': {
+                label: 'Show Keyboard Shortcuts Help',
+                action: () => {
+                    window.dispatchEvent(new CustomEvent('show-shortcuts-help'));
+                }
+            }
+        }
+    };
+
+    const config = { ...defaults, ...options };
+
+    return {
+        enabled: config.enabled,
+        buffer: [],
+        bufferTimeoutId: null,
+        displayHints: false,
+
+        init() {
+            // Load enabled state from localStorage
+            const savedState = localStorage.getItem('keyboardNavEnabled');
+            if (savedState !== null) {
+                this.enabled = savedState === 'true';
+            }
+        },
+
+        toggleEnabled() {
+            this.enabled = !this.enabled;
+            localStorage.setItem('keyboardNavEnabled', this.enabled.toString());
+        },
+
+        handleKeyDown(event) {
+            // Don't handle shortcuts when typing in input fields
+            if (this.isTypingInInput(event.target)) {
+                return;
+            }
+
+            // Skip modifier-only keys
+            const disallowedKeys = ['Shift', 'Control', 'Alt', 'Meta', 'Tab', 'CapsLock', 'Backspace', 'Delete'];
+            if (disallowedKeys.includes(event.key)) {
+                return;
+            }
+
+            // Show hints when Shift is pressed
+            if (event.key === 'Shift') {
+                this.displayHints = true;
+                return;
+            }
+
+            // Handle Escape to clear buffer
+            if (event.key === 'Escape') {
+                this.clearBuffer();
+                return;
+            }
+
+            // Add key to buffer
+            this.addKeyToBuffer(event.key, event);
+        },
+
+        handleKeyUp(event) {
+            // Hide hints when Shift is released
+            if (event.key === 'Shift') {
+                this.displayHints = false;
+            }
+        },
+
+        addKeyToBuffer(key, event) {
+            if (!this.enabled) {
+                return;
+            }
+
+            // Add key to buffer (normalize to lowercase)
+            this.buffer.push(key.toLowerCase());
+
+            // Clear existing timeout
+            if (this.bufferTimeoutId) {
+                clearTimeout(this.bufferTimeoutId);
+            }
+
+            // Check for matching shortcuts
+            const bufferString = this.buffer.join(' ');
+            const matchedShortcut = config.shortcuts[bufferString];
+
+            if (matchedShortcut) {
+                // Prevent default browser behavior
+                event.preventDefault();
+
+                // Execute the shortcut action
+                matchedShortcut.action();
+
+                // Clear buffer
+                this.clearBuffer();
+                return;
+            }
+
+            // Check if buffer could be a prefix of any shortcut
+            const hasPartialMatch = Object.keys(config.shortcuts).some(
+                shortcut => shortcut.startsWith(bufferString)
+            );
+
+            if (hasPartialMatch) {
+                // Wait for next key
+                this.bufferTimeoutId = setTimeout(() => {
+                    this.clearBuffer();
+                }, config.bufferTimeout);
+            } else {
+                // No match and no partial match, clear buffer
+                this.clearBuffer();
+            }
+        },
+
+        clearBuffer() {
+            this.buffer = [];
+            if (this.bufferTimeoutId) {
+                clearTimeout(this.bufferTimeoutId);
+                this.bufferTimeoutId = null;
+            }
+        },
+
+        isTypingInInput(target) {
+            const inputElements = ['input', 'textarea', 'select'];
+            const tagName = target.tagName.toLowerCase();
+
+            // Check if it's an input element
+            if (inputElements.includes(tagName)) {
+                return true;
+            }
+
+            // Check if it's a contenteditable element
+            if (target.isContentEditable) {
+                return true;
+            }
+
+            // Check for dropdown triggers and similar interactive elements
+            const disallowedClasses = ['dropdown-trigger', 'modal-content'];
+            return disallowedClasses.some(className => target.classList.contains(className));
+        },
+
+        getShortcuts() {
+            return Object.entries(config.shortcuts).map(([keys, details]) => ({
+                keys: keys,
+                label: details.label
+            }));
+        }
+    };
+}
+
+/**
  * GLOBAL ALPINE CONFIGURATION
  *
  * Make patterns available globally if Alpine is loaded.
@@ -1408,6 +1610,7 @@ if (typeof window !== 'undefined') {
         validators,
         logViewer,
         execTerminal,
-        evaluationsPanel
+        evaluationsPanel,
+        keyboardShortcuts
     };
 }
