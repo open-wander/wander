@@ -177,6 +177,21 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 
+	// Check if this is the evaluations panel request (should not push URL)
+	// The panel targets #panel-content-evaluations
+	hxTarget := r.Header.Get("HX-Target")
+	isPanelRequest := strings.Contains(hxTarget, "panel-content")
+
+	if isPanelRequest {
+		// Panel requests should never push URL - use RenderPartial
+		err := RenderPartial(w, r, evaluationspartials.ListContent(evalsList))
+		if err != nil {
+			h.handler.logger.Error("failed to render evaluations panel", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
 		evaluations.List(layoutProps, evalsList),       // Full page with layout

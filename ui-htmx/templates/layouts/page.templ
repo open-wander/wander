@@ -14,6 +14,7 @@ type PageLayoutProps struct {
 	AvailableNamespaces []components.NamespaceInfo // List of available namespaces
 	CurrentRegion       string                     // Current selected region
 	AvailableRegions    []components.RegionInfo    // List of available regions
+	Version             string                     // Application version to display
 }
 
 // PageLayout provides the full page structure with header, sidebar, and main content area.
@@ -32,6 +33,7 @@ templ pageContent(props PageLayoutProps, content templ.Component) {
 		@components.Sidebar(components.SidebarProps{
 			CurrentPath:      props.CurrentPath,
 			ExpandedSections: props.ExpandedSections,
+			Version:          props.Version,
 		})
 		<!-- Main Content Area -->
 		<div class="flex flex-col flex-1 overflow-hidden">

@@ -7,6 +7,7 @@ import (
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui-htmx/templates/components"
 	"github.com/open-wander/wander/ui-htmx/templates/layouts"
+	"github.com/open-wander/wander/version"
 )
 
 // Handler holds shared dependencies for all HTTP handlers.
@@ -204,6 +205,7 @@ func (h *Handler) BaseLayoutProps(title, description, currentPath string, breadc
 		AvailableNamespaces: h.appContext.AvailableNamespaces,
 		CurrentRegion:       h.appContext.CurrentRegion,
 		AvailableRegions:    h.appContext.AvailableRegions,
+		Version:             "v" + version.GetVersion().VersionNumber(),
 	}
 }
 

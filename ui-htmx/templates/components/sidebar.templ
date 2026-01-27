@@ -4,6 +4,7 @@ package components
 type SidebarProps struct {
 	CurrentPath      string
 	ExpandedSections []string // List of section IDs that should be expanded by default
+	Version          string   // Application version to display in footer
 }
 
 // NavItem represents a navigation menu item
@@ -53,7 +54,14 @@ templ Sidebar(props SidebarProps) {
 			<div class="flex flex-col w-64 border-r border-neutral-200 bg-white shadow-sm lg:shadow-none">
 				<!-- Logo/Brand Area -->
 				<div class="flex items-center h-16 flex-shrink-0 px-4 border-b border-neutral-200">
-					<a href="/ui/" class="flex items-center space-x-2">
+					<a
+						href="/ui/jobs"
+						hx-get="/ui/jobs"
+						hx-target="#main-content"
+						hx-push-url="true"
+						hx-swap="innerHTML"
+						class="flex items-center space-x-2"
+					>
 						<svg class="h-8 w-8 text-primary-600" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
 							<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
 						</svg>
@@ -80,7 +88,7 @@ templ Sidebar(props SidebarProps) {
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
 						</svg>
 					</button>
-					<p class="text-xs text-neutral-500">v1.0.0-dev</p>
+					<p class="text-xs text-neutral-500">{ props.Version }</p>
 				</div>
 			</div>
 		</aside>

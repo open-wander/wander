@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ui-htmx/templates/components"
+	"github.com/open-wander/wander/ui-htmx/templates/pages/allocations"
 	"github.com/open-wander/wander/ui-htmx/templates/partials/allocationspartials"
 )
 
@@ -67,9 +69,11 @@ func (h *AllocationLogsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	h.LogsTab(w, r, allocID)
 }
 
-// LogsTab renders the logs tab partial.
+// LogsTab renders the logs tab.
+// For HTMX requests: returns just the partial (for tab switching)
+// For full page loads: returns the allocation detail page with logs tab active
 func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, allocID string) {
-	h.handler.logger.Debug("logs tab request", "allocID", allocID)
+	h.handler.logger.Debug("logs tab request", "allocID", allocID, "htmx", IsHTMXFromRequest(r))
 
 	// Get task from query params or use first task
 	task := r.URL.Query().Get("task")
@@ -95,9 +99,57 @@ func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, 
 		LogType:      logType,
 	}
 
-	err := RenderPartial(w, r, allocationspartials.LogsTabContent(props))
+	// For HTMX requests, return just the partial
+	if IsHTMXFromRequest(r) {
+		err := RenderPartial(w, r, allocationspartials.LogsTabContent(props))
+		if err != nil {
+			h.handler.logger.Error("failed to render logs tab partial", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// For full page loads, render the allocation detail page with logs tab active
+	allocDetail := h.getAllocationDetailForLogs(allocID, token)
+	allocDetail.ActiveTab = "logs"
+
+	// Build layout props
+	shortID := allocID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+
+	breadcrumbs := []components.Breadcrumb{
+		{Label: "Home", URL: "/ui/"},
+	}
+	if allocDetail.JobID != "" {
+		breadcrumbs = append(breadcrumbs,
+			components.Breadcrumb{Label: "Jobs", URL: "/ui/jobs"},
+			components.Breadcrumb{Label: allocDetail.JobID, URL: "/ui/jobs/" + allocDetail.JobID},
+			components.Breadcrumb{Label: shortID, URL: "/ui/allocations/" + allocID},
+			components.Breadcrumb{Label: "Logs", URL: ""},
+		)
+	} else {
+		breadcrumbs = append(breadcrumbs,
+			components.Breadcrumb{Label: "Allocations", URL: "/ui/allocations"},
+			components.Breadcrumb{Label: shortID, URL: "/ui/allocations/" + allocID},
+			components.Breadcrumb{Label: "Logs", URL: ""},
+		)
+	}
+
+	layoutProps := h.handler.BaseLayoutProps(
+		"Logs - Allocation "+shortID+" - Wander",
+		"Allocation logs for "+allocID,
+		"/ui/allocations/"+allocID+"/logs",
+		breadcrumbs,
+	)
+
+	err := Render(w, r,
+		allocations.Detail(layoutProps, allocDetail),
+		allocationspartials.LogsTabContent(props),
+	)
 	if err != nil {
-		h.handler.logger.Error("failed to render logs tab", "error", err)
+		h.handler.logger.Error("failed to render logs page", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
@@ -301,6 +353,52 @@ func (h *AllocationLogsHandler) detectLogLevel(msg string) string {
 		return "info"
 	}
 	return ""
+}
+
+// getAllocationDetailForLogs fetches allocation details needed for the logs page.
+// Returns a minimal allocation detail structure for template rendering.
+func (h *AllocationLogsHandler) getAllocationDetailForLogs(allocID, token string) allocationspartials.AllocationDetail {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available for allocation detail")
+		return allocationspartials.AllocationDetail{ID: allocID}
+	}
+
+	queryOpts := &api.QueryOptions{}
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch allocation for logs page", "allocID", allocID, "error", err)
+		return allocationspartials.AllocationDetail{ID: allocID}
+	}
+
+	// Build task list
+	tasks := make([]allocationspartials.TaskStatus, 0, len(alloc.TaskStates))
+	for taskName, taskState := range alloc.TaskStates {
+		tasks = append(tasks, allocationspartials.TaskStatus{
+			Name:      taskName,
+			State:     taskState.State,
+			Failed:    taskState.Failed,
+			StartedAt: taskState.StartedAt,
+			Restarts:  int(taskState.Restarts),
+		})
+	}
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Name < tasks[j].Name
+	})
+
+	return allocationspartials.AllocationDetail{
+		ID:        alloc.ID,
+		JobID:     alloc.JobID,
+		TaskGroup: alloc.TaskGroup,
+		NodeID:    alloc.NodeID,
+		NodeName:  alloc.NodeName,
+		Status:    alloc.ClientStatus,
+		Tasks:     tasks,
+	}
 }
 
 // getTasksForAllocation returns the list of tasks for an allocation.

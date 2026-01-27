@@ -96,6 +96,7 @@ templ EvaluationsPanel(props EvaluationsPanelProps) {
 						hx-get="/ui/evaluations"
 						hx-trigger="load, every 5s"
 						hx-swap="innerHTML"
+						hx-push-url="false"
 					>
 						<!-- Content loaded via HTMX -->
 						<div class="flex items-center justify-center h-32">

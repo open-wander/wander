@@ -18,6 +18,7 @@ type AllocationDetail struct {
 	Tasks     []TaskStatus
 	Resources ResourceUsage
 	Events    []AllocationEvent
+	ActiveTab string // Which tab to show as active (default: "tasks")
 }
 
 // TaskStatus represents the status of a task within an allocation
@@ -285,7 +286,7 @@ templ DetailContent(alloc AllocationDetail) {
 						Icon:    "cube",
 						URL:     "/ui/allocations/" + alloc.ID + "/tasks",
 						Content: TasksTab(alloc),
-						Active:  true,
+						Active:  getActiveTab(alloc.ActiveTab) == "tasks",
 					},
 					{
 						ID:    "logs",
@@ -312,7 +313,7 @@ templ DetailContent(alloc AllocationDetail) {
 						URL:   "/ui/allocations/" + alloc.ID + "/raw",
 					},
 				},
-				ActiveTab: "tasks",
+				ActiveTab: getActiveTab(alloc.ActiveTab),
 				Mode:      "htmx",
 				PanelID:   "allocation-detail-panel",
 			})
@@ -334,4 +335,12 @@ func statusToBadgeVariant(status string) string {
 	default:
 		return "neutral"
 	}
+}
+
+// getActiveTab returns the active tab, defaulting to "tasks" if not set
+func getActiveTab(tab string) string {
+	if tab == "" {
+		return "tasks"
+	}
+	return tab
 }
