@@ -21,7 +21,7 @@ Status: in-progress
 ### Phase 2: Detail Page API Integration
 
 - [x] 7. Wire Jobs list to real API: client.Jobs().List() (needs: 1)
-- [ ] 8. Wire Job detail to real API: client.Jobs().Info() (needs: 7)
+- [x] 8. Wire Job detail to real API: client.Jobs().Info() (needs: 7)
 - [ ] 9. Wire Job versions tab to real API: client.Jobs().Versions() (needs: 8)
 - [ ] 10. Wire Job allocations tab to real API: client.Jobs().Allocations() (needs: 8)
 - [ ] 11. Wire Job deployments tab to real API: client.Jobs().Deployments() (needs: 8)

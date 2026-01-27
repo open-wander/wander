@@ -104,3 +104,14 @@
 - Pattern: Filter expression building with "and" combinator
 - Files: jobs.go
 ---
+
+### 2026-01-26 - Task 8: Job detail real API
+- Replaced mock data with client.Jobs().Info(jobID, queryOpts)
+- Namespace parsing from job ID format (jobID@namespace)
+- Maps api.Job to jobspartials.JobDetail with pointer-safe helpers
+- Extracts task groups and task names from job structure
+- Returns 404 for job not found, 500 for API errors
+- Tab content updated to use real API call
+- Pattern: Safe pointer dereferencing with safeString()/safeInt()
+- Files: jobs.go
+---

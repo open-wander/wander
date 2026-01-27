@@ -249,17 +249,24 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		tabName = parts[1]
 	}
 
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	jobName := actualJobID
+	if idx := strings.LastIndex(actualJobID, "@"); idx != -1 {
+		jobName = actualJobID[:idx]
+		namespace = actualJobID[idx+1:]
+	}
+
 	// Log the request
-	h.handler.logger.Debug("job detail request", "jobID", actualJobID, "tab", tabName, "htmx", IsHTMXFromRequest(r))
+	h.handler.logger.Debug("job detail request", "jobID", actualJobID, "jobName", jobName, "namespace", namespace, "tab", tabName, "htmx", IsHTMXFromRequest(r))
 
 	// Check permissions - need read-job capability
-	// In production, we'd get the namespace from the actual job
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanReadJob("default") {
+	if perms != nil && !perms.CanReadJob(namespace) {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to view this job",
 			Capability: "read-job",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Contact your administrator to request the 'read-job' capability",
 				"Ensure you are using a valid ACL token with appropriate permissions",
@@ -274,8 +281,18 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mock job detail data
-	jobDetail := h.getJobDetail(actualJobID)
+	// Fetch job detail from Nomad API
+	jobDetail, err := h.getJobDetail(jobName, namespace, GetTokenFromRequest(r))
+	if err != nil {
+		h.handler.logger.Error("failed to fetch job detail", "error", err, "jobID", actualJobID)
+		http.Error(w, "Failed to fetch job from Nomad API", http.StatusInternalServerError)
+		return
+	}
+
+	if jobDetail == nil {
+		http.NotFound(w, r)
+		return
+	}
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(
@@ -290,9 +307,9 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
-		jobs.Detail(layoutProps, jobDetail),                // Full page with layout
-		jobspartials.DetailContent(jobDetail), // Partial content for HTMX requests
+	err = Render(w, r,
+		jobs.Detail(layoutProps, *jobDetail),                // Full page with layout
+		jobspartials.DetailContent(*jobDetail), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -428,40 +445,129 @@ func (h *JobsHandler) sortJobs(jobsList []jobspartials.JobSummary, sortColumn, s
 	})
 }
 
-// getJobDetail returns mock job detail data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *JobsHandler) getJobDetail(jobID string) jobspartials.JobDetail {
-	return jobspartials.JobDetail{
-		ID:          jobID,
-		Name:        "example-job-" + jobID,
-		Status:      "running",
-		Type:        "service",
-		Priority:    50,
-		Datacenters: []string{"dc1", "dc2"},
-		TaskGroups: []jobspartials.TaskGroupSummary{
-			{
-				Name:  "web",
-				Count: 3,
-				Tasks: []string{"nginx", "redis"},
-			},
-			{
-				Name:  "cache",
-				Count: 2,
-				Tasks: []string{"redis"},
-			},
-		},
+// getJobDetail fetches job detail data from the Nomad API.
+// Returns nil if the job is not found, or an error if the API call fails.
+func (h *JobsHandler) getJobDetail(jobID, namespace, token string) (*jobspartials.JobDetail, error) {
+	client := h.handler.NomadClient()
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available")
+		return nil, fmt.Errorf("no Nomad client available")
 	}
+
+	// Build query options
+	queryOpts := &api.QueryOptions{
+		Namespace: namespace,
+	}
+
+	// Set ACL token if available
+	if token != "" {
+		queryOpts.AuthToken = token
+	}
+
+	// Fetch job from the API
+	h.handler.logger.Debug("fetching job from API",
+		"jobID", jobID,
+		"namespace", namespace,
+		"hasToken", token != "",
+	)
+
+	job, _, err := client.Jobs().Info(jobID, queryOpts)
+	if err != nil {
+		// Check if this is a 404 error
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "not found") {
+			h.handler.logger.Debug("job not found", "jobID", jobID, "namespace", namespace)
+			return nil, nil
+		}
+		h.handler.logger.Error("failed to fetch job from Nomad API", "error", err)
+		return nil, fmt.Errorf("failed to fetch job: %w", err)
+	}
+
+	// Convert API response to our JobDetail type
+	jobDetail := jobspartials.JobDetail{
+		ID:          safeString(job.ID),
+		Name:        safeString(job.Name),
+		Status:      safeString(job.Status),
+		Type:        safeString(job.Type),
+		Priority:    safeInt(job.Priority),
+		Datacenters: job.Datacenters,
+		TaskGroups:  make([]jobspartials.TaskGroupSummary, 0, len(job.TaskGroups)),
+	}
+
+	// Extract task group summaries
+	for _, tg := range job.TaskGroups {
+		if tg == nil {
+			continue
+		}
+
+		// Extract task names from the task group
+		taskNames := make([]string, 0, len(tg.Tasks))
+		for _, task := range tg.Tasks {
+			if task != nil {
+				taskNames = append(taskNames, task.Name)
+			}
+		}
+
+		taskGroupSummary := jobspartials.TaskGroupSummary{
+			Name:  safeString(tg.Name),
+			Count: safeInt(tg.Count),
+			Tasks: taskNames,
+		}
+
+		jobDetail.TaskGroups = append(jobDetail.TaskGroups, taskGroupSummary)
+	}
+
+	h.handler.logger.Debug("fetched job from API",
+		"jobID", jobID,
+		"name", jobDetail.Name,
+		"status", jobDetail.Status,
+		"taskGroups", len(jobDetail.TaskGroups),
+	)
+
+	return &jobDetail, nil
+}
+
+// safeString safely dereferences a string pointer, returning empty string if nil
+func safeString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// safeInt safely dereferences an int pointer, returning 0 if nil
+func safeInt(i *int) int {
+	if i == nil {
+		return 0
+	}
+	return *i
 }
 
 // renderTabContent handles rendering individual tab content
 func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, jobID, tabName string) {
-	// Get job detail data
-	jobDetail := h.getJobDetail(jobID)
+	// Parse namespace from job ID if provided (format: jobID@namespace)
+	namespace := "default"
+	jobName := jobID
+	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
+		jobName = jobID[:idx]
+		namespace = jobID[idx+1:]
+	}
 
-	var err error
+	// Get job detail data
+	jobDetail, err := h.getJobDetail(jobName, namespace, GetTokenFromRequest(r))
+	if err != nil {
+		h.handler.logger.Error("failed to fetch job for tab content", "error", err, "jobID", jobID, "tab", tabName)
+		http.Error(w, "Failed to fetch job from Nomad API", http.StatusInternalServerError)
+		return
+	}
+
+	if jobDetail == nil {
+		http.NotFound(w, r)
+		return
+	}
+
 	switch tabName {
 	case "overview":
-		err = RenderPartial(w, r, jobspartials.OverviewTab(jobDetail))
+		err = RenderPartial(w, r, jobspartials.OverviewTab(*jobDetail))
 	case "definition":
 		jobDef := h.getJobDefinition(jobID)
 		err = RenderPartial(w, r, jobspartials.DefinitionTab(jobDef))
