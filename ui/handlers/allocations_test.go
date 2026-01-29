@@ -683,7 +683,7 @@ func TestAllocationsHandler_ServeHTTP_NotFound(t *testing.T) {
 // TestAllocationsHandler_FilterAllocations tests the filtering logic
 func TestAllocationsHandler_FilterAllocations(t *testing.T) {
 	handler := setupAllocationsHandler()
-	allocs := handler.getAllocationsList()
+	allocs := handler.getAllocationsList("", "", "", "", "")
 
 	tests := []struct {
 		name           string
@@ -764,7 +764,7 @@ func TestAllocationsHandler_FilterAllocations(t *testing.T) {
 // TestAllocationsHandler_SortAllocations tests the sorting logic
 func TestAllocationsHandler_SortAllocations(t *testing.T) {
 	handler := setupAllocationsHandler()
-	allocs := handler.getAllocationsList()
+	allocs := handler.getAllocationsList("", "", "", "", "")
 
 	tests := []struct {
 		name        string
@@ -912,7 +912,7 @@ func TestAllocationsHandler_IsIDPrefixMatch(t *testing.T) {
 // TestAllocationsHandler_ExtractFilterOptions tests filter option extraction
 func TestAllocationsHandler_ExtractFilterOptions(t *testing.T) {
 	handler := setupAllocationsHandler()
-	allocs := handler.getAllocationsList()
+	allocs := handler.getAllocationsList("", "", "", "", "")
 
 	options := handler.extractFilterOptions(allocs)
 
@@ -954,7 +954,7 @@ func TestAllocationsHandler_ExtractFilterOptions(t *testing.T) {
 // TestAllocationsHandler_GetAllocationsList tests mock data retrieval
 func TestAllocationsHandler_GetAllocationsList(t *testing.T) {
 	handler := setupAllocationsHandler()
-	allocs := handler.getAllocationsList()
+	allocs := handler.getAllocationsList("", "", "", "", "")
 
 	// Should return multiple allocations
 	if len(allocs) == 0 {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/open-wander/wander/ui/templates/partials/jobspartials"
 )
 
 // TestJobsHandlerCreation tests basic handler creation
@@ -614,7 +615,7 @@ func TestPaginationHelpers(t *testing.T) {
 
 // TestPaginateJobs tests the job pagination logic
 func TestPaginateJobs(t *testing.T) {
-	jobs := []JobSummary{
+	jobs := []jobspartials.JobSummary{
 		{ID: "job1", Name: "Job 1"},
 		{ID: "job2", Name: "Job 2"},
 		{ID: "job3", Name: "Job 3"},
@@ -660,7 +661,7 @@ func TestPaginateJobs(t *testing.T) {
 	})
 
 	t.Run("empty job list", func(t *testing.T) {
-		result := paginateJobs([]JobSummary{}, 1, 10)
+		result := paginateJobs([]jobspartials.JobSummary{}, 1, 10)
 		if len(result) != 0 {
 			t.Errorf("Expected 0 jobs for empty list, got %d", len(result))
 		}
@@ -673,7 +674,7 @@ func TestFilterJobs(t *testing.T) {
 	h := NewHandler(logger)
 	jobsHandler := NewJobsHandler(h)
 
-	jobs := []JobSummary{
+	jobs := []jobspartials.JobSummary{
 		{ID: "web-frontend", Name: "web-frontend"},
 		{ID: "api-gateway", Name: "api-gateway"},
 		{ID: "data-processor", Name: "data-processor"},
@@ -742,7 +743,7 @@ func TestSortJobs(t *testing.T) {
 	jobsHandler := NewJobsHandler(h)
 
 	t.Run("sorts by name ascending", func(t *testing.T) {
-		jobs := []JobSummary{
+		jobs := []jobspartials.JobSummary{
 			{Name: "zebra"},
 			{Name: "alpha"},
 			{Name: "beta"},
@@ -756,7 +757,7 @@ func TestSortJobs(t *testing.T) {
 	})
 
 	t.Run("sorts by name descending", func(t *testing.T) {
-		jobs := []JobSummary{
+		jobs := []jobspartials.JobSummary{
 			{Name: "alpha"},
 			{Name: "beta"},
 			{Name: "zebra"},
@@ -770,7 +771,7 @@ func TestSortJobs(t *testing.T) {
 	})
 
 	t.Run("sorts by priority ascending", func(t *testing.T) {
-		jobs := []JobSummary{
+		jobs := []jobspartials.JobSummary{
 			{Priority: 50},
 			{Priority: 10},
 			{Priority: 80},
@@ -784,7 +785,7 @@ func TestSortJobs(t *testing.T) {
 	})
 
 	t.Run("sorts by priority descending", func(t *testing.T) {
-		jobs := []JobSummary{
+		jobs := []jobspartials.JobSummary{
 			{Priority: 50},
 			{Priority: 10},
 			{Priority: 80},
@@ -798,7 +799,7 @@ func TestSortJobs(t *testing.T) {
 	})
 
 	t.Run("sorts by status ascending", func(t *testing.T) {
-		jobs := []JobSummary{
+		jobs := []jobspartials.JobSummary{
 			{Status: "running"},
 			{Status: "dead"},
 			{Status: "pending"},
@@ -812,7 +813,7 @@ func TestSortJobs(t *testing.T) {
 	})
 
 	t.Run("sorts by type ascending", func(t *testing.T) {
-		jobs := []JobSummary{
+		jobs := []jobspartials.JobSummary{
 			{Type: "service"},
 			{Type: "batch"},
 			{Type: "system"},

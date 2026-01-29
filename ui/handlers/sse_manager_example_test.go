@@ -86,7 +86,7 @@ func Example_sseManagerTopics() {
 	}
 
 	// Later, dynamically add more topics
-	addTopicsHandler := func(w http.ResponseWriter, r *http.Request, sse *handlers.SSEHandler) {
+	_ = func(w http.ResponseWriter, r *http.Request, sse *handlers.SSEHandler) {
 		// Subscribe to additional topics
 		err := sseManager.Subscribe(sse, "system:alerts", "system:notifications")
 		if err != nil {

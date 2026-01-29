@@ -95,35 +95,6 @@ func TestRenderNotFound(t *testing.T) {
 	}
 }
 
-// TestRenderSimpleNotFound tests the convenience method for simple 404 errors
-func TestRenderSimpleNotFound(t *testing.T) {
-	logger := hclog.NewNullLogger()
-	handler := NewHandler(logger)
-
-	req := httptest.NewRequest(http.MethodGet, "/ui/test/simple", nil)
-	w := httptest.NewRecorder()
-
-	handler.RenderSimpleNotFound(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
-	}
-
-	body := w.Body.String()
-	expectedContent := []string{
-		"404 Not Found",
-		"The page you requested could not be found",
-		"/ui/test/simple",
-		"Return to Home",
-	}
-
-	for _, content := range expectedContent {
-		if !strings.Contains(body, content) {
-			t.Errorf("Response body should contain %q, but doesn't", content)
-		}
-	}
-}
-
 // TestNotFoundError_FullPage tests full page rendering
 func TestNotFoundError_FullPage(t *testing.T) {
 	logger := hclog.NewNullLogger()
