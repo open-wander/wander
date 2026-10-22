@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/open-wander/wander/ui/templates/components"
@@ -40,7 +39,7 @@ func (h *SettingsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle /ui/settings/token (token update)
-	if strings.HasSuffix(path, "/token") {
+	if path == "/ui/settings/token" {
 		if r.Method == http.MethodPost {
 			h.UpdateToken(w, r)
 			return

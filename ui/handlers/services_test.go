@@ -55,8 +55,7 @@ func TestServicesStates(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`[]`))
 		case "/v1/service/missing":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`[]`))
+			http.NotFound(w, r)
 		case "/v1/service/unavailable":
 			http.Error(w, "No cluster leader", http.StatusInternalServerError)
 		default:

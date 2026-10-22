@@ -585,7 +585,11 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Fetch allocation detail data from API
-	allocDetail := h.getAllocationDetail(r, actualAllocID, token)
+	allocDetail, fetchErr := h.getAllocationDetail(r, actualAllocID, token)
+	if fetchErr != nil {
+		h.renderAllocationFetchError(w, r, actualAllocID, fetchErr)
+		return
+	}
 	if tabName != "" && tabName != "tasks" {
 		content, contentErr := h.allocationTabContent(r, actualAllocID, tabName, token, allocDetail)
 		if contentErr != nil {
@@ -641,11 +645,10 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // getAllocationDetail fetches allocation details from the Nomad API.
 // Returns allocation detail structure for template rendering.
-func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token string) allocationspartials.AllocationDetail {
+func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token string) (allocationspartials.AllocationDetail, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty allocation detail")
-		return allocationspartials.AllocationDetail{ID: allocID}
+		return allocationspartials.AllocationDetail{}, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Build query options with ACL token
@@ -657,8 +660,7 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 	// Fetch allocation from the API
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch allocation from Nomad API", "allocID", allocID, "error", err)
-		return allocationspartials.AllocationDetail{ID: allocID}
+		return allocationspartials.AllocationDetail{}, err
 	}
 
 	h.handler.logger.Debug("fetched allocation from API", "allocID", allocID, "status", alloc.ClientStatus)
@@ -799,14 +801,34 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 		Tasks:     tasks,
 		Resources: resources,
 		Events:    allocEvents,
+	}, nil
+}
+
+func (h *AllocationsHandler) renderAllocationFetchError(w http.ResponseWriter, r *http.Request, allocID string, err error) {
+	if apiResponseHasStatus(err, http.StatusNotFound) {
+		h.handler.RenderNotFound(w, r, NotFoundError{
+			Message:     fmt.Sprintf("Allocation %q was not found.", allocID),
+			RequestPath: r.URL.Path,
+			Suggestions: []string{`Go to <a href="/ui/allocations" class="underline">Allocations</a>`},
+		})
+		return
 	}
+	if h.handler.CheckClusterError(w, r, err) {
+		return
+	}
+	h.handler.logger.Error("failed to fetch allocation from Wander API", "allocID", allocID, "error", err)
+	http.Error(w, "Failed to fetch allocation from Wander API", http.StatusBadGateway)
 }
 
 // renderTabContent handles rendering individual tab content
 func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, allocID, tabName string) {
 	// Get ACL token and allocation detail data
 	token := GetTokenFromRequest(r)
-	allocDetail := h.getAllocationDetail(r, allocID, token)
+	allocDetail, fetchErr := h.getAllocationDetail(r, allocID, token)
+	if fetchErr != nil {
+		h.renderAllocationFetchError(w, r, allocID, fetchErr)
+		return
+	}
 
 	var err error
 	switch tabName {

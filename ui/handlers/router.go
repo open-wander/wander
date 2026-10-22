@@ -152,8 +152,9 @@ func (r *Router) registerServicesRoutes() {
 func (r *Router) registerTopologyRoutes() {
 	topologyHandler := NewTopologyHandler(r.handler)
 
-	// Topology handler handles the topology visualization page
+	// Topology handler handles the visualization page and its JSON data feed.
 	r.mux.Handle("/ui/topology", r.wrapMiddleware(topologyHandler))
+	r.mux.Handle("/ui/topology/data", r.wrapMiddleware(topologyHandler))
 }
 
 // registerVariablesRoutes sets up routes for the variables section.

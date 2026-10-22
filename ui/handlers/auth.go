@@ -359,6 +359,10 @@ func (h *Handler) ClearTokenCache(w http.ResponseWriter, r *http.Request) {
 //
 // GET /api/v1/auth/token-info
 func (h *Handler) GetTokenInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	ctx := r.Context()
 
 	// Get ACL token info from context

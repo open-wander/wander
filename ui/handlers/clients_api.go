@@ -22,19 +22,15 @@ func NewClientsAPIHandler(h *Handler) *ClientsAPIHandler {
 
 // ServeHTTP handles requests to client action endpoints.
 func (h *ClientsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Only allow POST requests
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	path := r.URL.Path
-
 	// Extract client ID and action from path
 	// Expected format: /api/clients/{clientID}/{action}
-	parts := strings.Split(strings.TrimPrefix(path, "/api/clients/"), "/")
-	if len(parts) < 2 {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/clients/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] != "eligibility" {
 		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -45,12 +41,7 @@ func (h *ClientsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Debug("client action request", "clientID", clientID, "action", action)
 
 	// Route to appropriate handler
-	switch action {
-	case "eligibility":
-		h.ToggleEligibility(w, r, clientID)
-	default:
-		http.NotFound(w, r)
-	}
+	h.ToggleEligibility(w, r, clientID)
 }
 
 // ToggleEligibilityRequest represents the JSON payload for toggling eligibility.

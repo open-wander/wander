@@ -23,18 +23,14 @@ func NewDeploymentsAPIHandler(h *Handler) *DeploymentsAPIHandler {
 
 // ServeHTTP handles POST requests to the deployments API endpoint.
 func (h *DeploymentsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Only allow POST requests
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	// Expected format: /api/deployments/{deploymentID}/{action}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/deployments/"), "/")
+	if len(parts) != 2 || parts[0] == "" || (parts[1] != "fail" && parts[1] != "promote") {
+		http.NotFound(w, r)
 		return
 	}
-
-	path := r.URL.Path
-	// Expected format: /api/deployments/{deploymentID}/{action}
-	parts := strings.Split(strings.TrimPrefix(path, "/api/deployments/"), "/")
-
-	if len(parts) < 2 {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -46,8 +42,6 @@ func (h *DeploymentsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		h.FailDeployment(w, r, deploymentID)
 	case "promote":
 		h.PromoteDeployment(w, r, deploymentID)
-	default:
-		http.Error(w, "Unknown action", http.StatusBadRequest)
 	}
 }
 

@@ -1,9 +1,17 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/open-wander/wander/api"
 )
+
+func apiResponseHasStatus(err error, status int) bool {
+	var responseErr api.UnexpectedResponseError
+	return errors.As(err, &responseErr) && responseErr.StatusCode() == status
+}
 
 // ForbiddenError represents a 403 Forbidden error with details
 type ForbiddenError struct {

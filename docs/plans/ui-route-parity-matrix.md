@@ -64,13 +64,14 @@ black-box run; it does not make the capability optional.
 | Evaluations | List and inspect evaluations | `/ui/evaluations`, `/ui/evaluations/{id}` | Evaluation reads | Namespace and region | Browser smoke | **Partial**: empty, denied, failed, blocked, completed, and pagination states |
 | Deployments | List/detail, promote, and fail deployments | `/ui/deployments`, `/ui/deployments/{id}`, `/api/deployments/{id}/{promote,fail}` | Reads and POST mutations | Namespace and region | Browser and ACL mutation tests | **Partial**: multi-region, canary, denied, failed, and completed states |
 | Recommendations | Optimization/recommendation UI | Capture pending | Enterprise optimization APIs | Edition-specific | Revival checklist inventory | **Decision needed**: likely not applicable to the OSS-compatible release, but evidence/approval required |
-| Error contract | Loading, empty, forbidden, not-found, unavailable, and disconnected behavior | All supported routes | Truthful HTTP/HTMX responses | Must not leak restricted resources | Jobs API-state tests and error renderer tests | **Partial**: route-wide state matrix is missing |
+| Error contract | Loading, empty, forbidden, not-found, unavailable, and disconnected behavior | All supported routes | Truthful HTTP/HTMX responses | Must not leak restricted resources | Router contract, focused handler state tests, error renderer tests, and Chromium smoke | **Ready** for route shape, methods, unknown paths, and representative missing resources; capability rows retain their specific state gaps |
 | Responsive/accessibility | Phone through wide desktop; keyboard and screen-reader semantics | All supported routes | None | All identities | Basic Chromium accessibility smoke | **Partial**: responsive matrix and complex-control coverage remain |
 
 ## First implementation batches
 
 1. Add route-contract tests generated from the Wander route inventory so every
-   supported method has full-page/HTMX/not-found evidence.
+   supported method has full-page/HTMX/not-found evidence. **Complete** with a
+   table-driven router inventory and focused handler evidence.
 2. Perform an approved black-box capture of the 1.6.5 browser route map and
    replace every `Capture pending` entry with evidence.
 3. Restore services and job-client reads. **Complete** with live handler and

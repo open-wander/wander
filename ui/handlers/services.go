@@ -110,15 +110,15 @@ func (h *ServicesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	registrations, _, err := client.Services().Get(serviceName, serviceQueryOptions(r, namespace))
 	if err != nil {
+		if apiResponseHasStatus(err, http.StatusNotFound) {
+			h.renderServiceNotFound(w, r, serviceName)
+			return
+		}
 		h.renderFetchError(w, r, err, "service registrations", "service", serviceName)
 		return
 	}
 	if len(registrations) == 0 {
-		h.handler.RenderNotFound(w, r, NotFoundError{
-			Message:     fmt.Sprintf("Service %q was not found.", serviceName),
-			RequestPath: r.URL.Path,
-			Suggestions: []string{`Go to <a href="/ui/services" class="underline">Services</a>`},
-		})
+		h.renderServiceNotFound(w, r, serviceName)
 		return
 	}
 
@@ -137,6 +137,14 @@ func (h *ServicesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		services.Detail(layoutProps, detail),
 		servicespartials.DetailContent(detail),
 	)
+}
+
+func (h *ServicesHandler) renderServiceNotFound(w http.ResponseWriter, r *http.Request, serviceName string) {
+	h.handler.RenderNotFound(w, r, NotFoundError{
+		Message:     fmt.Sprintf("Service %q was not found.", serviceName),
+		RequestPath: r.URL.Path,
+		Suggestions: []string{`Go to <a href="/ui/services" class="underline">Services</a>`},
+	})
 }
 
 func (h *ServicesHandler) clientForRequest(w http.ResponseWriter, r *http.Request) *api.Client {

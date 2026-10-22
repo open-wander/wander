@@ -30,17 +30,13 @@ func NewJobsAPIHandler(h *Handler) *JobsAPIHandler {
 
 // ServeHTTP handles POST requests to job action endpoints.
 func (h *JobsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Only allow POST requests
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	jobID, action, ok := splitJobActionPath(r.URL.Path)
+	if !ok || !supportedJobAction(action) {
+		http.NotFound(w, r)
 		return
 	}
-
-	path := r.URL.Path
-
-	jobID, action, ok := splitJobActionPath(path)
-	if !ok {
-		http.NotFound(w, r)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -63,6 +59,15 @@ func (h *JobsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.ForcePeriodicJob(w, r, jobID)
 	default:
 		http.NotFound(w, r)
+	}
+}
+
+func supportedJobAction(action string) bool {
+	switch action {
+	case "start", "stop", "run", "dispatch", "purge", "periodic/force":
+		return true
+	default:
+		return false
 	}
 }
 
