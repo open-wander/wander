@@ -14,6 +14,14 @@ type JobDetail struct {
 	Priority    int
 	Datacenters []string
 	TaskGroups  []TaskGroupSummary
+	Parameterized *ParameterizedJob
+}
+
+// ParameterizedJob contains the dispatch inputs declared by a parent job.
+type ParameterizedJob struct {
+	Payload      string
+	MetaRequired []string
+	MetaOptional []string
 }
 
 // TaskGroupSummary represents a summary of a task group
@@ -25,7 +33,7 @@ type TaskGroupSummary struct {
 
 // DetailContent renders the job detail page content (without layout)
 templ DetailContent(job JobDetail) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false }">
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false, dispatchModal: false, purgeModal: false }">
 		<!-- Job Header -->
 		<div class="bg-white shadow rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
@@ -61,12 +69,28 @@ templ DetailContent(job JobDetail) {
 								AlpineClick: "stopModal = true",
 							}, "Stop")
 						}
+						if job.Parameterized != nil {
+							@components.Button(components.ButtonProps{
+								Variant:     "primary",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "dispatchModal = true",
+							}, "Dispatch")
+						} else {
+							@components.Button(components.ButtonProps{
+								Variant:     "primary",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "runModal = true",
+							}, "Run")
+						}
 						@components.Button(components.ButtonProps{
-							Variant:     "primary",
+							Variant:     "danger",
+							Outline:     true,
 							Size:        "sm",
-							Icon:        "play",
-							AlpineClick: "runModal = true",
-						}, "Run")
+							Icon:        "trash",
+							AlpineClick: "purgeModal = true",
+						}, "Purge")
 					</div>
 				</div>
 			</div>
@@ -123,6 +147,10 @@ templ DetailContent(job JobDetail) {
 		@StartJobModal(job)
 		@StopJobModal(job)
 		@RunJobModal(job)
+		if job.Parameterized != nil {
+			@DispatchJobModal(job)
+		}
+		@PurgeJobModal(job)
 	</div>
 }
 
@@ -258,6 +286,90 @@ templ RunJobModal(job JobDetail) {
 				>
 					Run Job
 				</button>
+			}
+		}
+	</div>
+}
+
+// DispatchJobModal collects the inputs declared by a parameterized job.
+templ DispatchJobModal(job JobDetail) {
+	<div x-data="modalBridge('dispatchModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "dispatch-job-modal",
+			Title:    "Dispatch Job",
+			Size:     "lg",
+			Closable: true,
+		}) {
+			<form hx-post={ "/api/jobs/" + job.ID + "/dispatch" } hx-swap="none">
+				@components.ModalBody() {
+					<div class="space-y-4">
+						<p class="text-sm text-neutral-600">
+							Create a dispatched instance of <strong class="text-neutral-900">{ job.Name }</strong>.
+						</p>
+						for _, key := range job.Parameterized.MetaRequired {
+							<label class="block text-sm font-medium text-neutral-700">
+								{ key } <span class="text-danger-600">(required)</span>
+								<input class="form-input mt-1 w-full" type="text" name={ "meta." + key } required/>
+							</label>
+						}
+						for _, key := range job.Parameterized.MetaOptional {
+							<label class="block text-sm font-medium text-neutral-700">
+								{ key } <span class="text-neutral-500">(optional)</span>
+								<input class="form-input mt-1 w-full" type="text" name={ "meta." + key }/>
+							</label>
+						}
+						if job.Parameterized.Payload != "forbidden" {
+							<label class="block text-sm font-medium text-neutral-700">
+								Payload
+								if job.Parameterized.Payload == "required" {
+									<span class="text-danger-600">(required)</span>
+								} else {
+									<span class="text-neutral-500">(optional)</span>
+								}
+								<textarea
+									class="form-textarea mt-1 w-full font-mono"
+									name="payload"
+									rows="6"
+									maxlength="16384"
+									if job.Parameterized.Payload == "required" {
+										required
+									}
+								></textarea>
+							</label>
+						}
+					</div>
+				}
+				@components.ModalFooter() {
+					<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
+					<button type="submit" class="btn btn-primary btn-sm">Dispatch Job</button>
+				}
+			</form>
+		}
+	</div>
+}
+
+// PurgeJobModal confirms permanent removal separately from stopping a job.
+templ PurgeJobModal(job JobDetail) {
+	<div x-data="modalBridge('purgeModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "purge-job-modal",
+			Title:    "Purge Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-700">
+						Permanently purge <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-danger-700">
+						This stops the job and immediately removes its job history. This action cannot be undone.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
+				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/purge" } hx-swap="none" class="btn btn-danger btn-sm">Purge Job</button>
 			}
 		}
 	</div>

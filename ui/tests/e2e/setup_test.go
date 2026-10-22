@@ -28,10 +28,12 @@ import (
 const smokeJobID = "wander-ui-smoke"
 
 const (
-	namespaceSmokeName  = "team-a"
-	namespaceSmokeJobID = "wander-ui-team-smoke"
-	regionSmokeName     = "region-a"
-	regionSmokeJobID    = "wander-ui-region-smoke"
+	namespaceSmokeName      = "team-a"
+	namespaceSmokeJobID     = "wander-ui-team-smoke"
+	regionSmokeName         = "region-a"
+	regionSmokeJobID        = "wander-ui-region-smoke"
+	parameterizedSmokeNS    = "dispatch-test"
+	parameterizedSmokeJobID = "wander-ui-parameterized"
 )
 
 // TestE2E is the main entry point for running Playwright e2e tests.
@@ -83,6 +85,7 @@ func startTestCluster(t *testing.T) (string, func()) {
 		binary := os.Getenv("WANDER_UI_E2E_BINARY")
 		registerSmokeJob(t, binary, address, "", nil)
 		registerNamespaceSmokeJob(t, binary, address)
+		registerParameterizedSmokeJob(t, binary, address)
 		return address, func() {}
 	}
 
@@ -100,6 +103,7 @@ func startTestCluster(t *testing.T) (string, func()) {
 	waitForRegion(t, address, regionSmokeName)
 	registerSmokeJob(t, binary, address, "", nil)
 	registerNamespaceSmokeJob(t, binary, address)
+	registerParameterizedSmokeJob(t, binary, address)
 	registerFixtureJob(t, binary, regionAddress, "", nil, "", regionSmokeJobID, "fixtures/region-smoke.nomad.hcl")
 	t.Setenv("WANDER_UI_E2E_FEDERATED", "1")
 	return address, func() {}
@@ -129,9 +133,33 @@ ports {
 
 func registerNamespaceSmokeJob(t *testing.T, binary, address string) {
 	t.Helper()
-	apply := exec.Command(binary, "namespace", "apply", "-address="+address, namespaceSmokeName)
-	runCommand(t, apply, "create browser smoke namespace")
+	createTestNamespace(t, binary, address, namespaceSmokeName)
 	registerFixtureJob(t, binary, address, "", nil, namespaceSmokeName, namespaceSmokeJobID, "fixtures/namespace-smoke.nomad.hcl")
+}
+
+func registerParameterizedSmokeJob(t *testing.T, binary, address string) {
+	t.Helper()
+	createTestNamespace(t, binary, address, parameterizedSmokeNS)
+	registerParameterizedFixture(t, binary, address, "", parameterizedSmokeNS)
+	waitForHTTP(t, "parameterized smoke job did not become visible", func(client *http.Client) bool {
+		resp, err := client.Get(address + "/v1/job/" + parameterizedSmokeJobID + "?namespace=" + parameterizedSmokeNS)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	})
+}
+
+func createTestNamespace(t *testing.T, binary, address, namespace string) {
+	t.Helper()
+	apply := exec.Command(binary, "namespace", "apply", "-address="+address, namespace)
+	runCommand(t, apply, "create browser smoke namespace "+namespace)
+}
+
+func registerParameterizedFixture(t *testing.T, binary, address, token, namespace string) {
+	t.Helper()
+	runFixtureJob(t, binary, address, token, namespace, "fixtures/parameterized.nomad.hcl")
 }
 
 func requireAgentPortsAvailable(t *testing.T) {
@@ -252,20 +280,7 @@ func registerFixtureJob(t *testing.T, binary, address, token string, requestClie
 		t.Fatal("WANDER_UI_E2E_BINARY is required with WANDER_UI_E2E_CLUSTER_ADDR")
 	}
 
-	jobFile, err := filepath.Abs(fixture)
-	if err != nil {
-		t.Fatalf("resolve smoke job path: %v", err)
-	}
-	args := []string{"job", "run", "-address=" + address, "-detach"}
-	if token != "" {
-		args = append(args, "-token="+token)
-	}
-	if namespace != "" {
-		args = append(args, "-namespace="+namespace)
-	}
-	args = append(args, jobFile)
-	register := exec.Command(binary, args...)
-	runCommand(t, register, "register browser smoke job")
+	runFixtureJob(t, binary, address, token, namespace, fixture)
 
 	if requestClient == nil {
 		requestClient = &http.Client{Timeout: time.Second}
@@ -293,6 +308,24 @@ func registerFixtureJob(t *testing.T, binary, address, token string, requestClie
 		resp.Body.Close()
 		return decodeErr == nil && len(allocations) > 0 && allocations[0].ClientStatus == "running"
 	})
+}
+
+func runFixtureJob(t *testing.T, binary, address, token, namespace, fixture string) {
+	t.Helper()
+	jobFile, err := filepath.Abs(fixture)
+	if err != nil {
+		t.Fatalf("resolve smoke job path: %v", err)
+	}
+	args := []string{"job", "run", "-address=" + address, "-detach"}
+	if token != "" {
+		args = append(args, "-token="+token)
+	}
+	if namespace != "" {
+		args = append(args, "-namespace="+namespace)
+	}
+	args = append(args, jobFile)
+	command := exec.Command(binary, args...)
+	runCommand(t, command, "register browser smoke job from "+fixture)
 }
 
 func runCommand(t *testing.T, command *exec.Cmd, failure string) {
@@ -373,6 +406,7 @@ func TestACLMutations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create root API client: %v", err)
 	}
+	registerParameterizedFixture(t, binary, address, root.SecretID, "default")
 	if _, err := rootClient.Namespaces().Register(&api.Namespace{Name: namespaceSmokeName}, nil); err != nil {
 		t.Fatalf("create ACL test namespace: %v", err)
 	}
@@ -412,6 +446,20 @@ func TestACLMutations(t *testing.T) {
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/clients/"+nodeID+"/drain", "", "application/x-www-form-urlencoded", "deadline=5m", http.StatusForbidden)
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/allocations/"+allocationID+"/restart", "", "", "", http.StatusForbidden)
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/variables", "", "application/x-www-form-urlencoded", "path=acl-audit/test&namespace=default&key_0=answer&value_0=denied", http.StatusForbidden)
+	dispatchForm := url.Values{"meta.environment": {"acl-test"}, "payload": {"acl-dispatch-payload"}}
+	assertRequestStatus(t, client, http.MethodPost, address+"/api/jobs/"+parameterizedSmokeJobID+"/dispatch", "", "application/x-www-form-urlencoded", dispatchForm.Encode(), http.StatusForbidden)
+	status, body = request(t, client, http.MethodPost, address+"/api/jobs/"+parameterizedSmokeJobID+"/dispatch", root.SecretID, "application/x-www-form-urlencoded", dispatchForm.Encode())
+	if status != http.StatusOK {
+		t.Fatalf("dispatch with management token returned %d: %s", status, body)
+	}
+	var dispatchResponse struct {
+		DispatchedJobID string `json:"dispatchedJobId"`
+	}
+	if err := json.Unmarshal(body, &dispatchResponse); err != nil || dispatchResponse.DispatchedJobID == "" {
+		t.Fatalf("decode dispatch response: %v; body: %s", err, body)
+	}
+	assertRequestStatus(t, client, http.MethodPost, address+"/api/jobs/"+dispatchResponse.DispatchedJobID+"/purge", "", "", "", http.StatusForbidden)
+	assertRequestStatus(t, client, http.MethodPost, address+"/api/jobs/"+dispatchResponse.DispatchedJobID+"/purge", root.SecretID, "", "", http.StatusOK)
 
 	assertACLMutation(t, client, http.MethodPost, address+"/api/clients/"+nodeID+"/eligibility", root.SecretID, "application/json", `{"Eligible":false}`)
 	nodeActions := []struct {

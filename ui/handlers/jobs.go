@@ -302,18 +302,9 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
 	jobID = strings.TrimSuffix(jobID, "/")
 
-	// Handle tab-specific requests (e.g., /ui/jobs/{id}/overview)
-	parts := strings.Split(jobID, "/")
-	actualJobID := parts[0]
-	tabName := ""
-	if len(parts) > 1 {
-		// Check if this is a task group URL - should have been handled earlier
-		if parts[1] == "taskgroups" {
-			http.NotFound(w, r)
-			return
-		}
-		tabName = parts[1]
-	}
+	// A dispatched or periodic child job ID contains a slash. Treat only a
+	// recognized final segment as a tab so those child jobs remain addressable.
+	actualJobID, tabName := splitJobDetailPath(jobID)
 
 	// Parse namespace from job ID if provided (format: jobID@namespace)
 	namespace := GetNamespaceFromRequest(r)
@@ -387,6 +378,16 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+func splitJobDetailPath(path string) (string, string) {
+	for _, tab := range []string{"overview", "definition", "versions", "allocations", "deployments", "evaluations"} {
+		suffix := "/" + tab
+		if strings.HasSuffix(path, suffix) {
+			return strings.TrimSuffix(path, suffix), tab
+		}
+	}
+	return path, ""
 }
 
 // getJobsList fetches jobs from the Nomad API with the specified parameters.
@@ -561,6 +562,16 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 		Priority:    safeInt(job.Priority),
 		Datacenters: job.Datacenters,
 		TaskGroups:  make([]jobspartials.TaskGroupSummary, 0, len(job.TaskGroups)),
+	}
+	if job.IsParameterized() {
+		jobDetail.Parameterized = &jobspartials.ParameterizedJob{
+			Payload:      job.ParameterizedJob.Payload,
+			MetaRequired: job.ParameterizedJob.MetaRequired,
+			MetaOptional: job.ParameterizedJob.MetaOptional,
+		}
+		if jobDetail.Parameterized.Payload == "" {
+			jobDetail.Parameterized.Payload = "optional"
+		}
 	}
 
 	// Extract task group summaries

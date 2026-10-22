@@ -4,9 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/api"
+)
+
+const (
+	maxDispatchPayloadSize = 16 * 1024
+	maxDispatchRequestSize = 64 * 1024
 )
 
 // JobsAPIHandler handles API requests for job actions.
@@ -31,16 +38,11 @@ func (h *JobsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	path := r.URL.Path
 
-	// Extract job ID and action from path
-	// Expected format: /api/jobs/{jobID}/{action} or /api/jobs/{jobID}/periodic/force
-	parts := strings.Split(strings.TrimPrefix(path, "/api/jobs/"), "/")
-	if len(parts) < 2 {
+	jobID, action, ok := splitJobActionPath(path)
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-
-	jobID := parts[0]
-	action := parts[1]
 
 	// Log the request
 	h.handler.logger.Debug("job action request", "jobID", jobID, "action", action)
@@ -55,41 +57,70 @@ func (h *JobsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.registerExistingJob(w, r, jobID, "submitted")
 	case "dispatch":
 		h.DispatchJob(w, r, jobID)
-	case "periodic":
-		// Handle nested periodic actions
-		if len(parts) > 2 && parts[2] == "force" {
-			h.ForcePeriodicJob(w, r, jobID)
-		} else {
-			http.NotFound(w, r)
-		}
+	case "purge":
+		h.PurgeJob(w, r, jobID)
+	case "periodic/force":
+		h.ForcePeriodicJob(w, r, jobID)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
+func splitJobActionPath(path string) (string, string, bool) {
+	remainder := strings.TrimPrefix(path, "/api/jobs/")
+	if remainder == path || remainder == "" {
+		return "", "", false
+	}
+	if strings.HasSuffix(remainder, "/periodic/force") {
+		jobID := strings.TrimSuffix(remainder, "/periodic/force")
+		return jobID, "periodic/force", jobID != ""
+	}
+	separator := strings.LastIndex(remainder, "/")
+	if separator < 1 || separator == len(remainder)-1 {
+		return "", "", false
+	}
+	return remainder[:separator], remainder[separator+1:], true
+}
+
 // StopJob handles stopping a job.
 func (h *JobsAPIHandler) StopJob(w http.ResponseWriter, r *http.Request, jobID string) {
-	client, jobName, namespace, ok := h.prepareJobAction(w, r, jobID, "stop")
+	h.deregisterJob(w, r, jobID, false)
+}
+
+// PurgeJob permanently removes a job and its history.
+func (h *JobsAPIHandler) PurgeJob(w http.ResponseWriter, r *http.Request, jobID string) {
+	h.deregisterJob(w, r, jobID, true)
+}
+
+func (h *JobsAPIHandler) deregisterJob(w http.ResponseWriter, r *http.Request, jobID string, purge bool) {
+	action := "stop"
+	if purge {
+		action = "purge"
+	}
+	client, jobName, namespace, ok := h.prepareJobAction(w, r, jobID, action)
 	if !ok {
 		return
 	}
-	h.handler.logger.Info("stopping job", "jobID", jobName, "namespace", namespace)
 
-	writeOpts := jobWriteOptions(r, namespace)
-
-	// Stop the job (purge=false means just stop, don't remove from system)
-	evalID, _, err := client.Jobs().Deregister(jobName, false, writeOpts)
+	evalID, _, err := client.Jobs().Deregister(jobName, purge, jobWriteOptions(r, namespace))
 	if err != nil {
-		h.handler.logger.Error("failed to stop job", "error", err, "jobID", jobName, "namespace", namespace)
-		setToast(w, "Failed to stop job: "+err.Error(), "error")
-		w.WriteHeader(http.StatusInternalServerError)
+		h.handler.logger.Error("failed to "+action+" job", "error", err, "jobID", jobName, "namespace", namespace)
+		setToast(w, "Failed to "+action+" job: "+err.Error(), "error")
+		status := http.StatusInternalServerError
+		if purge {
+			status = http.StatusBadGateway
+		}
+		w.WriteHeader(status)
 		return
 	}
 
-	h.handler.logger.Info("job stopped successfully", "jobID", jobName, "namespace", namespace, "evalID", evalID)
-
-	// Return success with eval ID
-	setToast(w, "Job stopped successfully (Eval: "+shortIdentifier(evalID)+")", "success")
+	h.handler.logger.Info("job "+action+" successful", "jobID", jobName, "namespace", namespace, "evalID", evalID)
+	if purge {
+		setToast(w, "Job purged successfully", "success")
+		w.Header().Set("HX-Redirect", scopedUIURL("/ui/jobs", namespace, GetRegionFromRequest(r)))
+	} else {
+		setToast(w, "Job stopped successfully (Eval: "+shortIdentifier(evalID)+")", "success")
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -280,7 +311,7 @@ func (h *JobsAPIHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request, 
 // DispatchJobRequest represents the request body for dispatch endpoint.
 type DispatchJobRequest struct {
 	Meta    map[string]string `json:"meta,omitempty"`
-	Payload string            `json:"payload,omitempty"` // base64 encoded
+	Payload string            `json:"payload,omitempty"`
 }
 
 // DispatchJobResponse represents the response from dispatch endpoint.
@@ -293,71 +324,51 @@ type DispatchJobResponse struct {
 // DispatchJob handles dispatching a parameterized job.
 // Route: POST /api/jobs/{id}/dispatch
 func (h *JobsAPIHandler) DispatchJob(w http.ResponseWriter, r *http.Request, jobID string) {
-	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := GetNamespaceFromRequest(r)
-	jobName := jobID
-	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
-		jobName = jobID[:idx]
-		namespace = jobID[idx+1:]
-	}
-
-	// Check permissions - need submit-job capability to dispatch jobs
+	jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanSubmitJob(namespace) {
+	if perms != nil && !perms.HasCapability(namespace, acl.NamespaceCapabilityDispatchJob) {
 		h.handler.logger.Warn("dispatch permission denied", "jobID", jobID, "namespace", namespace)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(DispatchJobResponse{
-			Error: fmt.Sprintf("Permission denied: you do not have the 'submit-job' capability in the %s namespace", namespace),
-		})
+		writeDispatchError(w, http.StatusForbidden, fmt.Sprintf("Permission denied: you do not have the 'dispatch-job' capability in the %s namespace", namespace))
 		return
 	}
 
 	h.handler.logger.Info("dispatching parameterized job", "jobID", jobName, "namespace", namespace)
 
-	// Parse optional request body for meta and payload
-	var req DispatchJobRequest
-	if r.Body != nil && r.ContentLength > 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			h.handler.logger.Error("failed to decode dispatch request", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(DispatchJobResponse{Error: "Invalid request body"})
-			return
-		}
+	req, err := decodeDispatchRequest(w, r)
+	if err != nil {
+		h.handler.logger.Warn("invalid dispatch request", "error", err, "jobID", jobName, "namespace", namespace)
+		writeDispatchError(w, http.StatusBadRequest, "Invalid dispatch request: "+err.Error())
+		return
 	}
 
 	// Get Nomad client
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(DispatchJobResponse{Error: "Wander client not available"})
+		writeDispatchError(w, http.StatusServiceUnavailable, "Wander client not available")
 		return
 	}
 
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
-	// Build write options with namespace and token
-	writeOpts := &api.WriteOptions{
-		Namespace: namespace,
+	job, _, err := client.Jobs().Info(jobName, &api.QueryOptions{Namespace: namespace, AuthToken: token})
+	if err != nil {
+		h.handler.logger.Error("failed to load parameterized job", "error", err, "jobID", jobName, "namespace", namespace)
+		writeDispatchError(w, http.StatusBadGateway, "Failed to load parameterized job")
+		return
 	}
-	if token != "" {
-		writeOpts.AuthToken = token
+	if err := validateDispatchInput(job, req); err != nil {
+		writeDispatchError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	// Dispatch the job
 	// idPrefixTemplate is empty string - let Nomad generate the ID
-	dispatchResp, _, err := client.Jobs().Dispatch(jobName, req.Meta, []byte(req.Payload), "", writeOpts)
+	dispatchResp, _, err := client.Jobs().Dispatch(jobName, req.Meta, []byte(req.Payload), "", jobWriteOptions(r, namespace))
 	if err != nil {
 		h.handler.logger.Error("failed to dispatch job", "error", err, "jobID", jobName, "namespace", namespace)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(DispatchJobResponse{
-			Error: fmt.Sprintf("Failed to dispatch job: %v", err),
-		})
+		writeDispatchError(w, http.StatusBadGateway, fmt.Sprintf("Failed to dispatch job: %v", err))
 		return
 	}
 
@@ -375,8 +386,88 @@ func (h *JobsAPIHandler) DispatchJob(w http.ResponseWriter, r *http.Request, job
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("HX-Redirect", scopedUIURL("/ui/jobs/"+url.PathEscape(dispatchResp.DispatchedJobID), namespace, GetRegionFromRequest(r)))
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.handler.logger.Error("failed to encode dispatch response", "error", err)
 	}
+}
+
+func decodeDispatchRequest(w http.ResponseWriter, r *http.Request) (DispatchJobRequest, error) {
+	var req DispatchJobRequest
+	if r.Body == nil || r.ContentLength == 0 {
+		return req, nil
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxDispatchRequestSize)
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return req, err
+		}
+		return req, nil
+	}
+	if err := r.ParseForm(); err != nil {
+		return req, err
+	}
+	req.Payload = r.Form.Get("payload")
+	req.Meta = make(map[string]string)
+	for key, values := range r.Form {
+		if strings.HasPrefix(key, "meta.") && len(values) > 0 {
+			req.Meta[strings.TrimPrefix(key, "meta.")] = values[0]
+		}
+	}
+	return req, nil
+}
+
+func validateDispatchInput(job *api.Job, req DispatchJobRequest) error {
+	if job == nil || !job.IsParameterized() {
+		return fmt.Errorf("job is not a parameterized parent job")
+	}
+	config := job.ParameterizedJob
+	if config.Payload == "required" && req.Payload == "" {
+		return fmt.Errorf("payload is required")
+	}
+	if config.Payload == "forbidden" && req.Payload != "" {
+		return fmt.Errorf("payload is forbidden")
+	}
+	if len(req.Payload) > maxDispatchPayloadSize {
+		return fmt.Errorf("payload exceeds the 16 KiB limit")
+	}
+
+	allowed := make(map[string]bool, len(config.MetaRequired)+len(config.MetaOptional))
+	for _, key := range config.MetaRequired {
+		allowed[key] = true
+		if _, ok := req.Meta[key]; !ok {
+			return fmt.Errorf("metadata field %q is required", key)
+		}
+	}
+	for _, key := range config.MetaOptional {
+		allowed[key] = true
+	}
+	for key := range req.Meta {
+		if !allowed[key] {
+			return fmt.Errorf("metadata field %q is not allowed", key)
+		}
+	}
+	return nil
+}
+
+func writeDispatchError(w http.ResponseWriter, status int, message string) {
+	setToast(w, message, "error")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(DispatchJobResponse{Error: message})
+}
+
+func scopedUIURL(path, namespace, region string) string {
+	query := url.Values{}
+	if namespace != "" {
+		query.Set("namespace", namespace)
+	}
+	if region != "" {
+		query.Set("region", region)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		return path + "?" + encoded
+	}
+	return path
 }

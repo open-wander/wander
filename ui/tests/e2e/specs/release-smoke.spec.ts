@@ -80,7 +80,37 @@ async function selectScope(page: Page, scope: 'namespace' | 'region', value: str
   await page.getByText(value, { exact: true }).click();
 }
 
+async function openDialog(page: Page, triggerName: string, dialogName: string) {
+  await page.getByRole('button', { name: triggerName, exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: dialogName });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
 test.describe('Wander release smoke', () => {
+  test('dispatches and purges a parameterized child job', async ({ page }) => {
+    await openDesktopPage(page, '/ui/jobs/wander-ui-parameterized?namespace=dispatch-test&region=global');
+
+    const dispatchDialog = await openDialog(page, 'Dispatch', 'Dispatch Job');
+    await dispatchDialog.locator('input[name="meta.environment"]').fill('test');
+    await dispatchDialog.locator('input[name="meta.version"]').fill('v1');
+    await dispatchDialog.locator('textarea[name="payload"]').fill('browser-dispatch-payload');
+    await dispatchDialog.getByRole('button', { name: 'Dispatch Job' }).click();
+
+    await expect(page).toHaveURL(/\/ui\/jobs\/wander-ui-parameterized(?:%2F|\/)dispatch-/);
+    const dispatchedURL = new URL(page.url());
+    expect(dispatchedURL.searchParams.get('namespace')).toBe('dispatch-test');
+    expect(dispatchedURL.searchParams.get('region')).toBe('global');
+    await expect(page.getByRole('button', { name: 'Purge', exact: true })).toBeVisible();
+
+    const purgeDialog = await openDialog(page, 'Purge', 'Purge Job');
+    await expect(purgeDialog).toContainText('cannot be undone');
+    await purgeDialog.getByRole('button', { name: 'Purge Job' }).click();
+
+    await expect(page).toHaveURL(/\/ui\/jobs\?/);
+    await expect(page.locator('[data-job-id^="wander-ui-parameterized/dispatch-"]')).toHaveCount(0);
+  });
+
   test('switches to and navigates within a federated region', async ({ page }) => {
     test.skip(process.env.WANDER_UI_E2E_FEDERATED !== '1', 'requires the disposable federated fixture');
     const browserErrors = captureBrowserErrors(page);
@@ -205,9 +235,7 @@ test.describe('Wander release smoke', () => {
       await teamPage.reload();
       await expect(teamPage.getByPlaceholder('Value')).toHaveValue('updated');
 
-      await teamPage.getByRole('button', { name: 'Delete', exact: true }).click();
-      const deleteModal = teamPage.getByRole('dialog', { name: 'Delete Variable' });
-      await expect(deleteModal).toBeVisible();
+      const deleteModal = await openDialog(teamPage, 'Delete', 'Delete Variable');
       await deleteModal.getByRole('button', { name: 'Delete Variable' }).click();
       await expect(teamPage).toHaveURL(/\/ui\/variables$/);
       await expect(teamPage.getByText(variablePath, { exact: true })).toHaveCount(0);

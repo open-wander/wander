@@ -9,9 +9,12 @@ scope and parity work list is the
 ## Implemented for 0.1.0
 
 - Jobs: live list and detail data, definition view, plan/run, stop/start,
-  scaling endpoint, versions and revert, allocations, deployments, and
-  evaluations. The scale-confirmation dialog now displays live counts and can
-  be dismissed by its close and cancel controls or Escape. Negative counts,
+  purge, parameterized-job dispatch, scaling endpoint, versions and revert,
+  allocations, deployments, and evaluations. Dispatch derives required and
+  optional metadata and payload fields from the live job, uses the distinct
+  `dispatch-job` capability, and can open slash-containing dispatched child
+  IDs. The scale-confirmation dialog now displays live counts and can be
+  dismissed by its close and cancel controls or Escape. Negative counts,
   successful mutation, ACL denial, and cluster rejection have regression
   coverage; constrained autoscaling min/max coverage remains on the checklist.
 - Allocations: live detail, files, logs, raw API data, restart/stop actions,
@@ -82,9 +85,9 @@ remote job while preserving the selected region through navigation.
   cluster, including denial paths. The automated `TestACLMutations` release
   gate covers client eligibility/drain/cancel, allocation restart/stop,
   variable create/update/delete, policy update/delete, and deployment
-  promote/fail. Job stop and token sign-in/sign-out were also exercised in the
-  2026-10-18 live audit. Namespace selection changes UI context only and is not
-  a cluster mutation.
+  promote/fail, parameterized-job dispatch, and job purge. Job stop and token
+  sign-in/sign-out were also exercised in the 2026-10-18 live audit. Namespace
+  selection changes UI context only and is not a cluster mutation.
 - [x] Verify logs and exec with a real running allocation over HTTPS/WSS. The
   automated `TestTLSTransports` gate reads live SSE output over HTTPS and runs
   a shell command to completion over WSS.
@@ -112,9 +115,8 @@ be used to defer baseline behavior without explicit approval:
   unsaved-change warnings.
 - Richer topology filtering and allocation overlays.
 - Additional job/client filters, columns, charts, and detail panels.
-- Structured job-version diffs, job templates/file upload, dispatch and purge
-  workflows. Known baseline behavior is required for 0.1.0 unless an explicit
-  deviation is approved.
+- Structured job-version diffs and job templates/file upload. Known baseline
+  behavior is required for 0.1.0 unless an explicit deviation is approved.
 - Global keyboard shortcuts, consistent copy controls, and improved relative
   time display.
 - Optional SSO/JWT login flows.

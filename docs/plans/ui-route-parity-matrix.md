@@ -35,8 +35,8 @@ black-box run; it does not make the capability optional.
 | Definition | View HCL/JSON and edit or submit a definition | `/ui/jobs/{id}/definition`, `/ui/jobs/run` | Parse, plan, register | Submit-job capability; namespace/region | Live definition and ACL mutation tests | **Partial**: file upload, HCL variables, templates, and edit/review workflow |
 | Job plan/run | Plan and submit a job | `/ui/jobs/{id}/plan`, `/ui/jobs/{id}/run` | POST plan/register | Submit-job capability; namespace/region | ACL mutation suite | **Ready** for current form; job-kind coverage remains |
 | Lifecycle | Start, stop, periodic force, and run existing jobs | `/api/jobs/{id}/{start,stop,run}`, `/periodic/force` | POST mutations | Submit-job capability; namespace/region | ACL mutation suite for representative actions | **Partial**: browser coverage and failure states for each action |
-| Dispatch | Dispatch a parameterized job | Baseline browser path capture pending; transport at `/api/jobs/{id}/dispatch` | POST dispatch | Dispatch-job capability; namespace/region | Handler exists; no complete browser workflow | **Required gap**: independently implement parameters, payload, metadata, and result navigation |
-| Purge | Stop and purge a job | Capture pending | Deregister with purge | Submit-job capability; namespace/region | Revival checklist inventory | **Required gap** |
+| Dispatch | Dispatch a parameterized job | Baseline browser path capture pending; Wander transport at `/api/jobs/{id}/dispatch` | POST dispatch with live payload and metadata contract | Dispatch-job capability; namespace/region | Handler/template tests, live Chromium dispatch, ACL success/denial | **Ready**; exact baseline browser-path capture remains evidence work |
+| Purge | Stop and permanently purge a job | Baseline browser path capture pending; Wander transport at `/api/jobs/{id}/purge` | Deregister with `purge=true` | Submit-job capability; namespace/region | Handler tests, live Chromium child purge, ACL success/denial | **Ready**; exact baseline browser-path capture remains evidence work |
 | Scaling | Scale a task group within policy bounds | `/ui/jobs/{id}/taskgroups/{group}`, `/scale` | Scale-status read and POST scale | Scale-job capability; namespace/region | Unit and browser mutation tests | **Partial**: enforce and test scaling-policy minimum/maximum |
 | Versions | Browse, diff, and revert job versions | `/ui/jobs/{id}/versions`, `/versions/{v1}/diff/{v2}`, `/versions/{v}/revert` | Version reads and POST revert | Read/submit-job; namespace/region | Handler and mutation tests | **Partial**: structured field-level differences and change annotations |
 | Job allocations | Browse allocations belonging to a job/task group | `/ui/jobs/{id}/allocations`; task-group capture pending | Allocation reads | Namespace and region | Browser smoke | **Partial**: inherited task expansion, filtering, statistics, and task-group table |
@@ -73,10 +73,8 @@ black-box run; it does not make the capability optional.
    supported method has full-page/HTMX/not-found evidence.
 2. Perform an approved black-box capture of the 1.6.5 browser route map and
    replace every `Capture pending` entry with evidence.
-3. Restore dispatch and purge workflows because their API support already
-   exists or is inherited and they are bounded, high-value job operations.
-4. Restore services and job-client reads.
-5. Independently implement ACL token/role management only after the provenance
+3. Restore services and job-client reads.
+4. Independently implement ACL token/role management only after the provenance
    method and source baseline receive project-owner approval.
 
 ## Acceptance criteria
