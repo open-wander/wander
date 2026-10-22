@@ -643,6 +643,26 @@ document.addEventListener('alpine:init', () => {
             return id;
         },
 
+        variantClasses(variant) {
+            const variants = {
+                success: 'bg-green-50 text-green-800',
+                error: 'bg-red-50 text-red-800',
+                warning: 'bg-yellow-50 text-yellow-800',
+                info: 'bg-blue-50 text-blue-800'
+            };
+            return variants[variant] || variants.info;
+        },
+
+        closeButtonClasses(variant) {
+            const variants = {
+                success: 'text-green-700 hover:text-green-900 focus:ring-green-500',
+                error: 'text-red-700 hover:text-red-900 focus:ring-red-500',
+                warning: 'text-yellow-700 hover:text-yellow-900 focus:ring-yellow-500',
+                info: 'text-blue-700 hover:text-blue-900 focus:ring-blue-500'
+            };
+            return variants[variant] || variants.info;
+        },
+
         /**
          * Remove a toast by ID
          * @param {number} id - Toast ID

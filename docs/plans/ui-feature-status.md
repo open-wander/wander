@@ -47,8 +47,9 @@ browsers and a namespace-restricted ACL token cannot leak jobs between
 namespaces. Unknown or inaccessible selections are rejected before they are
 persisted. Links, HTMX requests, application fetches, log streams, and exec
 WebSockets now retain explicit URL scope even when a browser has no selection
-cookie. Remaining release work is to exercise region forwarding against a
-federated multi-region cluster.
+cookie. The embedded-browser harness also federates disposable `global` and
+`region-a` agents and verifies that switching regions forwards reads to the
+remote job while preserving the selected region through navigation.
 
 - [x] Verify a packaged release-format binary embeds this UI at `/ui/`,
   redirects `/` to `/ui/`, and requires no separate UI server or asset

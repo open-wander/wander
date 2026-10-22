@@ -37,6 +37,7 @@ BUG FIXES:
 * ui: Show active allocation reservations and schedulable capacity on client and topology views instead of reserved-system resources or fabricated host load.
 * ui: Keep deeply expanded allocation file trees scrollable within the workspace while preserving access to file previews and the page footer.
 * ui: Stop allocation-log SSE heartbeats cleanly without racing concurrent stream writes.
+* ui: Render namespace and region selection success toasts without Alpine expression errors.
 
 MIGRATION NOTES:
 

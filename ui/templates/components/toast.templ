@@ -64,7 +64,7 @@ templ ToastContainer(props ToastContainerProps) {
 					x-transition:leave="transition ease-in duration-200"
 					x-transition:leave-start="opacity-100 transform translate-y-0"
 					x-transition:leave-end="opacity-0 transform translate-y-2"
-					:class="'rounded-lg shadow-lg p-4 max-w-md w-full ' + toastVariantClasses(toast.variant)"
+					:class="'rounded-lg shadow-lg p-4 max-w-md w-full ' + $store.toasts.variantClasses(toast.variant)"
 					role="alert"
 				>
 					<div class="flex items-start gap-3">
@@ -101,7 +101,7 @@ templ ToastContainer(props ToastContainerProps) {
 							type="button"
 							@click="$store.toasts.remove(toast.id)"
 							class="flex-shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2"
-							:class="toastCloseButtonClasses(toast.variant)"
+							:class="$store.toasts.closeButtonClasses(toast.variant)"
 							aria-label="Close notification"
 						>
 							<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">

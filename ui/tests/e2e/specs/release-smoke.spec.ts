@@ -41,9 +41,14 @@ async function openDesktopPage(page: Page, path: string) {
   await page.goto(path);
 }
 
+async function expectScopedJobs(page: Page, scope: RegExp, visibleJob: string, hiddenJob: string) {
+  await expect(page).toHaveURL(scope);
+  await expect(page.locator(`[data-job-id="${visibleJob}"]`)).toBeVisible();
+  await expect(page.locator(`[data-job-id="${hiddenJob}"]`)).toHaveCount(0);
+}
+
 async function expectTeamNamespaceJobs(page: Page) {
-  await expect(page.locator('[data-job-id="wander-ui-team-smoke"]')).toBeVisible();
-  await expect(page.locator('[data-job-id="wander-ui-smoke"]')).toHaveCount(0);
+  await expectScopedJobs(page, /namespace=team-a/, 'wander-ui-team-smoke', 'wander-ui-smoke');
 }
 
 async function expectTeamJobDetail(page: Page) {
@@ -70,12 +75,34 @@ async function newIsolatedNamespacePages(browser: Browser) {
   };
 }
 
-async function selectNamespace(page: Page, namespace: string) {
-  await page.getByLabel('Select namespace').click();
-  await page.getByText(namespace, { exact: true }).click();
+async function selectScope(page: Page, scope: 'namespace' | 'region', value: string) {
+  await page.getByLabel(`Select ${scope}`).click();
+  await page.getByText(value, { exact: true }).click();
 }
 
 test.describe('Wander release smoke', () => {
+  test('switches to and navigates within a federated region', async ({ page }) => {
+    test.skip(process.env.WANDER_UI_E2E_FEDERATED !== '1', 'requires the disposable federated fixture');
+    const browserErrors = captureBrowserErrors(page);
+
+    await page.goto('/ui/jobs?namespace=default&region=global');
+    await expect(page.locator('[data-job-id="wander-ui-smoke"]')).toBeVisible();
+    await expect(page.locator('[data-job-id="wander-ui-region-smoke"]')).toHaveCount(0);
+
+    await selectScope(page, 'region', 'region-a');
+    await expectScopedJobs(page, /region=region-a/, 'wander-ui-region-smoke', 'wander-ui-smoke');
+
+    await page.locator('[data-job-id="wander-ui-region-smoke"] a').first().click();
+    await expect(page).toHaveURL(/\/ui\/jobs\/wander-ui-region-smoke/);
+    await expect(page).toHaveURL(/region=region-a/);
+    await expect(page.getByRole('heading', { name: 'wander-ui-region-smoke' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Jobs', exact: true }).click();
+    await expect(page).toHaveURL(/region=region-a/);
+    await expect(page.locator('[data-job-id="wander-ui-region-smoke"]')).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
   test('isolates namespace selection between browser sessions', async ({ browser }) => {
     const { defaultPage, teamPage, close } = await newIsolatedNamespacePages(browser);
 
@@ -86,8 +113,7 @@ test.describe('Wander release smoke', () => {
       await expect(defaultPage.locator('[data-job-id="wander-ui-smoke"]')).toBeVisible();
       await expect(defaultPage.locator('[data-job-id="wander-ui-team-smoke"]')).toHaveCount(0);
 
-      await selectNamespace(teamPage, 'team-a');
-      await expect(teamPage).toHaveURL(/\/ui\/jobs\?.*namespace=team-a/);
+      await selectScope(teamPage, 'namespace', 'team-a');
       await expectTeamNamespaceJobs(teamPage);
 
       await teamPage.locator('[data-job-id="wander-ui-team-smoke"] a').click();
@@ -97,9 +123,7 @@ test.describe('Wander release smoke', () => {
       await expectTeamNamespaceJobs(teamPage);
 
       await defaultPage.reload();
-      await expect(defaultPage).toHaveURL(/namespace=default/);
-      await expect(defaultPage.locator('[data-job-id="wander-ui-smoke"]')).toBeVisible();
-      await expect(defaultPage.locator('[data-job-id="wander-ui-team-smoke"]')).toHaveCount(0);
+      await expectScopedJobs(defaultPage, /namespace=default/, 'wander-ui-smoke', 'wander-ui-team-smoke');
     } finally {
       await close();
     }
@@ -156,7 +180,7 @@ test.describe('Wander release smoke', () => {
 
     try {
       await openDesktopPage(teamPage, '/ui/variables?namespace=default');
-      await selectNamespace(teamPage, 'team-a');
+      await selectScope(teamPage, 'namespace', 'team-a');
       await teamPage.getByRole('link', { name: 'Create Variable' }).click();
 
       const namespaceSelect = teamPage.getByLabel('Namespace', { exact: true });

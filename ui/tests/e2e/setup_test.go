@@ -30,6 +30,8 @@ const smokeJobID = "wander-ui-smoke"
 const (
 	namespaceSmokeName  = "team-a"
 	namespaceSmokeJobID = "wander-ui-team-smoke"
+	regionSmokeName     = "region-a"
+	regionSmokeJobID    = "wander-ui-region-smoke"
 )
 
 // TestE2E is the main entry point for running Playwright e2e tests.
@@ -92,9 +94,37 @@ func startTestCluster(t *testing.T) (string, func()) {
 
 	address := "http://127.0.0.1:4646"
 	waitForCluster(t, address)
+	regionAddress := startFederatedRegion(t, binary)
+	join := exec.Command(binary, "server", "join", "-address="+address, "127.0.0.1:5648")
+	runCommand(t, join, "federate disposable Wander regions")
+	waitForRegion(t, address, regionSmokeName)
 	registerSmokeJob(t, binary, address, "", nil)
 	registerNamespaceSmokeJob(t, binary, address)
+	registerFixtureJob(t, binary, regionAddress, "", nil, "", regionSmokeJobID, "fixtures/region-smoke.nomad.hcl")
+	t.Setenv("WANDER_UI_E2E_FEDERATED", "1")
 	return address, func() {}
+}
+
+func startFederatedRegion(t *testing.T, binary string) string {
+	t.Helper()
+	config := fmt.Sprintf(`region = %q
+data_dir = %q
+bind_addr = "127.0.0.1"
+
+ports {
+  http = 5646
+  rpc  = 5647
+  serf = 5648
+}
+`, regionSmokeName, filepath.Join(t.TempDir(), "region-cluster"))
+	configPath := filepath.Join(t.TempDir(), "region.hcl")
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatalf("write disposable region configuration: %v", err)
+	}
+	startTestAgent(t, binary, "-dev", "-config="+configPath, "-log-level=WARN")
+	address := "http://127.0.0.1:5646"
+	waitForCluster(t, address)
+	return address
 }
 
 func registerNamespaceSmokeJob(t *testing.T, binary, address string) {
@@ -106,7 +136,10 @@ func registerNamespaceSmokeJob(t *testing.T, binary, address string) {
 
 func requireAgentPortsAvailable(t *testing.T) {
 	t.Helper()
-	for _, address := range []string{"127.0.0.1:4646", "127.0.0.1:4647", "127.0.0.1:4648"} {
+	for _, address := range []string{
+		"127.0.0.1:4646", "127.0.0.1:4647", "127.0.0.1:4648",
+		"127.0.0.1:5646", "127.0.0.1:5647", "127.0.0.1:5648",
+	} {
 		listener, err := net.Listen("tcp", address)
 		if err != nil {
 			t.Fatalf("Wander end-to-end port %s is already in use: %v", address, err)
@@ -177,6 +210,27 @@ func waitForClusterWithClient(t *testing.T, address string, client *http.Client)
 		defer resp.Body.Close()
 		var leader string
 		return resp.StatusCode == http.StatusOK && json.NewDecoder(resp.Body).Decode(&leader) == nil && leader != ""
+	})
+}
+
+func waitForRegion(t *testing.T, address, region string) {
+	t.Helper()
+	waitForHTTP(t, "federated region did not become visible: "+region, func(client *http.Client) bool {
+		resp, err := client.Get(address + "/v1/regions")
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		var regions []string
+		if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&regions) != nil {
+			return false
+		}
+		for _, available := range regions {
+			if available == region {
+				return true
+			}
+		}
+		return false
 	})
 }
 
