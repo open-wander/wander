@@ -45,8 +45,10 @@ takes precedence over HTTP-only fallback cookies, all operational UI handlers
 use isolated API-client configuration, and disposable-cluster tests prove two
 browsers and a namespace-restricted ACL token cannot leak jobs between
 namespaces. Unknown or inaccessible selections are rejected before they are
-persisted. Remaining release work is to finish the link/HTMX URL-propagation
-audit and exercise region forwarding against a federated multi-region cluster.
+persisted. Links, HTMX requests, application fetches, log streams, and exec
+WebSockets now retain explicit URL scope even when a browser has no selection
+cookie. Remaining release work is to exercise region forwarding against a
+federated multi-region cluster.
 
 - [x] Verify a packaged release-format binary embeds this UI at `/ui/`,
   redirects `/` to `/ui/`, and requires no separate UI server or asset

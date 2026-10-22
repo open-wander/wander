@@ -21,8 +21,10 @@ type PageLayoutProps struct {
 // This wraps BaseLayout and adds the application shell using component composition.
 templ PageLayout(props PageLayoutProps, content templ.Component) {
 	@BaseLayout(BaseLayoutProps{
-		Title:       props.Title,
-		Description: props.Description,
+		Title:            props.Title,
+		Description:      props.Description,
+		CurrentNamespace: props.CurrentNamespace,
+		CurrentRegion:    props.CurrentRegion,
 	}, pageContent(props, content))
 }
 

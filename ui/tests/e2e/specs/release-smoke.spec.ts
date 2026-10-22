@@ -27,9 +27,12 @@ async function openResource(
 }
 
 async function openAllocationView(page: Page, allocationHref: string, view: 'logs' | 'exec' | 'files', content: RegExp) {
-  const response = await page.goto(`${allocationHref}/${view}?task=fixture`);
+  const target = new URL(allocationHref, 'http://wander.test');
+  target.pathname = `${target.pathname}/${view}`;
+  target.searchParams.set('task', 'fixture');
+  const response = await page.goto(`${target.pathname}${target.search}`);
   expect(response?.status()).toBe(200);
-  await expect(page).toHaveURL(new RegExp(`/${view}\\?task=fixture$`));
+  await expect(page).toHaveURL(new RegExp(`/${view}\\?.*task=fixture`));
   await expect(page.locator('body')).toContainText(content);
 }
 
@@ -41,6 +44,11 @@ async function openDesktopPage(page: Page, path: string) {
 async function expectTeamNamespaceJobs(page: Page) {
   await expect(page.locator('[data-job-id="wander-ui-team-smoke"]')).toBeVisible();
   await expect(page.locator('[data-job-id="wander-ui-smoke"]')).toHaveCount(0);
+}
+
+async function expectTeamJobDetail(page: Page) {
+  await expect(page).toHaveURL(/\/ui\/jobs\/wander-ui-team-smoke/);
+  await expect(page.getByRole('heading', { name: 'wander-ui-team-smoke' })).toBeVisible();
 }
 
 async function submitVariableValue(page: Page, value: string, action: string) {
@@ -83,8 +91,7 @@ test.describe('Wander release smoke', () => {
       await expectTeamNamespaceJobs(teamPage);
 
       await teamPage.locator('[data-job-id="wander-ui-team-smoke"] a').click();
-      await expect(teamPage).toHaveURL(/\/ui\/jobs\/wander-ui-team-smoke/);
-      await expect(teamPage.getByRole('heading', { name: 'wander-ui-team-smoke' })).toBeVisible();
+      await expectTeamJobDetail(teamPage);
 
       await teamPage.getByRole('link', { name: 'Jobs', exact: true }).click();
       await expectTeamNamespaceJobs(teamPage);
@@ -95,6 +102,51 @@ test.describe('Wander release smoke', () => {
       await expect(defaultPage.locator('[data-job-id="wander-ui-team-smoke"]')).toHaveCount(0);
     } finally {
       await close();
+    }
+  });
+
+  test('retains direct URL scope through navigation and HTMX actions', async ({ browser }) => {
+    const baseURL = test.info().project.use.baseURL as string;
+    const context = await browser.newContext({ baseURL });
+    const page = await context.newPage();
+
+    try {
+      await page.goto('/ui/jobs?namespace=team-a&region=global');
+      await expectTeamNamespaceJobs(page);
+
+      const jobRow = page.locator('[data-job-id="wander-ui-team-smoke"]');
+      const jobHref = await jobRow.locator('a').first().getAttribute('href');
+      expect(jobHref).toContain('namespace=team-a');
+      expect(jobHref).toContain('region=global');
+      const scopedURLs = await page.evaluate(() => {
+        const scopeURL = (window as typeof window & { wanderScopeURL: (url: string) => string }).wanderScopeURL;
+        return {
+          explicit: scopeURL('/ui/jobs?namespace=explicit'),
+          external: scopeURL('https://example.com/ui/jobs'),
+          staticAsset: scopeURL('/ui/static/css/output.css'),
+        };
+      });
+      expect(scopedURLs.explicit).toContain('namespace=explicit');
+      expect(scopedURLs.explicit).not.toContain('namespace=team-a');
+      expect(scopedURLs.explicit).toContain('region=global');
+      expect(scopedURLs.external).toBe('https://example.com/ui/jobs');
+      expect(scopedURLs.staticAsset).toBe('/ui/static/css/output.css');
+      await jobRow.locator('a').first().click();
+      await expectTeamJobDetail(page);
+      await expect(page).toHaveURL(/namespace=team-a/);
+      await expect(page).toHaveURL(/region=global/);
+
+      const stopAction = page.locator('[aria-labelledby="modal-title-stop-job-modal"] [hx-post]');
+      await expect(stopAction).toHaveAttribute('hx-post', /namespace=team-a/);
+      await expect(stopAction).toHaveAttribute('hx-post', /region=global/);
+
+      await page.getByRole('tab', { name: 'Definition' }).click();
+      await expect(page.locator('.wander-editor-wrapper')).toContainText('job "wander-ui-team-smoke"');
+      await page.getByRole('link', { name: 'Jobs', exact: true }).click();
+      await expect(page).toHaveURL(/namespace=team-a/);
+      await expectTeamNamespaceJobs(page);
+    } finally {
+      await context.close();
     }
   });
 
@@ -178,14 +230,14 @@ test.describe('Wander release smoke', () => {
     expect(shellLayout.footerRight).toBe(shellLayout.viewportWidth);
     await expect(page.getByText('v0.1.0-dev', { exact: true })).toHaveCount(1);
 
-    await openResource(page, '/ui/jobs', '[data-job-id="wander-ui-smoke"]', 'a[href="/ui/jobs/wander-ui-smoke"]', /\/ui\/jobs\/wander-ui-smoke$/, 'wander-ui-smoke');
-    await openResource(page, '/ui/allocations', '[data-alloc-id]', 'a[href^="/ui/allocations/"]', /\/ui\/allocations\/[0-9a-f-]+$/, 'fixture');
+    await openResource(page, '/ui/jobs', '[data-job-id="wander-ui-smoke"]', 'a[href^="/ui/jobs/wander-ui-smoke"]', /\/ui\/jobs\/wander-ui-smoke/, 'wander-ui-smoke');
+    await openResource(page, '/ui/allocations', '[data-alloc-id]', 'a[href^="/ui/allocations/"]', /\/ui\/allocations\/[0-9a-f-]+/, 'fixture');
     await page.goto('/ui/clients');
     const clientRow = page.locator('[data-client-id]').first();
     await expect(clientRow).toContainText('1');
     await expect(clientRow).toContainText('50 /');
     await clientRow.locator('a[href^="/ui/clients/"]').first().click();
-    await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+$/);
+    await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+/);
 
     await page.goto('/ui/servers');
     await expect(page.locator('tbody tr').first()).toBeVisible();
@@ -379,14 +431,14 @@ test.describe('Wander release smoke', () => {
     for (let index = 0; index < 40; index += 1) {
       await page.keyboard.press('Tab');
       const focusedHref = await page.evaluate(() => document.activeElement?.getAttribute('href'));
-      if (focusedHref === '/ui/jobs') {
+      if (focusedHref?.startsWith('/ui/jobs')) {
         reachedJobs = true;
         await page.keyboard.press('Enter');
         break;
       }
     }
     expect(reachedJobs).toBe(true);
-    await expect(page).toHaveURL(/\/ui\/jobs$/);
+    await expect(page).toHaveURL(/\/ui\/jobs/);
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     expect(browserErrors).toEqual([]);
   });

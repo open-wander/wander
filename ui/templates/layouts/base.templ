@@ -4,8 +4,10 @@ import "github.com/open-wander/wander/ui/templates/components"
 
 // BaseLayoutProps contains parameters for the base HTML layout
 type BaseLayoutProps struct {
-	Title       string
-	Description string
+	Title            string
+	Description      string
+	CurrentNamespace string
+	CurrentRegion    string
 }
 
 // BaseLayout provides the fundamental HTML structure with head and body.
@@ -30,6 +32,7 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			<!-- Alpine.js - Client-side state management -->
 			<script src="/ui/static/js/alpine.min.js" defer></script>
 			<!-- Alpine patterns - Reusable Alpine.js components -->
+			<script src="/ui/static/js/selection-scope.js"></script>
 			<script src="/ui/static/js/codemirror-bundle.js"></script>
 			<script src="/ui/static/js/alpine-patterns.js"></script>
 			<!-- SSE Client - Auto-reconnecting EventSource wrapper -->
@@ -41,7 +44,16 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			<!-- xterm-addon-fit - Auto-resize terminal to container -->
 			<script src="/ui/static/js/xterm-addon-fit.min.js"></script>
 		</head>
-		<body class="h-full bg-neutral-50 text-neutral-900 antialiased" hx-ext="head-support" x-data="keyboardShortcuts()" x-init="init()" @keydown.window="handleKeyDown($event)" @keyup.window="handleKeyUp($event)">
+		<body
+			class="h-full bg-neutral-50 text-neutral-900 antialiased"
+			data-wander-namespace={ props.CurrentNamespace }
+			data-wander-region={ props.CurrentRegion }
+			hx-ext="head-support"
+			x-data="keyboardShortcuts()"
+			x-init="init()"
+			@keydown.window="handleKeyDown($event)"
+			@keyup.window="handleKeyUp($event)"
+		>
 			<!-- HTMX Configuration -->
 			<meta name="htmx-config" content='{"historyCacheSize":20,"defaultSwapStyle":"innerHTML","defaultSwapDelay":0,"timeout":30000,"allowEval":false,"allowScriptTags":false}'/>
 			<!-- Main Content Container -->

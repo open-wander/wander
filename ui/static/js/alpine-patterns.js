@@ -798,7 +798,7 @@ function logViewer(allocId, initialTask, initialLogType) {
                 task: this.selectedTask,
                 type: this.logType,
             });
-            return `/ui/allocations/${this.allocId}/logs/stream?${params.toString()}`;
+            return window.wanderScopeURL(`/ui/allocations/${this.allocId}/logs/stream?${params.toString()}`);
         },
 
         // Connect to SSE stream
@@ -1223,7 +1223,7 @@ function execTerminal(allocId, initialTask, initialCommand) {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const host = window.location.host;
             const cmd = encodeURIComponent(this.command || '/bin/sh');
-            return `${protocol}//${host}/ui/allocations/${this.allocId}/exec/ws?task=${this.selectedTask}&command=${cmd}`;
+            return window.wanderScopeURL(`${protocol}//${host}/ui/allocations/${this.allocId}/exec/ws?task=${this.selectedTask}&command=${cmd}`);
         },
 
         // Connect to exec session via WebSocket
