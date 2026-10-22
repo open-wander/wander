@@ -381,7 +381,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 }
 
 func splitJobDetailPath(path string) (string, string) {
-	for _, tab := range []string{"overview", "definition", "versions", "allocations", "deployments", "evaluations"} {
+	for _, tab := range []string{"overview", "definition", "versions", "allocations", "clients", "services", "deployments", "evaluations"} {
 		suffix := "/" + tab
 		if strings.HasSuffix(path, suffix) {
 			return strings.TrimSuffix(path, suffix), tab
@@ -667,6 +667,20 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		allocData := h.getJobAllocations(r, jobID, page, perPage)
 		allocData.LastUpdated = time.Now()
 		err = RenderPartial(w, r, jobspartials.AllocationsTabWithData(allocData))
+	case "clients":
+		clients, clientsErr := h.getJobClients(r, jobID)
+		if clientsErr != nil {
+			h.renderJobTabError(w, r, clientsErr, "clients", jobID)
+			return
+		}
+		err = RenderPartial(w, r, jobspartials.ClientsTab(clients))
+	case "services":
+		services, servicesErr := h.getJobServices(r, jobID)
+		if servicesErr != nil {
+			h.renderJobTabError(w, r, servicesErr, "services", jobID)
+			return
+		}
+		err = RenderPartial(w, r, jobspartials.ServicesTab(services))
 	case "deployments":
 		deployments := h.getJobDeployments(r, jobID)
 		err = RenderPartial(w, r, jobspartials.DeploymentsTab(deployments, jobID))
@@ -682,6 +696,81 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		h.handler.logger.Error("failed to render tab content", "tab", tabName, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+func (h *JobsHandler) getJobServices(r *http.Request, jobID string) ([]*api.ServiceRegistration, error) {
+	jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return nil, fmt.Errorf("Wander API client is unavailable")
+	}
+	services, _, err := client.Jobs().Services(jobName, serviceQueryOptions(r, namespace))
+	if err != nil {
+		return nil, fmt.Errorf("fetch job services: %w", err)
+	}
+	return services, nil
+}
+
+func (h *JobsHandler) getJobClients(r *http.Request, jobID string) ([]jobspartials.JobClient, error) {
+	jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return nil, fmt.Errorf("Wander API client is unavailable")
+	}
+	allocations, _, err := client.Jobs().Allocations(jobName, true, serviceQueryOptions(r, namespace))
+	if err != nil {
+		return nil, fmt.Errorf("fetch job allocations: %w", err)
+	}
+
+	byNode := make(map[string]*jobspartials.JobClient)
+	for _, allocation := range allocations {
+		if allocation == nil || allocation.NodeID == "" {
+			continue
+		}
+		clientSummary, exists := byNode[allocation.NodeID]
+		if !exists {
+			clientSummary = &jobspartials.JobClient{
+				ID:             allocation.NodeID,
+				Name:           allocation.NodeName,
+				LatestStatus:   allocation.ClientStatus,
+				LatestModified: allocation.ModifyIndex,
+			}
+			byNode[allocation.NodeID] = clientSummary
+		}
+		clientSummary.Allocations++
+		if allocation.ClientStatus != api.AllocClientStatusComplete &&
+			allocation.ClientStatus != api.AllocClientStatusFailed &&
+			allocation.ClientStatus != api.AllocClientStatusLost {
+			clientSummary.ActiveAllocations++
+		}
+		if allocation.ModifyIndex >= clientSummary.LatestModified {
+			clientSummary.LatestModified = allocation.ModifyIndex
+			clientSummary.LatestStatus = allocation.ClientStatus
+			if allocation.NodeName != "" {
+				clientSummary.Name = allocation.NodeName
+			}
+		}
+	}
+
+	result := make([]jobspartials.JobClient, 0, len(byNode))
+	for _, clientSummary := range byNode {
+		result = append(result, *clientSummary)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Name == result[j].Name {
+			return result[i].ID < result[j].ID
+		}
+		return result[i].Name < result[j].Name
+	})
+	return result, nil
+}
+
+func (h *JobsHandler) renderJobTabError(w http.ResponseWriter, r *http.Request, err error, tab, jobID string) {
+	if h.handler.CheckClusterError(w, r, err) {
+		return
+	}
+	h.handler.logger.Error("failed to fetch job tab", "error", err, "tab", tab, "jobID", jobID)
+	http.Error(w, "Failed to fetch job "+tab+" from Wander API", http.StatusBadGateway)
 }
 
 func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobspartials.JobDefinition, error) {

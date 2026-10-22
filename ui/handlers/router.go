@@ -50,6 +50,9 @@ func (r *Router) registerRoutes() {
 	// Servers routes
 	r.registerServersRoutes()
 
+	// Services routes
+	r.registerServicesRoutes()
+
 	// Topology routes
 	r.registerTopologyRoutes()
 
@@ -136,6 +139,13 @@ func (r *Router) registerServersRoutes() {
 	// Servers handler handles both list and detail pages
 	r.mux.Handle("/ui/servers", r.wrapMiddleware(serversHandler))
 	r.mux.Handle("/ui/servers/", r.wrapMiddleware(serversHandler))
+}
+
+// registerServicesRoutes sets up read-only service registration routes.
+func (r *Router) registerServicesRoutes() {
+	servicesHandler := &ServicesHandler{handler: r.handler}
+	r.mux.Handle("/ui/services", r.wrapMiddleware(servicesHandler))
+	r.mux.Handle("/ui/services/", r.wrapMiddleware(servicesHandler))
 }
 
 // registerTopologyRoutes sets up routes for the topology section.

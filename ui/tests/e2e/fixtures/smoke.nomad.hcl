@@ -3,6 +3,17 @@ job "wander-ui-smoke" {
   type        = "service"
 
   group "web" {
+    service {
+      name     = "wander-ui-http"
+      provider = "nomad"
+      port     = "http"
+      tags     = ["ui", "smoke"]
+    }
+
+    network {
+      port "http" {}
+    }
+
     task "fixture" {
       driver = "raw_exec"
 

@@ -42,8 +42,8 @@ black-box run; it does not make the capability optional.
 | Job allocations | Browse allocations belonging to a job/task group | `/ui/jobs/{id}/allocations`; task-group capture pending | Allocation reads | Namespace and region | Browser smoke | **Partial**: inherited task expansion, filtering, statistics, and task-group table |
 | Job deployments | Browse job deployments | `/ui/jobs/{id}/deployments` | Deployment reads | Namespace and region | Browser smoke | **Partial**: sorting, priority, and state coverage |
 | Job evaluations | Browse job evaluations | `/ui/jobs/{id}/evaluations` | Evaluation reads | Namespace and region | Browser smoke | **Partial**: sorting, priority, blocked/failed states |
-| Job clients | Inspect clients eligible for or running a job | Capture pending | Job/client/allocation reads | Namespace, region, node read | Revival checklist inventory | **Required gap** |
-| Services | Browse service registrations and service details | Capture pending | Service registration reads | Namespace and region | Revival checklist inventory | **Required gap** |
+| Job clients | Inspect clients running or previously allocated for a job | Baseline path capture pending; Wander tab at `/ui/jobs/{id}/clients` | Job allocation-history read | Read-job; namespace and region | Handler scope/deduplication tests and live Chromium fixture | **Ready** for allocation-observed clients; exact baseline path and scheduler-eligibility behavior still require capture |
+| Services | Browse service registrations and service details | Baseline path capture pending; Wander routes at `/ui/services`, `/ui/services/{name}`, and `/ui/jobs/{id}/services` | Service registration and job-service reads | Read-job; namespace and region | Full-page/HTMX state tests and live Chromium service fixture | **Ready**; exact baseline browser-path capture remains evidence work |
 | Allocations list | Browse, filter, and sort allocations | `/ui/allocations` | Allocation list read | Namespace and region | Live browser smoke | **Partial**: verify inherited columns, filters, pagination, and job-kind states |
 | Allocation detail | Tasks, raw allocation, restart, and stop | `/ui/allocations/{id}`, `/tasks`, `/raw`, `/restart`, `/stop` | Allocation read; POST restart/stop | Read-job and lifecycle capabilities; namespace/region | Browser and ACL mutation tests | **Partial**: ports, services, reschedule/preemption events, lifecycle, and metrics |
 | Allocation logs | Follow/download stdout and stderr | `/ui/allocations/{id}/logs`, `/logs/stream` | Streaming and download reads | Read logs; namespace/region | Chromium plus HTTPS/SSE tests | **Partial**: wrapping, head/tail navigation, reconnect matrix, and rotated logs |
@@ -73,7 +73,8 @@ black-box run; it does not make the capability optional.
    supported method has full-page/HTMX/not-found evidence.
 2. Perform an approved black-box capture of the 1.6.5 browser route map and
    replace every `Capture pending` entry with evidence.
-3. Restore services and job-client reads.
+3. Restore services and job-client reads. **Complete** with live handler and
+   Chromium evidence; exact baseline paths remain part of batch 2 capture.
 4. Independently implement ACL token/role management only after the provenance
    method and source baseline receive project-owner approval.
 

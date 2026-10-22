@@ -41,6 +41,11 @@ async function openDesktopPage(page: Page, path: string) {
   await page.goto(path);
 }
 
+async function openJobTab(page: Page, name: string, expectedText: string) {
+  await page.getByRole('tab', { name }).click();
+  await expect(page.locator('#job-detail-panel')).toContainText(expectedText);
+}
+
 async function expectScopedJobs(page: Page, scope: RegExp, visibleJob: string, hiddenJob: string) {
   await expect(page).toHaveURL(scope);
   await expect(page.locator(`[data-job-id="${visibleJob}"]`)).toBeVisible();
@@ -293,6 +298,21 @@ test.describe('Wander release smoke', () => {
 
     await page.goto('/ui/servers');
     await expect(page.locator('tbody tr').first()).toBeVisible();
+
+    await openResource(
+      page,
+      '/ui/services',
+      'tbody tr',
+      'a[href^="/ui/services/wander-ui-http"]',
+      /\/ui\/services\/wander-ui-http/,
+      'wander-ui-http',
+    );
+    await expect(page.getByRole('link', { name: 'wander-ui-smoke', exact: true }).first()).toBeVisible();
+
+    await page.goto('/ui/jobs/wander-ui-smoke');
+    await openJobTab(page, 'Services', 'wander-ui-http');
+    await openJobTab(page, 'Clients', 'Clients observed in this job');
+    await expect(page.locator('#job-detail-panel tbody tr')).toHaveCount(1);
 
     await page.goto('/ui/topology');
     const topologyNode = page.locator('[data-topology-node-id]').first();

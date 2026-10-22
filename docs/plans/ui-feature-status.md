@@ -10,7 +10,8 @@ scope and parity work list is the
 
 - Jobs: live list and detail data, definition view, plan/run, stop/start,
   purge, parameterized-job dispatch, scaling endpoint, versions and revert,
-  allocations, deployments, and evaluations. Dispatch derives required and
+  allocations, allocation-observed clients, Nomad-native services,
+  deployments, and evaluations. Dispatch derives required and
   optional metadata and payload fields from the live job, uses the distinct
   `dispatch-job` capability, and can open slash-containing dispatched child
   IDs. The scale-confirmation dialog now displays live counts and can be
@@ -21,6 +22,10 @@ scope and parity work list is the
   and same-origin WebSocket exec.
 - Clients: live list and detail data, drain, cancel drain, active allocation
   counts, and allocation reservations against schedulable node capacity.
+- Services: live namespace-scoped list and registration detail routes, with
+  links to their jobs, allocations, and clients. Job detail includes separate
+  service and allocation-observed client tabs without implying scheduler
+  eligibility.
 - ACL settings: token validation, secure browser cookie handling, sign-in, and
   sign-out.
 - Namespaces: live cluster reads and UI namespace selection. Namespace creation,
@@ -114,7 +119,8 @@ be used to defer baseline behavior without explicit approval:
 - Variable validation, conflict detection, JSON/tree views, copy controls, and
   unsaved-change warnings.
 - Richer topology filtering and allocation overlays.
-- Additional job/client filters, columns, charts, and detail panels.
+- Additional job/client filters, columns, charts, eligibility analysis, and
+  detail panels.
 - Structured job-version diffs and job templates/file upload. Known baseline
   behavior is required for 0.1.0 unless an explicit deviation is approved.
 - Global keyboard shortcuts, consistent copy controls, and improved relative
