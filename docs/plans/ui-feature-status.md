@@ -94,11 +94,15 @@ remote job while preserving the selected region through navigation.
 
 ## Post-0.1 feature backlog
 
-These are enhancements, not fake data that must be restored:
+These are unimplemented capabilities. The
+[UI route parity matrix](ui-route-parity-matrix.md) determines whether each is
+an inherited 0.1.0 requirement or a post-0.1 enhancement; this list must not
+be used to defer baseline behavior without explicit approval:
 
 - CSI plugin detail pages with controller/node allocation health.
-- ACL policy creation forms, policy-to-token discovery, and token lifecycle
-  management.
+- ACL policy creation forms, policy-to-token discovery, and token/role
+  lifecycle management. Baseline ACL behavior requires a clean-room
+  implementation because its old UI source is prohibited.
 - Allocation ports, services, reschedule/preemption history, and task lifecycle
   visualization.
 - Task-group allocation tables, filters, volumes, and lifecycle visualization.
@@ -109,7 +113,8 @@ These are enhancements, not fake data that must be restored:
 - Richer topology filtering and allocation overlays.
 - Additional job/client filters, columns, charts, and detail panels.
 - Structured job-version diffs, job templates/file upload, dispatch and purge
-  workflows.
+  workflows. Known baseline behavior is required for 0.1.0 unless an explicit
+  deviation is approved.
 - Global keyboard shortcuts, consistent copy controls, and improved relative
   time display.
 - Optional SSO/JWT login flows.
