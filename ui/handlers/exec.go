@@ -46,10 +46,6 @@ func NewExecHandler(h *Handler) *ExecHandler {
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
-			// In production, add proper origin checking
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
 		},
 	}
 }
@@ -101,10 +97,10 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get allocation to determine namespace
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available for exec")
-		http.Error(w, "Nomad client not available", http.StatusServiceUnavailable)
+		http.Error(w, "Wander client not available", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -122,7 +118,7 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	namespace := alloc.Namespace
 	if namespace == "" {
-		namespace = "default"
+		namespace = GetNamespaceFromRequest(r)
 	}
 
 	// Check alloc-exec permission
@@ -149,12 +145,12 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle the exec session with real Nomad API
-	h.handleSession(ws, alloc, task, command, tty, token)
+	h.handleSession(r, ws, alloc, task, command, tty, token)
 }
 
 // handleSession manages the bidirectional communication for an exec session.
 // Connects to Nomad's exec API and proxies data between client WebSocket and Nomad.
-func (h *ExecHandler) handleSession(clientWS *websocket.Conn, alloc *api.Allocation, task string, command []string, tty bool, token string) {
+func (h *ExecHandler) handleSession(r *http.Request, clientWS *websocket.Conn, alloc *api.Allocation, task string, command []string, tty bool, token string) {
 	defer clientWS.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -168,31 +164,23 @@ func (h *ExecHandler) handleSession(clientWS *websocket.Conn, alloc *api.Allocat
 	// Terminal size channel for TTY resize events
 	termSizeCh := make(chan api.TerminalSize, 1)
 
-	// WaitGroup to track goroutines
-	var wg sync.WaitGroup
-
-	// Goroutine to read from client WebSocket and write to Nomad stdin
-	wg.Add(1)
+	// Read from the browser until the exec command finishes or the browser
+	// disconnects. This goroutine is released when the WebSocket closes below;
+	// waiting for it before sending the exit message would deadlock because the
+	// browser waits for that message before disconnecting.
 	go func() {
-		defer wg.Done()
 		defer stdinWriter.Close()
 		h.readFromClientWebSocket(clientWS, stdinWriter, termSizeCh, cancel)
 	}()
 
-	// Goroutine to read from Nomad stdout and write to client WebSocket
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		h.writeToClientWebSocket(clientWS, stdoutReader, MsgTypeOutput, cancel)
-	}()
+	// Track only output readers so all command output reaches the browser before
+	// the exit message is sent.
+	var outputWG sync.WaitGroup
+	h.startExecOutputReader(&outputWG, clientWS, stdoutReader, cancel)
 
 	// Goroutine to read from Nomad stderr and write to client WebSocket (if not TTY)
 	if !tty {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			h.writeToClientWebSocket(clientWS, stderrReader, MsgTypeOutput, cancel)
-		}()
+		h.startExecOutputReader(&outputWG, clientWS, stderrReader, cancel)
 	}
 
 	// Build query options with token
@@ -202,7 +190,7 @@ func (h *ExecHandler) handleSession(clientWS *websocket.Conn, alloc *api.Allocat
 	}
 
 	// Call Nomad exec API - this blocks until command completes
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	exitCode, err := client.Allocations().Exec(
 		ctx,
 		alloc,
@@ -220,8 +208,8 @@ func (h *ExecHandler) handleSession(clientWS *websocket.Conn, alloc *api.Allocat
 	stdoutWriter.Close()
 	stderrWriter.Close()
 
-	// Wait for all goroutines to finish
-	wg.Wait()
+	// Wait for all output to be delivered before reporting command completion.
+	outputWG.Wait()
 
 	// Send exit message to client
 	exitMsg := &ExecMessage{
@@ -247,6 +235,14 @@ func (h *ExecHandler) handleSession(clientWS *websocket.Conn, alloc *api.Allocat
 		"task", task,
 		"exitCode", exitCode,
 	)
+}
+
+func (h *ExecHandler) startExecOutputReader(wg *sync.WaitGroup, ws *websocket.Conn, reader io.Reader, cancel context.CancelFunc) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		h.writeToClientWebSocket(ws, reader, MsgTypeOutput, cancel)
+	}()
 }
 
 // readFromClientWebSocket reads messages from the client WebSocket and processes them.

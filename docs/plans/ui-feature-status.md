@@ -1,0 +1,129 @@
+# Wander UI Feature Status
+
+This inventory is based on Wander's current implementation. It does not use
+later Nomad source as an implementation reference. Update it whenever a UI
+route is added, removed, or materially changed. The authoritative release
+scope and parity work list is the
+[Wander 0.1.0 Revival Checklist](0.1.0-revival-checklist.md).
+
+## Implemented for 0.1.0
+
+- Jobs: live list and detail data, definition view, plan/run, stop/start,
+  scaling endpoint, versions and revert, allocations, deployments, and
+  evaluations. The scale-confirmation dialog now displays live counts and can
+  be dismissed by its close and cancel controls or Escape. Negative counts,
+  successful mutation, ACL denial, and cluster rejection have regression
+  coverage; constrained autoscaling min/max coverage remains on the checklist.
+- Allocations: live detail, files, logs, raw API data, restart/stop actions,
+  and same-origin WebSocket exec.
+- Clients: live list and detail data, drain, cancel drain, active allocation
+  counts, and allocation reservations against schedulable node capacity.
+- ACL settings: token validation, secure browser cookie handling, sign-in, and
+  sign-out.
+- Namespaces: live cluster reads and UI namespace selection. Namespace creation,
+  editing, and deletion are not exposed in the 0.1 UI.
+- ACL policies: live reads plus update and delete actions. Policy creation is
+  tracked as a post-0.1 enhancement.
+- Variables: live reads plus create, update, and delete actions; cluster
+  failures do not fall back to fabricated records or secrets. A live browser
+  test covers the complete create/read/update/delete workflow.
+- Deployments, evaluations, servers, CSI volumes/plugins, and topology: live
+  read paths backed by the inherited cluster API. Topology shows active
+  allocation reservations against schedulable node capacity and identifies
+  the selected region without inventing heartbeat data.
+
+## Required before the 0.1.0 release
+
+This section records completed UI infrastructure gates. It does not establish
+that feature parity is complete; outstanding parity and live defects are
+tracked in the revival checklist.
+
+Namespace and region selection is now request/browser scoped. URL selection
+takes precedence over HTTP-only fallback cookies, all operational UI handlers
+use isolated API-client configuration, and disposable-cluster tests prove two
+browsers and a namespace-restricted ACL token cannot leak jobs between
+namespaces. Unknown or inaccessible selections are rejected before they are
+persisted. Remaining release work is to finish the link/HTMX URL-propagation
+audit and exercise region forwarding against a federated multi-region cluster.
+
+- [x] Verify a packaged release-format binary embeds this UI at `/ui/`,
+  redirects `/` to `/ui/`, and requires no separate UI server or asset
+  download. The Darwin ARM64 archive passed locally on 2026-10-18, including
+  the inherited UI-disable configuration; CI now repeats the archive metadata
+  check for every target and the runtime check for Linux AMD64.
+- [x] Remove remaining unreachable prototype data generators and their legacy
+  mock-only tests, or isolate fixtures strictly inside test packages.
+- [x] Add API-backed handler and route tests that assert real success, empty,
+  unavailable, and permission-denied states without assuming fabricated
+  records exist. `TestJobsRouteAPIStates` covers the four rendering states
+  against an HTTP API transport, while the live browser and ACL suites cover
+  those states against disposable Wander agents.
+- [x] Replace invented timestamps in deployment, CSI, and topology views with
+  an explicit `Unknown` value where the inherited API exposes no timestamp.
+- [x] Exercise the opt-in browser release suite (`WANDER_UI_E2E=1`) against a
+  disposable Wander development cluster. On 2026-10-17 the harness built
+  Wander, started a development cluster, registered a real `raw_exec` fixture,
+  and passed the Chromium smoke checks for jobs, allocations, clients, servers,
+  logs, and exec routes. Prototype-era specifications and visual baselines are
+  explicitly retired from supported test commands.
+- [x] Run the embedded UI under the inherited content security policy with
+  browser error capture across jobs, allocations, clients, servers, topology,
+  variables, CSI, deployments, evaluations, settings, logs, exec, and job
+  submission routes.
+- [x] Run the opt-in live link crawler (`WANDER_UI_LINK_CHECK=1`) against that
+  cluster without modifying its state. The 2026-10-17 crawl covered 22 pages,
+  39 links, and 198 asset references with no broken links or missing assets.
+- [x] Verify all visible mutating controls against a disposable ACL-enabled
+  cluster, including denial paths. The automated `TestACLMutations` release
+  gate covers client eligibility/drain/cancel, allocation restart/stop,
+  variable create/update/delete, policy update/delete, and deployment
+  promote/fail. Job stop and token sign-in/sign-out were also exercised in the
+  2026-10-18 live audit. Namespace selection changes UI context only and is not
+  a cluster mutation.
+- [x] Verify logs and exec with a real running allocation over HTTPS/WSS. The
+  automated `TestTLSTransports` gate reads live SSE output over HTTPS and runs
+  a shell command to completion over WSS.
+- [x] Complete keyboard-only and basic screen-reader navigation checks. The
+  browser release suite checks landmarks, control names, form labels, unique
+  IDs, and keyboard-only navigation.
+
+## Post-0.1 feature backlog
+
+These are enhancements, not fake data that must be restored:
+
+- CSI plugin detail pages with controller/node allocation health.
+- ACL policy creation forms, policy-to-token discovery, and token lifecycle
+  management.
+- Allocation ports, services, reschedule/preemption history, and task lifecycle
+  visualization.
+- Task-group allocation tables, filters, volumes, and lifecycle visualization.
+- Richer job allocation filtering, sorting, task expansion, and live resource
+  statistics.
+- Variable validation, conflict detection, JSON/tree views, copy controls, and
+  unsaved-change warnings.
+- Richer topology filtering and allocation overlays.
+- Additional job/client filters, columns, charts, and detail panels.
+- Structured job-version diffs, job templates/file upload, dispatch and purge
+  workflows.
+- Global keyboard shortcuts, consistent copy controls, and improved relative
+  time display.
+- Optional SSO/JWT login flows.
+- Complete dark-mode coverage and add a persisted system/light/dark theme
+  selector. Some components already contain dark-mode utility classes, but the
+  0.1.0 shell does not currently expose or claim a complete dark theme. The
+  implementation scope and acceptance criteria are recorded in
+  [Wander UI Dark Mode](dark-mode.md).
+
+## Removed prototype behavior
+
+The following behavior must not be restored as production fallback behavior:
+
+- invented jobs, clients, namespaces, policies, variables, or secrets;
+- hard-coded job specifications and task groups presented as cluster data;
+- generated evaluation IDs returned as though a job submission succeeded;
+- static sample allocation logs presented as live logs;
+- fabricated resource histories or timestamps.
+
+If a cluster/API capability is unavailable, the UI must show an empty,
+unsupported, or error state. A future implementation should be backed by real
+cluster data and covered by handler and browser tests.

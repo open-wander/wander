@@ -19,7 +19,7 @@ func (c *DeploymentListCommand) Help() string {
 	helpText := `
 Usage: nomad deployment list [options]
 
-  List is used to list the set of deployments tracked by Nomad.
+  List is used to list the set of deployments tracked by Wander.
 
   When ACLs are enabled, this command requires a token with the 'read-job'
   capability for the deployment's namespace.

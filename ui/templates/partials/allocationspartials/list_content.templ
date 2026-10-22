@@ -60,7 +60,7 @@ templ ListContent(props ListProps) {
 			<div>
 				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Allocations</h1>
 				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
-					View and manage Nomad allocations
+					View and manage Wander allocations
 				</p>
 			</div>
 		</div>
@@ -195,6 +195,7 @@ templ AllocationsTable(props ListProps) {
 // allocationRow renders a single allocation row in the table
 templ allocationRow(allocation AllocationSummary) {
 	<tr
+		data-alloc-id={ allocation.ID }
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
 		hx-get={ fmt.Sprintf("/ui/allocations/%s", allocation.ID) }
 		hx-target="#main-content"
@@ -202,19 +203,27 @@ templ allocationRow(allocation AllocationSummary) {
 		hx-push-url="true"
 	>
 		@components.TableCell("left", "w-32") {
-			<div class="font-mono text-sm text-primary-600 dark:text-primary-400 hover:underline">
+			<a
+				href={ templ.SafeURL(fmt.Sprintf("/ui/allocations/%s", allocation.ID)) }
+				class="font-mono text-sm text-primary-600 dark:text-primary-400 hover:underline"
+				@click.stop
+				hx-get={ fmt.Sprintf("/ui/allocations/%s", allocation.ID) }
+				hx-target="#main-content"
+				hx-swap="innerHTML"
+				hx-push-url="true"
+			>
 				if allocation.IDPrefixMatch && allocation.MatchedPrefix != "" {
 					@highlightedShortID(allocation.ID, allocation.MatchedPrefix)
 				} else {
 					{ shortID(allocation.ID) }
 				}
-			</div>
+			</a>
 		}
 		@components.TableCell("left", "w-1/5") {
 			<a
 				href={ templ.SafeURL(fmt.Sprintf("/ui/jobs/%s", allocation.JobID)) }
 				class="font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 dark:hover:text-primary-400"
-				onclick="event.stopPropagation();"
+				@click.stop
 				hx-get={ fmt.Sprintf("/ui/jobs/%s", allocation.JobID) }
 				hx-target="#main-content"
 				hx-swap="innerHTML"

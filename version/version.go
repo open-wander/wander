@@ -18,15 +18,18 @@ var (
 	GitCommit   string
 	GitDescribe string
 
-	// The main version number that is being run at the moment.
-	// Must be >= 1.4.0 for keyring initialization (variables feature)
-	// Must be >= 0.8.0 for autopilot to initialize properly
-	Version = "1.9.0"
+	// Version is the public Wander product version.
+	Version = "0.1.0"
+
+	// ClusterCompatibilityVersion is advertised to other Wander agents for
+	// legacy feature gates. It is deliberately independent from the public
+	// product version and must remain semver-compatible with those gates.
+	ClusterCompatibilityVersion = "1.9.0"
 
 	// A pre-release marker for the version. If this is "" (empty string)
 	// then it means that it is a final release. Otherwise, this is a pre-release
 	// such as "dev" (in development), "beta", "rc1", etc.
-	VersionPrerelease = "prealpha"
+	VersionPrerelease = "dev"
 
 	// VersionMetadata is metadata further describing the build type.
 	VersionMetadata = ""

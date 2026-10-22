@@ -2,7 +2,6 @@ package topologypartials
 
 import (
 	"fmt"
-	"time"
 	"github.com/open-wander/wander/ui/templates/components"
 )
 
@@ -37,7 +36,7 @@ type Node struct {
 	CPUTotal      int       `json:"cpuTotal"`
 	MemoryUsed    int64     `json:"memoryUsed"`
 	MemoryTotal   int64     `json:"memoryTotal"`
-	LastHeartbeat time.Time `json:"lastHeartbeat"`
+	ResourcesAvailable bool `json:"resourcesAvailable"`
 }
 
 // ListContent renders the topology visualization content.
@@ -105,7 +104,7 @@ templ ListContent(data TopologyData) {
 			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-4">
 				<div class="flex items-center justify-between">
 					<div class="flex-1 mr-3">
-						<p class="text-sm font-medium text-neutral-600 dark:text-neutral-400">CPU Usage</p>
+						<p class="text-sm font-medium text-neutral-600 dark:text-neutral-400">CPU Allocated</p>
 						<p class="mt-1 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
 							{ fmt.Sprintf("%d%%", calculateCPUPercentage(data.UsedCPU, data.TotalCPU)) }
 						</p>
@@ -123,16 +122,6 @@ templ ListContent(data TopologyData) {
 					</div>
 				</div>
 			</div>
-		</div>
-		<!-- Topology Visualization -->
-		<div class="mb-6">
-			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Cluster Visualization</h2>
-			@components.TopologyViz(components.TopologyVizProps{
-				ID:      "topology-viz",
-				DataURL: "/ui/topology/data",
-				Height:  "screen-1/2",
-				Class:   "min-h-96",
-			})
 		</div>
 		<!-- Datacenters Grid -->
 		<div class="space-y-6">
@@ -172,7 +161,7 @@ templ datacenterCard(dc Datacenter) {
 
 // nodeCard renders a single node card.
 templ nodeCard(node Node) {
-	<div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 hover:shadow-md transition-shadow">
+	<div data-topology-node-id={ node.ID } class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 hover:shadow-md transition-shadow">
 		<!-- Node Header -->
 		<div class="flex items-start justify-between mb-3">
 			<div class="flex-1">
@@ -214,13 +203,14 @@ templ nodeCard(node Node) {
 			</div>
 		</div>
 		<!-- Resource Bars -->
-		<div class="space-y-2">
+		if node.ResourcesAvailable {
+		<div class="space-y-2" aria-label="Allocated resources and schedulable capacity">
 			<!-- CPU -->
 			<div>
 				<div class="flex items-center justify-between text-xs mb-1">
-					<span class="text-neutral-600 dark:text-neutral-400">CPU</span>
+					<span class="text-neutral-600 dark:text-neutral-400">CPU allocated</span>
 					<span class="text-neutral-700 dark:text-neutral-300">
-						{ fmt.Sprintf("%d%%", calculatePercentage(node.CPUUsed, node.CPUTotal)) }
+						{ fmt.Sprintf("%d / %d MHz (%d%%)", node.CPUUsed, node.CPUTotal, calculatePercentage(node.CPUUsed, node.CPUTotal)) }
 					</span>
 				</div>
 				@components.ProgressBar(components.ProgressProps{
@@ -233,9 +223,9 @@ templ nodeCard(node Node) {
 			<!-- Memory -->
 			<div>
 				<div class="flex items-center justify-between text-xs mb-1">
-					<span class="text-neutral-600 dark:text-neutral-400">Memory</span>
+					<span class="text-neutral-600 dark:text-neutral-400">Memory allocated</span>
 					<span class="text-neutral-700 dark:text-neutral-300">
-						{ fmt.Sprintf("%d%%", calculateMemoryPercentage(node.MemoryUsed, node.MemoryTotal)) }
+						{ fmt.Sprintf("%s / %s (%d%%)", formatMemory(node.MemoryUsed), formatMemory(node.MemoryTotal), calculateMemoryPercentage(node.MemoryUsed, node.MemoryTotal)) }
 					</span>
 				</div>
 				@components.ProgressBar(components.ProgressProps{
@@ -246,12 +236,9 @@ templ nodeCard(node Node) {
 				})
 			</div>
 		</div>
-		<!-- Last Heartbeat -->
-		<div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700">
-			<p class="text-xs text-neutral-500 dark:text-neutral-400">
-				Last heartbeat: { formatTimeAgo(node.LastHeartbeat) }
-			</p>
-		</div>
+		} else {
+			<p class="text-xs text-neutral-500 dark:text-neutral-400">Resource data unavailable</p>
+		}
 	</div>
 }
 
@@ -311,18 +298,12 @@ func truncateID(id string) string {
 	return id[:8]
 }
 
-// formatTimeAgo formats a time.Time as a relative time string.
-func formatTimeAgo(t time.Time) string {
-	duration := time.Since(t)
 
-	switch {
-	case duration < time.Minute:
-		return fmt.Sprintf("%d seconds ago", int(duration.Seconds()))
-	case duration < time.Hour:
-		return fmt.Sprintf("%d minutes ago", int(duration.Minutes()))
-	case duration < 24*time.Hour:
-		return fmt.Sprintf("%d hours ago", int(duration.Hours()))
-	default:
-		return fmt.Sprintf("%d days ago", int(duration.Hours()/24))
+func formatMemory(bytes int64) string {
+	const megabyte = 1024 * 1024
+	const gigabyte = 1024 * megabyte
+	if bytes >= gigabyte {
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(gigabyte))
 	}
+	return fmt.Sprintf("%.1f MB", float64(bytes)/float64(megabyte))
 }

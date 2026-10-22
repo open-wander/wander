@@ -42,19 +42,13 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
-	// Get namespace data - try real API first, fall back to mock
-	var namespacesList []namespacespartials.NamespaceSummary
-	if h.handler.HasNomadClient() {
-		namespacesList = h.getNamespacesFromAPI(token)
-	}
-	if len(namespacesList) == 0 {
-		namespacesList = h.getMockNamespacesList()
-	}
+	// Never substitute fabricated namespaces when the cluster is unavailable.
+	namespacesList := h.getNamespacesFromAPI(r, token)
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Namespaces - Wander",
-		"View and manage Nomad namespaces",
+		"View and manage Wander namespaces",
 		"/ui/namespaces",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -65,8 +59,8 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		namespaces.List(layoutProps, namespacesList),                  // Full page with layout
-		namespacespartials.ListContent(namespacesList),   // Partial content for HTMX requests
+		namespaces.List(layoutProps, namespacesList),   // Full page with layout
+		namespacespartials.ListContent(namespacesList), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -77,8 +71,8 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getNamespacesFromAPI fetches namespaces from the Nomad API.
-func (h *NamespacesHandler) getNamespacesFromAPI(token string) []namespacespartials.NamespaceSummary {
-	client := h.handler.NomadClient()
+func (h *NamespacesHandler) getNamespacesFromAPI(r *http.Request, token string) []namespacespartials.NamespaceSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		return nil
 	}
@@ -133,51 +127,4 @@ func (h *NamespacesHandler) getNamespacesFromAPI(token string) []namespacesparti
 	}
 
 	return result
-}
-
-// getMockNamespacesList returns mock namespace data.
-// This is used as a fallback when the Nomad API is not available.
-func (h *NamespacesHandler) getMockNamespacesList() []namespacespartials.NamespaceSummary {
-	return []namespacespartials.NamespaceSummary{
-		{
-			Name:        "default",
-			Description: "Default shared namespace",
-			Quota:       "",
-			JobCount:    12,
-			CreateIndex: 1,
-			ModifyIndex: 1,
-		},
-		{
-			Name:        "production",
-			Description: "Production workloads",
-			Quota:       "prod-quota",
-			JobCount:    8,
-			CreateIndex: 100,
-			ModifyIndex: 150,
-		},
-		{
-			Name:        "staging",
-			Description: "Staging environment for testing",
-			Quota:       "staging-quota",
-			JobCount:    5,
-			CreateIndex: 200,
-			ModifyIndex: 220,
-		},
-		{
-			Name:        "development",
-			Description: "Development and experimentation",
-			Quota:       "",
-			JobCount:    15,
-			CreateIndex: 300,
-			ModifyIndex: 350,
-		},
-		{
-			Name:        "data-platform",
-			Description: "Data processing and analytics jobs",
-			Quota:       "data-quota",
-			JobCount:    6,
-			CreateIndex: 400,
-			ModifyIndex: 420,
-		},
-	}
 }

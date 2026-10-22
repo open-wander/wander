@@ -78,6 +78,11 @@ func TestMultipleInterfaces(t *testing.T) {
 	ci.Parallel(t)
 
 	httpIps := []string{"127.0.0.1", "127.0.0.2"}
+	probe, err := net.Listen("tcp", net.JoinHostPort(httpIps[1], "0"))
+	if err != nil {
+		t.Skipf("secondary loopback address is unavailable: %v", err)
+	}
+	probe.Close()
 
 	s := makeHTTPServer(t, func(c *Config) {
 		c.Addresses.HTTP = strings.Join(httpIps, " ")

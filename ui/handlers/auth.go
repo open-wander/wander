@@ -128,18 +128,14 @@ func (c *TokenCache) Clear() {
 // Tokens that are already expired will be marked as invalid.
 func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo {
 	logger := h.logger.With("func", "ValidateToken")
-
-	// If no token provided, return default info
+	cacheKey := token
 	if token == "" {
-		return &ACLTokenInfo{
-			IsValid:    false,
-			ACLEnabled: true, // Assume ACL is enabled until we know otherwise
-		}
+		cacheKey = "\x00anonymous:" + api.DefaultConfig().Address
 	}
 
 	// Check cache first
 	cache := getTokenCache()
-	if cached, ok := cache.Get(token); ok {
+	if cached, ok := cache.Get(cacheKey); ok {
 		logger.Debug("token validation cache hit")
 
 		// Double-check token expiration even for cached tokens
@@ -165,14 +161,13 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 		return &ACLTokenInfo{
 			IsValid:    false,
 			ACLEnabled: true,
-			Error:      fmt.Errorf("Nomad client not configured"),
+			Error:      fmt.Errorf("Wander client not configured"),
 		}
 	}
 
 	// Create a new client with default config
 	// This avoids concurrency issues with the shared client
-	config := api.DefaultConfig()
-	tempClient, err := api.NewClient(config)
+	tempClient, err := apiClientForToken(token)
 	if err != nil {
 		logger.Error("failed to create temporary client for token validation", "error", err)
 		return &ACLTokenInfo{
@@ -181,9 +176,6 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 			Error:      fmt.Errorf("failed to create API client: %w", err),
 		}
 	}
-
-	// Set the token on the temporary client
-	tempClient.SetSecretID(token)
 
 	// Call the Self endpoint to validate the token
 	aclToken, _, err := tempClient.ACLTokens().Self(nil)
@@ -198,7 +190,7 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 				ACLEnabled: false,
 			}
 			// Cache this result with a longer TTL since ACL state rarely changes
-			cache.Set(token, info, 5*time.Minute)
+			cache.Set(cacheKey, info, 5*time.Minute)
 			logger.Debug("ACL support is disabled on cluster")
 			return info
 		}
@@ -206,14 +198,16 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 		// ACL token not found or invalid
 		if strings.Contains(errMsg, "ACL token not found") ||
 			strings.Contains(errMsg, "invalid") ||
-			strings.Contains(errMsg, "expired") {
+			strings.Contains(errMsg, "expired") ||
+			(token == "" && (strings.Contains(errMsg, "Permission denied") ||
+				strings.Contains(errMsg, "missing secret id"))) {
 			info := &ACLTokenInfo{
 				IsValid:    false,
 				ACLEnabled: true,
-				Error:      fmt.Errorf("invalid or expired token"),
+				Error:      fmt.Errorf("a valid ACL token is required"),
 			}
 			// Cache negative results briefly to avoid repeated invalid token checks
-			cache.Set(token, info, 30*time.Second)
+			cache.Set(cacheKey, info, 30*time.Second)
 			logger.Debug("token validation failed", "error", errMsg)
 			return info
 		}
@@ -278,6 +272,15 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 	return info
 }
 
+func apiClientForToken(token string) (*api.Client, error) {
+	client, err := api.NewClient(api.DefaultConfig())
+	if err != nil {
+		return nil, err
+	}
+	client.SetSecretID(token)
+	return client, nil
+}
+
 // GetACLTokenInfoFromContext retrieves the validated ACL token info from the request context.
 // Returns the ACLTokenInfo and true if found, nil and false otherwise.
 func GetACLTokenInfoFromContext(ctx context.Context) (*ACLTokenInfo, bool) {
@@ -337,25 +340,18 @@ func (h *Handler) ClearTokenCache(w http.ResponseWriter, r *http.Request) {
 
 	cache := getTokenCache()
 
-	// If a specific token is provided, clear just that token
 	token := GetTokenFromRequest(r)
-	if token != "" {
-		cache.Delete(token)
-		h.logger.Info("cleared token from cache",
-			"method", r.Method,
-			"path", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Token cache entry cleared"))
+	if token == "" {
+		http.Error(w, "No token provided", http.StatusUnauthorized)
 		return
 	}
 
-	// Otherwise, clear the entire cache
-	cache.Clear()
-	h.logger.Info("cleared entire token cache",
+	cache.Delete(token)
+	h.logger.Info("cleared token from cache",
 		"method", r.Method,
 		"path", r.URL.Path)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Token cache cleared"))
+	w.Write([]byte("Token cache entry cleared"))
 }
 
 // GetTokenInfo is a handler that returns information about the current token.
@@ -445,21 +441,21 @@ func (h *Handler) TokenValidationMiddleware(next http.Handler) http.Handler {
 
 		// Validate the token (or check if ACL is disabled)
 		var tokenInfo *ACLTokenInfo
-		if hasToken {
-			tokenInfo = h.ValidateToken(ctx, token)
-		} else {
-			// No token provided - create default info
-			tokenInfo = &ACLTokenInfo{
-				IsValid:    false,
-				ACLEnabled: true, // Assume enabled until proven otherwise
-			}
-		}
+		tokenInfo = h.ValidateToken(ctx, token)
 
 		// Store validation result in context for handlers
 		ctx = context.WithValue(ctx, aclTokenInfoKey, tokenInfo)
 
 		// Create and store user permissions for easy capability checking
 		permissions := NewUserPermissions(tokenInfo)
+		if hasToken && tokenInfo.IsValid && !permissions.IsManagement() && tokenInfo.ACLEnabled {
+			client, err := apiClientForToken(token)
+			if err != nil {
+				h.logger.Warn("failed to create ACL policy client", "error", err)
+			} else if err := permissions.LoadPolicies(ctx, client); err != nil {
+				h.logger.Warn("failed to load ACL policies", "error", err)
+			}
+		}
 		ctx = WithPermissions(ctx, permissions)
 
 		// Check for token expiration warnings

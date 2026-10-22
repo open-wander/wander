@@ -4,8 +4,8 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = "./tmp/ui-htmx-dev"
-  cmd = "templ generate && go build -o ./tmp/ui-htmx-dev ./cmd/dev"
+  bin = "./tmp/wander-ui-dev"
+  cmd = "templ generate && go build -o ./tmp/wander-ui-dev ./cmd/dev"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "node_modules", "bin"]
   exclude_file = []

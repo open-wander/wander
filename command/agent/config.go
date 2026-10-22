@@ -1184,7 +1184,7 @@ func newDevModeConfig(devMode, connectMode bool) (*devModeConfig, error) {
 		}
 		// Ensure Consul is on PATH
 		if _, err := exec.LookPath("consul"); err != nil {
-			return nil, fmt.Errorf("-dev-connect requires a 'consul' binary in Nomad's $PATH")
+			return nil, fmt.Errorf("-dev-connect requires a 'consul' binary in Wander's $PATH")
 		}
 		mode.connectMode = true
 	}

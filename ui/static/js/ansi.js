@@ -88,12 +88,21 @@ class AnsiParser {
      * @returns {string} HTML string with CSS classes
      */
     parse(text) {
-        if (!text) return '';
+        return this.parseSegments(text).map(segment => {
+            const escaped = this.escapeHtml(segment.text);
+            return segment.className
+                ? `<span class="${segment.className}">${escaped}</span>`
+                : escaped;
+        }).join('');
+    }
 
-        // Escape HTML to prevent XSS
-        const escaped = this.escapeHtml(text);
+    /**
+     * Parse ANSI escape codes into text and controlled CSS class segments.
+     * This representation can be rendered with textContent/x-text under CSP.
+     */
+    parseSegments(text) {
+        if (!text) return [];
 
-        // Track styles and build HTML
         const segments = [];
         let lastIndex = 0;
         let match;
@@ -104,12 +113,12 @@ class AnsiParser {
         // Use a copy of the regex to avoid issues with global flag
         const regex = new RegExp(this.ansiRegex.source, this.ansiRegex.flags);
 
-        while ((match = regex.exec(escaped)) !== null) {
-            const beforeMatch = escaped.substring(lastIndex, match.index);
+        while ((match = regex.exec(text)) !== null) {
+            const beforeMatch = text.substring(lastIndex, match.index);
 
             // Add text before this ANSI code
             if (beforeMatch) {
-                segments.push(this.wrapWithStyles(beforeMatch));
+                segments.push(this.createSegment(beforeMatch));
             }
 
             // Process ANSI codes
@@ -120,17 +129,12 @@ class AnsiParser {
         }
 
         // Add remaining text
-        const remaining = escaped.substring(lastIndex);
+        const remaining = text.substring(lastIndex);
         if (remaining) {
-            segments.push(this.wrapWithStyles(remaining));
+            segments.push(this.createSegment(remaining));
         }
 
-        // Close any open spans
-        if (this.currentStyles.size > 0) {
-            segments.push('</span>'.repeat(this.getOpenSpanCount()));
-        }
-
-        return segments.join('');
+        return segments;
     }
 
     /**
@@ -163,25 +167,11 @@ class AnsiParser {
      * @param {string} text - Text to wrap
      * @returns {string} HTML with style spans
      */
-    wrapWithStyles(text) {
-        if (this.currentStyles.size === 0) {
-            return text;
-        }
-
-        // Build CSS classes from current styles
-        const classes = Array.from(this.currentStyles)
+    createSegment(text) {
+        const className = Array.from(this.currentStyles)
             .map(s => `ansi-${s}`)
             .join(' ');
-
-        return `<span class="${classes}">${text}</span>`;
-    }
-
-    /**
-     * Count open span tags (for closing at end)
-     * @returns {number} Number of open spans
-     */
-    getOpenSpanCount() {
-        return this.currentStyles.size > 0 ? 1 : 0;
+        return { text, className };
     }
 
     /**

@@ -10,12 +10,19 @@ type contextKey string
 
 // Context keys for HTMX-related values
 const (
-	htmxContextKey       contextKey = "htmx_request"
-	htmxCurrentURLKey    contextKey = "htmx_current_url"
-	htmxTargetKey        contextKey = "htmx_target"
-	htmxTriggerKey       contextKey = "htmx_trigger"
-	htmxTriggerNameKey   contextKey = "htmx_trigger_name"
-	nomadTokenKey        contextKey = "nomad_token"
+	htmxContextKey     contextKey = "htmx_request"
+	htmxCurrentURLKey  contextKey = "htmx_current_url"
+	htmxTargetKey      contextKey = "htmx_target"
+	htmxTriggerKey     contextKey = "htmx_trigger"
+	htmxTriggerNameKey contextKey = "htmx_trigger_name"
+	wanderTokenKey     contextKey = "wander_token"
+	wanderNamespaceKey contextKey = "wander_namespace"
+	wanderRegionKey    contextKey = "wander_region"
+)
+
+const (
+	defaultNamespace = "default"
+	defaultRegion    = "global"
 )
 
 // IsHTMXRequestFromContext retrieves the HTMX request status from the context.
@@ -111,19 +118,19 @@ func IsHTMXFromRequest(r *http.Request) bool {
 	return IsHTMXRequest(r)
 }
 
-// GetTokenFromContext retrieves the Nomad ACL token from the request context.
+// GetTokenFromContext retrieves the ACL token from the request context.
 // Returns the token string and true if found, empty string and false otherwise.
 // The token is set by the ACLMiddleware from either the X-Nomad-Token header
-// or the nomad_token cookie.
+// or the wander_token cookie.
 func GetTokenFromContext(ctx context.Context) (string, bool) {
-	token, ok := ctx.Value(nomadTokenKey).(string)
+	token, ok := ctx.Value(wanderTokenKey).(string)
 	return token, ok
 }
 
-// WithTokenContext is a helper for testing that adds a Nomad token to a context.
+// WithTokenContext is a helper for testing that adds an ACL token to a context.
 // This is useful for unit tests that need to simulate authenticated requests.
 func WithTokenContext(ctx context.Context, token string) context.Context {
-	return context.WithValue(ctx, nomadTokenKey, token)
+	return context.WithValue(ctx, wanderTokenKey, token)
 }
 
 // GetTokenFromRequest is a convenience function that retrieves the token from
@@ -137,6 +144,24 @@ func GetTokenFromRequest(r *http.Request) string {
 
 	// Fall back to checking headers and cookies directly
 	return extractToken(r)
+}
+
+// GetNamespaceFromRequest returns the namespace resolved by SelectionMiddleware.
+// It falls back to the default namespace for directly-invoked handlers in tests.
+func GetNamespaceFromRequest(r *http.Request) string {
+	if namespace, ok := r.Context().Value(wanderNamespaceKey).(string); ok && namespace != "" {
+		return namespace
+	}
+	return selectionValue(r, "namespace", WanderNamespaceCookie, defaultNamespace, true)
+}
+
+// GetRegionFromRequest returns the region resolved by SelectionMiddleware. It
+// falls back to the default region for directly-invoked handlers in tests.
+func GetRegionFromRequest(r *http.Request) string {
+	if region, ok := r.Context().Value(wanderRegionKey).(string); ok && region != "" {
+		return region
+	}
+	return selectionValue(r, "region", WanderRegionCookie, defaultRegion, false)
 }
 
 // GetACLTokenInfoFromRequest is a convenience function that retrieves the

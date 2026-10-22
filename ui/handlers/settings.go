@@ -61,7 +61,7 @@ func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
 	tokenInfo := h.getTokenInfo(r)
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Settings - Wander",
 		"Configure Wander settings",
 		"/ui/settings",
@@ -73,7 +73,7 @@ func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	// Render the settings page
 	err := Render(w, r,
-		settings.Settings(layoutProps, tokenInfo),                // Full page with layout
+		settings.Settings(layoutProps, tokenInfo),   // Full page with layout
 		settingspartials.SettingsContent(tokenInfo), // Partial content for HTMX requests
 	)
 
@@ -110,15 +110,18 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	if action == "signout" {
 		// Clear the token cookie
 		http.SetCookie(w, &http.Cookie{
-			Name:   "nomad_token",
-			Value:  "",
-			Path:   "/ui/",
-			MaxAge: -1,
+			Name:     WanderTokenCookie,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   requestUsesTLS(r),
+			SameSite: http.SameSiteStrictMode,
 		})
 
 		// Clear the token from cache if present
 		cache := getTokenCache()
-		if cookie, err := r.Cookie("nomad_token"); err == nil && cookie.Value != "" {
+		if cookie, err := r.Cookie(WanderTokenCookie); err == nil && cookie.Value != "" {
 			cache.Delete(cookie.Value)
 		}
 
@@ -141,7 +144,7 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the token via Nomad API
+	// Validate the token via the cluster API.
 	tokenInfo := h.validateToken(ctx, secretID)
 
 	// Handle ACL disabled case
@@ -163,14 +166,13 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the token cookie
-	// Path is /ui/ to match the UI routes
 	http.SetCookie(w, &http.Cookie{
-		Name:     "nomad_token",
+		Name:     WanderTokenCookie,
 		Value:    secretID,
-		Path:     "/ui/",
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
-		SameSite: http.SameSiteLaxMode,
+		Secure:   requestUsesTLS(r),
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   86400 * 7, // 7 days
 	})
 
@@ -186,13 +188,17 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func requestUsesTLS(r *http.Request) bool {
+	return r.TLS != nil
+}
+
 // getTokenInfo retrieves token information from the request.
-// This checks for a token in cookies and validates it via the Nomad API.
+// This checks for a token in cookies and validates it via the cluster API.
 func (h *SettingsHandler) getTokenInfo(r *http.Request) settingspartials.TokenInfo {
 	ctx := r.Context()
 
 	// Try to get token from cookie
-	cookie, err := r.Cookie("nomad_token")
+	cookie, err := r.Cookie(WanderTokenCookie)
 	if err != nil || cookie.Value == "" {
 		// No token provided - check if ACL is disabled
 		// We can only know this if we try to validate with no token
@@ -214,9 +220,9 @@ func (h *SettingsHandler) getTokenInfo(r *http.Request) settingspartials.TokenIn
 }
 
 // validateToken validates a token secret and returns token information.
-// This uses the actual Nomad API to validate tokens.
+// This uses the cluster API to validate tokens.
 func (h *SettingsHandler) validateToken(ctx context.Context, secretID string) settingspartials.TokenInfo {
-	// Validate the token with Nomad API
+	// Validate the token with the cluster API.
 	aclInfo := h.handler.ValidateToken(ctx, secretID)
 
 	// Handle ACL disabled case

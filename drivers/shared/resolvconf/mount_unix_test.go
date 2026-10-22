@@ -10,12 +10,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/shoenig/test/must"
 )
 
 func Test_copySystemDNS(t *testing.T) {
-	data, err := os.ReadFile(resolvconf.Path())
+	data, err := os.ReadFile(SystemPath())
 	must.NoError(t, err)
 
 	resolvConfFile := filepath.Join(t.TempDir(), "resolv.conf")

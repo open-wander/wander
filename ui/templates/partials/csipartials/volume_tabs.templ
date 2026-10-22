@@ -62,7 +62,11 @@ templ OverviewTab(volume VolumeDetail) {
 					<div>
 						<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">Created</dt>
 						<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">
-							{ volume.Created.Format("Jan 02, 2006 15:04:05 MST") }
+							if volume.Created.IsZero() {
+								Unknown
+							} else {
+								{ volume.Created.Format("Jan 02, 2006 15:04:05 MST") }
+							}
 						</dd>
 					</div>
 					if volume.MountOptions != "" {
@@ -137,13 +141,13 @@ templ AllocationsTab(volume VolumeDetail) {
 								hx-push-url="true"
 							>
 								<td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-neutral-700 dark:text-neutral-300">
-									{ alloc.ID[:8] }...
+									{ shortID(alloc.ID) }...
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900 dark:text-neutral-100">
 									<a
 										href={ templ.SafeURL(fmt.Sprintf("/ui/allocations/%s", alloc.ID)) }
 										class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
-										onclick="event.stopPropagation();"
+						@click.stop
 										hx-get={ fmt.Sprintf("/ui/allocations/%s", alloc.ID) }
 										hx-target="#main-content"
 										hx-swap="innerHTML"
@@ -156,7 +160,7 @@ templ AllocationsTab(volume VolumeDetail) {
 									<a
 										href={ templ.SafeURL(fmt.Sprintf("/ui/jobs/%s", alloc.JobID)) }
 										class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
-										onclick="event.stopPropagation();"
+						@click.stop
 										hx-get={ fmt.Sprintf("/ui/jobs/%s", alloc.JobID) }
 										hx-target="#main-content"
 										hx-swap="innerHTML"
@@ -169,7 +173,7 @@ templ AllocationsTab(volume VolumeDetail) {
 									<a
 										href={ templ.SafeURL(fmt.Sprintf("/ui/clients/%s", alloc.NodeID)) }
 										class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
-										onclick="event.stopPropagation();"
+						@click.stop
 										hx-get={ fmt.Sprintf("/ui/clients/%s", alloc.NodeID) }
 										hx-target="#main-content"
 										hx-swap="innerHTML"

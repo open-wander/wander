@@ -213,7 +213,7 @@ templ volumeRow(volume VolumeSummary) {
 			<a
 				href={ templ.SafeURL(fmt.Sprintf("/ui/csi/volumes/%s", volume.ID)) }
 				class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
-				onclick="event.stopPropagation();"
+				@click.stop
 				hx-get={ fmt.Sprintf("/ui/csi/volumes/%s", volume.ID) }
 				hx-target="#main-content"
 				hx-swap="innerHTML"

@@ -19,7 +19,11 @@ type VariableDetail struct {
 
 // DetailContent renders the variable detail page content (without layout)
 templ DetailContent(variable VariableDetail) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="variableEditor()" x-init="init()">
+	<div
+		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+		x-data="variableEditor()"
+		data-variable-items={ variableItemsJSON(variable.Items) }
+	>
 		<!-- Variable Header -->
 		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
@@ -164,14 +168,12 @@ templ DetailContent(variable VariableDetail) {
 		</div>
 		<!-- Delete Confirmation Modal -->
 		@DeleteVariableModal(variable)
-		<!-- Alpine.js Component for Key-Value Editor -->
-		@templ.Raw(buildVariableEditorScript(variable.Items))
 	</div>
 }
 
 // DeleteVariableModal renders the confirmation modal for deleting a variable
 templ DeleteVariableModal(variable VariableDetail) {
-	<div x-data="{ get isOpen() { return deleteModal }, close() { deleteModal = false } }">
+	<div x-data="modalBridge('deleteModal')">
 		@components.Modal(components.ModalProps{
 			ID:       "delete-variable-modal",
 			Title:    "Delete Variable",
@@ -209,45 +211,7 @@ templ DeleteVariableModal(variable VariableDetail) {
 	</div>
 }
 
-// buildVariableEditorScript generates the Alpine.js script for the variable editor
-func buildVariableEditorScript(items map[string]string) string {
+func variableItemsJSON(items map[string]string) string {
 	itemsJSON, _ := json.Marshal(items)
-	return fmt.Sprintf(`<script type="text/javascript">
-		function variableEditor() {
-			return {
-				items: [],
-				originalItems: [],
-				deleteModal: false,
-				nextId: 1,
-
-				init() {
-					// Initialize items from server data
-					const initialItems = %s;
-					this.originalItems = Object.entries(initialItems).map(([key, value]) => ({
-						id: this.nextId++,
-						key: key,
-						value: value
-					}));
-					this.items = JSON.parse(JSON.stringify(this.originalItems));
-				},
-
-				addItem() {
-					this.items.push({
-						id: this.nextId++,
-						key: '',
-						value: ''
-					});
-				},
-
-				removeItem(index) {
-					this.items.splice(index, 1);
-				},
-
-				resetItems() {
-					this.items = JSON.parse(JSON.stringify(this.originalItems));
-					document.getElementById('save-feedback').innerHTML = '';
-				}
-			};
-		}
-	</script>`, string(itemsJSON))
+	return string(itemsJSON)
 }

@@ -30,6 +30,7 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			<!-- Alpine.js - Client-side state management -->
 			<script src="/ui/static/js/alpine.min.js" defer></script>
 			<!-- Alpine patterns - Reusable Alpine.js components -->
+			<script src="/ui/static/js/codemirror-bundle.js"></script>
 			<script src="/ui/static/js/alpine-patterns.js"></script>
 			<!-- SSE Client - Auto-reconnecting EventSource wrapper -->
 			<script src="/ui/static/js/sse-client.js"></script>
@@ -42,7 +43,7 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 		</head>
 		<body class="h-full bg-neutral-50 text-neutral-900 antialiased" hx-ext="head-support" x-data="keyboardShortcuts()" x-init="init()" @keydown.window="handleKeyDown($event)" @keyup.window="handleKeyUp($event)">
 			<!-- HTMX Configuration -->
-			<meta name="htmx-config" content='{"historyCacheSize":20,"defaultSwapStyle":"innerHTML","defaultSwapDelay":0,"timeout":30000}'/>
+			<meta name="htmx-config" content='{"historyCacheSize":20,"defaultSwapStyle":"innerHTML","defaultSwapDelay":0,"timeout":30000,"allowEval":false,"allowScriptTags":false}'/>
 			<!-- Main Content Container -->
 			<div id="app" class="h-full">
 				@content

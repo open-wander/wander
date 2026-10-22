@@ -13,13 +13,21 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/distribution/reference"
 	"github.com/docker/cli/cli/config/configfile"
 	"github.com/docker/cli/cli/config/types"
-	"github.com/distribution/reference"
-	registrytypes "github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/registry"
 	docker "github.com/fsouza/go-dockerclient"
+	registrytypes "github.com/moby/moby/api/types/registry"
 )
+
+const (
+	dockerHubIndexName = "docker.io"
+	dockerHubAuthKey   = "https://index.docker.io/v1/"
+)
+
+type repositoryInfo struct {
+	Index *registrytypes.IndexInfo
+}
 
 func parseDockerImage(image string) (repo, tag string) {
 	repo, tag = docker.ParseRepositoryTag(image)
@@ -61,18 +69,34 @@ func loadDockerConfig(file string) (*configfile.ConfigFile, error) {
 
 // parseRepositoryInfo takes a repo and returns the Docker RepositoryInfo. This
 // is useful for interacting with a Docker config object.
-func parseRepositoryInfo(repo string) (*registry.RepositoryInfo, error) {
+func parseRepositoryInfo(repo string) (*repositoryInfo, error) {
 	name, err := reference.ParseNormalizedNamed(repo)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse named repo %q: %v", repo, err)
 	}
 
-	repoInfo, err := registry.ParseRepositoryInfo(name)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse repository: %v", err)
-	}
+	indexName := reference.Domain(name)
+	return &repositoryInfo{Index: &registrytypes.IndexInfo{
+		Name:     indexName,
+		Official: indexName == dockerHubIndexName,
+		Secure:   true,
+	}}, nil
+}
 
-	return repoInfo, nil
+func registryAuthConfigKey(index *registrytypes.IndexInfo) string {
+	if index.Official {
+		return dockerHubAuthKey
+	}
+	return index.Name
+}
+
+func registryHostname(maybeURL string) string {
+	stripped := maybeURL
+	if scheme, remainder, ok := strings.Cut(stripped, "://"); ok && (scheme == "http" || scheme == "https") {
+		stripped = remainder
+	}
+	hostname, _, _ := strings.Cut(stripped, "/")
+	return hostname
 }
 
 // firstValidAuth tries a list of auth backends, returning first error or AuthConfiguration
@@ -136,7 +160,7 @@ func authFromDockerConfig(file string) authBackend {
 				}
 				return auth, nil
 			},
-			authFromHelper(cfile.CredentialHelpers[registry.GetAuthConfigKey(repoInfo.Index)]),
+			authFromHelper(cfile.CredentialHelpers[registryAuthConfigKey(repoInfo.Index)]),
 			authFromHelper(cfile.CredentialsStore),
 		})
 	}
@@ -289,7 +313,7 @@ func parseVolumeSpecLinux(volBind string) (hostPath string, containerPath string
 // copied from https://github.com/moby/moby/blob/ca20bc4214e6a13a5f134fb0d2f67c38065283a8/registry/auth.go#L217-L235
 // but with the CLI types.AuthConfig type rather than api/types
 func registryResolveAuthConfig(authConfigs map[string]types.AuthConfig, index *registrytypes.IndexInfo) types.AuthConfig {
-	configKey := registry.GetAuthConfigKey(index)
+	configKey := registryAuthConfigKey(index)
 	// First try the happy case
 	if c, found := authConfigs[configKey]; found || index.Official {
 		return c
@@ -298,7 +322,7 @@ func registryResolveAuthConfig(authConfigs map[string]types.AuthConfig, index *r
 	// Maybe they have a legacy config file, we will iterate the keys converting
 	// them to the new format and testing
 	for r, ac := range authConfigs {
-		if configKey == registry.ConvertToHostname(r) {
+		if configKey == registryHostname(r) {
 			return ac
 		}
 	}

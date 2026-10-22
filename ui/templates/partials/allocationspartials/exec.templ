@@ -21,7 +21,7 @@ type ExecTabProps struct {
 // - Connection status indicator
 // - Terminal resize handling
 //
-// Note: WebSocket connection is handled separately (Task 72)
+// The page script opens the authenticated WebSocket connection after the form is submitted.
 // This template sets up the UI and initializes xterm.js
 templ ExecTabContent(props ExecTabProps) {
 	<div
@@ -130,8 +130,8 @@ templ ExecTabContent(props ExecTabProps) {
 			<!-- Terminal -->
 			<div
 				x-ref="terminal"
-				class="rounded-lg overflow-hidden border border-neutral-700"
-				style="height: 500px; background-color: #1e1e1e;"
+				data-exec-terminal
+				class="workspace-surface rounded-lg overflow-hidden border border-neutral-700 bg-neutral-900"
 			></div>
 
 			<!-- Overlay for disconnected state -->

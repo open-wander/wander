@@ -4,7 +4,8 @@ This directory contains Alpine.js resources for the Wander UI modernization.
 
 ## Files
 
-- **alpine.min.js** - Alpine.js v3 library (45KB minified)
+- **alpine.min.js** - Alpine.js v3 CSP build, vendored from the pinned
+  `@alpinejs/csp` package by `npm run vendor:alpine`
 - **alpine-patterns.js** - Reusable Alpine.js component patterns and helpers
 - **htmx.min.js** - HTMX library for server interactions
 

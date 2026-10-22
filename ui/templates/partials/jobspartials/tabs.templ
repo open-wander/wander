@@ -17,19 +17,26 @@ type JobVersion struct {
 
 // JobDefinition contains the job definition content and metadata
 type JobDefinition struct {
-	JobID    string // Job ID for API calls
-	Content  string // The actual job definition (HCL or JSON)
-	Format   string // "hcl" or "json"
-	Version  int    // Current version number
-	ReadOnly bool   // Whether editing is disabled (e.g., for periodic jobs)
+	JobID       string // Job ID for API calls
+	Content     string // The initially displayed job definition
+	HCLContent  string // Original submitted HCL, when available
+	JSONContent string // Live job encoded as JSON
+	Format      string // "hcl" or "json"
+	Version     int    // Current version number
+	ReadOnly    bool   // Whether editing is disabled when source is unavailable
 }
 
 // DefinitionTab renders the job definition tab with CodeMirror editor
 templ DefinitionTab(def JobDefinition) {
 	<div
 		class="p-6"
-		x-data={ jobDefinitionAlpineData(def) }
+		x-data="jobDefinitionEditor"
+		data-format={ def.Format }
+		data-job-id={ def.JobID }
 	>
+		<textarea x-ref="definitionSource" hidden>{ def.Content }</textarea>
+		<textarea x-ref="hclSource" hidden>{ def.HCLContent }</textarea>
+		<textarea x-ref="jsonSource" hidden>{ def.JSONContent }</textarea>
 		<!-- Header with controls -->
 		<div class="flex items-center justify-between mb-4">
 			<div class="flex items-center gap-4">
@@ -345,33 +352,6 @@ templ DefinitionTab(def JobDefinition) {
 		</template>
 	</div>
 	<!-- Load CodeMirror bundle -->
-	<script src="/static/js/codemirror-bundle.js"></script>
-}
-
-// jobDefinitionAlpineData generates the Alpine.js x-data for the definition editor
-func jobDefinitionAlpineData(def JobDefinition) string {
-	// Escape the content for use in JavaScript
-	escapedContent := escapeForJS(def.Content)
-	return fmt.Sprintf("jobDefinitionEditor(`%s`, '%s', '%s')", escapedContent, def.Format, def.JobID)
-}
-
-// escapeForJS escapes a string for use in JavaScript template literals
-func escapeForJS(s string) string {
-	// Escape backslashes first, then backticks and dollar signs
-	result := ""
-	for _, c := range s {
-		switch c {
-		case '\\':
-			result += "\\\\"
-		case '`':
-			result += "\\`"
-		case '$':
-			result += "\\$"
-		default:
-			result += string(c)
-		}
-	}
-	return result
 }
 
 // VersionsTab renders the job versions tab with version history table
@@ -790,6 +770,10 @@ func deploymentStatusToBadgeVariant(status string) string {
 
 // formatDeploymentTime formats the deployment creation time
 func formatDeploymentTime(t time.Time) string {
+	if t.IsZero() {
+		return "Time unavailable"
+	}
+
 	duration := time.Since(t)
 
 	if duration < time.Minute {

@@ -105,7 +105,7 @@ templ AllocationsTableBody(data AllocationsTabData) {
 		id="allocations-table-body"
 		class="bg-white divide-y divide-neutral-200 dark:bg-neutral-900 dark:divide-neutral-700"
 		hx-get={ fmt.Sprintf("/ui/jobs/%s/allocations/poll?page=%d&per_page=%d", data.JobID, data.Pagination.Page, data.Pagination.PerPage) }
-		hx-trigger="every 5s [document.visibilityState === 'visible']"
+		hx-trigger="every 5s"
 		hx-swap="outerHTML"
 		hx-indicator="#allocations-loading"
 	>

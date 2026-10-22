@@ -7,11 +7,6 @@ on:
         description: 'The version being released'
         required: true
         type: string
-      update-changelog:
-        description: 'Update CHANGELOG'
-        required: true
-        type: boolean
-        default: false
       notification-channel:
         description: 'Slack channel to use for notifications'
         required: false
@@ -76,12 +71,14 @@ jobs:
           make deps
 
       - name: Install templ
-        run: go install github.com/a-h/templ/cmd/templ@latest
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.977
 
       - name: Generate UI assets
         run: |
-          cd ui-htmx && make install-tailwind && make build-css
-          cd templates && templ generate
+          cd ui
+          npm ci
+          make build-css
+          templ generate
 
       - name: Update notification channel
         id: notification-channel
@@ -105,7 +102,6 @@ jobs:
           git diff --color=always version/version.go
 
       - name: Update changelog
-        if: ${{ github.event.inputs.update-changelog == 'true' }}
         run: |
           echo "::group::Fetch all git repo"
           git fetch --unshallow

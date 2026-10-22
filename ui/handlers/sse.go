@@ -215,17 +215,21 @@ func (h *SSEHandler) Flush() {
 // It's safe to call Close multiple times.
 func (h *SSEHandler) Close() error {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	if h.closed {
+		h.mu.Unlock()
 		return nil
 	}
 
 	h.closed = true
 	h.cancel()
+	heartbeatStop := h.heartbeatStop
+	heartbeatDone := h.heartbeatDone
+	h.mu.Unlock()
 
-	// Stop heartbeat if running
-	h.stopHeartbeat()
+	if heartbeatStop != nil {
+		close(heartbeatStop)
+		<-heartbeatDone
+	}
 
 	return nil
 }
@@ -268,14 +272,6 @@ func (h *SSEHandler) startHeartbeat(interval time.Duration) {
 			}
 		}
 	}()
-}
-
-// stopHeartbeat stops the heartbeat goroutine if it's running.
-func (h *SSEHandler) stopHeartbeat() {
-	if h.heartbeatStop != nil {
-		close(h.heartbeatStop)
-		<-h.heartbeatDone // Wait for goroutine to finish
-	}
 }
 
 // SSEWriter is a simple io.Writer implementation that sends each Write

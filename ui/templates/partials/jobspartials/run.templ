@@ -2,19 +2,18 @@ package jobspartials
 
 // RunContent renders the job submission form with CodeMirror editor
 templ RunContent(namespace string) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="jobSubmissionEditor">
 		<div class="sm:flex sm:items-center sm:justify-between mb-6">
 			<div>
 				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Run a Job</h1>
 				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
-					Submit a new job definition to Nomad
+					Submit a new job definition to Wander
 				</p>
 			</div>
 		</div>
 		<!-- Job Submission Form -->
 		<div
 			class="bg-white dark:bg-neutral-900 shadow rounded-lg"
-			x-data="jobSubmissionEditor('', 'hcl', '')"
 		>
 			<!-- Header with controls -->
 			<div class="border-b border-neutral-200 dark:border-neutral-700 p-6">
@@ -161,7 +160,7 @@ templ RunContent(namespace string) {
 			<!-- Editor Container -->
 			<div class="p-6">
 				<div class="border border-neutral-300 dark:border-neutral-600 rounded-md overflow-hidden">
-					<div x-ref="editorContainer" class="min-h-[500px]"></div>
+					<div x-ref="editorContainer"></div>
 				</div>
 			</div>
 			<!-- Help Text -->
@@ -176,7 +175,7 @@ templ RunContent(namespace string) {
 							<li>Write or paste your job definition in HCL or JSON format</li>
 							<li>Click "Example" to load a sample job definition</li>
 							<li>Click "Plan" to preview changes before submitting</li>
-							<li>Click "Submit" to register the job with Nomad</li>
+							<li>Click "Submit" to register the job with Wander</li>
 						</ul>
 					</div>
 				</div>
@@ -310,7 +309,7 @@ templ RunContent(namespace string) {
 								</div>
 								<div class="ml-3">
 									<p class="text-sm text-neutral-700">
-										Are you sure you want to submit this job? This will register the job with Nomad and may create allocations.
+										Are you sure you want to submit this job? This will register the job with Wander and may create allocations.
 									</p>
 									<p class="mt-2 text-sm text-neutral-500">
 										Namespace: <span class="font-mono font-medium">{ namespace }</span>
@@ -347,6 +346,4 @@ templ RunContent(namespace string) {
 			</div>
 		</template>
 	</div>
-	<!-- Load CodeMirror bundle -->
-	<script src="/ui/static/js/codemirror-bundle.js"></script>
 }

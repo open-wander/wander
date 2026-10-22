@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui/templates/components"
 	"github.com/open-wander/wander/ui/templates/pages/allocations"
@@ -54,7 +56,6 @@ func (h *AllocationsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.List(w, r)
 		return
 	}
-
 	// Handle /ui/allocations/{id}/restart (restart action)
 	if strings.HasSuffix(path, "/restart") {
 		if r.Method != http.MethodPost {
@@ -102,10 +103,7 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters first to get namespace
 	query := r.URL.Query()
-	namespace := strings.TrimSpace(query.Get("namespace"))
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Check permissions - allocations inherit job permissions
 	perms := GetPermissionsFromRequest(r)
@@ -152,7 +150,7 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get all allocations with server-side filtering
-	allAllocations := h.getAllocationsList(namespace, token, statusFilter, jobFilter, nodeFilter)
+	allAllocations := h.getAllocationsList(r, namespace, token, statusFilter, jobFilter, nodeFilter)
 
 	// Extract filter options from all allocations (before filtering)
 	filterOptions := h.extractFilterOptions(allAllocations)
@@ -237,9 +235,9 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props with app context
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Allocations - Wander",
-		"View and manage Nomad allocations",
+		"View and manage Wander allocations",
 		"/ui/allocations",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -437,8 +435,8 @@ func (h *AllocationsHandler) sortAllocations(allocs []AllocationSummary, column,
 
 // getAllocationsList fetches allocations from the Nomad API with server-side filtering.
 // Falls back to empty list if API is unavailable.
-func (h *AllocationsHandler) getAllocationsList(namespace, token, statusFilter, jobFilter, nodeFilter string) []AllocationSummary {
-	client := h.handler.NomadClient()
+func (h *AllocationsHandler) getAllocationsList(r *http.Request, namespace, token, statusFilter, jobFilter, nodeFilter string) []AllocationSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty allocation list")
 		return []AllocationSummary{}
@@ -525,22 +523,40 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	if len(parts) > 2 {
 		subAction = parts[2]
 	}
+	if len(parts) > 3 || (len(parts) > 2 && tabName != "files") {
+		h.handler.RenderNotFound(w, r, NotFoundError{
+			Message:     "The allocation page you requested could not be found.",
+			RequestPath: r.URL.Path,
+		})
+		return
+	}
+	if tabName != "" && tabName != "tasks" && tabName != "exec" && tabName != "files" && tabName != "raw" {
+		h.handler.RenderNotFound(w, r, NotFoundError{
+			Message:     "The allocation tab you requested could not be found.",
+			RequestPath: r.URL.Path,
+		})
+		return
+	}
 
 	// Log the request
 	h.handler.logger.Debug("allocation detail request", "allocID", actualAllocID, "tab", tabName, "subAction", subAction, "htmx", IsHTMXFromRequest(r))
 
 	// Check permissions - need read-job capability to view allocation details
+	namespace := GetNamespaceFromRequest(r)
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanReadJob("default") {
+	if perms != nil && !perms.CanReadJob(namespace) {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to view this allocation",
 			Capability: "read-job",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Allocations inherit job permissions. You need the 'read-job' capability",
 				"Contact your administrator to request appropriate permissions",
 			},
 		})
+		return
+	}
+	if !h.authorizeAllocationTab(w, r, tabName) {
 		return
 	}
 
@@ -569,7 +585,16 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Fetch allocation detail data from API
-	allocDetail := h.getAllocationDetail(actualAllocID, token)
+	allocDetail := h.getAllocationDetail(r, actualAllocID, token)
+	if tabName != "" && tabName != "tasks" {
+		content, contentErr := h.allocationTabContent(r, actualAllocID, tabName, token, allocDetail)
+		if contentErr != nil {
+			h.renderAllocationTabError(w, r, actualAllocID, tabName, contentErr)
+			return
+		}
+		allocDetail.ActiveTab = tabName
+		allocDetail.ActiveTabContent = content
+	}
 
 	// Build layout props - use short ID for display
 	shortID := actualAllocID
@@ -594,7 +619,7 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Allocation "+shortID+" - Wander",
 		"Allocation detail for "+actualAllocID,
 		"/ui/allocations/"+actualAllocID,
@@ -603,7 +628,7 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		allocations.Detail(layoutProps, allocDetail),                // Full page with layout
+		allocations.Detail(layoutProps, allocDetail),   // Full page with layout
 		allocationspartials.DetailContent(allocDetail), // Partial content for HTMX requests
 	)
 
@@ -616,8 +641,8 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // getAllocationDetail fetches allocation details from the Nomad API.
 // Returns allocation detail structure for template rendering.
-func (h *AllocationsHandler) getAllocationDetail(allocID, token string) allocationspartials.AllocationDetail {
-	client := h.handler.NomadClient()
+func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token string) allocationspartials.AllocationDetail {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty allocation detail")
 		return allocationspartials.AllocationDetail{ID: allocID}
@@ -779,60 +804,9 @@ func (h *AllocationsHandler) getAllocationDetail(allocID, token string) allocati
 
 // renderTabContent handles rendering individual tab content
 func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, allocID, tabName string) {
-	// Check permissions based on tab type
-	perms := GetPermissionsFromRequest(r)
-
-	// Logs tab requires read-logs capability
-	if tabName == "logs" {
-		if perms != nil && !perms.CanReadLogs("default") {
-			h.handler.RenderForbidden(w, r, ForbiddenError{
-				Message:    "You do not have permission to view allocation logs",
-				Capability: "read-logs",
-				Namespace:  "default",
-				Suggestions: []string{
-					"Contact your administrator to request the 'read-logs' capability",
-					"You may still be able to view other allocation details",
-				},
-			})
-			return
-		}
-	}
-
-	// Exec tab requires alloc-exec capability
-	if tabName == "exec" {
-		if perms != nil && !perms.CanExec("default") {
-			h.handler.RenderForbidden(w, r, ForbiddenError{
-				Message:    "You do not have permission to execute commands in allocations",
-				Capability: "alloc-exec",
-				Namespace:  "default",
-				Suggestions: []string{
-					"Contact your administrator to request the 'alloc-exec' capability",
-					"This capability allows interactive command execution in running tasks",
-				},
-			})
-			return
-		}
-	}
-
-	// Files tab requires read-fs capability
-	if tabName == "files" {
-		if perms != nil && !perms.CanReadFS("default") {
-			h.handler.RenderForbidden(w, r, ForbiddenError{
-				Message:    "You do not have permission to browse allocation filesystem",
-				Capability: "read-fs",
-				Namespace:  "default",
-				Suggestions: []string{
-					"Contact your administrator to request the 'read-fs' capability",
-					"This capability allows browsing and downloading allocation files",
-				},
-			})
-			return
-		}
-	}
-
 	// Get ACL token and allocation detail data
 	token := GetTokenFromRequest(r)
-	allocDetail := h.getAllocationDetail(allocID, token)
+	allocDetail := h.getAllocationDetail(r, allocID, token)
 
 	var err error
 	switch tabName {
@@ -845,10 +819,8 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 		if logType == "" {
 			logType = "stdout"
 		}
-		tasks := h.getTasksForAllocation(allocID, token)
-		if task == "" && len(tasks) > 0 {
-			task = tasks[0]
-		}
+		tasks := h.getTasksForAllocation(r, allocID, token)
+		task = selectAllocationTask(task, tasks)
 		props := allocationspartials.LogsTabProps{
 			AllocID:      allocID,
 			Tasks:        tasks,
@@ -856,35 +828,13 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 			LogType:      logType,
 		}
 		err = RenderPartial(w, r, allocationspartials.LogsTabContent(props))
-	case "exec":
-		// Render the exec terminal tab
-		task := r.URL.Query().Get("task")
-		command := r.URL.Query().Get("command")
-		tasks := h.getTasksForAllocation(allocID, token)
-		if task == "" && len(tasks) > 0 {
-			task = tasks[0]
+	case "exec", "files", "raw":
+		content, contentErr := h.allocationTabContent(r, allocID, tabName, token, allocDetail)
+		if contentErr != nil {
+			h.renderAllocationTabError(w, r, allocID, tabName, contentErr)
+			return
 		}
-		if command == "" {
-			command = "/bin/sh"
-		}
-		execProps := allocationspartials.ExecTabProps{
-			AllocID:      allocID,
-			Tasks:        tasks,
-			SelectedTask: task,
-			Command:      command,
-		}
-		err = RenderPartial(w, r, allocationspartials.ExecTabContent(execProps))
-	case "files":
-		// Get task list and file data
-		tasks := h.getTaskNames(allocDetail)
-		selectedTask := r.URL.Query().Get("task")
-		if selectedTask == "" && len(tasks) > 0 {
-			selectedTask = tasks[0]
-		}
-		files := h.getFiles(allocID, selectedTask, "/", token)
-		err = RenderPartial(w, r, allocationspartials.FilesTab(allocID, tasks, selectedTask, files))
-	case "raw":
-		err = RenderPartial(w, r, allocationspartials.RawTab())
+		err = RenderPartial(w, r, content)
 	default:
 		http.NotFound(w, r)
 		return
@@ -894,6 +844,93 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 		h.handler.logger.Error("failed to render tab content", "tab", tabName, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+func (h *AllocationsHandler) renderAllocationTabError(w http.ResponseWriter, r *http.Request, allocID, tabName string, err error) {
+	if h.handler.CheckClusterError(w, r, err) {
+		return
+	}
+	h.handler.logger.Error("failed to build allocation tab", "allocID", allocID, "tab", tabName, "error", err)
+	http.Error(w, "Failed to fetch allocation", http.StatusBadGateway)
+}
+
+func (h *AllocationsHandler) authorizeAllocationTab(w http.ResponseWriter, r *http.Request, tabName string) bool {
+	perms := GetPermissionsFromRequest(r)
+	if perms == nil {
+		return true
+	}
+
+	namespace := GetNamespaceFromRequest(r)
+	var forbidden *ForbiddenError
+	switch {
+	case tabName == "logs" && !perms.CanReadLogs(namespace):
+		forbidden = &ForbiddenError{Message: "You do not have permission to view allocation logs", Capability: "read-logs", Namespace: namespace}
+	case tabName == "exec" && !perms.CanExec(namespace):
+		forbidden = &ForbiddenError{Message: "You do not have permission to execute commands in allocations", Capability: "alloc-exec", Namespace: namespace}
+	case tabName == "files" && !perms.CanReadFS(namespace):
+		forbidden = &ForbiddenError{Message: "You do not have permission to browse allocation filesystem", Capability: "read-fs", Namespace: namespace}
+	}
+	if forbidden == nil {
+		return true
+	}
+
+	forbidden.Suggestions = []string{"Contact your administrator to request the required capability", "You may still be able to view other allocation details"}
+	h.handler.RenderForbidden(w, r, *forbidden)
+	return false
+}
+
+func (h *AllocationsHandler) allocationTabContent(r *http.Request, allocID, tabName, token string, allocDetail allocationspartials.AllocationDetail) (templ.Component, error) {
+	switch tabName {
+	case "exec":
+		tasks := h.getTasksForAllocation(r, allocID, token)
+		task := selectAllocationTask(r.URL.Query().Get("task"), tasks)
+		command := r.URL.Query().Get("command")
+		if command == "" {
+			command = "/bin/sh"
+		}
+		return allocationspartials.ExecTabContent(allocationspartials.ExecTabProps{
+			AllocID: allocID, Tasks: tasks, SelectedTask: task, Command: command,
+		}), nil
+	case "files":
+		tasks := h.getTaskNames(allocDetail)
+		selectedTask := selectAllocationTask(r.URL.Query().Get("task"), tasks)
+		files := h.getFiles(r, allocID, selectedTask, "/", token)
+		return allocationspartials.FilesTab(allocID, tasks, selectedTask, files), nil
+	case "raw":
+		raw, err := h.getRawAllocation(r, allocID, token)
+		if err != nil {
+			return nil, err
+		}
+		return allocationspartials.RawTab(raw), nil
+	default:
+		return nil, fmt.Errorf("unknown allocation tab %q", tabName)
+	}
+}
+
+func selectAllocationTask(selected string, tasks []string) string {
+	if selected == "" && len(tasks) > 0 {
+		return tasks[0]
+	}
+	return selected
+}
+
+func (h *AllocationsHandler) getRawAllocation(r *http.Request, allocID, token string) (string, error) {
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return "", fmt.Errorf("Wander API client is unavailable")
+	}
+
+	queryOpts := &api.QueryOptions{AuthToken: token}
+	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
+	if err != nil {
+		return "", fmt.Errorf("fetch allocation: %w", err)
+	}
+
+	raw, err := json.MarshalIndent(alloc, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("encode allocation: %w", err)
+	}
+	return string(raw), nil
 }
 
 // FilesListHandler handles requests for listing directory contents
@@ -910,7 +947,7 @@ func (h *AllocationsHandler) FilesListHandler(w http.ResponseWriter, r *http.Req
 	token := GetTokenFromRequest(r)
 
 	// Get directory contents from API
-	files := h.getFiles(allocID, task, path, token)
+	files := h.getFiles(r, allocID, task, path, token)
 
 	// Determine depth based on path
 	depth := 0
@@ -941,7 +978,7 @@ func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.
 	token := GetTokenFromRequest(r)
 
 	// Get file content from API
-	content, size, isText := h.getFileContent(allocID, path, token)
+	content, size, isText := h.getFileContent(r, allocID, path, token)
 
 	// Get file name from path
 	fileName := path
@@ -1031,7 +1068,7 @@ func (h *AllocationsHandler) FilesDownloadHandler(w http.ResponseWriter, r *http
 	token := GetTokenFromRequest(r)
 
 	// Get file content from API
-	content, size, isText := h.getFileContent(allocID, path, token)
+	content, size, isText := h.getFileContent(r, allocID, path, token)
 
 	// Check if file exists
 	if content == "" && size == 0 {
@@ -1137,8 +1174,8 @@ func (h *AllocationsHandler) getTaskNames(alloc allocationspartials.AllocationDe
 
 // getTasksForAllocation returns the list of tasks for an allocation.
 // Fetches from Nomad API and returns task names.
-func (h *AllocationsHandler) getTasksForAllocation(allocID, token string) []string {
-	client := h.handler.NomadClient()
+func (h *AllocationsHandler) getTasksForAllocation(r *http.Request, allocID, token string) []string {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available for task list")
 		return []string{}
@@ -1168,8 +1205,8 @@ func (h *AllocationsHandler) getTasksForAllocation(allocID, token string) []stri
 
 // getFiles fetches file entries from the Nomad API for a given allocation and path.
 // Returns a list of FileEntry objects representing files and directories.
-func (h *AllocationsHandler) getFiles(allocID, task, path, token string) []allocationspartials.FileEntry {
-	client := h.handler.NomadClient()
+func (h *AllocationsHandler) getFiles(r *http.Request, allocID, task, path, token string) []allocationspartials.FileEntry {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available for file listing")
 		return []allocationspartials.FileEntry{}
@@ -1221,8 +1258,8 @@ func (h *AllocationsHandler) getFiles(allocID, task, path, token string) []alloc
 
 // getFileContent fetches file content from the Nomad API.
 // Returns the file content as a string, the file size, and whether it's a text file.
-func (h *AllocationsHandler) getFileContent(allocID, path, token string) (content string, size int64, isText bool) {
-	client := h.handler.NomadClient()
+func (h *AllocationsHandler) getFileContent(r *http.Request, allocID, path, token string) (content string, size int64, isText bool) {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available for file content")
 		return "", 0, true
@@ -1333,7 +1370,7 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 
 	// Check permissions - need alloc-lifecycle capability to restart
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.HasCapability("default", "alloc-lifecycle") {
+	if perms != nil && !perms.HasCapability(GetNamespaceFromRequest(r), "alloc-lifecycle") {
 		h.handler.logger.Warn("restart permission denied", "allocID", allocID)
 		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Permission Denied", "message": "You do not have the 'alloc-lifecycle' capability to restart allocations.", "duration": 5000}}`)
 		w.WriteHeader(http.StatusForbidden)
@@ -1344,10 +1381,10 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Info("restart allocation request", "allocID", allocID)
 
 	// Get Nomad client
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available for restart operation")
-		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Service Unavailable", "message": "Unable to connect to Nomad API.", "duration": 5000}}`)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Service Unavailable", "message": "Unable to connect to the Wander API.", "duration": 5000}}`)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
@@ -1383,7 +1420,7 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Info("allocation restarted successfully", "allocID", allocID)
 
 	// Send HX-Trigger header to show toast notification
-	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Restarted", "message": "The allocation `+allocID[:8]+`... has been restarted successfully.", "duration": 5000}}`)
+	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Restarted", "message": "The allocation `+shortIdentifier(allocID)+` has been restarted successfully.", "duration": 5000}}`)
 	// Trigger a page refresh after a short delay to show updated status
 	w.Header().Set("HX-Refresh", "true")
 	w.WriteHeader(http.StatusOK)
@@ -1399,7 +1436,7 @@ func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
 
 	// Check permissions - need alloc-lifecycle capability to stop
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.HasCapability("default", "alloc-lifecycle") {
+	if perms != nil && !perms.HasCapability(GetNamespaceFromRequest(r), "alloc-lifecycle") {
 		h.handler.logger.Warn("stop permission denied", "allocID", allocID)
 		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Permission Denied", "message": "You do not have the 'alloc-lifecycle' capability to stop allocations.", "duration": 5000}}`)
 		w.WriteHeader(http.StatusForbidden)
@@ -1410,10 +1447,10 @@ func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Info("stop allocation request", "allocID", allocID)
 
 	// Get Nomad client
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available for stop operation")
-		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Service Unavailable", "message": "Unable to connect to Nomad API.", "duration": 5000}}`)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Service Unavailable", "message": "Unable to connect to the Wander API.", "duration": 5000}}`)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
@@ -1431,7 +1468,7 @@ func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch allocation for stop", "allocID", allocID, "error", err)
-		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Allocation Not Found", "message": "Unable to find allocation `+allocID[:8]+`...", "duration": 5000}}`)
+		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Allocation Not Found", "message": "Unable to find allocation `+shortIdentifier(allocID)+`", "duration": 5000}}`)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -1449,7 +1486,7 @@ func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Info("allocation stopped successfully", "allocID", allocID, "evalID", stopResp.EvalID)
 
 	// Send HX-Trigger header to show toast notification with eval ID
-	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Stopped", "message": "The allocation `+allocID[:8]+`... has been stopped. Evaluation ID: `+stopResp.EvalID[:8]+`...", "duration": 5000}}`)
+	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Stopped", "message": "The allocation `+shortIdentifier(allocID)+` has been stopped. Evaluation ID: `+shortIdentifier(stopResp.EvalID)+`", "duration": 5000}}`)
 	// Trigger a page refresh after a short delay to show updated status
 	w.Header().Set("HX-Refresh", "true")
 	w.WriteHeader(http.StatusOK)

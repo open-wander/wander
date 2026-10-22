@@ -23,9 +23,10 @@ type LogsTabProps struct {
 templ LogsTabContent(props LogsTabProps) {
 	<div
 		x-data={ logViewerData(props) }
-		x-init="init(); connect()"
+		x-init="connect()"
 		x-on:beforeunload.window="disconnect()"
-		class="p-6"
+		data-log-viewer
+		class="px-6 pt-6 pb-8"
 	>
 		<!-- Header with controls -->
 		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -44,6 +45,7 @@ templ LogsTabContent(props LogsTabProps) {
 					></span>
 					<span
 						x-text="connectionState"
+						data-log-connection-state
 						class="text-xs text-neutral-500 capitalize"
 					></span>
 				</div>
@@ -182,7 +184,8 @@ templ LogsTabContent(props LogsTabProps) {
 		<div
 			x-ref="logContainer"
 			@scroll="handleScroll()"
-			class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm overflow-auto h-[600px] relative"
+			data-log-output
+			class="log-surface bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm overflow-auto relative"
 		>
 			<!-- Empty State -->
 			<div
@@ -223,7 +226,7 @@ templ LogsTabContent(props LogsTabProps) {
 					<svg class="mx-auto h-12 w-12 text-error-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 					</svg>
-					<p class="mt-2 text-error-400">Connection lost</p>
+					<p class="mt-2 text-error-400" x-text="connectionError || 'Connection lost'"></p>
 					<button
 						@click="connect()"
 						class="mt-2 text-sm text-primary-400 hover:text-primary-300"
@@ -244,10 +247,14 @@ templ LogsTabContent(props LogsTabProps) {
 							'text-neutral-400': line.level === 'debug',
 							'text-neutral-100': !line.level
 						}"
-						class="whitespace-pre-wrap break-all leading-relaxed hover:bg-neutral-800 px-1 -mx-1"
+					class="whitespace-pre-wrap break-all hover:bg-neutral-800 px-1 -mx-1"
 					>
 						<span x-show="showTimestamps" class="text-neutral-500 mr-2" x-text="line.timestamp"></span>
-						<span x-html="line.message"></span>
+						<span>
+							<template x-for="(segment, segmentIndex) in line.segments" :key="segmentIndex">
+								<span :class="segment.className" x-text="segment.text"></span>
+							</template>
+						</span>
 					</div>
 				</template>
 			</div>

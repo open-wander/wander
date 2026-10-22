@@ -227,20 +227,6 @@ templ TasksTab(alloc AllocationDetail) {
 	</div>
 }
 
-// LogsTab renders the logs tab (placeholder)
-templ LogsTab() {
-	<div class="p-6">
-		<h3 class="text-lg font-medium text-neutral-900 mb-4">Logs</h3>
-		<div class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm">
-			<div class="text-green-400">[2026-01-25 12:00:00] Starting allocation...</div>
-			<div class="text-blue-400">[2026-01-25 12:00:01] Task 'nginx' is running</div>
-			<div class="text-blue-400">[2026-01-25 12:00:02] Task 'redis' is running</div>
-			<div class="text-neutral-400">[2026-01-25 12:00:03] Allocation healthy</div>
-		</div>
-		<p class="text-sm text-neutral-500 mt-4">Live log streaming will be implemented here.</p>
-	</div>
-}
-
 // FilesTab renders the files tab - delegates to FilesTabFull from files.templ
 // This is a compatibility wrapper that creates default props
 templ FilesTab(allocID string, tasks []string, selectedTask string, files []FileEntry) {
@@ -252,25 +238,13 @@ templ FilesTab(allocID string, tasks []string, selectedTask string, files []File
 	})
 }
 
-// RawTab renders the raw allocation data tab (placeholder)
-templ RawTab() {
+// RawTab renders allocation data returned by the API.
+templ RawTab(raw string) {
 	<div class="p-6">
 		<h3 class="text-lg font-medium text-neutral-900 mb-4">Raw Allocation Data</h3>
 		<div class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm overflow-x-auto">
-			<pre>&#123;
-  "ID": "a1b2c3d4-e5f6-4a5b-9c8d-1e2f3a4b5c6d",
-  "JobID": "web-frontend",
-  "TaskGroup": "web",
-  "NodeID": "node-1234",
-  "Status": "running",
-  "Resources": &#123;
-    "CPU": 512,
-    "Memory": 1024,
-    "Disk": 2048
-  &#125;
-&#125;</pre>
+			<pre>{ raw }</pre>
 		</div>
-		<p class="text-sm text-neutral-500 mt-4">Full JSON allocation data from Nomad API will be displayed here.</p>
 	</div>
 }
 

@@ -19,8 +19,12 @@ func TestNewUserPermissions_Anonymous(t *testing.T) {
 		t.Error("Anonymous user should not be management")
 	}
 
-	if perms.ACLEnabled() {
-		t.Error("Expected ACL to be disabled for nil tokenInfo")
+	if !perms.ACLEnabled() {
+		t.Error("Missing token information must fail closed and assume ACL is enabled")
+	}
+
+	if perms.CanListJobs("default") {
+		t.Error("Anonymous user must not receive capabilities when ACL state is unknown")
 	}
 }
 

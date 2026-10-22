@@ -179,6 +179,10 @@ function modal(initialOpen = false) {
             document.body.style.overflow = '';
         },
 
+        trapFocus(event) {
+            trapModalFocus(this.$root, event);
+        },
+
         // Call this when modal content changes (e.g., after HTMX swap)
         reinit() {
             if (this.isOpen) {
@@ -772,6 +776,7 @@ function logViewer(allocId, initialTask, initialLogType) {
         bufferedLogs: [],
         sseClient: null,
         connectionState: 'disconnected', // disconnected, connecting, connected, error
+        connectionError: '',
         isPaused: false,
         isAtBottom: true,
         showTimestamps: false,
@@ -783,11 +788,8 @@ function logViewer(allocId, initialTask, initialLogType) {
             return this.bufferedLogs.length;
         },
 
-        // Initialize ANSI parser
         init() {
-            if (typeof AnsiParser !== 'undefined') {
-                this.ansiParser = new AnsiParser();
-            }
+            if (typeof AnsiParser !== 'undefined') this.ansiParser = new AnsiParser();
         },
 
         // Build SSE URL
@@ -803,6 +805,7 @@ function logViewer(allocId, initialTask, initialLogType) {
         connect() {
             this.disconnect();
             this.connectionState = 'connecting';
+            this.connectionError = '';
 
             const url = this.buildUrl();
 
@@ -813,6 +816,7 @@ function logViewer(allocId, initialTask, initialLogType) {
                     maxRetries: 10,
                     onConnect: () => {
                         this.connectionState = 'connected';
+                        this.connectionError = '';
                     },
                     onDisconnect: () => {
                         if (this.connectionState === 'connected') {
@@ -834,7 +838,10 @@ function logViewer(allocId, initialTask, initialLogType) {
 
                 // Listen for error events
                 this.sseClient.on('error', (data) => {
-                    console.error('Log stream error:', data);
+                    this.connectionError = data.message || 'The log stream stopped unexpectedly.';
+                    this.connectionState = 'error';
+                    this.sseClient.disconnect();
+                    this.connectionState = 'error';
                 });
 
                 // Listen for manual reconnection requests
@@ -891,14 +898,18 @@ function logViewer(allocId, initialTask, initialLogType) {
 
         // Handle incoming log line
         handleLogLine(data) {
-            const rawMessage = data.message || data;
-            const parsedMessage = this.ansiParser
-                ? this.ansiParser.parse(rawMessage)
-                : this.escapeHtml(rawMessage);
+            const rawMessage = String(data.message || data);
+            const displayMessage = typeof AnsiParser !== 'undefined'
+                ? AnsiParser.strip(rawMessage)
+                : rawMessage;
+            const segments = this.ansiParser
+                ? this.ansiParser.parseSegments(rawMessage)
+                : [{ text: rawMessage, className: '' }];
 
             const line = {
                 timestamp: data.timestamp || this.formatTimestamp(new Date()),
-                message: parsedMessage,
+                message: displayMessage,
+                segments,
                 rawMessage: rawMessage, // Keep raw for downloading
                 level: data.level || null
             };
@@ -910,18 +921,6 @@ function logViewer(allocId, initialTask, initialLogType) {
             } else {
                 this.appendLine(line);
             }
-        },
-
-        // Escape HTML for safety when ANSI parser is unavailable
-        escapeHtml(text) {
-            const htmlEscapes = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#39;'
-            };
-            return String(text).replace(/[&<>"']/g, char => htmlEscapes[char]);
         },
 
         // Append line to logs
@@ -1001,10 +1000,9 @@ function logViewer(allocId, initialTask, initialLogType) {
         // Download logs as text file
         downloadLogs() {
             const lines = this.logs.map(line => {
-                // Use raw message if available (to strip ANSI codes), otherwise strip from parsed
-                const plainMessage = line.rawMessage
-                    ? (typeof AnsiParser !== 'undefined' ? AnsiParser.strip(line.rawMessage) : line.rawMessage)
-                    : line.message.replace(/<[^>]*>/g, ''); // Strip HTML tags as fallback
+                const plainMessage = typeof AnsiParser !== 'undefined'
+                    ? AnsiParser.strip(line.rawMessage)
+                    : line.rawMessage;
 
                 if (this.showTimestamps && line.timestamp) {
                     return `${line.timestamp} ${plainMessage}`;
@@ -1064,7 +1062,7 @@ function logViewer(allocId, initialTask, initialLogType) {
  * <div x-data="execTerminal('alloc-123', 'nginx', '/bin/sh')"
  *      x-init="init()"
  *      x-on:beforeunload.window="disconnect()">
- *   <div x-ref="terminal" style="height: 500px;"></div>
+ *   <div x-ref="terminal" class="workspace-surface"></div>
  *   <button @click="toggleConnection()">Connect/Disconnect</button>
  * </div>
  * ```
@@ -1669,13 +1667,14 @@ function connectionStatus(options = {}) {
     const defaults = {
         checkInterval: 5000, // Check connection health every 5 seconds
         connectionTimeout: 30000, // Consider connection stale after 30 seconds
-        enableHealthCheck: true
+        enableHealthCheck: true,
+        healthURL: '/v1/agent/self'
     };
 
     const config = { ...defaults, ...options };
 
     return {
-        state: 'disconnected', // connected, disconnected, connecting, reconnecting, error
+        state: 'connecting', // connected, disconnected, connecting, reconnecting, error
         lastConnectedAt: null,
         lastHeartbeatAt: null,
         retryCount: 0,
@@ -1707,7 +1706,7 @@ function connectionStatus(options = {}) {
             }
 
             // Initial state check
-            this.updateState();
+            this.checkAPIHealth();
         },
 
         setupSSEListeners() {
@@ -1813,7 +1812,34 @@ function connectionStatus(options = {}) {
             }, config.checkInterval);
         },
 
-        checkConnectionHealth() {
+        async checkAPIHealth() {
+            try {
+                const response = await fetch(config.healthURL, {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' }
+                });
+                this.connections.set('api-health', {
+                    type: 'api',
+                    state: response.ok ? 'connected' : 'error',
+                    connectedAt: new Date(),
+                    lastHeartbeatAt: new Date()
+                });
+                if (response.ok) {
+                    this.lastConnectedAt = this.formatTime(new Date());
+                }
+            } catch (_) {
+                this.connections.set('api-health', {
+                    type: 'api',
+                    state: 'disconnected',
+                    connectedAt: null,
+                    lastHeartbeatAt: new Date()
+                });
+            }
+            this.updateState();
+        },
+
+        async checkConnectionHealth() {
+            await this.checkAPIHealth();
             const now = new Date();
             let hasStaleConnection = false;
 
@@ -1844,7 +1870,7 @@ function connectionStatus(options = {}) {
 
             // Reset connections to trigger reconnection
             this.connections.clear();
-            this.updateState();
+            this.checkAPIHealth();
 
             // Close tooltip after clicking reconnect
             this.showTooltip = false;
@@ -1864,11 +1890,458 @@ function connectionStatus(options = {}) {
     };
 }
 
+function fileExplorer() {
+    return {
+        previewOpen: false,
+        previewFileName: '',
+        previewDownloadUrl: '',
+        expandedDirs: {},
+
+        toggleDir(path) {
+            this.expandedDirs[path] = !this.expandedDirs[path];
+        },
+
+        isDirExpanded(path) {
+            return this.expandedDirs[path] === true;
+        },
+
+        openPreview(fileName, downloadUrl) {
+            this.previewOpen = true;
+            this.previewFileName = fileName;
+            this.previewDownloadUrl = downloadUrl;
+        },
+
+        closePreview() {
+            this.previewOpen = false;
+            this.previewFileName = '';
+            this.previewDownloadUrl = '';
+        }
+    };
+}
+
+function variableItemsState() {
+    return {
+        items: [],
+        nextId: 1,
+
+        addItem() {
+            this.items.push({ id: this.nextId++, key: '', value: '' });
+        },
+
+        removeItem(index) {
+            this.items.splice(index, 1);
+        }
+    };
+}
+
+function variableCreator() {
+    return {
+        ...variableItemsState(),
+
+        init() {
+            this.addItem();
+        }
+    };
+}
+
+function variableEditor() {
+    return {
+        ...variableItemsState(),
+        originalItems: [],
+        deleteModal: false,
+
+        init() {
+            const initialItems = JSON.parse(this.$root.dataset.variableItems || '{}');
+            this.originalItems = Object.entries(initialItems).map(([key, value]) => ({
+                id: this.nextId++,
+                key,
+                value
+            }));
+            this.resetItems();
+        },
+
+        resetItems() {
+            this.items = JSON.parse(JSON.stringify(this.originalItems));
+            const feedback = document.getElementById('save-feedback');
+            if (feedback) feedback.replaceChildren();
+        }
+    };
+}
+
+function searchBar() {
+    return {
+        shortcutHandler: null,
+
+        init() {
+            this.updateControls();
+            this.$refs.input.addEventListener('input', () => this.updateControls());
+            this.$refs.input.addEventListener('focus', () => {
+                this.$refs.hint.style.display = 'none';
+            });
+            this.$refs.input.addEventListener('blur', () => this.updateControls());
+
+            this.shortcutHandler = event => {
+                const isCtrlK = (event.ctrlKey || event.metaKey) && event.key === 'k';
+                const isSlash = event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey;
+                const activeElement = document.activeElement;
+                const isTyping = activeElement && (
+                    activeElement.tagName === 'INPUT' ||
+                    activeElement.tagName === 'TEXTAREA' ||
+                    activeElement.isContentEditable
+                );
+
+                if (isCtrlK || (isSlash && !isTyping)) {
+                    event.preventDefault();
+                    this.$refs.input.focus();
+                    this.$refs.input.select();
+                }
+            };
+            document.addEventListener('keydown', this.shortcutHandler);
+        },
+
+        destroy() {
+            document.removeEventListener('keydown', this.shortcutHandler);
+        },
+
+        updateControls() {
+            const hasValue = this.$refs.input.value.length > 0;
+            this.$refs.clearButton.style.display = hasValue ? 'block' : 'none';
+            this.$refs.hint.style.display = hasValue || document.activeElement === this.$refs.input ? 'none' : 'block';
+        },
+
+        clear() {
+            this.$refs.input.value = '';
+            this.$refs.input.focus();
+            this.updateControls();
+            this.triggerSearch();
+        },
+
+        handleKeydown(event) {
+            if (event.key !== 'Escape') return;
+            this.$refs.input.value = '';
+            this.$refs.input.blur();
+            this.updateControls();
+            this.triggerSearch();
+        },
+
+        triggerSearch() {
+            if (this.$refs.input.getAttribute('hx-get') && window.htmx) {
+                window.htmx.trigger(this.$refs.input, 'input');
+            }
+        }
+    };
+}
+
+function resourceUtilizationChart() {
+    return {
+        data: [],
+        color: '#3b82f6',
+        resourceType: 'resource',
+
+        init() {
+            this.data = JSON.parse(this.$root.dataset.chartPoints || '[]');
+            this.color = this.$root.dataset.chartColor || this.color;
+            this.resourceType = this.$root.dataset.resourceType || this.resourceType;
+            this.draw();
+        },
+
+        draw() {
+            const container = this.$root;
+            const svg = container.querySelector('svg');
+            if (!svg || this.data.length === 0) return;
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const margin = { top: 10, right: 10, bottom: 25, left: 35 };
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+            svg.replaceChildren();
+
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('transform', `translate(${margin.left},${margin.top})`);
+            svg.appendChild(g);
+
+            const xMin = Math.min(...this.data.map(point => point.time));
+            const xMax = Math.max(...this.data.map(point => point.time));
+            const xRange = Math.max(xMax - xMin, 1);
+            const xScale = time => ((time - xMin) / xRange) * innerWidth;
+            const yScale = value => innerHeight - (value / 100) * innerHeight;
+
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+            gradient.id = `gradient-${this.resourceType}-${Math.random().toString(36).slice(2, 11)}`;
+            gradient.setAttribute('x1', '0%');
+            gradient.setAttribute('y1', '0%');
+            gradient.setAttribute('x2', '0%');
+            gradient.setAttribute('y2', '100%');
+
+            const gradientStops = [
+                { offset: '0%', opacity: '0.3' },
+                { offset: '100%', opacity: '0.05' }
+            ];
+            gradientStops.forEach(({ offset, opacity }) => {
+                const stop = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                stop.setAttribute('offset', offset);
+                stop.setAttribute('stop-color', this.color);
+                stop.setAttribute('stop-opacity', opacity);
+                gradient.appendChild(stop);
+            });
+            defs.appendChild(gradient);
+            svg.insertBefore(defs, svg.firstChild);
+
+            for (let index = 0; index <= 4; index++) {
+                const y = (index / 4) * innerHeight;
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', '0');
+                line.setAttribute('y1', y);
+                line.setAttribute('x2', innerWidth);
+                line.setAttribute('y2', y);
+                line.setAttribute('stroke', '#e5e7eb');
+                line.setAttribute('stroke-width', '1');
+                line.setAttribute('class', 'dark:stroke-neutral-700');
+                g.appendChild(line);
+
+                const label = createSVGTextLabel('-5', y + 4, 'end');
+                label.textContent = `${100 - index * 25}%`;
+                g.appendChild(label);
+            }
+
+            const firstPoint = this.data[0];
+            const lastPoint = this.data[this.data.length - 1];
+            const plottedPoints = this.data
+                .map(point => `${xScale(point.time)} ${yScale(point.value)}`)
+                .join(' L ');
+
+            const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            area.setAttribute('d', `M ${xScale(firstPoint.time)} ${innerHeight} L ${plottedPoints} L ${xScale(lastPoint.time)} ${innerHeight} Z`);
+            area.setAttribute('fill', `url(#${gradient.id})`);
+            g.appendChild(area);
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            line.setAttribute('d', `M ${plottedPoints}`);
+            line.setAttribute('fill', 'none');
+            line.setAttribute('stroke', this.color);
+            line.setAttribute('stroke-width', '2');
+            g.appendChild(line);
+
+            [xMin, xMin + xRange / 2, xMax].forEach(time => {
+                const label = createSVGTextLabel(xScale(time), innerHeight + 18, 'middle');
+                const date = new Date(time);
+                label.textContent = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                g.appendChild(label);
+            });
+        }
+    };
+}
+
+function createSVGTextLabel(x, y, anchor) {
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', x);
+    label.setAttribute('y', y);
+    label.setAttribute('text-anchor', anchor);
+    label.setAttribute('class', 'text-xs fill-neutral-500 dark:fill-neutral-400');
+    return label;
+}
+
+function modalBridge(property, state = {}) {
+    return {
+        ...state,
+        parentState: null,
+
+        init() {
+            this.parentState = window.Alpine.$data(this.$root.parentElement);
+        },
+
+        get isOpen() {
+            return this.parentState ? this.parentState[property] : false;
+        },
+
+        close() {
+            if (this.parentState) this.parentState[property] = false;
+        },
+
+        trapFocus(event) {
+            trapModalFocus(this.$root, event);
+        }
+    };
+}
+
+function trapModalFocus(root, event) {
+    const selector = [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+    const focusable = Array.from(root.querySelectorAll(selector)).filter(element => {
+        return !element.hidden && element.getAttribute('aria-hidden') !== 'true';
+    });
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !root.contains(active))) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
+function drainModalBridge() {
+    return modalBridge('drainModal', {
+        deadline: '',
+        ignoreSystem: false
+    });
+}
+
+function scaleControls() {
+    return {
+        count: 0,
+        originalCount: 0,
+        minCount: 0,
+        maxCount: 999,
+        hasConstraints: false,
+        showConfirmModal: false,
+
+        init() {
+            this.count = Number(this.$root.dataset.count || 0);
+            this.originalCount = this.count;
+            this.minCount = Number(this.$root.dataset.minCount || 0);
+            this.maxCount = Number(this.$root.dataset.maxCount || 999);
+            this.hasConstraints = this.$root.dataset.hasConstraints === 'true';
+        },
+
+        increment() {
+            if (this.canIncrement()) this.count += 1;
+        },
+
+        decrement() {
+            if (this.canDecrement()) this.count -= 1;
+        },
+
+        canIncrement() {
+            return !this.hasConstraints || this.count < this.maxCount;
+        },
+
+        canDecrement() {
+            return this.count > 0 && (!this.hasConstraints || this.count > this.minCount);
+        },
+
+        isValidCount() {
+            if (!Number.isInteger(this.count) || this.count < 0) return false;
+            if (!this.hasConstraints) return true;
+            return this.count >= this.minCount && this.count <= this.maxCount;
+        },
+
+        hasChanges() {
+            return this.isValidCount() && this.count !== this.originalCount;
+        },
+
+        openConfirmModal() {
+            if (!this.hasChanges()) return;
+            this.showConfirmModal = true;
+            document.body.classList.add('overflow-hidden');
+            this.$nextTick(() => this.$refs.scaleDialogClose?.focus());
+        },
+
+        closeConfirmModal() {
+            this.showConfirmModal = false;
+            document.body.classList.remove('overflow-hidden');
+        },
+
+        resetCount() {
+            this.count = this.originalCount;
+        },
+
+        handleScaleResponse(event) {
+            if (!event.detail.successful) return;
+            this.originalCount = this.count;
+            this.closeConfirmModal();
+        },
+
+        destroy() {
+            document.body.classList.remove('overflow-hidden');
+        }
+    };
+}
+
+function autoResizeTextArea() {
+    return {
+        init() {
+            this.$nextTick(() => this.resize());
+        },
+
+        resize() {
+            this.$el.style.height = 'auto';
+            this.$el.style.height = this.$el.scrollHeight + 'px';
+        }
+    };
+}
+
+function versionDiffModal() {
+    return {
+        isOpen: true,
+
+        init() {
+            document.body.classList.add('overflow-hidden');
+        },
+
+        close() {
+            this.isOpen = false;
+            document.body.classList.remove('overflow-hidden');
+            this.$nextTick(() => this.$root.remove());
+        },
+
+        destroy() {
+            document.body.classList.remove('overflow-hidden');
+        }
+    };
+}
+
 /**
  * GLOBAL ALPINE CONFIGURATION
  *
- * Make patterns available globally if Alpine is loaded.
+ * Register components through Alpine's public API so the CSP-compatible build
+ * does not need to evaluate functions from the global scope.
  */
+document.addEventListener('alpine:init', () => {
+    const components = {
+        dropdown,
+        modal,
+        tabs,
+        toggle,
+        accordion,
+        formValidation,
+        logViewer,
+        execTerminal,
+        evaluationsPanel,
+        keyboardShortcuts,
+        connectionStatus,
+        fileExplorer,
+        variableCreator,
+        variableEditor,
+        searchBar,
+        resourceUtilizationChart,
+        modalBridge,
+        drainModalBridge,
+        scaleControls,
+        autoResizeTextArea,
+        versionDiffModal,
+        jobSubmissionEditor: (...args) => window.jobSubmissionEditor(...args),
+        jobDefinitionEditor: (...args) => window.jobDefinitionEditor(...args),
+        policyEditor: (...args) => window.policyEditor(...args)
+    };
+
+    Object.entries(components).forEach(([name, component]) => {
+        window.Alpine.data(name, component);
+    });
+});
+
 if (typeof window !== 'undefined') {
     window.alpinePatterns = {
         dropdown,
@@ -1882,6 +2355,16 @@ if (typeof window !== 'undefined') {
         execTerminal,
         evaluationsPanel,
         keyboardShortcuts,
-        connectionStatus
+        connectionStatus,
+        fileExplorer,
+        variableCreator,
+        variableEditor,
+        searchBar,
+        resourceUtilizationChart,
+        modalBridge,
+        drainModalBridge,
+        scaleControls,
+        autoResizeTextArea,
+        versionDiffModal
     };
 }

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/pkg/ioutils"
+	"github.com/moby/moby/v2/pkg/ioutils"
 	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/serf/serf"

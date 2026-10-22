@@ -73,10 +73,7 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters
 	query := r.URL.Query()
-	namespace := query.Get("namespace")
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 	statusFilter := query.Get("status")
 	typeFilter := query.Get("type")
 	jobFilter := query.Get("job")
@@ -108,7 +105,7 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get all evaluations with server-side filtering
-	allEvaluations := h.getEvaluationsList(namespace, token, statusFilter, typeFilter, jobFilter)
+	allEvaluations := h.getEvaluationsList(r, namespace, token, statusFilter, typeFilter, jobFilter)
 
 	// Apply client-side search filter (status/type/job already filtered server-side)
 	filteredEvaluations := h.filterEvaluations(allEvaluations, "", "", "", searchQuery)
@@ -167,9 +164,9 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Evaluations - Wander",
-		"View Nomad evaluations",
+		"View Wander evaluations",
 		"/ui/evaluations",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -194,8 +191,8 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		evaluations.List(layoutProps, evalsList),       // Full page with layout
-		evaluationspartials.ListContent(evalsList),     // Partial content for HTMX requests
+		evaluations.List(layoutProps, evalsList),   // Full page with layout
+		evaluationspartials.ListContent(evalsList), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -218,16 +215,16 @@ func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get evaluation detail
-	evalDetail, found := h.getEvaluationDetail(evalID, token)
+	evalDetail, found := h.getEvaluationDetail(r, evalID, token)
 	if !found {
 		http.Error(w, "Evaluation not found", http.StatusNotFound)
 		return
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Evaluation "+evalDetail.ShortID+" - Wander",
-		"View Nomad evaluation details",
+		"View Wander evaluation details",
 		"/ui/evaluations/"+evalID,
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -238,8 +235,8 @@ func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		evaluations.Detail(layoutProps, evalDetail),           // Full page with layout
-		evaluationspartials.DetailContent(evalDetail),         // Partial content for HTMX requests
+		evaluations.Detail(layoutProps, evalDetail),   // Full page with layout
+		evaluationspartials.DetailContent(evalDetail), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -250,8 +247,8 @@ func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 }
 
 // getEvaluationDetail fetches a single evaluation from the Nomad API.
-func (h *EvaluationsHandler) getEvaluationDetail(evalID string, token string) (evaluationspartials.EvaluationDetail, bool) {
-	client := h.handler.NomadClient()
+func (h *EvaluationsHandler) getEvaluationDetail(r *http.Request, evalID string, token string) (evaluationspartials.EvaluationDetail, bool) {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty evaluation detail")
 		return evaluationspartials.EvaluationDetail{ID: evalID}, false
@@ -372,8 +369,8 @@ func convertScoreMetaData(scores []*api.NodeScoreMeta) []*evaluationspartials.No
 
 // getEvaluationsList fetches evaluations from the Nomad API with server-side filtering.
 // Falls back to empty list if API is unavailable.
-func (h *EvaluationsHandler) getEvaluationsList(namespace, token, statusFilter, typeFilter, jobFilter string) []EvaluationSummary {
-	client := h.handler.NomadClient()
+func (h *EvaluationsHandler) getEvaluationsList(r *http.Request, namespace, token, statusFilter, typeFilter, jobFilter string) []EvaluationSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty evaluations list")
 		return []EvaluationSummary{}
@@ -529,6 +526,10 @@ func (h *EvaluationsHandler) sortEvaluations(evals []EvaluationSummary, column, 
 
 // formatTimeAgo formats a time as a human-readable "time ago" string.
 func formatTimeAgo(t time.Time) string {
+	if t.IsZero() {
+		return "Unknown"
+	}
+
 	if t.IsZero() {
 		return "unknown"
 	}

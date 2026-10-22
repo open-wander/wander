@@ -57,7 +57,7 @@ Login Options:
     in the form of <IP>:<PORT> and defaults to "localhost:4649".
 
   -login-token
-    Login token used for authentication that will be exchanged for a Nomad ACL
+    Login token used for authentication that will be exchanged for a Wander ACL
     Token. It is only required if using auth method type other than OIDC. 
 
   -json

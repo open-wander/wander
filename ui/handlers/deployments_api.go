@@ -55,10 +55,7 @@ func (h *DeploymentsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 // Route: POST /api/deployments/{id}/fail
 func (h *DeploymentsAPIHandler) FailDeployment(w http.ResponseWriter, r *http.Request, deploymentID string) {
 	// Parse namespace from query param or use default
-	namespace := r.URL.Query().Get("namespace")
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Check permissions - need submit-job capability to fail deployments
 	perms := GetPermissionsFromRequest(r)
@@ -75,13 +72,13 @@ func (h *DeploymentsAPIHandler) FailDeployment(w http.ResponseWriter, r *http.Re
 	h.handler.logger.Info("failing deployment", "deploymentID", deploymentID, "namespace", namespace)
 
 	// Get Nomad client
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Nomad client not available",
+			"error": "Wander client not available",
 		})
 		return
 	}
@@ -112,12 +109,15 @@ func (h *DeploymentsAPIHandler) FailDeployment(w http.ResponseWriter, r *http.Re
 	h.handler.logger.Info("deployment failed successfully", "deploymentID", deploymentID, "namespace", namespace, "evalID", resp.EvalID)
 
 	// Return success response with eval ID
+	if IsHTMXFromRequest(r) {
+		w.Header().Set("HX-Refresh", "true")
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"evalID":  resp.EvalID,
-		"message": fmt.Sprintf("Deployment failed successfully (Eval: %s)", resp.EvalID[:8]),
+		"message": fmt.Sprintf("Deployment failed successfully (Eval: %s)", shortIdentifier(resp.EvalID)),
 	})
 }
 
@@ -136,13 +136,22 @@ type PromoteDeploymentResponse struct {
 // PromoteDeployment handles promoting canaries in a deployment.
 // Route: POST /api/deployments/{id}/promote
 func (h *DeploymentsAPIHandler) PromoteDeployment(w http.ResponseWriter, r *http.Request, deploymentID string) {
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && perms.IsAnonymous() {
+		handlerError := PromoteDeploymentResponse{Error: "Permission denied: a valid ACL token is required"}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(handlerError)
+		return
+	}
+
 	// Get the deployment to determine its namespace
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(PromoteDeploymentResponse{Error: "Nomad client not available"})
+		_ = json.NewEncoder(w).Encode(PromoteDeploymentResponse{Error: "Wander client not available"})
 		return
 	}
 
@@ -178,7 +187,6 @@ func (h *DeploymentsAPIHandler) PromoteDeployment(w http.ResponseWriter, r *http
 	namespace := deploy.Namespace
 
 	// Check permissions - need submit-job capability to promote deployments
-	perms := GetPermissionsFromRequest(r)
 	if perms != nil && !perms.CanSubmitJob(namespace) {
 		h.handler.logger.Warn("promote permission denied", "deploymentID", deploymentID, "namespace", namespace)
 		w.Header().Set("Content-Type", "application/json")
@@ -248,6 +256,9 @@ func (h *DeploymentsAPIHandler) PromoteDeployment(w http.ResponseWriter, r *http
 		EvalID: promoteResp.EvalID,
 	}
 
+	if IsHTMXFromRequest(r) {
+		w.Header().Set("HX-Refresh", "true")
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {

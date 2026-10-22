@@ -14,8 +14,7 @@ build-errors.log
 # Node modules (for Tailwind plugins)
 node_modules/
 
-# Package lock files
-package-lock.json
+# npm lockfile is committed so release builds using `npm ci` are reproducible.
 yarn.lock
 
 # Editor directories

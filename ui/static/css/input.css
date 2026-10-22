@@ -6,6 +6,10 @@
    BASE LAYER - Typography, Forms, Defaults
    ============================================ */
 @layer base {
+  [x-cloak] {
+    display: none !important;
+  }
+
   /* ----------------------------------------
      Focus Styles
      ---------------------------------------- */
@@ -23,6 +27,17 @@
   html {
     scroll-behavior: smooth;
     @apply text-base;
+  }
+
+  :root {
+    /* Shared height for log, terminal, file, and code workspaces. */
+    --workspace-surface-height: max(20rem, calc(100dvh - 24rem));
+  }
+
+  @media (min-width: 640px) {
+    :root {
+      --workspace-surface-height: max(28rem, calc(100dvh - 28rem));
+    }
   }
 
   body {
@@ -419,6 +434,16 @@
    COMPONENT LAYER - Reusable UI Components
    ============================================ */
 @layer components {
+  /* Large interactive surfaces should use the available viewport consistently. */
+  .workspace-surface {
+    height: var(--workspace-surface-height);
+  }
+
+  .log-surface {
+    min-height: 8.25rem;
+    max-height: var(--workspace-surface-height);
+  }
+
   /* ----------------------------------------
      Buttons - Base
      ---------------------------------------- */

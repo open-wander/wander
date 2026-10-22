@@ -27,7 +27,8 @@ type ButtonProps struct {
 	HxTrigger string // HTMX hx-trigger attribute
 	HxConfirm string // HTMX hx-confirm attribute for confirmation dialogs
 	// Alpine.js attributes
-	AlpineClick string // Alpine.js @click handler
+	AlpineClick    string // Alpine.js @click handler
+	AlpineDisabled string // Alpine.js expression controlling the disabled state
 	// Accessibility
 	AriaLabel string // ARIA label for accessibility
 }
@@ -114,6 +115,9 @@ templ Button(props ButtonProps, label string) {
 		}
 		if props.AlpineClick != "" {
 			@click={ props.AlpineClick }
+		}
+		if props.AlpineDisabled != "" {
+			:disabled={ props.AlpineDisabled }
 		}
 		if props.AriaLabel != "" {
 			aria-label={ props.AriaLabel }

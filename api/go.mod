@@ -1,11 +1,11 @@
 module github.com/open-wander/wander/api
 
-go 1.20
+go 1.27.2
 
 require (
 	github.com/docker/go-units v0.5.0
 	github.com/felixge/httpsnoop v1.0.3
-	github.com/gorilla/websocket v1.5.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/cronexpr v1.1.2
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-multierror v1.1.1

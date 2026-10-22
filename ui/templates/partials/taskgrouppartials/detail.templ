@@ -102,7 +102,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 		if tg.Scaling != nil && tg.Scaling.Enabled {
 			<div class="bg-white shadow rounded-lg p-6 mb-6">
 				<h3 class="text-lg font-semibold text-neutral-900 mb-4">Autoscaling Configuration</h3>
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
 						<dt class="text-sm font-medium text-neutral-500">Min Instances</dt>
 						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Min) }</dd>
@@ -110,24 +110,6 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
 						<dt class="text-sm font-medium text-neutral-500">Max Instances</dt>
 						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Max) }</dd>
-					</div>
-					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
-						<dt class="text-sm font-medium text-neutral-500">CPU Target</dt>
-						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d%%", tg.Scaling.Policy.TargetCPUPercent) }</dd>
-					</div>
-					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
-						<dt class="text-sm font-medium text-neutral-500">Memory Target</dt>
-						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d%%", tg.Scaling.Policy.TargetMemoryPercent) }</dd>
-					</div>
-				</div>
-				<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
-						<dt class="text-sm font-medium text-neutral-500">Cooldown Period</dt>
-						<dd class="mt-1 text-sm text-neutral-900">{ tg.Scaling.Policy.Cooldown }</dd>
-					</div>
-					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
-						<dt class="text-sm font-medium text-neutral-500">Evaluation Interval</dt>
-						<dd class="mt-1 text-sm text-neutral-900">{ tg.Scaling.Policy.EvaluationInterval }</dd>
 					</div>
 				</div>
 			</div>
@@ -208,44 +190,11 @@ func formatTime(t time.Time) string {
 templ ScalingControls(jobID string, tg TaskGroupDetail) {
 	<div
 		class="bg-white shadow rounded-lg p-6 mb-6"
-		x-data={ fmt.Sprintf(`{
-			count: %d,
-			originalCount: %d,
-			minCount: %d,
-			maxCount: %d,
-			hasConstraints: %t,
-			showConfirmModal: false,
-			increment() {
-				if (!this.hasConstraints || this.count < this.maxCount) {
-					this.count++;
-				}
-			},
-			decrement() {
-				if (this.count > 0 && (!this.hasConstraints || this.count > this.minCount)) {
-					this.count--;
-				}
-			},
-			canIncrement() {
-				return !this.hasConstraints || this.count < this.maxCount;
-			},
-			canDecrement() {
-				return this.count > 0 && (!this.hasConstraints || this.count > this.minCount);
-			},
-			hasChanges() {
-				return this.count !== this.originalCount;
-			},
-			openConfirmModal() {
-				if (this.hasChanges()) {
-					this.showConfirmModal = true;
-				}
-			},
-			closeConfirmModal() {
-				this.showConfirmModal = false;
-			},
-			resetCount() {
-				this.count = this.originalCount;
-			}
-		}`, tg.Count, tg.Count, getMinCount(tg.Scaling), getMaxCount(tg.Scaling), tg.Scaling != nil && tg.Scaling.Enabled) }
+		x-data="scaleControls"
+		data-count={ fmt.Sprintf("%d", tg.Count) }
+		data-min-count={ fmt.Sprintf("%d", getMinCount(tg.Scaling)) }
+		data-max-count={ fmt.Sprintf("%d", getMaxCount(tg.Scaling)) }
+		data-has-constraints={ fmt.Sprintf("%t", tg.Scaling != nil && tg.Scaling.Enabled) }
 	>
 		<div class="flex items-center justify-between mb-4">
 			<h3 class="text-lg font-semibold text-neutral-900">Scale Task Group</h3>
@@ -321,10 +270,11 @@ templ ScalingControls(jobID string, tg TaskGroupDetail) {
 			</button>
 			<!-- Scale Button -->
 			@components.Button(components.ButtonProps{
-				Variant:     "primary",
-				Size:        "md",
-				AlpineClick: "openConfirmModal()",
-				Class:       "ml-2",
+				Variant:        "primary",
+				Size:           "md",
+				AlpineClick:    "openConfirmModal()",
+				AlpineDisabled: "!hasChanges()",
+				Class:          "ml-2",
 			}, "Scale")
 		</div>
 		<!-- Change indicator -->
@@ -397,6 +347,7 @@ templ ScaleConfirmModal(jobID string, taskGroupName string) {
 						<button
 							type="button"
 							@click="closeConfirmModal()"
+							x-ref="scaleDialogClose"
 							class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 							aria-label="Close"
 						>
@@ -455,7 +406,7 @@ templ ScaleConfirmModal(jobID string, taskGroupName string) {
 							hx-post={ fmt.Sprintf("/ui/jobs/%s/taskgroups/%s/scale", jobID, taskGroupName) }
 							hx-target="#scale-result"
 							hx-swap="innerHTML"
-							@htmx:after-request="if(event.detail.successful) { closeConfirmModal(); originalCount = count; }"
+							@htmx:after-request="handleScaleResponse(event)"
 						>
 							<input type="hidden" name="count" :value="count"/>
 							<button

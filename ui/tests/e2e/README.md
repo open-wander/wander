@@ -1,14 +1,17 @@
 # End-to-End Testing with Playwright
 
-This directory contains end-to-end tests for the Wander UI using Playwright. The tests run against a real Go HTTP server started by the test setup.
+This directory contains end-to-end tests for the Wander UI using Playwright.
+The release smoke test builds Wander with its embedded UI, starts a disposable
+development cluster from that binary, registers a real job, and then runs
+Chromium against the agent's `/ui/` routes.
 
 ## Architecture
 
-The e2e test setup consists of three main components:
+The e2e test setup consists of four main components:
 
-1. **Go Test Server** (`setup.go`) - Starts the UI server using the same handlers as the dev server
-2. **Playwright Tests** (`specs/*.spec.ts`) - Browser-based tests that interact with the UI
-3. **Test Runner** - Coordinates between Go and Playwright
+1. **Disposable Cluster** - A locally built Wander development agent seeded with `fixtures/smoke.nomad.hcl`
+2. **Playwright Tests** (`specs/*.spec.ts`) - Browser-based tests that interact with the embedded UI
+3. **Test Runner** - Coordinates Wander, the fixture, and Playwright
 
 ## Directory Structure
 
@@ -29,7 +32,7 @@ tests/e2e/
 ### 1. Install Node Dependencies
 
 ```bash
-cd ui-htmx/tests/e2e
+cd ui/tests/e2e
 npm install
 npx playwright install
 ```
@@ -44,26 +47,33 @@ npx playwright install chromium firefox webkit
 
 ## Running Tests
 
-### Run All Tests (via Go)
+### Run the Release Smoke Test (via Go)
 
-The recommended way is to run tests through Go, which handles server lifecycle:
+Run this command from the repository root. It handles the cluster, fixture, UI,
+and browser lifecycles:
 
 ```bash
-cd ui-htmx/tests/e2e
-go test -v
+WANDER_UI_E2E=1 go test ./ui/tests/e2e -run '^TestE2E$' -count=1 -v
 ```
+
+The older specifications in `specs/` and the prototype page objects in
+`pages/` are retired and retained only as historical implementation notes.
+They use stale selectors, mock-era assumptions, and obsolete visual baselines;
+the Playwright configuration intentionally excludes them from every supported
+test command. New coverage belongs in `specs/release-smoke.spec.ts` and must run
+against the disposable embedded-UI cluster.
 
 ### Run Playwright Tests Directly
 
-You can also run Playwright tests directly if the server is already running:
+You can also run Playwright tests directly if a UI-enabled Wander agent is
+already running:
 
 ```bash
-# Terminal 1: Start dev server
-cd ui-htmx
-go run cmd/dev/main.go -port 3001
+# Terminal 1: Start a UI-enabled development agent
+go run -tags ui . agent -dev
 
 # Terminal 2: Run Playwright tests
-cd ui-htmx/tests/e2e
+cd ui/tests/e2e
 npm test
 ```
 

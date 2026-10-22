@@ -386,7 +386,7 @@ func formatAllocNomadServiceChecks(allocID string, client *api.Client) string {
 		results = append(results, s)
 	}
 	sort.Strings(results[1:])
-	return fmt.Sprintf("Nomad Service Checks:\n%s", formatList(results))
+	return fmt.Sprintf("Wander Service Checks:\n%s", formatList(results))
 }
 
 // futureEvalTimePretty returns when the eval is eligible to reschedule

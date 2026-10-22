@@ -28,36 +28,36 @@ func mockPartial(content string) templ.Component {
 
 func TestRender(t *testing.T) {
 	tests := []struct {
-		name              string
-		hxRequest         string
-		historyRestore    string
-		expectedContent   string
-		expectedPushURL   string
-		expectPushHeader  bool
+		name             string
+		hxRequest        string
+		historyRestore   string
+		expectedContent  string
+		expectedPushURL  string
+		expectPushHeader bool
 	}{
 		{
-			name:              "Full page request",
-			hxRequest:         "",
-			historyRestore:    "",
-			expectedContent:   "<html><body>test content</body></html>",
-			expectedPushURL:   "",
-			expectPushHeader:  false,
+			name:             "Full page request",
+			hxRequest:        "",
+			historyRestore:   "",
+			expectedContent:  "<html><body>test content</body></html>",
+			expectedPushURL:  "",
+			expectPushHeader: false,
 		},
 		{
-			name:              "HTMX request returns partial",
-			hxRequest:         "true",
-			historyRestore:    "",
-			expectedContent:   "<div>test content</div>",
-			expectedPushURL:   "/test",
-			expectPushHeader:  true,
+			name:             "HTMX request returns partial",
+			hxRequest:        "true",
+			historyRestore:   "",
+			expectedContent:  "<div>test content</div>",
+			expectedPushURL:  "/test",
+			expectPushHeader: true,
 		},
 		{
-			name:              "HTMX history restore returns partial without push",
-			hxRequest:         "true",
-			historyRestore:    "true",
-			expectedContent:   "<div>test content</div>",
-			expectedPushURL:   "",
-			expectPushHeader:  false,
+			name:             "HTMX history restore returns partial without push",
+			hxRequest:        "true",
+			historyRestore:   "true",
+			expectedContent:  "<div>test content</div>",
+			expectedPushURL:  "",
+			expectPushHeader: false,
 		},
 	}
 

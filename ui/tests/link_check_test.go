@@ -23,12 +23,12 @@ import (
 
 // LinkChecker crawls the UI and checks for broken links and missing assets
 type LinkChecker struct {
-	baseURL     string
-	client      *http.Client
-	visited     map[string]bool
-	mu          sync.Mutex
-	results     CheckResults
-	logger      hclog.Logger
+	baseURL string
+	client  *http.Client
+	visited map[string]bool
+	mu      sync.Mutex
+	results CheckResults
+	logger  hclog.Logger
 }
 
 // BrokenLink represents a broken link or asset
@@ -305,7 +305,9 @@ func (lc *LinkChecker) checkLink(link, sourcePage string) {
 	lc.mu.Unlock()
 
 	// Check the link
-	resp, err := lc.client.Head(linkURL.String())
+	// UI routes intentionally expose GET rather than HEAD, so use the same
+	// read-only method a browser follows from an anchor.
+	resp, err := lc.client.Get(linkURL.String())
 
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -431,6 +433,10 @@ func writeResults(results CheckResults, outputFile string) error {
 
 // TestLinkChecker tests all UI links and assets
 func TestLinkChecker(t *testing.T) {
+	if os.Getenv("WANDER_UI_LINK_CHECK") != "1" {
+		t.Skip("set WANDER_UI_LINK_CHECK=1 with a reachable cluster to crawl live UI routes")
+	}
+
 	// Create logger
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:   "link-checker-test",
@@ -451,7 +457,10 @@ func TestLinkChecker(t *testing.T) {
 	results := checker.Check()
 
 	// Write results to file
-	outputFile := "../LINK_CHECK_RESULTS.md"
+	outputFile := os.Getenv("WANDER_UI_LINK_REPORT")
+	if outputFile == "" {
+		outputFile = "../LINK_CHECK_RESULTS.md"
+	}
 	if err := writeResults(results, outputFile); err != nil {
 		t.Fatalf("Failed to write results: %v", err)
 	}

@@ -113,7 +113,6 @@ func TestRecommendationDismissCommand_AutocompleteArgs(t *testing.T) {
 }
 
 func testRecommendationAutocompleteCommand(t *testing.T, client *api.Client, srv *agent.TestAgent, cmd *RecommendationAutocompleteCommand) {
-	ci.Parallel(t)
 	require := require.New(t)
 
 	// Register a test job to write a recommendation against.

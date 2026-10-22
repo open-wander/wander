@@ -75,8 +75,7 @@ templ Textarea(props TextareaProps) {
 			}
 			rows={ textareaRows(props.Rows) }
 			if props.AutoResize {
-				x-data="{ resize() { $el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'; } }"
-				x-init="resize()"
+				x-data="autoResizeTextArea()"
 				@input="resize"
 			}
 		>{ props.Value }</textarea>

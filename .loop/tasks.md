@@ -7,6 +7,18 @@ Status: complete
 
 ---
 
+> **Historical comparison record:** “complete” means the listed comparison
+> tasks were performed. It does not mean every recorded `GAPS_FOUND` item was
+> implemented or that route/action/ACL parity was exhaustively verified. The
+> authoritative release work is now tracked in
+> [`docs/plans/0.1.0-revival-checklist.md`](../docs/plans/0.1.0-revival-checklist.md).
+> Some files in the historical `v1.6.5` UI comparison carry `BUSL-1.1`
+> headers. This record describes observed gaps; it does not authorize copying
+> source from those files. The revival checklist's provenance gate applies
+> before any gap is implemented.
+
+---
+
 ## Tasks
 
 ### Phase 1: Directory Rename

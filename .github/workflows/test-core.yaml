@@ -15,7 +15,6 @@ on:
       - 'pkg/**'
       - 'scripts/**'
       - 'terraform/**'
-      - 'ui-htmx/**'
       - 'website/**'
   push:
     branches:
@@ -35,7 +34,6 @@ on:
       - 'pkg/**'
       - 'scripts/**'
       - 'terraform/**'
-      - 'ui-htmx/**'
       - 'website/**'
 
 env:
@@ -60,6 +58,53 @@ jobs:
         run: |
           make tidy
           make bootstrap
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce source license boundary
+        run: bash ci/check-license-boundary.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: '.go-version'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Scan reachable Go vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          govulncheck ./...
+      - name: Audit HTMX UI dependencies
+        working-directory: ui
+        run: |
+          npm ci
+          npm audit --audit-level=moderate
+  ui-browser:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: '.go-version'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/tests/e2e/package-lock.json
+      - name: Install browser test dependencies
+        working-directory: ui/tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Test embedded Wander UI
+        working-directory: ui/tests/e2e
+        env:
+          WANDER_UI_E2E: '1'
+        run: go test -run '^Test(E2E|ACLMutations|TLSTransports)$' -count=1 -v
   checks:
     uses: ./.github/workflows/checks.yaml
     needs: [mods]
@@ -96,7 +141,7 @@ jobs:
           make bootstrap
           make generate-all
           sudo sed -i 's!Defaults!#Defaults!g' /etc/sudoers
-          sudo -E env "PATH=$PATH" make test-nomad-module
+          sudo -E env "PATH=$PATH" make test-wander-module
   tests-groups:
     needs: [mods]
     runs-on: ubuntu-22.04
@@ -125,7 +170,7 @@ jobs:
           hc-install install -version ${{env.VAULT_VERSION}} -path ${{env.GOBIN}} vault
           hc-install install -version ${{env.CONSUL_VERSION}} -path ${{env.GOBIN}} consul
           sudo sed -i 's!Defaults!#Defaults!g' /etc/sudoers
-          sudo -E env "PATH=$PATH" make test-nomad
+          sudo -E env "PATH=$PATH" make test-wander
 permissions:
   contents: read
   id-token: write

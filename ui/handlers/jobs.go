@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"math"
-	"math/rand"
 	"net/http"
 	"sort"
 	"strconv"
@@ -153,10 +153,7 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters
 	queryParams := r.URL.Query()
-	namespace := strings.TrimSpace(queryParams.Get("namespace"))
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Check permissions for the requested namespace
 	perms := GetPermissionsFromRequest(r)
@@ -184,7 +181,7 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.handler.logger.Error("failed to fetch jobs", "error", err, "namespace", namespace)
-		http.Error(w, "Failed to fetch jobs from Nomad API", http.StatusInternalServerError)
+		http.Error(w, "Failed to fetch jobs from Wander API", http.StatusInternalServerError)
 		return
 	}
 
@@ -228,9 +225,9 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 	jobsList = paginateJobs(jobsList, page, perPage)
 
 	// Build layout props with app context
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Jobs - Wander",
-		"View and manage Nomad jobs",
+		"View and manage Wander jobs",
 		"/ui/jobs",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -254,11 +251,7 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 // RunPage handles the job submission page (GET /ui/jobs/run)
 func (h *JobsHandler) RunPage(w http.ResponseWriter, r *http.Request) {
 	// Parse namespace from query parameters
-	queryParams := r.URL.Query()
-	namespace := strings.TrimSpace(queryParams.Get("namespace"))
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Log the request
 	h.handler.logger.Debug("job submission page request", "namespace", namespace, "htmx", IsHTMXFromRequest(r))
@@ -279,9 +272,9 @@ func (h *JobsHandler) RunPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props with app context
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Run Job - Wander",
-		"Submit a new job to Nomad",
+		"Submit a new job to Wander",
 		"/ui/jobs/run",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -292,8 +285,8 @@ func (h *JobsHandler) RunPage(w http.ResponseWriter, r *http.Request) {
 
 	// Render the job submission page
 	err := Render(w, r,
-		jobs.Run(layoutProps, namespace),              // Full page with layout
-		jobspartials.RunContent(namespace),            // Partial content for HTMX requests
+		jobs.Run(layoutProps, namespace),   // Full page with layout
+		jobspartials.RunContent(namespace), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -323,7 +316,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	jobName := actualJobID
 	if idx := strings.LastIndex(actualJobID, "@"); idx != -1 {
 		jobName = actualJobID[:idx]
@@ -355,14 +348,14 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch job detail from Nomad API
-	jobDetail, err := h.getJobDetail(jobName, namespace, GetTokenFromRequest(r))
+	jobDetail, err := h.getJobDetail(r, jobName, namespace, GetTokenFromRequest(r))
 	if err != nil {
 		// Check if this is a cluster unavailability error first
 		if h.handler.CheckClusterError(w, r, err) {
 			return
 		}
 		h.handler.logger.Error("failed to fetch job detail", "error", err, "jobID", actualJobID)
-		http.Error(w, "Failed to fetch job from Nomad API", http.StatusInternalServerError)
+		http.Error(w, "Failed to fetch job from Wander API", http.StatusInternalServerError)
 		return
 	}
 
@@ -372,7 +365,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		jobDetail.Name+" - Job Detail - Wander",
 		"Job detail for "+jobDetail.Name,
 		"/ui/jobs/"+actualJobID,
@@ -385,7 +378,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err = Render(w, r,
-		jobs.Detail(layoutProps, *jobDetail),                // Full page with layout
+		jobs.Detail(layoutProps, *jobDetail),   // Full page with layout
 		jobspartials.DetailContent(*jobDetail), // Partial content for HTMX requests
 	)
 
@@ -399,7 +392,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 // getJobsList fetches jobs from the Nomad API with the specified parameters.
 // Returns error if API is unavailable or request fails.
 func (h *JobsHandler) getJobsList(r *http.Request, namespace, token string) ([]jobspartials.JobSummary, error) {
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty job list")
 		return []jobspartials.JobSummary{}, nil
@@ -524,11 +517,11 @@ func (h *JobsHandler) sortJobs(jobsList []jobspartials.JobSummary, sortColumn, s
 
 // getJobDetail fetches job detail data from the Nomad API.
 // Returns nil if the job is not found, or an error if the API call fails.
-func (h *JobsHandler) getJobDetail(jobID, namespace, token string) (*jobspartials.JobDetail, error) {
-	client := h.handler.NomadClient()
+func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token string) (*jobspartials.JobDetail, error) {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available")
-		return nil, fmt.Errorf("no Nomad client available")
+		return nil, fmt.Errorf("no Wander client available")
 	}
 
 	// Build query options
@@ -622,7 +615,7 @@ func safeInt(i *int) int {
 // renderTabContent handles rendering individual tab content
 func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, jobID, tabName string) {
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	jobName := jobID
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		jobName = jobID[:idx]
@@ -630,10 +623,10 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 	}
 
 	// Get job detail data
-	jobDetail, err := h.getJobDetail(jobName, namespace, GetTokenFromRequest(r))
+	jobDetail, err := h.getJobDetail(r, jobName, namespace, GetTokenFromRequest(r))
 	if err != nil {
 		h.handler.logger.Error("failed to fetch job for tab content", "error", err, "jobID", jobID, "tab", tabName)
-		http.Error(w, "Failed to fetch job from Nomad API", http.StatusInternalServerError)
+		http.Error(w, "Failed to fetch job from Wander API", http.StatusInternalServerError)
 		return
 	}
 
@@ -646,7 +639,12 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 	case "overview":
 		err = RenderPartial(w, r, jobspartials.OverviewTab(*jobDetail))
 	case "definition":
-		jobDef := h.getJobDefinition(jobID)
+		jobDef, defErr := h.getLiveJobDefinition(r, jobID)
+		if defErr != nil {
+			h.handler.logger.Error("failed to fetch job definition", "error", defErr, "jobID", jobID)
+			http.Error(w, "Failed to fetch job definition", http.StatusBadGateway)
+			return
+		}
 		err = RenderPartial(w, r, jobspartials.DefinitionTab(jobDef))
 	case "versions":
 		versions := h.getJobVersions(r, jobID)
@@ -655,7 +653,7 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		// Parse pagination parameters for allocations
 		page := parsePage(r.URL.Query().Get("page"))
 		perPage := parsePerPage(r.URL.Query().Get("per_page"))
-		allocData := h.getJobAllocations(jobID, page, perPage)
+		allocData := h.getJobAllocations(r, jobID, page, perPage)
 		allocData.LastUpdated = time.Now()
 		err = RenderPartial(w, r, jobspartials.AllocationsTabWithData(allocData))
 	case "deployments":
@@ -675,18 +673,75 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 	}
 }
 
+func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobspartials.JobDefinition, error) {
+	jobName, _ := splitJobReference(jobID, GetNamespaceFromRequest(r))
+	client, job, queryOpts, err := h.fetchLiveJob(r, jobID)
+	if err != nil {
+		return jobspartials.JobDefinition{}, err
+	}
+
+	version := 0
+	if job.Version != nil {
+		version = int(*job.Version)
+	}
+	definition := jobspartials.JobDefinition{
+		JobID:   jobID,
+		Format:  "json",
+		Version: version,
+	}
+
+	jobJSON, marshalErr := json.MarshalIndent(job, "", "  ")
+	if marshalErr != nil {
+		return jobspartials.JobDefinition{}, fmt.Errorf("encode job: %w", marshalErr)
+	}
+	definition.JSONContent = string(jobJSON)
+	definition.Content = definition.JSONContent
+
+	submission, _, err := client.Jobs().Submission(jobName, version, queryOpts)
+	if err == nil && submission != nil && submission.Source != "" {
+		definition.Format = submission.Format
+		if strings.HasPrefix(definition.Format, "hcl") {
+			definition.Format = "hcl"
+			definition.HCLContent = submission.Source
+			definition.Content = definition.HCLContent
+		} else if definition.Format == "json" {
+			definition.JSONContent = submission.Source
+			definition.Content = definition.JSONContent
+		}
+		return definition, nil
+	}
+
+	definition.ReadOnly = true
+	return definition, nil
+}
+
+func (h *JobsHandler) fetchLiveJob(r *http.Request, jobID string) (*api.Client, *api.Job, *api.QueryOptions, error) {
+	jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return nil, nil, nil, fmt.Errorf("Wander API client is unavailable")
+	}
+
+	queryOpts := &api.QueryOptions{Namespace: namespace, AuthToken: GetTokenFromRequest(r)}
+	job, _, err := client.Jobs().Info(jobName, queryOpts)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fetch job: %w", err)
+	}
+	return client, job, queryOpts, nil
+}
+
 // getJobVersions fetches job version history from the Nomad API.
 // It returns a list of job versions sorted from newest to oldest.
 func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartials.JobVersion {
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	jobName := jobID
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		jobName = jobID[:idx]
 		namespace = jobID[idx+1:]
 	}
 
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty versions list")
 		return []jobspartials.JobVersion{}
@@ -784,157 +839,6 @@ func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartia
 	return result
 }
 
-// getJobDefinition returns mock job definition data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *JobsHandler) getJobDefinition(jobID string) jobspartials.JobDefinition {
-	// Mock HCL job definition
-	hclContent := `job "` + jobID + `" {
-  region      = "global"
-  datacenters = ["dc1", "dc2"]
-  type        = "service"
-  priority    = 50
-
-  # Update strategy for rolling deployments
-  update {
-    max_parallel      = 1
-    min_healthy_time  = "10s"
-    healthy_deadline  = "3m"
-    progress_deadline = "10m"
-    auto_revert       = true
-    canary            = 0
-  }
-
-  # Task group for web servers
-  group "web" {
-    count = 3
-
-    # Restart policy on task failure
-    restart {
-      attempts = 3
-      interval = "5m"
-      delay    = "25s"
-      mode     = "delay"
-    }
-
-    # Network configuration
-    network {
-      port "http" {
-        to = 8080
-      }
-      port "metrics" {
-        to = 9090
-      }
-    }
-
-    # Service registration for Consul
-    service {
-      name = "` + jobID + `-web"
-      port = "http"
-      tags = ["urlprefix-/"]
-
-      check {
-        name     = "health"
-        type     = "http"
-        path     = "/health"
-        interval = "10s"
-        timeout  = "2s"
-      }
-    }
-
-    # Main web task
-    task "nginx" {
-      driver = "docker"
-
-      config {
-        image = "nginx:1.21-alpine"
-        ports = ["http"]
-
-        volumes = [
-          "local/nginx.conf:/etc/nginx/nginx.conf",
-        ]
-      }
-
-      # Resource requirements
-      resources {
-        cpu    = 500
-        memory = 256
-      }
-
-      # Template for nginx config
-      template {
-        data = <<EOF
-events {
-  worker_connections 1024;
-}
-
-http {
-  server {
-    listen 8080;
-
-    location / {
-      root /usr/share/nginx/html;
-      index index.html;
-    }
-
-    location /health {
-      return 200 "healthy\n";
-      add_header Content-Type text/plain;
-    }
-  }
-}
-EOF
-        destination = "local/nginx.conf"
-      }
-
-      # Environment variables
-      env {
-        ENVIRONMENT = "production"
-        LOG_LEVEL   = "info"
-      }
-    }
-
-    # Redis sidecar task
-    task "redis" {
-      driver = "docker"
-
-      config {
-        image = "redis:7-alpine"
-        ports = ["metrics"]
-      }
-
-      resources {
-        cpu    = 250
-        memory = 128
-      }
-
-      lifecycle {
-        hook    = "prestart"
-        sidecar = true
-      }
-    }
-  }
-
-  # Constraints
-  constraint {
-    attribute = "${attr.kernel.name}"
-    value     = "linux"
-  }
-
-  constraint {
-    operator  = "distinct_hosts"
-    value     = "true"
-  }
-}`
-
-	return jobspartials.JobDefinition{
-		JobID:    jobID,
-		Content:  hclContent,
-		Format:   "hcl",
-		Version:  4,
-		ReadOnly: false,
-	}
-}
-
 // VersionDiff handles requests for version diff view
 // Route: GET /ui/jobs/{id}/versions/{v1}/diff/{v2}
 func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
@@ -975,7 +879,7 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	jobName := jobID
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		jobName = jobID[:idx]
@@ -994,14 +898,14 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 	oldDef, err := h.getJobVersionDefinition(r, jobName, namespace, oldVersion)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch old version", "error", err, "version", oldVersion)
-		http.Error(w, "Failed to fetch old version from Nomad API", http.StatusInternalServerError)
+		http.Error(w, "Failed to fetch old version from Wander API", http.StatusInternalServerError)
 		return
 	}
 
 	newDef, err := h.getJobVersionDefinition(r, jobName, namespace, newVersion)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch new version", "error", err, "version", newVersion)
-		http.Error(w, "Failed to fetch new version from Nomad API", http.StatusInternalServerError)
+		http.Error(w, "Failed to fetch new version from Wander API", http.StatusInternalServerError)
 		return
 	}
 
@@ -1029,9 +933,9 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 // getJobVersionDefinition fetches a specific job version from the Nomad API
 // and returns it as an HCL string for diff comparison.
 func (h *JobsHandler) getJobVersionDefinition(r *http.Request, jobName, namespace string, version int) (string, error) {
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		return "", fmt.Errorf("no Nomad client available")
+		return "", fmt.Errorf("no Wander client available")
 	}
 
 	// Get ACL token from request context
@@ -1096,16 +1000,16 @@ func (h *JobsHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobID := parts[0]
+	jobID, namespace := splitJobReference(parts[0], GetNamespaceFromRequest(r))
 	tgName := parts[1]
 
 	// Check permissions - need scale-job capability to scale task groups
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanScaleJob("default") {
+	if perms != nil && !perms.CanScaleJob(namespace) {
 		h.handler.logger.Warn("scale permission denied", "jobID", jobID, "taskGroup", tgName)
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(renderScaleError("Permission denied: you do not have the 'scale-job' capability in the default namespace")))
+		_, _ = w.Write([]byte(renderScaleError("Permission denied: you do not have the 'scale-job' capability in this namespace")))
 		return
 	}
 
@@ -1136,10 +1040,23 @@ func (h *JobsHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request) {
 		"newCount", count,
 	)
 
-	// TODO: In a real implementation, this would call the Nomad API:
-	// client.Jobs().Scale(jobID, tgName, &count, "Scaling via Wander UI", false, nil, nil)
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(renderScaleError("Wander API client is unavailable")))
+		return
+	}
 
-	// For now, simulate the scaling operation with a success response
+	writeOpts := &api.WriteOptions{Namespace: namespace, AuthToken: GetTokenFromRequest(r)}
+	if _, _, err := client.Jobs().Scale(jobID, tgName, &count, "Scaling via Wander UI", false, nil, writeOpts); err != nil {
+		h.handler.logger.Error("failed to scale task group", "jobID", jobID, "taskGroup", tgName, "error", err)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(renderScaleError("The cluster rejected the scale request")))
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(renderScaleSuccess(tgName, count)))
@@ -1156,7 +1073,7 @@ func renderScaleSuccess(taskGroupName string, newCount int) string {
 			</div>
 			<div class="ml-3">
 				<p class="text-sm font-medium text-green-800">
-					Task group <span class="font-semibold">` + taskGroupName + `</span> scaled to ` + strconv.Itoa(newCount) + ` instance(s)
+					Task group <span class="font-semibold">` + html.EscapeString(taskGroupName) + `</span> scaled to ` + strconv.Itoa(newCount) + ` instance(s)
 				</p>
 			</div>
 		</div>
@@ -1174,7 +1091,7 @@ func renderScaleError(message string) string {
 			</div>
 			<div class="ml-3">
 				<p class="text-sm font-medium text-red-800">
-					Failed to scale: ` + message + `
+					Failed to scale: ` + html.EscapeString(message) + `
 				</p>
 			</div>
 		</div>
@@ -1198,11 +1115,15 @@ func (h *JobsHandler) TaskGroup(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("task group detail request", "jobID", jobID, "taskGroup", tgName, "htmx", IsHTMXFromRequest(r))
 
-	// Get mock task group data
-	taskGroup := h.getTaskGroupDetail(jobID, tgName)
+	taskGroup, err := h.getLiveTaskGroupDetail(r, jobID, tgName)
+	if err != nil {
+		h.handler.logger.Error("failed to fetch task group", "error", err, "jobID", jobID, "taskGroup", tgName)
+		http.Error(w, "Failed to fetch task group", http.StatusBadGateway)
+		return
+	}
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		jobs.TaskGroup(jobID, taskGroup),                  // Full page with layout
 		taskgrouppartials.DetailContent(jobID, taskGroup), // Partial content for HTMX requests
 	)
@@ -1214,69 +1135,61 @@ func (h *JobsHandler) TaskGroup(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getTaskGroupDetail returns mock task group detail data.
-// This will be replaced with actual Nomad API calls in the future.
-func (h *JobsHandler) getTaskGroupDetail(jobID, tgName string) taskgrouppartials.TaskGroupDetail {
-	// Base task group data
-	tg := taskgrouppartials.TaskGroupDetail{
-		Name:  tgName,
-		Count: 3,
-		Tasks: []taskgrouppartials.TaskDetail{
-			{
-				Name:   "nginx",
-				Driver: "docker",
-				Resources: taskgrouppartials.ResourceConfig{
-					CPU:      500,
-					Memory:   256,
-					DiskMB:   300,
-					Networks: []taskgrouppartials.NetworkResource{{MBits: 10}},
-				},
-			},
-			{
-				Name:   "redis",
-				Driver: "docker",
-				Resources: taskgrouppartials.ResourceConfig{
-					CPU:      250,
-					Memory:   128,
-					DiskMB:   100,
-					Networks: []taskgrouppartials.NetworkResource{{MBits: 5}},
-				},
-			},
-		},
+func (h *JobsHandler) getLiveTaskGroupDetail(r *http.Request, jobID, taskGroupName string) (taskgrouppartials.TaskGroupDetail, error) {
+	_, job, _, err := h.fetchLiveJob(r, jobID)
+	if err != nil {
+		return taskgrouppartials.TaskGroupDetail{}, err
 	}
 
-	// Add placement failures for demonstration if task group is "cache"
-	if tgName == "cache" {
-		tg.PlacementFailures = []taskgrouppartials.PlacementFailure{
-			{
-				Node:      "node-1",
-				Reason:    "Constraint \"${attr.kernel.name} = linux\" filtered 0 nodes",
-				Timestamp: time.Now().Add(-10 * time.Minute),
-			},
-			{
-				Node:      "node-2",
-				Reason:    "Resources exhausted on 1 nodes",
-				Timestamp: time.Now().Add(-5 * time.Minute),
-			},
+	for _, group := range job.TaskGroups {
+		if group == nil || safeString(group.Name) != taskGroupName {
+			continue
 		}
-	}
 
-	// Add scaling config for service jobs
-	if tgName == "web" {
-		tg.Scaling = &taskgrouppartials.ScalingConfig{
-			Enabled: true,
-			Min:     1,
-			Max:     10,
-			Policy: taskgrouppartials.ScalingPolicy{
-				Cooldown:            "30s",
-				EvaluationInterval:  "10s",
-				TargetCPUPercent:    80,
-				TargetMemoryPercent: 85,
-			},
+		detail := taskgrouppartials.TaskGroupDetail{
+			Name:  taskGroupName,
+			Count: safeInt(group.Count),
+			Tasks: make([]taskgrouppartials.TaskDetail, 0, len(group.Tasks)),
 		}
+		for _, task := range group.Tasks {
+			if task == nil {
+				continue
+			}
+			resources := taskgrouppartials.ResourceConfig{}
+			if task.Resources != nil {
+				resources.CPU = safeInt(task.Resources.CPU)
+				resources.Memory = safeInt(task.Resources.MemoryMB)
+				resources.DiskMB = safeInt(task.Resources.DiskMB)
+				for _, network := range task.Resources.Networks {
+					if network != nil {
+						resources.Networks = append(resources.Networks, taskgrouppartials.NetworkResource{MBits: network.Megabits()})
+					}
+				}
+			}
+			detail.Tasks = append(detail.Tasks, taskgrouppartials.TaskDetail{
+				Name:      task.Name,
+				Driver:    task.Driver,
+				Resources: resources,
+			})
+		}
+		if group.Scaling != nil {
+			detail.Scaling = &taskgrouppartials.ScalingConfig{
+				Enabled: group.Scaling.Enabled != nil && *group.Scaling.Enabled,
+				Min:     intValue64(group.Scaling.Min),
+				Max:     intValue64(group.Scaling.Max),
+			}
+		}
+		return detail, nil
 	}
 
-	return tg
+	return taskgrouppartials.TaskGroupDetail{}, fmt.Errorf("task group %q not found", taskGroupName)
+}
+
+func intValue64(value *int64) int {
+	if value == nil {
+		return 0
+	}
+	return int(*value)
 }
 
 // parsePage parses the page query parameter and returns a valid page number.
@@ -1320,16 +1233,16 @@ func paginateJobs(jobs []jobspartials.JobSummary, page, perPage int) []jobsparti
 }
 
 // getJobAllocations fetches allocations for a specific job from the Nomad API.
-func (h *JobsHandler) getJobAllocations(jobID string, page, perPage int) jobspartials.AllocationsTabData {
+func (h *JobsHandler) getJobAllocations(r *http.Request, jobID string, page, perPage int) jobspartials.AllocationsTabData {
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	jobName := jobID
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		jobName = jobID[:idx]
 		namespace = jobID[idx+1:]
 	}
 
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty allocations list")
 		return jobspartials.AllocationsTabData{
@@ -1394,23 +1307,6 @@ func (h *JobsHandler) getJobAllocations(jobID string, page, perPage int) jobspar
 				}
 			}
 
-			// For current usage, we'd need to fetch stats separately
-			// For now, use mock values as a percentage of max (50-80%)
-			// In a future enhancement, we could fetch stats for running allocations
-			if alloc.ClientStatus == "running" && cpuMax > 0 {
-				cpuUsed = int(float64(cpuMax) * 0.65)
-				memUsed = int(float64(memMax) * 0.70)
-			}
-		}
-
-		// Fallback if no resource info available
-		if cpuMax == 0 {
-			cpuMax = 500
-			memMax = 256
-			if alloc.ClientStatus == "running" {
-				cpuUsed = 325
-				memUsed = 179
-			}
 		}
 
 		// Convert create time from nanoseconds to time.Time
@@ -1421,7 +1317,7 @@ func (h *JobsHandler) getJobAllocations(jobID string, page, perPage int) jobspar
 
 		jobAlloc := jobspartials.JobAllocation{
 			ID:        alloc.ID,
-			ShortID:   alloc.ID[:8], // First 8 chars for short ID
+			ShortID:   shortIdentifier(alloc.ID),
 			TaskGroup: alloc.TaskGroup,
 			NodeID:    alloc.NodeID,
 			NodeName:  alloc.NodeName,
@@ -1489,7 +1385,7 @@ func (h *JobsHandler) AllocationsPoll(w http.ResponseWriter, r *http.Request) {
 	perPage := parsePerPage(r.URL.Query().Get("per_page"))
 
 	// Get allocation data
-	allocData := h.getJobAllocations(jobID, page, perPage)
+	allocData := h.getJobAllocations(r, jobID, page, perPage)
 	allocData.LastUpdated = time.Now()
 
 	// Render just the table body partial
@@ -1499,7 +1395,6 @@ func (h *JobsHandler) AllocationsPoll(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
-
 
 // PlanJobRequest represents the request body for plan endpoint
 type PlanJobRequest struct {
@@ -1525,10 +1420,10 @@ type RunJobRequest struct {
 
 // RunJobResponse represents the response from run endpoint
 type RunJobResponse struct {
-	EvalID    string   `json:"evalId"`
-	JobID     string   `json:"jobId"`
-	Warnings  []string `json:"warnings,omitempty"`
-	Error     string   `json:"error,omitempty"`
+	EvalID   string   `json:"evalId"`
+	JobID    string   `json:"jobId"`
+	Warnings []string `json:"warnings,omitempty"`
+	Error    string   `json:"error,omitempty"`
 }
 
 // PlanJob handles POST requests to plan a job (dry run).
@@ -1540,7 +1435,7 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 	jobID := path
 
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		namespace = jobID[idx+1:]
 	}
@@ -1570,12 +1465,12 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get Nomad client
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: "Nomad client not available"})
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: "Wander client not available"})
 		return
 	}
 
@@ -1670,7 +1565,7 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 	jobID := path
 
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		namespace = jobID[idx+1:]
 	}
@@ -1700,12 +1595,12 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get Nomad client
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: "Nomad client not available"})
+		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: "Wander client not available"})
 		return
 	}
 
@@ -1803,27 +1698,12 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// generateMockEvalID generates a mock evaluation ID for testing.
-func generateMockEvalID() string {
-	const chars = "0123456789abcdef"
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	id := make([]byte, 36)
-	for i := range id {
-		if i == 8 || i == 13 || i == 18 || i == 23 {
-			id[i] = '-'
-		} else {
-			id[i] = chars[r.Intn(len(chars))]
-		}
-	}
-	return string(id)
-}
-
 // RevertToVersionResponse represents the response from the revert endpoint
 type RevertToVersionResponse struct {
-	EvalID   string `json:"evalId"`
-	JobID    string `json:"jobId"`
-	Version  int    `json:"version"`
-	Error    string `json:"error,omitempty"`
+	EvalID  string `json:"evalId"`
+	JobID   string `json:"jobId"`
+	Version int    `json:"version"`
+	Error   string `json:"error,omitempty"`
 }
 
 // RevertToVersion handles POST requests to revert a job to a previous version.
@@ -1847,7 +1727,7 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 	versionStr := parts[1]
 
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		namespace = jobID[idx+1:]
 	}
@@ -1887,12 +1767,12 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Get Nomad client
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{Error: "Nomad client not available"})
+		_ = json.NewEncoder(w).Encode(RevertToVersionResponse{Error: "Wander client not available"})
 		return
 	}
 
@@ -1947,14 +1827,14 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 // getJobDeployments fetches deployments for a specific job from the Nomad API.
 func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspartials.JobDeployment {
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	jobName := jobID
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		jobName = jobID[:idx]
 		namespace = jobID[idx+1:]
 	}
 
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty deployments list")
 		return []jobspartials.JobDeployment{}
@@ -2013,21 +1893,14 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 			}
 		}
 
-		// Convert create index to time (Nomad stores as nanoseconds)
-		// Note: CreateIndex is not a timestamp, but we can use ModifyIndex for sorting
-		// For the actual creation time, we would need to track it separately
-		// For now, we'll use the current time minus an offset based on index
-		// In production, you might want to fetch this from the deployment metadata
-		created := time.Now().Add(-time.Duration(len(result)) * time.Hour)
-
 		deployment := jobspartials.JobDeployment{
 			ID:                d.ID,
-			ShortID:           d.ID[:8], // First 8 chars for short ID
+			ShortID:           shortIdentifier(d.ID),
 			Status:            d.Status,
 			StatusDescription: d.StatusDescription,
 			JobVersion:        d.JobVersion,
 			TaskGroups:        taskGroups,
-			Created:           created,
+			Created:           time.Time{},
 		}
 
 		result = append(result, deployment)
@@ -2039,14 +1912,14 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 // getJobEvaluations fetches evaluations for a specific job from the Nomad API.
 func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspartials.JobEvaluation {
 	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := "default"
+	namespace := GetNamespaceFromRequest(r)
 	jobName := jobID
 	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
 		jobName = jobID[:idx]
 		namespace = jobID[idx+1:]
 	}
 
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty evaluations list")
 		return []jobspartials.JobEvaluation{}
@@ -2136,7 +2009,7 @@ func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspar
 
 		jobEval := jobspartials.JobEvaluation{
 			ID:                   eval.ID,
-			ShortID:              eval.ID[:8], // First 8 chars for short ID
+			ShortID:              shortIdentifier(eval.ID),
 			Status:               eval.Status,
 			StatusDescription:    eval.StatusDescription,
 			TriggeredBy:          eval.TriggeredBy,

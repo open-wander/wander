@@ -67,7 +67,7 @@ var (
 
 	// Displayed when ui is disabled, but overridden if the ui build
 	// tag isn't enabled
-	stubHTML = "<html><p>Nomad UI is disabled</p></html>"
+	stubHTML = "<html><p>Wander UI is disabled</p></html>"
 
 	// allowCORSWithMethods sets permissive CORS headers for a handler, used by
 	// wrapCORS and wrapCORSWithMethods
@@ -512,8 +512,10 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 		uiRouter := uihandlers.NewRouter(htmxHandler)
 
 		// Register the HTMX UI router at /ui/
-		// The router handles all /ui/* routes including /ui/static/
-		s.mux.Handle("/ui/", uiRouter)
+		// The router handles all /ui/* routes including /ui/static/ and the
+		// UI-only action endpoints under /api/.
+		s.mux.Handle("/ui/", s.handleUI(agentConfig.UI.ContentSecurityPolicy, uiRouter))
+		s.mux.Handle("/api/", uiRouter)
 
 		s.logger.Debug("HTMX UI is enabled")
 	} else {

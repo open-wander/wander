@@ -36,7 +36,7 @@ var (
 	// envVarDeprecationWarnings collects deprecation warnings for NOMAD_* env vars
 	// that are used instead of WANDER_* env vars. This is populated during
 	// DefaultConfig() and can be retrieved via GetEnvVarDeprecationWarnings().
-	envVarDeprecationWarnings   []string
+	envVarDeprecationWarnings    []string
 	envVarDeprecationWarningSeen = make(map[string]bool)
 )
 
@@ -557,6 +557,22 @@ func (c *Client) SetRegion(region string) {
 // SetNamespace sets the namespace to forward API requests to.
 func (c *Client) SetNamespace(namespace string) {
 	c.config.Namespace = namespace
+}
+
+// WithNamespaceAndRegion returns a request-scoped copy of the client. The copy
+// reuses the underlying HTTP client and transport but has independent API
+// configuration, so callers can safely select a namespace and region without
+// mutating a client shared by concurrent requests.
+func (c *Client) WithNamespaceAndRegion(namespace, region string) *Client {
+	if c == nil {
+		return nil
+	}
+
+	clone := *c
+	clone.config = c.config
+	clone.config.Namespace = namespace
+	clone.config.Region = region
+	return &clone
 }
 
 // GetNodeClient returns a new Client that will dial the specified node. If the

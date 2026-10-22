@@ -20,7 +20,7 @@ import (
 // - Sets cache headers for better performance in production
 // - Returns 404 for missing files
 type StaticHandler struct {
-	handler *Handler
+	handler    *Handler
 	fileSystem http.FileSystem
 }
 
@@ -36,7 +36,7 @@ func NewStaticHandler(h *Handler) *StaticHandler {
 	}
 
 	return &StaticHandler{
-		handler: h,
+		handler:    h,
 		fileSystem: http.FS(staticSubFS),
 	}
 }

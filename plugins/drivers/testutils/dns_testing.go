@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/libnetwork/resolvconf"
+	"github.com/open-wander/wander/drivers/shared/resolvconf"
 	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/shoenig/test/must"
 )
@@ -32,29 +32,29 @@ func TestTaskDNSConfig(t *testing.T, driver *DriverHarness, taskID string, dns *
 			false, "")
 		must.Zero(t, r.exitCode)
 
-		resolvConf := []byte(strings.TrimSpace(r.stdout))
+		actual := resolvconf.Parse([]byte(strings.TrimSpace(r.stdout)))
 
 		if dns != nil {
 			if len(dns.Servers) > 0 {
-				must.SliceContainsAll(t, dns.Servers, resolvconf.GetNameservers(resolvConf, resolvconf.IP))
+				must.SliceContainsAll(t, dns.Servers, actual.Nameservers)
 			}
 			if len(dns.Searches) > 0 {
-				must.SliceContainsAll(t, dns.Searches, resolvconf.GetSearchDomains(resolvConf))
+				must.SliceContainsAll(t, dns.Searches, actual.Searches)
 			}
 			if len(dns.Options) > 0 {
-				must.SliceContainsAll(t, dns.Options, resolvconf.GetOptions(resolvConf))
+				must.SliceContainsAll(t, dns.Options, actual.Options)
 			}
 		} else {
 			systemPath := "/etc/resolv.conf"
 			if !usesHostNetwork {
-				systemPath = resolvconf.Path()
+				systemPath = resolvconf.SystemPath()
 			}
 
-			system, specificErr := resolvconf.GetSpecific(systemPath)
+			system, specificErr := resolvconf.Read(systemPath)
 			must.NoError(t, specificErr)
-			must.SliceContainsAll(t, resolvconf.GetNameservers(system.Content, resolvconf.IP), resolvconf.GetNameservers(resolvConf, resolvconf.IP))
-			must.SliceContainsAll(t, resolvconf.GetSearchDomains(system.Content), resolvconf.GetSearchDomains(resolvConf))
-			must.SliceContainsAll(t, resolvconf.GetOptions(system.Content), resolvconf.GetOptions(resolvConf))
+			must.SliceContainsAll(t, system.Nameservers, actual.Nameservers)
+			must.SliceContainsAll(t, system.Searches, actual.Searches)
+			must.SliceContainsAll(t, system.Options, actual.Options)
 		}
 	})
 }

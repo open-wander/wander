@@ -89,7 +89,7 @@ func renderForbiddenPage(err ForbiddenError) string {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>403 Forbidden - Wander</title>
-	<script src="https://cdn.tailwindcss.com"></script>
+	<link rel="stylesheet" href="/ui/static/css/output.css">
 </head>
 <body class="bg-gray-50">
 	<div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
@@ -244,7 +244,7 @@ func renderNotFoundPage(err NotFoundError) string {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>404 Not Found - Wander</title>
-	<script src="https://cdn.tailwindcss.com"></script>
+	<link rel="stylesheet" href="/ui/static/css/output.css">
 </head>
 <body class="bg-gray-50">
 	<div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
@@ -333,7 +333,7 @@ func (h *Handler) RenderClusterUnavailable(w http.ResponseWriter, r *http.Reques
 func renderClusterUnavailablePartial(err ClusterUnavailableError) string {
 	message := err.Message
 	if message == "" {
-		message = "The Nomad cluster is currently unavailable"
+		message = "The Wander cluster is currently unavailable"
 	}
 
 	html := `<div class="rounded-lg bg-orange-50 border border-orange-200 p-6">
@@ -379,7 +379,7 @@ func renderClusterUnavailablePartial(err ClusterUnavailableError) string {
 func renderClusterUnavailablePage(err ClusterUnavailableError) string {
 	message := err.Message
 	if message == "" {
-		message = "The Nomad cluster is currently unavailable"
+		message = "The Wander cluster is currently unavailable"
 	}
 
 	html := `<!DOCTYPE html>
@@ -388,7 +388,7 @@ func renderClusterUnavailablePage(err ClusterUnavailableError) string {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Cluster Unavailable - Wander</title>
-	<script src="https://cdn.tailwindcss.com"></script>
+	<link rel="stylesheet" href="/ui/static/css/output.css">
 	<meta http-equiv="refresh" content="10">
 </head>
 <body class="bg-gray-50">

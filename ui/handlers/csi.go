@@ -91,10 +91,7 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters
 	query := r.URL.Query()
-	namespace := query.Get("namespace")
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Check permissions - need csi-list-volume capability
 	perms := GetPermissionsFromRequest(r)
@@ -142,7 +139,7 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get all volumes from Nomad API
-	allVolumes := h.getVolumesList(namespace, token)
+	allVolumes := h.getVolumesList(r, namespace, token)
 
 	// Extract filter options from all volumes (before filtering)
 	filterOptions := h.extractFilterOptions(allVolumes)
@@ -222,7 +219,7 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"CSI Volumes - Wander",
 		"View and manage CSI volumes",
 		"/ui/csi/volumes",
@@ -235,7 +232,7 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 
 	// Render the volumes list page
 	err := Render(w, r,
-		csi.VolumesList(layoutProps, props),                // Full page with layout
+		csi.VolumesList(layoutProps, props),   // Full page with layout
 		csipartials.VolumesListContent(props), // Partial content for HTMX requests
 	)
 
@@ -356,8 +353,8 @@ func (h *CSIHandler) sortVolumes(volumes []VolumeSummary, column, dir string) {
 
 // getVolumesList fetches CSI volumes from the Nomad API.
 // Falls back to empty list if API is unavailable.
-func (h *CSIHandler) getVolumesList(namespace, token string) []VolumeSummary {
-	client := h.handler.NomadClient()
+func (h *CSIHandler) getVolumesList(r *http.Request, namespace, token string) []VolumeSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty volumes list")
 		return []VolumeSummary{}
@@ -391,15 +388,6 @@ func (h *CSIHandler) getVolumesList(namespace, token string) []VolumeSummary {
 		// Calculate total allocations (readers + writers)
 		totalAllocs := vol.CurrentReaders + vol.CurrentWriters
 
-		// Convert CreateIndex to a timestamp (approximate - uses current time as base)
-		// Note: Nomad doesn't expose actual creation time, so we use ModifyIndex as proxy
-		created := time.Now()
-		if vol.CreateIndex > 0 {
-			// Rough approximation: subtract some time based on index difference
-			// This is not accurate but gives relative ordering
-			created = created.Add(-time.Duration(vol.ModifyIndex-vol.CreateIndex) * time.Minute)
-		}
-
 		result = append(result, VolumeSummary{
 			ID:          vol.ID,
 			Name:        vol.Name,
@@ -409,7 +397,7 @@ func (h *CSIHandler) getVolumesList(namespace, token string) []VolumeSummary {
 			AccessMode:  string(vol.AccessMode),
 			AttachMode:  string(vol.AttachmentMode),
 			Allocations: totalAllocs,
-			Created:     created,
+			Created:     time.Time{},
 		})
 	}
 
@@ -463,12 +451,8 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 		"volumeID", volumeID,
 		"htmx", IsHTMXFromRequest(r))
 
-	// Parse query parameters
-	query := r.URL.Query()
-	namespace := query.Get("namespace")
-	if namespace == "" {
-		namespace = "default"
-	}
+	// Resolve the namespace from request-scoped selection.
+	namespace := GetNamespaceFromRequest(r)
 
 	// Check permissions - need csi-read-volume capability
 	perms := GetPermissionsFromRequest(r)
@@ -489,7 +473,7 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 	token := GetTokenFromRequest(r)
 
 	// Get volume details
-	volume := h.getVolumeDetail(volumeID, namespace, token)
+	volume := h.getVolumeDetail(r, volumeID, namespace, token)
 	if volume == nil {
 		http.NotFound(w, r)
 		return
@@ -536,7 +520,7 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		volumeDetail.Name+" - CSI Volume - Wander",
 		"CSI Volume detail for "+volumeDetail.Name,
 		"/ui/csi/volumes/"+volumeID,
@@ -550,7 +534,7 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 
 	// Render the volume detail page
 	err := Render(w, r,
-		csi.VolumeDetail(layoutProps, volumeDetail),                // Full page with layout
+		csi.VolumeDetail(layoutProps, volumeDetail),   // Full page with layout
 		csipartials.VolumeDetailContent(volumeDetail), // Partial content for HTMX requests
 	)
 
@@ -563,8 +547,8 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 
 // getVolumeDetail fetches CSI volume details from the Nomad API.
 // Returns nil if volume not found or API is unavailable.
-func (h *CSIHandler) getVolumeDetail(volumeID, namespace, token string) *VolumeDetail {
-	client := h.handler.NomadClient()
+func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token string) *VolumeDetail {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, cannot fetch volume detail")
 		return nil
@@ -596,13 +580,7 @@ func (h *CSIHandler) getVolumeDetail(volumeID, namespace, token string) *VolumeD
 		return nil
 	}
 
-	// Convert timestamps - use CreateIndex as approximate creation time
-	created := time.Now()
-	if vol.CreateIndex > 0 {
-		// Rough approximation: subtract some time based on index difference
-		// This is not accurate but gives relative ordering
-		created = created.Add(-time.Duration(vol.ModifyIndex-vol.CreateIndex) * time.Minute)
-	}
+	created := time.Time{}
 
 	// Format mount options
 	mountOptions := ""
@@ -730,7 +708,7 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get all plugins from Nomad API
-	allPlugins := h.getPluginsList(token)
+	allPlugins := h.getPluginsList(r, token)
 
 	// Apply search filter
 	filteredPlugins := h.filterPlugins(allPlugins, searchQuery)
@@ -771,7 +749,7 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"CSI Plugins - Wander",
 		"View CSI storage plugins",
 		"/ui/csi/plugins",
@@ -784,7 +762,7 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 
 	// Render the plugins list page
 	err := Render(w, r,
-		csi.PluginsList(layoutProps, props),                // Full page with layout
+		csi.PluginsList(layoutProps, props),   // Full page with layout
 		csipartials.PluginsListContent(props), // Partial content for HTMX requests
 	)
 
@@ -842,8 +820,8 @@ func (h *CSIHandler) sortPlugins(plugins []PluginSummary, column, dir string) {
 // getPluginsList fetches CSI plugins from the Nomad API.
 // Falls back to empty list if API is unavailable.
 // Note: CSI plugins are cluster-wide resources, not namespaced.
-func (h *CSIHandler) getPluginsList(token string) []PluginSummary {
-	client := h.handler.NomadClient()
+func (h *CSIHandler) getPluginsList(r *http.Request, token string) []PluginSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty plugins list")
 		return []PluginSummary{}

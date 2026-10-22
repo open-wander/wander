@@ -67,7 +67,7 @@ templ DetailContent(eval EvaluationDetail) {
 		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
 		if !isEvaluationTerminal(eval.Status) {
 			hx-get={ "/ui/evaluations/" + eval.ID }
-			hx-trigger="every 3s [document.visibilityState === 'visible']"
+			hx-trigger="every 3s"
 			hx-swap="outerHTML"
 		}
 	>
@@ -154,7 +154,7 @@ templ DetailContent(eval EvaluationDetail) {
 							href={ templ.SafeURL("/ui/clients/" + eval.NodeID) }
 							class="text-primary-600 hover:text-primary-700 font-mono text-sm"
 						>
-							{ eval.NodeID[:8] }
+							{ evaluationShortID(eval.NodeID) }
 						</a>
 					</div>
 				}
@@ -163,7 +163,7 @@ templ DetailContent(eval EvaluationDetail) {
 				if eval.DeploymentID != "" {
 					<div>
 						<label class="block text-sm font-medium text-neutral-500 mb-1">Deployment</label>
-						<span class="font-mono text-sm text-neutral-900">{ eval.DeploymentID[:8] }</span>
+						<span class="font-mono text-sm text-neutral-900">{ evaluationShortID(eval.DeploymentID) }</span>
 					</div>
 				}
 			</div>
@@ -181,7 +181,7 @@ templ DetailContent(eval EvaluationDetail) {
 								href={ templ.SafeURL("/ui/evaluations/" + eval.PreviousEval) }
 								class="text-primary-600 hover:text-primary-700 font-mono text-sm"
 							>
-								{ eval.PreviousEval[:8] }
+								{ evaluationShortID(eval.PreviousEval) }
 							</a>
 						</div>
 					}
@@ -192,7 +192,7 @@ templ DetailContent(eval EvaluationDetail) {
 								href={ templ.SafeURL("/ui/evaluations/" + eval.NextEval) }
 								class="text-primary-600 hover:text-primary-700 font-mono text-sm"
 							>
-								{ eval.NextEval[:8] }
+								{ evaluationShortID(eval.NextEval) }
 							</a>
 						</div>
 					}
@@ -203,7 +203,7 @@ templ DetailContent(eval EvaluationDetail) {
 								href={ templ.SafeURL("/ui/evaluations/" + eval.BlockedEval) }
 								class="text-primary-600 hover:text-primary-700 font-mono text-sm"
 							>
-								{ eval.BlockedEval[:8] }
+								{ evaluationShortID(eval.BlockedEval) }
 							</a>
 						</div>
 					}
@@ -357,4 +357,11 @@ func statusVariant(status string) string {
 	default:
 		return "neutral"
 	}
+}
+
+func evaluationShortID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
 }

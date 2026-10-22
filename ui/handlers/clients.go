@@ -94,7 +94,7 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 			Capability: "node:read",
 			Suggestions: []string{
 				"Contact your administrator to request the 'node:read' capability",
-				"This capability allows viewing Nomad client node information",
+				"This capability allows viewing Wander client node information",
 			},
 		})
 		return
@@ -112,7 +112,7 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get client data from Nomad API
-	allClients := h.getClientsList(token)
+	allClients := h.getClientsList(r, token)
 
 	// Extract filter options from all clients (before filtering)
 	filterOptions := h.extractFilterOptions(allClients)
@@ -121,9 +121,9 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 	filteredClients := h.applyFilters(allClients, filters)
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Clients - Wander",
-		"View and manage Nomad client nodes",
+		"View and manage Wander client nodes",
 		"/ui/clients",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -133,7 +133,7 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render the clients list page
 	err := Render(w, r,
-		clients.List(layoutProps, filteredClients, filters, filterOptions),      // Full page with layout
+		clients.List(layoutProps, filteredClients, filters, filterOptions),   // Full page with layout
 		clientspartials.ListContent(filteredClients, filters, filterOptions), // Partial content for HTMX requests
 	)
 
@@ -231,7 +231,7 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			Capability: "node:read",
 			Suggestions: []string{
 				"Contact your administrator to request the 'node:read' capability",
-				"This capability allows viewing Nomad client node information",
+				"This capability allows viewing Wander client node information",
 			},
 		})
 		return
@@ -241,14 +241,14 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get client detail data from Nomad API
-	clientDetail, found := h.getClientDetail(clientID, token)
+	clientDetail, found := h.getClientDetail(r, clientID, token)
 	if !found {
 		http.NotFound(w, r)
 		return
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		clientDetail.Name+" - Client Detail - Wander",
 		"Client detail for "+clientDetail.Name,
 		"/ui/clients/"+clientID,
@@ -261,7 +261,7 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		clients.Detail(layoutProps, clientDetail),                // Full page with layout
+		clients.Detail(layoutProps, clientDetail),   // Full page with layout
 		clientspartials.DetailContent(clientDetail), // Partial content for HTMX requests
 	)
 
@@ -295,6 +295,15 @@ func (h *ClientsHandler) Drain(w http.ResponseWriter, r *http.Request) {
 
 	deadline := r.FormValue("deadline")
 	ignoreSystem := r.FormValue("ignore_system") == "true"
+	drainDuration := time.Hour
+	if deadline != "" {
+		var err error
+		drainDuration, err = time.ParseDuration(deadline)
+		if err != nil || drainDuration <= 0 {
+			http.Error(w, "deadline must be a positive duration such as 1h or 30m", http.StatusBadRequest)
+			return
+		}
+	}
 
 	// Log the drain request
 	h.handler.logger.Info("drain node request",
@@ -303,12 +312,15 @@ func (h *ClientsHandler) Drain(w http.ResponseWriter, r *http.Request) {
 		"ignoreSystem", ignoreSystem,
 	)
 
-	// TODO: Implement actual Nomad API call to drain node
-	// For now, just log and return success
+	drainSpec := &api.DrainSpec{
+		Deadline:         drainDuration,
+		IgnoreSystemJobs: ignoreSystem,
+	}
+	if !h.updateNodeDrain(w, r, clientID, drainSpec, false, "start") {
+		return
+	}
 
-	// Return HX-Redirect header to refresh the page
-	w.Header().Set("HX-Redirect", "/ui/clients/"+clientID)
-	w.WriteHeader(http.StatusOK)
+	redirectToClient(w, clientID)
 }
 
 // CancelDrain handles the cancel drain request
@@ -328,30 +340,45 @@ func (h *ClientsHandler) CancelDrain(w http.ResponseWriter, r *http.Request) {
 	// Log the cancel drain request
 	h.handler.logger.Info("cancel drain request", "clientID", clientID)
 
-	// TODO: Implement actual Nomad API call to cancel drain
-	// For now, just log and return success
+	if !h.updateNodeDrain(w, r, clientID, nil, true, "cancel") {
+		return
+	}
 
-	// Return HX-Redirect header to refresh the page
+	redirectToClient(w, clientID)
+}
+
+func redirectToClient(w http.ResponseWriter, clientID string) {
 	w.Header().Set("HX-Redirect", "/ui/clients/"+clientID)
 	w.WriteHeader(http.StatusOK)
 }
 
+func (h *ClientsHandler) updateNodeDrain(w http.ResponseWriter, r *http.Request, clientID string, spec *api.DrainSpec, markEligible bool, action string) bool {
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		http.Error(w, "Wander API client is unavailable", http.StatusServiceUnavailable)
+		return false
+	}
+
+	writeOpts := &api.WriteOptions{AuthToken: GetTokenFromRequest(r)}
+	if _, err := client.Nodes().UpdateDrain(clientID, spec, markEligible, writeOpts); err != nil {
+		h.handler.logger.Error("failed to update node drain", "action", action, "clientID", clientID, "error", err)
+		http.Error(w, "Failed to "+action+" node drain", http.StatusBadGateway)
+		return false
+	}
+	return true
+}
+
 // getClientsList fetches client nodes from the Nomad API.
 // Falls back to empty list if API is unavailable.
-func (h *ClientsHandler) getClientsList(token string) []clientspartials.ClientSummary {
-	client := h.handler.NomadClient()
+func (h *ClientsHandler) getClientsList(r *http.Request, token string) []clientspartials.ClientSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty client list")
 		return []clientspartials.ClientSummary{}
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
-
-	// Set ACL token if available
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
+	queryOpts := resourceQueryOptions(token)
 
 	// Log the request for debugging
 	h.handler.logger.Debug("fetching nodes from API", "hasToken", token != "")
@@ -362,6 +389,11 @@ func (h *ClientsHandler) getClientsList(token string) []clientspartials.ClientSu
 		h.handler.logger.Error("failed to fetch nodes from Nomad API", "error", err)
 		return []clientspartials.ClientSummary{}
 	}
+	allocations, _, allocationsErr := client.Allocations().List(queryOpts)
+	if allocationsErr != nil {
+		h.handler.logger.Warn("failed to fetch allocation resources for clients", "error", allocationsErr)
+	}
+	allocationsByNode := summarizeNodeAllocations(allocations)
 
 	// Convert API response to our summary type
 	result := make([]clientspartials.ClientSummary, 0, len(nodes))
@@ -380,48 +412,25 @@ func (h *ClientsHandler) getClientsList(token string) []clientspartials.ClientSu
 			status = "draining"
 		}
 
-		// Get resource info
-		var cpuTotal, memTotal, diskTotal int64
-		if node.NodeResources != nil {
-			if node.NodeResources.Cpu.CpuShares > 0 {
-				cpuTotal = node.NodeResources.Cpu.CpuShares
-			}
-			if node.NodeResources.Memory.MemoryMB > 0 {
-				memTotal = node.NodeResources.Memory.MemoryMB * 1024 * 1024
-			}
-			if node.NodeResources.Disk.DiskMB > 0 {
-				diskTotal = node.NodeResources.Disk.DiskMB * 1024 * 1024
-			}
-		}
-
-		// Get reserved/used resources
-		var cpuUsed, memUsed, diskUsed int64
-		if node.ReservedResources != nil {
-			if node.ReservedResources.Cpu.CpuShares > 0 {
-				cpuUsed = int64(node.ReservedResources.Cpu.CpuShares)
-			}
-			if node.ReservedResources.Memory.MemoryMB > 0 {
-				memUsed = int64(node.ReservedResources.Memory.MemoryMB) * 1024 * 1024
-			}
-			if node.ReservedResources.Disk.DiskMB > 0 {
-				diskUsed = int64(node.ReservedResources.Disk.DiskMB) * 1024 * 1024
-			}
-		}
+		cpuTotal, memTotal, diskTotal, capacityAvailable := nodeCapacity(node)
+		allocated := allocationsByNode[node.ID]
 
 		result = append(result, clientspartials.ClientSummary{
-			ID:          node.ID,
-			Name:        node.Name,
-			Address:     node.Address,
-			Status:      status,
-			Datacenter:  node.Datacenter,
-			NodeClass:   node.NodeClass,
-			Allocations: 0, // Would need separate API call to get allocation count
-			CPUUsed:     int(cpuUsed),
-			CPUTotal:    int(cpuTotal),
-			MemUsed:     memUsed,
-			MemTotal:    memTotal,
-			DiskUsed:    diskUsed,
-			DiskTotal:   diskTotal,
+			ID:                   node.ID,
+			Name:                 node.Name,
+			Address:              node.Address,
+			Status:               status,
+			Datacenter:           node.Datacenter,
+			NodeClass:            node.NodeClass,
+			Allocations:          allocated.Count,
+			CPUUsed:              int(allocated.CPU),
+			CPUTotal:             int(cpuTotal),
+			MemUsed:              allocated.MemoryBytes,
+			MemTotal:             memTotal,
+			DiskUsed:             allocated.DiskBytes,
+			DiskTotal:            diskTotal,
+			ResourcesAvailable:   capacityAvailable && allocationsErr == nil,
+			AllocationsAvailable: allocationsErr == nil,
 		})
 	}
 
@@ -430,8 +439,8 @@ func (h *ClientsHandler) getClientsList(token string) []clientspartials.ClientSu
 
 // getClientDetail fetches client node detail from the Nomad API.
 // Returns the client detail and a boolean indicating if the node was found.
-func (h *ClientsHandler) getClientDetail(clientID string, token string) (clientspartials.ClientDetail, bool) {
-	client := h.handler.NomadClient()
+func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token string) (clientspartials.ClientDetail, bool) {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty client detail")
 		return clientspartials.ClientDetail{ID: clientID}, false
@@ -484,16 +493,15 @@ func (h *ClientsHandler) getClientDetail(clientID string, token string) (clients
 	var cpuTotal, memTotal, diskTotal int64
 	if node.NodeResources != nil {
 		cpuTotal = node.NodeResources.Cpu.CpuShares
-		memTotal = node.NodeResources.Memory.MemoryMB * 1024 * 1024
-		diskTotal = node.NodeResources.Disk.DiskMB * 1024 * 1024
-	}
-
-	// Get reserved/used resources
-	var cpuUsed, memUsed, diskUsed int64
-	if node.ReservedResources != nil {
-		cpuUsed = int64(node.ReservedResources.Cpu.CpuShares)
-		memUsed = int64(node.ReservedResources.Memory.MemoryMB) * 1024 * 1024
-		diskUsed = int64(node.ReservedResources.Disk.DiskMB) * 1024 * 1024
+		memoryMB := node.NodeResources.Memory.MemoryMB
+		diskMB := node.NodeResources.Disk.DiskMB
+		if node.ReservedResources != nil {
+			cpuTotal = subtractReserved(cpuTotal, node.ReservedResources.Cpu.CpuShares)
+			memoryMB = subtractReserved(memoryMB, node.ReservedResources.Memory.MemoryMB)
+			diskMB = subtractReserved(diskMB, node.ReservedResources.Disk.DiskMB)
+		}
+		memTotal = memoryMB * bytesPerMegabyte
+		diskTotal = diskMB * bytesPerMegabyte
 	}
 
 	// Convert drivers
@@ -528,35 +536,25 @@ func (h *ClientsHandler) getClientDetail(clientID string, token string) (clients
 	}
 
 	// Fetch allocations for this node
-	allocations := h.getNodeAllocations(clientID, token)
+	allocations := h.getNodeAllocations(r, clientID, token)
+	var cpuUsed int
+	var memUsed, diskUsed int64
+	for _, allocation := range allocations {
+		if !isActiveAllocation(allocation.Status) {
+			continue
+		}
+		cpuUsed += allocation.CPUUsed
+		memUsed += allocation.MemUsed
+		diskUsed += allocation.DiskUsed
+	}
 
 	// Fetch real-time stats from the node
-	stats := h.getNodeStats(clientID, token)
+	stats := h.getNodeStats(r, clientID, token)
 
-	// Generate mock resource history (TODO: implement real metrics from Nomad)
-	now := time.Now()
-	cpuHistory := make([]clientspartials.ResourceDataPoint, 0, 48)
-	memoryHistory := make([]clientspartials.ResourceDataPoint, 0, 48)
-	for i := 47; i >= 0; i-- {
-		t := now.Add(-time.Duration(i) * 30 * time.Minute)
-		// Mock data - in the future, this would come from metrics API
-		cpuValue := 25.0 + 15.0*float64((i+7)%10)/10.0 + 5.0*float64(i%5)
-		if cpuValue > 50 {
-			cpuValue = 50
-		}
-		cpuHistory = append(cpuHistory, clientspartials.ResourceDataPoint{
-			Time:  t,
-			Value: cpuValue,
-		})
-		memValue := 45.0 + 10.0*float64((i+3)%8)/8.0 + 5.0*float64(i%4)
-		if memValue > 60 {
-			memValue = 60
-		}
-		memoryHistory = append(memoryHistory, clientspartials.ResourceDataPoint{
-			Time:  t,
-			Value: memValue,
-		})
-	}
+	// The node stats endpoint provides a current sample, not historical data.
+	// Leave history empty rather than presenting fabricated measurements.
+	cpuHistory := []clientspartials.ResourceDataPoint{}
+	memoryHistory := []clientspartials.ResourceDataPoint{}
 
 	return clientspartials.ClientDetail{
 		ID:         node.ID,
@@ -571,7 +569,7 @@ func (h *ClientsHandler) getClientDetail(clientID string, token string) (clients
 		Draining:   draining,
 		Eligible:   eligible,
 		Resources: clientspartials.ClientResources{
-			CPUUsed:   int(cpuUsed),
+			CPUUsed:   cpuUsed,
 			CPUTotal:  int(cpuTotal),
 			MemUsed:   memUsed,
 			MemTotal:  memTotal,
@@ -590,8 +588,8 @@ func (h *ClientsHandler) getClientDetail(clientID string, token string) (clients
 }
 
 // getNodeAllocations fetches all allocations running on a specific node.
-func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clientspartials.AllocationSummary {
-	client := h.handler.NomadClient()
+func (h *ClientsHandler) getNodeAllocations(r *http.Request, nodeID string, token string) []clientspartials.AllocationSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty allocations list")
 		return []clientspartials.AllocationSummary{}
@@ -615,7 +613,7 @@ func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clien
 	for _, alloc := range allocs {
 		// Get resource info from allocation - sum across all tasks
 		cpuUsed := 0
-		var memUsed int64
+		var memUsed, diskUsed int64
 		if alloc.AllocatedResources != nil && alloc.AllocatedResources.Tasks != nil {
 			for _, taskRes := range alloc.AllocatedResources.Tasks {
 				if taskRes != nil {
@@ -623,6 +621,9 @@ func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clien
 					memUsed += int64(taskRes.Memory.MemoryMB) * 1024 * 1024
 				}
 			}
+		}
+		if alloc.AllocatedResources != nil {
+			diskUsed = alloc.AllocatedResources.Shared.DiskMB * bytesPerMegabyte
 		}
 
 		result = append(result, clientspartials.AllocationSummary{
@@ -632,6 +633,7 @@ func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clien
 			Status:    alloc.ClientStatus,
 			CPUUsed:   cpuUsed,
 			MemUsed:   memUsed,
+			DiskUsed:  diskUsed,
 		})
 	}
 
@@ -640,8 +642,8 @@ func (h *ClientsHandler) getNodeAllocations(nodeID string, token string) []clien
 
 // getNodeStats fetches real-time resource stats for a specific node.
 // Returns nil if stats are unavailable (e.g., node is down or unreachable).
-func (h *ClientsHandler) getNodeStats(nodeID string, token string) *clientspartials.ClientStats {
-	client := h.handler.NomadClient()
+func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token string) *clientspartials.ClientStats {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, cannot fetch node stats")
 		return nil

@@ -1,11 +1,11 @@
-# UI-HTMX
+# Wander UI
 
 Modern UI implementation for Wander using HTMX, Templ, and Tailwind CSS.
 
 ## Directory Structure
 
 ```
-ui-htmx/
+ui/
 ├── handlers/           # HTTP handlers for each route
 │                      # Each handler responds with full pages or HTMX partials
 │
@@ -42,8 +42,8 @@ The following files are auto-generated and should not be committed:
 
 ## Prerequisites
 
-- Go 1.25.5+
-- Templ CLI: `go install github.com/a-h/templ/cmd/templ@latest`
+- Go 1.27.2
+- Templ CLI: `go install github.com/a-h/templ/cmd/templ@v0.3.977`
 - Air (for hot-reload): `go install github.com/air-verse/air@latest`
 - Node.js 18+ (for Tailwind CSS plugins)
 
@@ -51,17 +51,17 @@ The following files are auto-generated and should not be committed:
 
 ### First Time Setup
 
-You can run setup from the project root or from the ui-htmx directory.
+You can run setup from the project root or from the `ui` directory.
 
 **From project root:**
 ```bash
 make ui-setup
 ```
 
-**From ui-htmx directory:**
+**From the `ui` directory:**
 1. **Install Tailwind CSS CLI**:
    ```bash
-   cd ui-htmx
+   cd ui
    make install-tailwind
    ```
    This downloads the standalone Tailwind CLI binary to `./bin/tailwindcss`.
@@ -97,7 +97,7 @@ make ui-dev
 make ui-css-watch
 ```
 
-**From ui-htmx directory:**
+**From the `ui` directory:**
 ```bash
 # Terminal 1: Run development server with hot-reload
 air
@@ -126,10 +126,10 @@ make ui-watch
 make ui-css-watch
 
 # Terminal 3: Run the Go server manually
-cd ui-htmx && go run cmd/dev/main.go
+cd ui && go run cmd/dev/main.go
 ```
 
-**From ui-htmx directory:**
+**From the `ui` directory:**
 ```bash
 # Terminal 1: Watch and rebuild Templ templates
 templ generate --watch
@@ -170,7 +170,7 @@ make ui-css-watch
 make ui-setup
 ```
 
-**From ui-htmx directory:**
+**From the `ui` directory:**
 ```bash
 # Development build (not minified)
 make build-css-dev
@@ -202,9 +202,9 @@ make ui-watch          # Watch and regenerate Templ templates
 make ui-fmt            # Format Templ template files
 ```
 
-**ui-htmx/Makefile targets (run from ui-htmx directory):**
+**ui/Makefile targets (run from the `ui` directory):**
 
-Run `make help` from ui-htmx directory to see all available targets:
+Run `make help` from the `ui` directory to see all available targets:
 ```
 make help              # Show help
 make install-tailwind  # Install Tailwind CSS CLI
@@ -223,7 +223,7 @@ The `.air.toml` file configures air for hot-reload development:
 
 - **Watched files**: `.go` and `.templ` files (excluding test files)
 - **Build command**: Runs `templ generate` then builds the dev server
-- **Binary location**: `./tmp/ui-htmx-dev`
+- **Binary location**: `./tmp/wander-ui-dev`
 - **Restart delay**: 1 second after file changes
 - **Build logs**: Saved to `build-errors.log`
 
@@ -240,7 +240,7 @@ This provides a smooth development experience without manual rebuilds.
 The development server (`cmd/dev/main.go`) is a lightweight HTTP server that:
 
 - Serves the UI at `http://localhost:3000/ui/`
-- Uses the handlers and router from `ui-htmx/handlers/`
+- Uses the handlers and router from `ui/handlers/`
 - Supports command-line flags:
   - `-port`: Server port (default: 3000)
   - `-log-level`: Logging level (default: info)
@@ -258,4 +258,6 @@ go run cmd/dev/main.go -port 8080 -log-level debug
 - **Alpine.js**: Minimal JavaScript for interactive components
 - **CodeMirror**: Code editor for HCL/JSON editing
 
-This replaces the legacy Ember.js UI while maintaining all functionality.
+This is the in-progress replacement for the legacy Ember.js UI. Current
+coverage and remaining work are tracked in
+[`docs/plans/ui-feature-status.md`](../docs/plans/ui-feature-status.md).

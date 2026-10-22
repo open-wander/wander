@@ -55,8 +55,8 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Log the request
 	h.handler.logger.Debug("servers list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
-	// Get mock server data
-	serversList := h.getServersList()
+	// Get live server data.
+	serversList := h.getServersList(r)
 
 	// Parse sort parameters from query string
 	sortColumn := r.URL.Query().Get("sort")
@@ -69,9 +69,9 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Servers - Wander",
-		"View Nomad server nodes",
+		"View Wander server nodes",
 		"/ui/servers",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -81,7 +81,7 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render the servers list page
 	err := Render(w, r,
-		servers.List(layoutProps, serversList, sortColumn, sortDir),                // Full page with layout
+		servers.List(layoutProps, serversList, sortColumn, sortDir),   // Full page with layout
 		serverspartials.ListContent(serversList, sortColumn, sortDir), // Partial content for HTMX requests
 	)
 
@@ -93,8 +93,8 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getServersList fetches server members from the Nomad API.
-func (h *ServersHandler) getServersList() []serverspartials.ServerSummary {
-	client := h.handler.NomadClient()
+func (h *ServersHandler) getServersList(r *http.Request) []serverspartials.ServerSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty server list")
 		return []serverspartials.ServerSummary{}
@@ -171,14 +171,14 @@ func (h *ServersHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Debug("server detail request", "serverName", serverName, "htmx", IsHTMXFromRequest(r))
 
 	// Get server detail data from Nomad API
-	serverDetail, found := h.getServerDetail(serverName)
+	serverDetail, found := h.getServerDetail(r, serverName)
 	if !found {
 		http.NotFound(w, r)
 		return
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		serverDetail.Name+" - Server Detail - Wander",
 		"Server detail for "+serverDetail.Name,
 		"/ui/servers/"+serverName,
@@ -191,7 +191,7 @@ func (h *ServersHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		servers.Detail(layoutProps, serverDetail),                // Full page with layout
+		servers.Detail(layoutProps, serverDetail),   // Full page with layout
 		serverspartials.DetailContent(serverDetail), // Partial content for HTMX requests
 	)
 
@@ -204,8 +204,8 @@ func (h *ServersHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // getServerDetail fetches detailed information for a specific server by name.
 // It uses both Members() to get the server info and Self() if it's the connected server.
-func (h *ServersHandler) getServerDetail(serverName string) (serverspartials.ServerDetail, bool) {
-	client := h.handler.NomadClient()
+func (h *ServersHandler) getServerDetail(r *http.Request, serverName string) (serverspartials.ServerDetail, bool) {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty server detail")
 		return serverspartials.ServerDetail{}, false

@@ -162,7 +162,9 @@ func waitForServer(url string, timeout time.Duration) error {
 	}
 
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(url + "/ui/")
+		// A static asset verifies the UI server without requiring a running
+		// Wander cluster behind its API client.
+		resp, err := client.Get(url + "/ui/static/css/output.css")
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode < 500 {

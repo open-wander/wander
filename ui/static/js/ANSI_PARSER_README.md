@@ -28,6 +28,7 @@ const html = parser.parse("\x1b[31mError:\x1b[0m Something went wrong");
 
 **API:**
 - `parse(text)` - Parse ANSI codes and return HTML
+- `parseSegments(text)` - Parse ANSI codes into CSP-safe text/class segments
 - `AnsiParser.strip(text)` - Static method to strip all ANSI codes from text
 
 ### 2. ANSI CSS Classes (`input.css`)

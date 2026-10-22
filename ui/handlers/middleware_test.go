@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -226,6 +228,103 @@ func TestGetHTMXInfo(t *testing.T) {
 	wrapped.ServeHTTP(w, req)
 }
 
+func TestSelectionMiddlewarePrecedence(t *testing.T) {
+	tests := []struct {
+		name              string
+		target            string
+		namespaceCookie   string
+		regionCookie      string
+		expectedNamespace string
+		expectedRegion    string
+	}{
+		{
+			name:              "defaults",
+			target:            "/ui/jobs",
+			expectedNamespace: defaultNamespace,
+			expectedRegion:    defaultRegion,
+		},
+		{
+			name:              "browser cookies",
+			target:            "/ui/jobs",
+			namespaceCookie:   "team-cookie",
+			regionCookie:      "region-cookie",
+			expectedNamespace: "team-cookie",
+			expectedRegion:    "region-cookie",
+		},
+		{
+			name:              "URL overrides cookies",
+			target:            "/ui/jobs?namespace=team-url&region=region-url",
+			namespaceCookie:   "team-cookie",
+			regionCookie:      "region-cookie",
+			expectedNamespace: "team-url",
+			expectedRegion:    "region-url",
+		},
+		{
+			name:              "invalid values use defaults",
+			target:            "/ui/jobs?namespace=bad%2Fvalue&region=bad%20value",
+			namespaceCookie:   "also/bad",
+			regionCookie:      "also bad",
+			expectedNamespace: defaultNamespace,
+			expectedRegion:    defaultRegion,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, test.target, nil)
+			if test.namespaceCookie != "" {
+				request.AddCookie(&http.Cookie{Name: WanderNamespaceCookie, Value: test.namespaceCookie})
+			}
+			if test.regionCookie != "" {
+				request.AddCookie(&http.Cookie{Name: WanderRegionCookie, Value: test.regionCookie})
+			}
+
+			wrapped := SelectionMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				if got := GetNamespaceFromRequest(r); got != test.expectedNamespace {
+					t.Errorf("namespace = %q, want %q", got, test.expectedNamespace)
+				}
+				if got := GetRegionFromRequest(r); got != test.expectedRegion {
+					t.Errorf("region = %q, want %q", got, test.expectedRegion)
+				}
+			}))
+			wrapped.ServeHTTP(httptest.NewRecorder(), request)
+		})
+	}
+}
+
+func TestSelectionMiddlewareIsolatesConcurrentBrowsers(t *testing.T) {
+	const browsers = 32
+	results := make(chan string, browsers)
+	wrapped := SelectionMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		results <- GetNamespaceFromRequest(r) + "/" + GetRegionFromRequest(r)
+	}))
+
+	var wait sync.WaitGroup
+	for i := 0; i < browsers; i++ {
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			request := httptest.NewRequest(http.MethodGet, "/ui/jobs", nil)
+			request.AddCookie(&http.Cookie{Name: WanderNamespaceCookie, Value: fmt.Sprintf("team-%d", index)})
+			request.AddCookie(&http.Cookie{Name: WanderRegionCookie, Value: fmt.Sprintf("region-%d", index)})
+			wrapped.ServeHTTP(httptest.NewRecorder(), request)
+		}(i)
+	}
+	wait.Wait()
+	close(results)
+
+	seen := make(map[string]bool, browsers)
+	for result := range results {
+		seen[result] = true
+	}
+	for i := 0; i < browsers; i++ {
+		expected := fmt.Sprintf("team-%d/region-%d", i, i)
+		if !seen[expected] {
+			t.Errorf("missing isolated selection %q", expected)
+		}
+	}
+}
+
 // TestACLMiddleware_ExtractTokenFromHeader verifies that the ACL middleware
 // correctly extracts tokens from the X-Nomad-Token header.
 func TestACLMiddleware_ExtractTokenFromHeader(t *testing.T) {
@@ -288,7 +387,7 @@ func TestACLMiddleware_ExtractTokenFromHeader(t *testing.T) {
 }
 
 // TestACLMiddleware_ExtractTokenFromCookie verifies that the ACL middleware
-// correctly extracts tokens from the nomad_token cookie.
+// correctly extracts tokens from the wander_token cookie.
 func TestACLMiddleware_ExtractTokenFromCookie(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -333,12 +432,7 @@ func TestACLMiddleware_ExtractTokenFromCookie(t *testing.T) {
 
 			// Create test request
 			req := httptest.NewRequest("GET", "/test", nil)
-			if tt.cookieValue != "" {
-				req.AddCookie(&http.Cookie{
-					Name:  NomadTokenCookie,
-					Value: tt.cookieValue,
-				})
-			}
+			addWanderTokenCookie(req, tt.cookieValue)
 			w := httptest.NewRecorder()
 
 			// Execute request
@@ -372,7 +466,7 @@ func TestACLMiddleware_HeaderPrecedence(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set(XNomadToken, "header-token")
 	req.AddCookie(&http.Cookie{
-		Name:  NomadTokenCookie,
+		Name:  WanderTokenCookie,
 		Value: "cookie-token",
 	})
 	w := httptest.NewRecorder()
@@ -421,17 +515,18 @@ func TestGetTokenFromRequest(t *testing.T) {
 			if tt.headerValue != "" {
 				req.Header.Set(XNomadToken, tt.headerValue)
 			}
-			if tt.cookieValue != "" {
-				req.AddCookie(&http.Cookie{
-					Name:  NomadTokenCookie,
-					Value: tt.cookieValue,
-				})
-			}
+			addWanderTokenCookie(req, tt.cookieValue)
 
 			token := GetTokenFromRequest(req)
 			if token != tt.expectedToken {
 				t.Errorf("expected token %q, got %q", tt.expectedToken, token)
 			}
 		})
+	}
+}
+
+func addWanderTokenCookie(req *http.Request, value string) {
+	if value != "" {
+		req.AddCookie(&http.Cookie{Name: WanderTokenCookie, Value: value})
 	}
 }

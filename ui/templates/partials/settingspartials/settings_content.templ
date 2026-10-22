@@ -7,7 +7,7 @@ templ SettingsContent(tokenInfo TokenInfo) {
 		<div class="mb-8">
 			<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Settings</h1>
 			<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-				Configure authorization and access control for Nomad
+				Configure authorization and access control for Wander
 			</p>
 		</div>
 
@@ -23,26 +23,6 @@ templ SettingsContent(tokenInfo TokenInfo) {
 			</div>
 			<div class="px-6 py-6">
 				@TokenFormContent(tokenInfo)
-			</div>
-		</div>
-
-		<!-- Region Section (placeholder for future) -->
-		<div class="mt-6 bg-white dark:bg-neutral-800 shadow rounded-lg">
-			<div class="px-6 py-5 border-b border-neutral-200 dark:border-neutral-700">
-				<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-					Region
-				</h2>
-				<p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-					Current region configuration
-				</p>
-			</div>
-			<div class="px-6 py-6">
-				<div class="text-sm text-neutral-700 dark:text-neutral-300">
-					<span class="font-medium">Current Region:</span>
-					<span class="ml-2 px-2 py-1 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded">
-						global
-					</span>
-				</div>
 			</div>
 		</div>
 	</div>

@@ -342,7 +342,9 @@ func TestSSEHandler_WithOptions(t *testing.T) {
 
 			// Verify retry was written if specified
 			if tt.opts != nil && tt.opts.RetryInterval > 0 {
+				sse.mu.Lock()
 				output := w.Body.String()
+				sse.mu.Unlock()
 				expectedRetry := "retry:"
 				if !strings.Contains(output, expectedRetry) {
 					t.Errorf("Expected retry field in output, got: %q", output)
@@ -351,9 +353,13 @@ func TestSSEHandler_WithOptions(t *testing.T) {
 
 			// If heartbeat is enabled, verify it fires
 			if tt.opts != nil && tt.opts.HeartbeatInterval > 0 {
+				sse.mu.Lock()
 				w.Body.Reset()
+				sse.mu.Unlock()
 				time.Sleep(tt.opts.HeartbeatInterval + 50*time.Millisecond)
+				sse.mu.Lock()
 				output := w.Body.String()
+				sse.mu.Unlock()
 				if !strings.Contains(output, ": heartbeat") {
 					t.Errorf("Expected heartbeat comment, got: %q", output)
 				}

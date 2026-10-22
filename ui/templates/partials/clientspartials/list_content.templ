@@ -21,6 +21,8 @@ type ClientSummary struct {
 	MemTotal    int64
 	DiskUsed    int64
 	DiskTotal   int64
+	ResourcesAvailable  bool
+	AllocationsAvailable bool
 }
 
 // ClientFilters holds the current filter values for the clients list.
@@ -44,7 +46,7 @@ templ ListContent(clientsList []ClientSummary, filters ClientFilters, options Cl
 			<div>
 				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Clients</h1>
 				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
-					View and manage Nomad client nodes
+					View and manage Wander client nodes
 				</p>
 			</div>
 		</div>
@@ -145,8 +147,8 @@ templ ListContent(clientsList []ClientSummary, filters ClientFilters, options Cl
 					{Key: "status", Label: "Status", Sortable: true, Align: "center", Width: "w-28"},
 					{Key: "datacenter", Label: "DC", Sortable: true, Align: "left", Width: "w-24"},
 					{Key: "nodeclass", Label: "Node Class", Sortable: true, Align: "left", Width: "w-28"},
-					{Key: "allocations", Label: "Allocs", Sortable: true, Align: "center", Width: "w-20"},
-					{Key: "resources", Label: "Resources", Sortable: false, Align: "left"},
+					{Key: "allocations", Label: "Running Allocs", Sortable: true, Align: "center", Width: "w-20"},
+					{Key: "resources", Label: "Allocated / Capacity", Sortable: false, Align: "left"},
 				},
 				SortColumn: "name",
 				SortDir:    "asc",
@@ -172,6 +174,7 @@ templ ListContent(clientsList []ClientSummary, filters ClientFilters, options Cl
 // clientRow renders a single client row in the table
 templ clientRow(client ClientSummary) {
 	<tr
+		data-client-id={ client.ID }
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
 		hx-get={ fmt.Sprintf("/ui/clients/%s", client.ID) }
 		hx-target="#main-content"
@@ -182,7 +185,7 @@ templ clientRow(client ClientSummary) {
 			<a
 				href={ templ.URL("/ui/clients/" + client.ID) }
 				class="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-				onclick="event.stopPropagation()"
+				@click.stop
 			>
 				{ client.Name }
 			</a>
@@ -221,16 +224,23 @@ templ clientRow(client ClientSummary) {
 			}
 		}
 		@components.TableCell("center", "w-20") {
-			<span class="text-neutral-700 dark:text-neutral-300 font-medium">
-				{ fmt.Sprintf("%d", client.Allocations) }
-			</span>
+			if client.AllocationsAvailable {
+				<span class="text-neutral-700 dark:text-neutral-300 font-medium">
+					{ fmt.Sprintf("%d", client.Allocations) }
+				</span>
+			} else {
+				<span class="text-neutral-500 dark:text-neutral-400">Unavailable</span>
+			}
 		}
 		@components.TableCell("left", "") {
-			<div class="space-y-2 min-w-[200px]">
+			if !client.ResourcesAvailable {
+				<span class="text-sm text-neutral-500 dark:text-neutral-400">Unavailable</span>
+			} else {
+			<div class="space-y-2 min-w-[200px]" aria-label="Allocated resources and schedulable capacity">
 				<!-- CPU Resource Bar -->
 				<div>
 					<div class="flex items-center justify-between text-xs mb-1">
-						<span class="text-neutral-600 dark:text-neutral-400">CPU</span>
+						<span class="text-neutral-600 dark:text-neutral-400">CPU allocated</span>
 						<span class="text-neutral-700 dark:text-neutral-300 font-medium">
 							{ fmt.Sprintf("%d / %d MHz", client.CPUUsed, client.CPUTotal) }
 						</span>
@@ -245,7 +255,7 @@ templ clientRow(client ClientSummary) {
 				<!-- Memory Resource Bar -->
 				<div>
 					<div class="flex items-center justify-between text-xs mb-1">
-						<span class="text-neutral-600 dark:text-neutral-400">Memory</span>
+						<span class="text-neutral-600 dark:text-neutral-400">Memory allocated</span>
 						<span class="text-neutral-700 dark:text-neutral-300 font-medium">
 							{ formatMemory(client.MemUsed) } / { formatMemory(client.MemTotal) }
 						</span>
@@ -260,7 +270,7 @@ templ clientRow(client ClientSummary) {
 				<!-- Disk Resource Bar -->
 				<div>
 					<div class="flex items-center justify-between text-xs mb-1">
-						<span class="text-neutral-600 dark:text-neutral-400">Disk</span>
+						<span class="text-neutral-600 dark:text-neutral-400">Disk allocated</span>
 						<span class="text-neutral-700 dark:text-neutral-300 font-medium">
 							{ formatMemory(client.DiskUsed) } / { formatMemory(client.DiskTotal) }
 						</span>
@@ -273,6 +283,7 @@ templ clientRow(client ClientSummary) {
 					})
 				</div>
 			</div>
+			}
 		}
 	</tr>
 }

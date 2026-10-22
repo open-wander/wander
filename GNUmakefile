@@ -44,7 +44,7 @@ PROTO_COMPARE_TAG ?= v1.0.3$(if $(findstring ent,$(GO_TAGS)),+ent,)
 
 # LAST_RELEASE is the git sha of the latest release corresponding to this branch. main should have the latest
 # published release, and release branches should point to the latest published release in the X.Y release line.
-LAST_RELEASE ?= v1.6.4
+LAST_RELEASE ?= v1.6.5
 
 default: help
 
@@ -138,7 +138,7 @@ deps:  ## Install build and development dependencies
 	go install github.com/bufbuild/buf/cmd/buf@v0.36.0
 	go install github.com/hashicorp/go-changelog/cmd/changelog-build@latest
 	go install golang.org/x/tools/cmd/stringer@v0.1.12
-	go install github.com/hashicorp/hc-install/cmd/hc-install@v0.6.1
+	go install github.com/hashicorp/hc-install/cmd/hc-install@v0.9.5
 	go install github.com/shoenig/go-modtool@v0.1.1
 
 .PHONY: lint-deps
@@ -284,6 +284,7 @@ test-wander: # dev ## Run Wander unit tests
 	@echo "==> with packages $(GOTEST_PKGS)"
 	gotestsum --format=testname --rerun-fails=3 --packages="$(GOTEST_PKGS)" -- \
 		-cover \
+		-p=1 \
 		-timeout=20m \
 		-count=1 \
 		-tags "$(GO_TAGS)" \
@@ -294,6 +295,7 @@ test-wander-module: dev ## Run Wander unit tests on sub-module
 	@echo "==> Running Wander unit tests on sub-module $(GOTEST_MOD)"
 	cd $(GOTEST_MOD); gotestsum --format=testname --rerun-fails=3 --packages=./... -- \
 		-cover \
+		-p=1 \
 		-timeout=20m \
 		-count=1 \
 		-race \
@@ -375,42 +377,42 @@ ui-screenshots-local: ## Collect UI screenshots (local)
 .PHONY: ui-generate
 ui-generate: ## Generate Go code from templ templates
 	@echo "==> Generating templ templates..."
-	@cd ui-htmx/templates && templ generate
+	@cd ui && templ generate
 
 .PHONY: ui-watch
 ui-watch: ## Watch and regenerate templ templates on changes
 	@echo "==> Watching templ templates for changes..."
-	@cd ui-htmx/templates && templ generate --watch
+	@cd ui && templ generate --watch
 
 .PHONY: ui-fmt
 ui-fmt: ## Format templ template files
 	@echo "==> Formatting templ templates..."
-	@cd ui-htmx/templates && templ fmt .
+	@cd ui && templ fmt .
 
 .PHONY: ui-css
 ui-css: ## Build Tailwind CSS for production (minified)
 	@echo "==> Building production CSS..."
-	@cd ui-htmx && $(MAKE) build-css
+	@cd ui && $(MAKE) build-css
 
 .PHONY: ui-css-dev
 ui-css-dev: ## Build Tailwind CSS for development (not minified)
 	@echo "==> Building development CSS..."
-	@cd ui-htmx && $(MAKE) build-css-dev
+	@cd ui && $(MAKE) build-css-dev
 
 .PHONY: ui-css-watch
 ui-css-watch: ## Watch and rebuild Tailwind CSS on changes
 	@echo "==> Watching CSS files for changes..."
-	@cd ui-htmx && $(MAKE) watch-css
+	@cd ui && $(MAKE) watch-css
 
 .PHONY: ui-setup
 ui-setup: ## Setup UI dependencies (Tailwind CLI + npm packages)
 	@echo "==> Setting up UI dependencies..."
-	@cd ui-htmx && $(MAKE) setup
+	@cd ui && $(MAKE) setup
 
 .PHONY: ui-dev
 ui-dev: ## Run UI development server with hot-reload (air)
 	@echo "==> Starting UI development server with hot-reload..."
-	@cd ui-htmx && air
+	@cd ui && air
 
 .PHONY: version
 version: ## Lookup the current build version
@@ -441,6 +443,7 @@ test: ## Use this target as a smoke test
 	@echo "==> with packages: $(GOTEST_PKGS)"
 	gotestsum --format=testname --packages="$(GOTEST_PKGS)" -- \
 		-cover \
+		-p=1 \
 		-timeout=20m \
 		-count=1 \
 		-tags "$(GO_TAGS)" \

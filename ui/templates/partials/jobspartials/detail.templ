@@ -142,7 +142,7 @@ func statusToBadgeVariant(status string) string {
 
 // StartJobModal renders the confirmation modal for starting a job
 templ StartJobModal(job JobDetail) {
-	<div x-data="{ get isOpen() { return startModal }, close() { startModal = false } }">
+	<div x-data="modalBridge('startModal')">
 		@components.Modal(components.ModalProps{
 			ID:       "start-job-modal",
 			Title:    "Start Job",
@@ -183,7 +183,7 @@ templ StartJobModal(job JobDetail) {
 
 // StopJobModal renders the confirmation modal for stopping a job
 templ StopJobModal(job JobDetail) {
-	<div x-data="{ get isOpen() { return stopModal }, close() { stopModal = false } }">
+	<div x-data="modalBridge('stopModal')">
 		@components.Modal(components.ModalProps{
 			ID:       "stop-job-modal",
 			Title:    "Stop Job",
@@ -224,7 +224,7 @@ templ StopJobModal(job JobDetail) {
 
 // RunJobModal renders the confirmation modal for running a new job version
 templ RunJobModal(job JobDetail) {
-	<div x-data="{ get isOpen() { return runModal }, close() { runModal = false } }">
+	<div x-data="modalBridge('runModal')">
 		@components.Modal(components.ModalProps{
 			ID:       "run-job-modal",
 			Title:    "Run Job",

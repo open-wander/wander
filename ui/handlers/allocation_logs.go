@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui/templates/components"
@@ -30,6 +32,12 @@ type LogLine struct {
 	Timestamp string `json:"timestamp"`
 	Message   string `json:"message"`
 	Level     string `json:"level,omitempty"` // error, warn, info, debug
+}
+
+type allocationLogEvent struct {
+	frame   *api.StreamFrame
+	logType string
+	err     error
 }
 
 // ServeHTTP handles log-related requests.
@@ -76,21 +84,18 @@ func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, 
 	h.handler.logger.Debug("logs tab request", "allocID", allocID, "htmx", IsHTMXFromRequest(r))
 
 	// Get task from query params or use first task
-	task := r.URL.Query().Get("task")
-	logType := r.URL.Query().Get("type")
-	if logType == "" {
-		logType = "stdout"
+	task, logType, validSelection := allocationLogSelection(w, r)
+	if !validSelection {
+		return
 	}
 
 	// Get ACL token from request
 	token := GetTokenFromRequest(r)
 
 	// Get allocation details to get task list from Nomad API
-	tasks := h.getTasksForAllocation(allocID, token)
+	tasks := h.getTasksForAllocation(r, allocID, token)
 
-	if task == "" && len(tasks) > 0 {
-		task = tasks[0]
-	}
+	task = selectAllocationTask(task, tasks)
 
 	props := allocationspartials.LogsTabProps{
 		AllocID:      allocID,
@@ -110,8 +115,9 @@ func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// For full page loads, render the allocation detail page with logs tab active
-	allocDetail := h.getAllocationDetailForLogs(allocID, token)
+	allocDetail := h.getAllocationDetailForLogs(r, allocID, token)
 	allocDetail.ActiveTab = "logs"
+	allocDetail.ActiveTabContent = allocationspartials.LogsTabContent(props)
 
 	// Build layout props
 	shortID := allocID
@@ -137,7 +143,7 @@ func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, 
 		)
 	}
 
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Logs - Allocation "+shortID+" - Wander",
 		"Allocation logs for "+allocID,
 		"/ui/allocations/"+allocID+"/logs",
@@ -156,10 +162,9 @@ func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, 
 
 // StreamLogs handles SSE streaming of allocation logs.
 func (h *AllocationLogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request, allocID string) {
-	task := r.URL.Query().Get("task")
-	logType := r.URL.Query().Get("type")
-	if logType == "" {
-		logType = "stdout"
+	task, logType, validSelection := allocationLogSelection(w, r)
+	if !validSelection {
+		return
 	}
 
 	// Parse follow parameter (default: true for streaming)
@@ -214,13 +219,34 @@ func (h *AllocationLogsHandler) StreamLogs(w http.ResponseWriter, r *http.Reques
 	h.streamLogsFromNomad(sse, r, allocID, task, logType, follow, offset, origin, token)
 }
 
+func normalizeLogType(logType string) (string, bool) {
+	if logType == "" {
+		return api.FSLogNameStdout, true
+	}
+	switch logType {
+	case api.FSLogNameStdout, api.FSLogNameStderr, "both":
+		return logType, true
+	default:
+		return "", false
+	}
+}
+
+func allocationLogSelection(w http.ResponseWriter, r *http.Request) (task, logType string, valid bool) {
+	logType, valid = normalizeLogType(r.URL.Query().Get("type"))
+	if !valid {
+		http.Error(w, "Invalid log type: expected stdout, stderr, or both", http.StatusBadRequest)
+		return "", "", false
+	}
+	return r.URL.Query().Get("task"), logType, true
+}
+
 // streamLogsFromNomad streams logs from the Nomad API via SSE.
 func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Request, allocID, task, logType string, follow bool, offset int64, origin string, token string) {
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available for log streaming")
 		sse.WriteJSON("error", map[string]string{
-			"message": "Nomad client not available",
+			"message": "Wander client not available",
 		})
 		return
 	}
@@ -241,17 +267,35 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 		return
 	}
 
-	// Create cancel channel from request context
-	ctx := r.Context()
+	// Use a child context so every upstream stream is stopped if any stream or
+	// the browser connection fails.
+	ctx, stopStreams := context.WithCancel(r.Context())
+	defer stopStreams()
 	cancel := make(chan struct{})
 	go func() {
 		<-ctx.Done()
 		close(cancel)
 	}()
 
-	// Stream logs from Nomad API
-	// AllocFS().Logs returns two channels: frames and errors
-	frames, errs := client.AllocFS().Logs(alloc, follow, task, logType, origin, offset, cancel, queryOpts)
+	logTypes := []string{logType}
+	if logType == "both" {
+		logTypes = []string{api.FSLogNameStdout, api.FSLogNameStderr}
+	}
+
+	events := make(chan allocationLogEvent, len(logTypes)*2)
+	var streams sync.WaitGroup
+	for _, streamType := range logTypes {
+		frames, errs := client.AllocFS().Logs(alloc, follow, task, streamType, origin, offset, cancel, queryOpts)
+		streams.Add(1)
+		go func(streamType string, frames <-chan *api.StreamFrame, errs <-chan error) {
+			defer streams.Done()
+			forwardAllocationLogStream(ctx, streamType, frames, errs, events)
+		}(streamType, frames, errs)
+	}
+	go func() {
+		streams.Wait()
+		close(events)
+	}()
 
 	h.handler.logger.Debug("log stream connected to Nomad API",
 		"allocID", allocID,
@@ -260,7 +304,8 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 		"follow", follow,
 	)
 
-	// Process frames and errors
+	// Process the merged stdout/stderr events. A single selected stream uses
+	// the same path, keeping reconnect and error behavior consistent.
 	for {
 		select {
 		case <-ctx.Done():
@@ -271,69 +316,81 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 			h.handler.logger.Debug("log stream SSE handler closed", "allocID", allocID)
 			return
 
-		case frame, ok := <-frames:
+		case event, ok := <-events:
 			if !ok {
-				// Frames channel closed, stream ended
-				h.handler.logger.Debug("log stream frames channel closed", "allocID", allocID)
+				h.handler.logger.Debug("log streams closed", "allocID", allocID)
 				return
 			}
 
-			if frame == nil {
+			if event.err != nil {
+				h.handler.logger.Error("log stream error from Wander", "allocID", allocID, "type", event.logType, "error", event.err)
+				sse.WriteJSON("error", map[string]string{
+					"message": event.err.Error(),
+				})
+				return
+			}
+
+			if event.frame == nil || event.frame.IsHeartbeat() {
 				continue
 			}
 
-			// Skip heartbeat frames (empty frames sent to keep connection alive)
-			if frame.IsHeartbeat() {
-				continue
-			}
-
-			// Decode frame data - Nomad sends log data as raw bytes
-			// We need to handle potential binary data by base64 encoding it
-			message := string(frame.Data)
-
-			// Try to detect if data is binary (contains non-printable characters)
-			// If binary, encode as base64
-			isBinary := false
-			for _, b := range frame.Data {
-				if b < 32 && b != '\n' && b != '\r' && b != '\t' {
-					isBinary = true
-					break
-				}
-			}
-
-			if isBinary {
-				message = base64.StdEncoding.EncodeToString(frame.Data)
-			}
-
-			// Send log line to client
-			// Frame.Offset contains the byte offset of this data
-			// Frame.File contains the log file name
-			line := LogLine{
-				Timestamp: "", // Nomad doesn't provide timestamps in log frames
-				Message:   message,
-				Level:     h.detectLogLevel(message),
-			}
-
+			line := h.logLineFromFrame(event.frame, event.logType)
 			if err := sse.WriteJSON("log", line); err != nil {
 				h.handler.logger.Debug("log stream write error", "error", err, "allocID", allocID)
 				return
 			}
+		}
+	}
+}
 
+func forwardAllocationLogStream(ctx context.Context, logType string, frames <-chan *api.StreamFrame, errs <-chan error, events chan<- allocationLogEvent) {
+	for frames != nil || errs != nil {
+		select {
+		case <-ctx.Done():
+			return
+		case frame, ok := <-frames:
+			if !ok {
+				return
+			}
+			select {
+			case events <- allocationLogEvent{frame: frame, logType: logType}:
+			case <-ctx.Done():
+				return
+			}
 		case err, ok := <-errs:
 			if !ok {
-				// Errors channel closed
-				h.handler.logger.Debug("log stream errors channel closed", "allocID", allocID)
-				return
+				errs = nil
+				continue
 			}
-
-			if err != nil {
-				h.handler.logger.Error("log stream error from Nomad", "allocID", allocID, "error", err)
-				sse.WriteJSON("error", map[string]string{
-					"message": err.Error(),
-				})
-				return
+			if err == nil {
+				continue
 			}
+			select {
+			case events <- allocationLogEvent{logType: logType, err: err}:
+			case <-ctx.Done():
+			}
+			return
 		}
+	}
+}
+
+func (h *AllocationLogsHandler) logLineFromFrame(frame *api.StreamFrame, logType string) LogLine {
+	message := string(frame.Data)
+	for _, b := range frame.Data {
+		if b < 32 && b != '\n' && b != '\r' && b != '\t' {
+			message = base64.StdEncoding.EncodeToString(frame.Data)
+			break
+		}
+	}
+
+	level := h.detectLogLevel(message)
+	if level == "" && logType == api.FSLogNameStderr {
+		level = "error"
+	}
+	return LogLine{
+		Timestamp: "",
+		Message:   message,
+		Level:     level,
 	}
 }
 
@@ -357,8 +414,8 @@ func (h *AllocationLogsHandler) detectLogLevel(msg string) string {
 
 // getAllocationDetailForLogs fetches allocation details needed for the logs page.
 // Returns a minimal allocation detail structure for template rendering.
-func (h *AllocationLogsHandler) getAllocationDetailForLogs(allocID, token string) allocationspartials.AllocationDetail {
-	client := h.handler.NomadClient()
+func (h *AllocationLogsHandler) getAllocationDetailForLogs(r *http.Request, allocID, token string) allocationspartials.AllocationDetail {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available for allocation detail")
 		return allocationspartials.AllocationDetail{ID: allocID}
@@ -403,8 +460,8 @@ func (h *AllocationLogsHandler) getAllocationDetailForLogs(allocID, token string
 
 // getTasksForAllocation returns the list of tasks for an allocation.
 // Fetches from Nomad API and returns task names.
-func (h *AllocationLogsHandler) getTasksForAllocation(allocID, token string) []string {
-	client := h.handler.NomadClient()
+func (h *AllocationLogsHandler) getTasksForAllocation(r *http.Request, allocID, token string) []string {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available for task list")
 		return []string{}

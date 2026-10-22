@@ -44,27 +44,11 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get Nomad client
-	if !h.handler.HasNomadClient() {
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
 		h.handler.logger.Error("Nomad client not available for search")
 		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
 		return
-	}
-
-	// Create a new client to set token from request without affecting shared client
-	// This avoids concurrency issues
-	config := api.DefaultConfig()
-	client, err := api.NewClient(config)
-	if err != nil {
-		h.handler.logger.Error("failed to create client for search", "error", err)
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
-		return
-	}
-
-	// Set token from request if available
-	token, hasToken := GetTokenFromContext(r.Context())
-	if hasToken && token != "" {
-		client.SetSecretID(token)
 	}
 
 	// Call Nomad's fuzzy search API

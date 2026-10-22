@@ -6,20 +6,17 @@ import (
 
 // CreateContent renders the variable create page content (without layout)
 templ CreateContent() {
-	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="variableCreator()" x-init="init()">
+	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="variableCreator()">
 		<!-- Page Header -->
 		<div class="mb-6">
 			<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Create Variable</h1>
 			<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-				Create a new variable with key-value pairs for your Nomad jobs.
+				Create a new variable with key-value pairs for your Wander jobs.
 			</p>
 		</div>
 		<!-- Create Form -->
 		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
-			<form
-				hx-post="/ui/variables"
-				hx-encoding="multipart/form-data"
-			>
+			<form hx-post="/ui/variables">
 				<!-- Path Field -->
 				@components.FormField(components.FormFieldProps{
 					Label:    "Path",
@@ -39,7 +36,7 @@ templ CreateContent() {
 				@components.FormField(components.FormFieldProps{
 					Label: "Namespace",
 					ID:    "namespace",
-					Hint:  "The Nomad namespace for this variable",
+					Hint:  "The Wander namespace for this variable",
 				}) {
 					@components.Select(components.SelectProps{
 						Name:        "namespace",
@@ -155,36 +152,5 @@ templ CreateContent() {
 				</div>
 			</form>
 		</div>
-		<!-- Alpine.js Component for Variable Creator -->
-		@templ.Raw(buildVariableCreatorScript())
 	</div>
-}
-
-// buildVariableCreatorScript generates the Alpine.js script for the variable creator
-func buildVariableCreatorScript() string {
-	return `<script type="text/javascript">
-		function variableCreator() {
-			return {
-				items: [],
-				nextId: 1,
-
-				init() {
-					// Start with one empty item
-					this.addItem();
-				},
-
-				addItem() {
-					this.items.push({
-						id: this.nextId++,
-						key: '',
-						value: ''
-					});
-				},
-
-				removeItem(index) {
-					this.items.splice(index, 1);
-				}
-			};
-		}
-	</script>`
 }

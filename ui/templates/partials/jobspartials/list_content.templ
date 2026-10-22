@@ -32,7 +32,7 @@ templ ListContent(jobsList []JobSummary, sortColumn string, sortDir string, sear
 			<div>
 				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Jobs</h1>
 				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
-					View and manage Nomad jobs
+					View and manage Wander jobs
 				</p>
 			</div>
 		</div>
@@ -111,6 +111,7 @@ func buildJobsURL(sortColumn, sortDir, searchQuery string) string {
 // jobRow renders a single job row in the table
 templ jobRow(job JobSummary) {
 	<tr
+		data-job-id={ job.ID }
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
 		hx-get={ fmt.Sprintf("/ui/jobs/%s", job.ID) }
 		hx-target="#main-content"
@@ -118,9 +119,17 @@ templ jobRow(job JobSummary) {
 		hx-push-url="true"
 	>
 		@components.TableCell("left", "w-1/4") {
-			<div class="font-medium text-neutral-900 dark:text-neutral-100">
+			<a
+				href={ templ.SafeURL(fmt.Sprintf("/ui/jobs/%s", job.ID)) }
+				class="font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 dark:hover:text-primary-400"
+				@click.stop
+				hx-get={ fmt.Sprintf("/ui/jobs/%s", job.ID) }
+				hx-target="#main-content"
+				hx-swap="innerHTML"
+				hx-push-url="true"
+			>
 				{ job.Name }
-			</div>
+			</a>
 			<div class="text-xs text-neutral-500 dark:text-neutral-400">
 				{ job.ID }
 			</div>

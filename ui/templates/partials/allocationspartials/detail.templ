@@ -17,8 +17,9 @@ type AllocationDetail struct {
 	Modified  time.Time
 	Tasks     []TaskStatus
 	Resources ResourceUsage
-	Events    []AllocationEvent
-	ActiveTab string // Which tab to show as active (default: "tasks")
+	Events           []AllocationEvent
+	ActiveTab        string // Which tab to show as active (default: "tasks")
+	ActiveTabContent templ.Component
 }
 
 // TaskStatus represents the status of a task within an allocation
@@ -71,7 +72,7 @@ templ DetailContent(alloc AllocationDetail) {
 			<div class="flex items-start justify-between">
 				<div class="flex-1">
 					<div class="flex items-center space-x-4 mb-4">
-						<h1 class="text-3xl font-bold text-neutral-900">{ alloc.ID[:8] }...</h1>
+						<h1 class="text-3xl font-bold text-neutral-900">{ shortID(alloc.ID) }...</h1>
 						@components.Badge(components.BadgeProps{
 							Variant: statusToBadgeVariant(alloc.Status),
 							Dot:     true,
@@ -289,28 +290,36 @@ templ DetailContent(alloc AllocationDetail) {
 						Active:  getActiveTab(alloc.ActiveTab) == "tasks",
 					},
 					{
-						ID:    "logs",
-						Label: "Logs",
-						Icon:  "document",
-						URL:   "/ui/allocations/" + alloc.ID + "/logs",
+						ID:      "logs",
+						Label:   "Logs",
+						Icon:    "document",
+						URL:     "/ui/allocations/" + alloc.ID + "/logs",
+						Content: alloc.ActiveTabContent,
+						Active:  getActiveTab(alloc.ActiveTab) == "logs",
 					},
 					{
 						ID:    "exec",
 						Label: "Exec",
 						Icon:  "terminal",
 						URL:   "/ui/allocations/" + alloc.ID + "/exec",
+						Content: alloc.ActiveTabContent,
+						Active:  getActiveTab(alloc.ActiveTab) == "exec",
 					},
 					{
 						ID:    "files",
 						Label: "Files",
 						Icon:  "folder",
 						URL:   "/ui/allocations/" + alloc.ID + "/files",
+						Content: alloc.ActiveTabContent,
+						Active:  getActiveTab(alloc.ActiveTab) == "files",
 					},
 					{
 						ID:    "raw",
 						Label: "Raw",
 						Icon:  "code",
 						URL:   "/ui/allocations/" + alloc.ID + "/raw",
+						Content: alloc.ActiveTabContent,
+						Active:  getActiveTab(alloc.ActiveTab) == "raw",
 					},
 				},
 				ActiveTab: getActiveTab(alloc.ActiveTab),

@@ -347,8 +347,8 @@
         value: options.value || '',
         onChange: options.onChange || (() => {}),
         onSave: options.onSave || (() => {}),
-        minHeight: options.minHeight || '300px',
-        maxHeight: options.maxHeight || '600px'
+        minHeight: options.minHeight || 'var(--workspace-surface-height)',
+        maxHeight: options.maxHeight || 'var(--workspace-surface-height)'
       };
 
       this.value = this.options.value;
@@ -775,8 +775,16 @@
       color: #9cdcfe;
     }
 
-    .wander-highlighted-code {
+    .wander-editor .wander-highlighted-code {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      overflow: visible;
+      background: transparent;
       color: var(--text-color, #1f2937);
+      font: inherit;
+      line-height: inherit;
     }
 
     /* Bracket matching */
@@ -824,6 +832,7 @@
       jobId: jobId || '',
       originalValue: initialValue || '',
       currentValue: initialValue || '',
+      definitions: { hcl: '', json: '' },
       hasChanges: false,
       isSaving: false,
       isPlanning: false,
@@ -834,6 +843,19 @@
       error: null,
 
       init() {
+        const definitionSource = this.$refs.definitionSource;
+        if (definitionSource) {
+          this.originalValue = definitionSource.value;
+          this.currentValue = definitionSource.value;
+        }
+        this.definitions = {
+          hcl: this.$refs.hclSource?.value || '',
+          json: this.$refs.jsonSource?.value || ''
+        };
+        this.format = this.$el.dataset.format || this.format;
+        this.jobId = this.$el.dataset.jobId || this.jobId;
+		this.definitions[this.format] ||= this.originalValue;
+
         this.$nextTick(() => {
           this.editor = new WanderEditor(this.$refs.editorContainer, {
             value: this.originalValue,
@@ -874,9 +896,25 @@
       },
 
       setFormat(newFormat) {
+        if (newFormat === this.format) return;
+        if (this.isEditing && this.hasChanges) {
+          this.error = 'Save or cancel your changes before switching formats.';
+          return;
+        }
+        const nextValue = this.definitions[newFormat];
+        if (!nextValue) {
+          this.error = `${newFormat.toUpperCase()} source is not available for this job.`;
+          return;
+        }
+
+        this.error = null;
         this.format = newFormat;
+        this.originalValue = nextValue;
+        this.currentValue = nextValue;
+        this.hasChanges = false;
         if (this.editor) {
           this.editor.setLanguage(newFormat);
+          this.editor.setValue(nextValue);
         }
       },
 
@@ -902,20 +940,7 @@
             throw new Error('Failed to save job definition');
           }
 
-          this.originalValue = this.currentValue;
-          this.hasChanges = false;
-          this.isEditing = false;
-          if (this.editor) {
-            this.editor.setReadOnly(true);
-          }
-
-          // Dispatch success event for toast notification
-          window.dispatchEvent(new CustomEvent('wander:toast', {
-            detail: {
-              message: 'Job definition saved successfully',
-              type: 'success'
-            }
-          }));
+          this.finishSave();
 
         } catch (err) {
           this.error = err.message;
@@ -928,6 +953,17 @@
         } finally {
           this.isSaving = false;
         }
+      },
+
+      finishSave() {
+        this.originalValue = this.currentValue;
+        this.definitions[this.format] = this.currentValue;
+        this.hasChanges = false;
+        this.isEditing = false;
+        this.editor?.setReadOnly(true);
+        window.dispatchEvent(new CustomEvent('wander:toast', {
+          detail: { message: 'Job definition saved successfully', type: 'success' }
+        }));
       },
 
       downloadDefinition() {
@@ -1096,6 +1132,18 @@
       error: null,
 
       init() {
+        const rulesSource = this.$refs.rulesSource;
+        const descriptionSource = this.$refs.descriptionSource;
+        if (rulesSource) {
+          this.originalRules = rulesSource.value;
+          this.currentRules = rulesSource.value;
+        }
+        if (descriptionSource) {
+          this.description = descriptionSource.value;
+          this.originalDescription = descriptionSource.value;
+        }
+        this.policyName = this.$el.dataset.policyName || this.policyName;
+
         this.$nextTick(() => {
           this.editor = new WanderEditor(this.$refs.editorContainer, {
             value: this.originalRules,

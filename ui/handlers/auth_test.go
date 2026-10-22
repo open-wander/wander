@@ -108,6 +108,57 @@ func TestTokenValidationMiddleware(t *testing.T) {
 	}
 }
 
+func TestRouter_AnonymousACLMode(t *testing.T) {
+	tests := []struct {
+		name           string
+		selfStatus     int
+		selfBody       string
+		expectedStatus int
+	}{
+		{
+			name:           "ACL enabled denies anonymous access",
+			selfStatus:     http.StatusInternalServerError,
+			selfBody:       "acl token lookup failed: missing secret id",
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:           "ACL disabled allows anonymous access",
+			selfStatus:     http.StatusBadRequest,
+			selfBody:       "ACL support disabled",
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/acl/token/self":
+					w.WriteHeader(test.selfStatus)
+					_, _ = w.Write([]byte(test.selfBody))
+				case "/v1/jobs":
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte("[]"))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer backend.Close()
+
+			t.Setenv("NOMAD_ADDR", backend.URL)
+			handler := NewHandler(hclog.NewNullLogger())
+			router := NewRouter(handler)
+			request := httptest.NewRequest(http.MethodGet, "/ui/jobs", nil)
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+			if response.Code != test.expectedStatus {
+				t.Fatalf("expected status %d, got %d", test.expectedStatus, response.Code)
+			}
+		})
+	}
+}
+
 func TestRequireTokenMiddleware(t *testing.T) {
 	handler := NewHandler(hclog.NewNullLogger())
 

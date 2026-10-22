@@ -92,12 +92,12 @@ func (h *ClientsAPIHandler) ToggleEligibility(w http.ResponseWriter, r *http.Req
 	h.handler.logger.Info("toggling node eligibility", "clientID", clientID, "eligible", req.Eligible)
 
 	// Get Nomad client
-	client := h.handler.NomadClient()
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(ToggleEligibilityResponse{Error: "Nomad client not available"})
+		_ = json.NewEncoder(w).Encode(ToggleEligibilityResponse{Error: "Wander client not available"})
 		return
 	}
 

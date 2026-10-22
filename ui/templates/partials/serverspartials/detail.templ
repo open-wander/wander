@@ -64,7 +64,7 @@ templ DetailContent(server ServerDetail) {
 					@detailRow("Region", server.Region)
 					@detailRow("Datacenter", server.Datacenter)
 					if server.Version != "" {
-						@detailRow("Nomad Version", server.Version)
+						@detailRow("Wander Version", server.Version)
 					}
 					if server.ProtocolVersion != "" {
 						@detailRow("Protocol Version", server.ProtocolVersion)

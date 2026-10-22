@@ -59,8 +59,8 @@ templ Header(props HeaderProps) {
 				</button>
 				<!-- Breadcrumbs -->
 				if len(props.Breadcrumbs) > 0 {
-					<nav class="flex min-w-0" aria-label="Breadcrumb">
-						<ol class="flex items-center space-x-2">
+					<nav class="flex min-w-0 overflow-hidden" aria-label="Breadcrumb">
+						<ol class="flex min-w-0 items-center space-x-2 overflow-hidden">
 							for i, crumb := range props.Breadcrumbs {
 								<li class="flex items-center">
 									if i > 0 {
@@ -85,21 +85,6 @@ templ Header(props HeaderProps) {
 						</ol>
 					</nav>
 				}
-			</div>
-			<!-- Center: Global Search Bar (hidden on mobile) -->
-			<div class="hidden md:flex items-center justify-center flex-1 max-w-md mx-4">
-				<div class="w-full relative" x-data="{ searchFocused: false }">
-					@SearchBar(SearchBarProps{
-						Name:        "global-search",
-						Placeholder: "Search jobs, allocations, nodes...",
-						SearchURL:   "/ui/search",
-						ResultsID:   "global-search-results",
-						Debounce:    300,
-						MinChars:    2,
-					})
-					<!-- Search results container -->
-					<div id="global-search-results" class="relative"></div>
-				</div>
 			</div>
 			<!-- Right: Connection status, region selector, namespace selector and user menu -->
 			<div class="flex items-center space-x-4 flex-shrink-0">
@@ -214,12 +199,6 @@ templ Header(props HeaderProps) {
 								Href:  "/ui/settings",
 								Icon:  "settings",
 							})
-							@DropdownDividerItem()
-							@DropdownItemComponent(DropdownItem{
-								Label: "Sign out",
-								Href:  "/ui/logout",
-								Icon:  "logout",
-							})
 						}
 					}
 				} else {
@@ -232,6 +211,21 @@ templ Header(props HeaderProps) {
 						</div>
 					</div>
 				}
+			</div>
+		</div>
+		<!-- Desktop search has its own row so long breadcrumbs cannot collide with it. -->
+		<div class="hidden xl:block px-4 pb-3 lg:px-6" data-global-search>
+			<div class="relative mx-auto max-w-2xl" x-data="{ searchFocused: false }">
+				@SearchBar(SearchBarProps{
+					Name:        "global-search",
+					Placeholder: "Search jobs, allocations, nodes...",
+					SearchURL:   "/ui/search",
+					ResultsID:   "global-search-results",
+					Debounce:    300,
+					MinChars:    2,
+				})
+				<!-- Search results container -->
+				<div id="global-search-results" class="relative"></div>
 			</div>
 		</div>
 	</header>

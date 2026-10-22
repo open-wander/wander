@@ -8,11 +8,12 @@ package stats
 import (
 	"testing"
 
+	helperstats "github.com/open-wander/wander/helper/stats"
 	"github.com/shoenig/test/must"
 )
 
 func TestCPU_Init(t *testing.T) {
-	must.NoError(t, Init())
+	must.NoError(t, Init(0))
 }
 
 func TestCPU_CPUNumCores(t *testing.T) {
@@ -33,6 +34,6 @@ func TestCPU_CPUModelName(t *testing.T) {
 }
 
 func TestCPU_CPUCpuTotalTicks(t *testing.T) {
-	ticks := CpuTotalTicks()
+	ticks := helperstats.CpuTotalTicks()
 	must.Positive(t, ticks)
 }

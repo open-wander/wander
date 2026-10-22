@@ -73,10 +73,7 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters
 	query := r.URL.Query()
-	namespace := query.Get("namespace")
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 	statusFilter := query.Get("status")
 	jobFilter := query.Get("job")
 	searchQuery := query.Get("search")
@@ -107,7 +104,7 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get all deployments with server-side filtering
-	allDeployments := h.getDeploymentsList(namespace, token, statusFilter, jobFilter)
+	allDeployments := h.getDeploymentsList(r, namespace, token, statusFilter, jobFilter)
 
 	// Apply client-side search filter (status/job already filtered server-side)
 	filteredDeployments := h.filterDeployments(allDeployments, "", "", searchQuery)
@@ -179,9 +176,9 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Deployments - Wander",
-		"View Nomad deployments",
+		"View Wander deployments",
 		"/ui/deployments",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -191,8 +188,8 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		deployments.List(layoutProps, deploymentsList),       // Full page with layout
-		deploymentspartials.ListContent(deploymentsList),     // Partial content for HTMX requests
+		deployments.List(layoutProps, deploymentsList),   // Full page with layout
+		deploymentspartials.ListContent(deploymentsList), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -204,8 +201,8 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // getDeploymentsList fetches deployments from the Nomad API with server-side filtering.
 // Falls back to empty list if API is unavailable.
-func (h *DeploymentsHandler) getDeploymentsList(namespace, token, statusFilter, jobFilter string) []DeploymentSummary {
-	client := h.handler.NomadClient()
+func (h *DeploymentsHandler) getDeploymentsList(r *http.Request, namespace, token, statusFilter, jobFilter string) []DeploymentSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty deployments list")
 		return []DeploymentSummary{}
@@ -252,10 +249,6 @@ func (h *DeploymentsHandler) getDeploymentsList(namespace, token, statusFilter, 
 	// Convert API response to our summary type
 	result := make([]DeploymentSummary, 0, len(deploys))
 	for _, deploy := range deploys {
-		// Estimate create time from CreateIndex (not perfect but reasonable)
-		// In production, you might want to fetch individual deployments for exact timestamps
-		createTime := time.Now().Add(-time.Duration(deploy.ModifyIndex-deploy.CreateIndex) * time.Second)
-
 		result = append(result, DeploymentSummary{
 			ID:                deploy.ID,
 			JobID:             deploy.JobID,
@@ -266,7 +259,7 @@ func (h *DeploymentsHandler) getDeploymentsList(namespace, token, statusFilter, 
 			IsMultiregion:     deploy.IsMultiregion,
 			CreateIndex:       deploy.CreateIndex,
 			ModifyIndex:       deploy.ModifyIndex,
-			CreateTime:        createTime,
+			CreateTime:        time.Time{},
 			TaskGroups:        deploy.TaskGroups,
 		})
 	}
@@ -357,14 +350,14 @@ func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get deployment detail from Nomad API
-	deploymentDetail, found := h.getDeploymentDetail(deploymentID, token)
+	deploymentDetail, found := h.getDeploymentDetail(r, deploymentID, token)
 	if !found {
 		http.NotFound(w, r)
 		return
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		deploymentDetail.ShortID+" - Deployment Detail - Wander",
 		"Deployment detail for "+deploymentDetail.ShortID,
 		"/ui/deployments/"+deploymentID,
@@ -377,7 +370,7 @@ func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err := Render(w, r,
-		deployments.Detail(layoutProps, deploymentDetail),                // Full page with layout
+		deployments.Detail(layoutProps, deploymentDetail),   // Full page with layout
 		deploymentspartials.DetailContent(deploymentDetail), // Partial content for HTMX requests
 	)
 
@@ -389,8 +382,8 @@ func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDeploymentDetail fetches a specific deployment from the Nomad API.
-func (h *DeploymentsHandler) getDeploymentDetail(deploymentID, token string) (deploymentspartials.DeploymentDetail, bool) {
-	client := h.handler.NomadClient()
+func (h *DeploymentsHandler) getDeploymentDetail(r *http.Request, deploymentID, token string) (deploymentspartials.DeploymentDetail, bool) {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available")
 		return deploymentspartials.DeploymentDetail{}, false
@@ -428,12 +421,10 @@ func (h *DeploymentsHandler) getDeploymentDetail(deploymentID, token string) (de
 		shortID = shortID[:8]
 	}
 
-	// Calculate time from CreateIndex (not perfect but reasonable)
-	createTime := time.Now().Add(-time.Duration(deploy.ModifyIndex-deploy.CreateIndex) * time.Second)
+	createTime := time.Time{}
 	createTimeAgo := formatTimeAgo(createTime)
 
-	// Calculate modify time from ModifyIndex (not perfect but reasonable)
-	modifyTime := time.Now()
+	modifyTime := time.Time{}
 	modifyTimeAgo := formatTimeAgo(modifyTime)
 
 	// Convert task groups to detail format

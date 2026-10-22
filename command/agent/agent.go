@@ -38,6 +38,7 @@ import (
 	"github.com/open-wander/wander/nomad/deploymentwatcher"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
+	"github.com/open-wander/wander/version"
 )
 
 const (
@@ -174,7 +175,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 	conf.DevMode = agentConfig.DevMode
 	conf.EnableDebug = agentConfig.EnableDebug
 
-	conf.Build = agentConfig.Version.VersionNumber()
+	conf.Build = version.ClusterCompatibilityVersion
 	conf.Revision = agentConfig.Version.Revision
 	if agentConfig.Region != "" {
 		conf.Region = agentConfig.Region
@@ -207,7 +208,7 @@ func convertServerConfig(agentConfig *Config) (*nomad.Config, error) {
 		conf.RaftConfig.ProtocolVersion = raft.ProtocolVersion(agentConfig.Server.RaftProtocol)
 	}
 	if v := conf.RaftConfig.ProtocolVersion; v != 3 {
-		return nil, fmt.Errorf("raft_protocol must be 3 in Nomad v1.4 and later, got %d", v)
+		return nil, fmt.Errorf("raft_protocol must be 3 for Nomad 1.4 compatibility, got %d", v)
 	}
 	raftMultiplier := int(DefaultRaftMultiplier)
 	if agentConfig.Server.RaftMultiplier != nil && *agentConfig.Server.RaftMultiplier != 0 {
@@ -673,9 +674,9 @@ func (a *Agent) finalizeClientConfig(c *clientconfig.Config) error {
 	}
 	if len(invalidConsulKeys) > 0 {
 		a.logger.Warn("invalid consul keys", "keys", strings.Join(invalidConsulKeys, ","))
-		a.logger.Warn(`Nomad client ignores consul related configuration in client options.
+		a.logger.Warn(`Wander client ignores consul related configuration in client options.
 		Please refer to the guide https://openwander.org/wander/docs/agent/configuration/consul.html
-		to configure Nomad to work with Consul.`)
+		to configure Wander to work with Consul.`)
 	}
 
 	return nil
@@ -1139,7 +1140,7 @@ func (a *Agent) agentHTTPCheck(server bool) *structs.ServiceCheck {
 		return &check
 	}
 	if a.config.TLSConfig.VerifyHTTPSClient {
-		a.logger.Warn("not registering Nomad HTTPS Health Check because verify_https_client enabled")
+		a.logger.Warn("not registering Wander HTTPS Health Check because verify_https_client enabled")
 		return nil
 	}
 

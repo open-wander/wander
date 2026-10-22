@@ -104,9 +104,10 @@ func (r *Router) registerAllocationsRoutes() {
 	r.mux.HandleFunc("/ui/allocations/", func(w http.ResponseWriter, req *http.Request) {
 		path := req.URL.Path
 		// Route exec WebSocket requests to the exec handler
-		// WebSocket connections should NOT have HTMX middleware applied
+		// WebSocket connections skip HTMX middleware, but still need ACL token
+		// extraction from the request cookie/header.
 		if strings.Contains(path, "/exec/ws") {
-			execHandler.ServeHTTP(w, req)
+			ACLMiddleware(execHandler).ServeHTTP(w, req)
 			return
 		}
 		// Route log-related requests to the logs handler
@@ -219,8 +220,7 @@ func (r *Router) registerSearchRoutes() {
 // registerAPIRoutes sets up API routes for HTMX actions.
 func (r *Router) registerAPIRoutes() {
 	jobsAPIHandler := NewJobsAPIHandler(r.handler)
-	namespaceAPIHandler := NewNamespaceAPIHandler(r.handler)
-	regionAPIHandler := NewRegionAPIHandler(r.handler)
+	selectionAPIHandler := NewSelectionAPIHandler(r.handler)
 	clientsAPIHandler := NewClientsAPIHandler(r.handler)
 	deploymentsAPIHandler := NewDeploymentsAPIHandler(r.handler)
 
@@ -228,10 +228,10 @@ func (r *Router) registerAPIRoutes() {
 	r.mux.Handle("/api/jobs/", r.wrapMiddleware(jobsAPIHandler))
 
 	// Namespace API endpoints
-	r.mux.Handle("/api/namespace/", r.wrapMiddleware(namespaceAPIHandler))
+	r.mux.Handle("/api/namespace/", r.wrapMiddleware(selectionAPIHandler))
 
 	// Region API endpoints
-	r.mux.Handle("/api/region/", r.wrapMiddleware(regionAPIHandler))
+	r.mux.Handle("/api/region/", r.wrapMiddleware(selectionAPIHandler))
 
 	// Client node action endpoints
 	r.mux.Handle("/api/clients/", r.wrapMiddleware(clientsAPIHandler))
@@ -246,7 +246,7 @@ func (r *Router) registerAPIRoutes() {
 		middleware.ServeHTTP(w, req)
 	})
 
-	r.mux.HandleFunc("/api/v1/auth/clear-cache", r.handler.ClearTokenCache)
+	r.mux.Handle("/api/v1/auth/clear-cache", ACLMiddleware(http.HandlerFunc(r.handler.ClearTokenCache)))
 }
 
 // wrapMiddleware applies HTMX middleware and any other necessary middleware
@@ -254,15 +254,11 @@ func (r *Router) registerAPIRoutes() {
 //
 // Current middleware chain:
 // 1. ACLMiddleware - extracts and stores token from headers/cookies
-// 2. HTMXMiddleware - adds HTMX request context
+// 2. TokenValidationMiddleware - validates tokens and resolves permissions
+// 3. HTMXMiddleware - adds HTMX request context
 //
 // Optional middleware available but not enabled by default:
-// - TokenValidationMiddleware - validates tokens via Nomad API (adds latency)
 // - RequireToken - enforces authentication (blocks unauthenticated requests)
-//
-// To enable token validation, modify this function to:
-//
-//	return ACLMiddleware(r.handler.TokenValidationMiddleware(HTMXMiddleware(h)))
 //
 // To enforce authentication on specific routes, wrap them with:
 //
@@ -270,8 +266,9 @@ func (r *Router) registerAPIRoutes() {
 func (r *Router) wrapMiddleware(h http.Handler) http.Handler {
 	// Apply middleware in order:
 	// 1. ACL middleware extracts and stores token from headers/cookies
-	// 2. HTMX middleware adds HTMX request context
-	return ACLMiddleware(HTMXMiddleware(h))
+	// 2. Token validation resolves ACL mode and permissions
+	// 3. HTMX middleware adds HTMX request context
+	return ACLMiddleware(r.handler.TokenValidationMiddleware(SelectionMiddleware(HTMXMiddleware(h))))
 }
 
 // ServeHTTP implements http.Handler, allowing Router to be used as an HTTP handler.

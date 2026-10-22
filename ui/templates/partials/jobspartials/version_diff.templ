@@ -26,9 +26,7 @@ type VersionDiff struct {
 // VersionDiffModal renders a modal with the diff between two versions
 templ VersionDiffModal(diff VersionDiff) {
 	<div
-		x-data="{ isOpen: true }"
-		x-init="$nextTick(() => { document.body.classList.add('overflow-hidden'); })"
-		x-effect="if (!isOpen) { document.body.classList.remove('overflow-hidden'); $el.remove(); }"
+		x-data="versionDiffModal()"
 	>
 		@components.Modal(components.ModalProps{
 			ID:       fmt.Sprintf("version-diff-%d-%d", diff.OldVersion, diff.NewVersion),
@@ -42,7 +40,7 @@ templ VersionDiffModal(diff VersionDiff) {
 			@components.ModalFooter() {
 				<button
 					type="button"
-					@click="isOpen = false"
+					@click="close"
 					class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 				>
 					Close

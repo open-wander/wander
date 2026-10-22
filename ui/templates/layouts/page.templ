@@ -28,27 +28,29 @@ templ PageLayout(props PageLayoutProps, content templ.Component) {
 
 // pageContent is the inner content for PageLayout that gets passed to BaseLayout
 templ pageContent(props PageLayoutProps, content templ.Component) {
-	<div class="flex h-full">
-		<!-- Sidebar Component -->
-		@components.Sidebar(components.SidebarProps{
-			CurrentPath:      props.CurrentPath,
-			ExpandedSections: props.ExpandedSections,
-			Version:          props.Version,
-		})
-		<!-- Main Content Area -->
-		<div class="flex flex-col flex-1 overflow-hidden">
-			<!-- Header Component -->
-			@components.Header(components.HeaderProps{
-				CurrentPath:         props.CurrentPath,
-				User:                props.User,
-				Breadcrumbs:         props.Breadcrumbs,
-				CurrentNamespace:    props.CurrentNamespace,
-				AvailableNamespaces: props.AvailableNamespaces,
-				CurrentRegion:       props.CurrentRegion,
-				AvailableRegions:    props.AvailableRegions,
+	<div class="flex h-full flex-col">
+		<div class="flex min-h-0 flex-1">
+			<!-- Sidebar Component -->
+			@components.Sidebar(components.SidebarProps{
+				CurrentPath:      props.CurrentPath,
+				ExpandedSections: props.ExpandedSections,
 			})
-			<!-- Main Content Component -->
-			@components.Main(components.MainProps{}, content)
+			<!-- Main Content Area -->
+			<div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+				<!-- Header Component -->
+				@components.Header(components.HeaderProps{
+					CurrentPath:         props.CurrentPath,
+					User:                props.User,
+					Breadcrumbs:         props.Breadcrumbs,
+					CurrentNamespace:    props.CurrentNamespace,
+					AvailableNamespaces: props.AvailableNamespaces,
+					CurrentRegion:       props.CurrentRegion,
+					AvailableRegions:    props.AvailableRegions,
+				})
+				<!-- Main Content Component -->
+				@components.Main(components.MainProps{}, content)
+			</div>
 		</div>
+		@components.Footer(components.FooterProps{Version: props.Version})
 	</div>
 }

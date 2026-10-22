@@ -20,8 +20,11 @@ type PolicyDetail struct {
 templ DetailContent(policy PolicyDetail) {
 	<div
 		class="p-6"
-		x-data={ policyEditorAlpineData(policy) }
+		x-data="policyEditor"
+		data-policy-name={ policy.Name }
 	>
+		<textarea x-ref="rulesSource" hidden>{ policy.Rules }</textarea>
+		<textarea x-ref="descriptionSource" hidden>{ policy.Description }</textarea>
 		<!-- Header Section -->
 		<div class="mb-6">
 			<div class="flex items-center justify-between mb-4">
@@ -258,37 +261,6 @@ templ DetailContent(policy PolicyDetail) {
 			</div>
 		</template>
 	</div>
-	<!-- Load CodeMirror bundle -->
-	<script src="/static/js/codemirror-bundle.js"></script>
-}
-
-// policyEditorAlpineData generates the Alpine.js x-data for the policy editor
-func policyEditorAlpineData(policy PolicyDetail) string {
-	// Escape the rules content for use in JavaScript
-	escapedRules := escapeForJS(policy.Rules)
-	escapedDescription := escapeForJS(policy.Description)
-	escapedName := escapeForJS(policy.Name)
-
-	return fmt.Sprintf("policyEditor(`%s`, `%s`, `%s`)", escapedRules, escapedDescription, escapedName)
-}
-
-// escapeForJS escapes a string for use in JavaScript template literals
-func escapeForJS(s string) string {
-	// Escape backslashes first, then backticks and dollar signs
-	result := ""
-	for _, c := range s {
-		switch c {
-		case '\\':
-			result += "\\\\"
-		case '`':
-			result += "\\`"
-		case '$':
-			result += "\\$"
-		default:
-			result += string(c)
-		}
-	}
-	return result
 }
 
 // formatTime formats a time for display

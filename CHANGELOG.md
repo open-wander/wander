@@ -2,55 +2,45 @@
 
 BREAKING CHANGES:
 
-* ui: Complete rewrite of the web UI from Ember.js to Go Templ + HTMX + Alpine.js + Tailwind CSS. The new UI maintains feature parity while significantly reducing bundle size and improving performance.
+* distribution: Rename the executable, packages, and visible product identity to Wander. Inherited Nomad 1.6.5 APIs, configuration, state, and environment variables remain compatibility interfaces for the 0.1.0 release.
+* ui: Replace the inherited Ember application with the Wander server-rendered UI at the existing `/ui/` path.
 
 FEATURES:
 
-* ui: New topology visualization with D3.js grid-based datacenter view, node status indicators, and resource utilization bars
-* ui: SSE-based log streaming with ANSI color support, auto-scroll, and download capability
-* ui: Evaluations sidebar panel with real-time updates and status badges
-* ui: Time range selector for resource charts (5m, 15m, 1h, 6h, 24h, 7d presets plus custom range)
-* ui: Interactive exec terminal with xterm.js and WebSocket connection
-* ui: Key-value editor for Variables with create/edit/delete functionality
-* ui: Policy editor with HCL syntax highlighting via CodeMirror 6
+* ui: Add live cluster views for jobs, allocations, clients, servers, deployments, evaluations, CSI resources, namespaces, variables, policies, and topology.
+* ui: Add allocation file browsing, log streaming, and same-origin WebSocket exec.
+* ui: Add API-backed job, allocation, client, variable, policy, and namespace actions.
+
+SECURITY:
+
+* ui: Isolate namespace and region selection per request and browser so one user's selection cannot redirect another user's reads or mutations.
 
 IMPROVEMENTS:
 
-* ui: Upgraded CodeMirror from v5 to v6 with HCL/JSON syntax highlighting and bracket matching
-* ui: CSS framework changed from Bulma to Tailwind CSS with custom theme and utility classes
-* ui: Added HTMX for dynamic updates without full page reloads
-* ui: Added Alpine.js for client-side interactivity (dropdowns, modals, tabs, toasts)
-* ui: Real-time allocation updates via HTMX polling with visibility-based pause
-* ui: Resource utilization charts with color thresholds (green/yellow/orange/red)
-* ui: Comprehensive component library: Button, Badge, Card, Table, Modal, Dropdown, Tabs, Alert, Toast, etc.
-* ui: Client drain controls with deadline and ignore-system-jobs options
-* ui: Job version diff view with LCS-based algorithm
-* ui: File browser with syntax-highlighted preview and download capability
+* build: Embed the Wander UI in release binaries by default and verify the UI build tag in every release archive.
+* ui: Preserve the inherited default enablement, `ui { enabled = false }` configuration, root redirect, and content-security-policy behavior.
+* ui: Vendor CSP-compatible Alpine assets and prohibit evaluated HTMX expressions and inline scripts.
+* ui: Keep Node.js and npm as build/test dependencies only; production requires only the Wander binary.
+* ui: Let allocation logs grow from five visible lines to a viewport-sized maximum, and size terminal, file, and code-editor workspaces consistently from the available viewport.
+* ui: Place global search below the breadcrumb row so long allocation paths cannot overlap it.
+* ui: Add a persistent version footer that remains outside the scrollable page content.
+* ui: Make the footer span the viewport and show the application version in one place.
 
-PERFORMANCE:
+BUG FIXES:
 
-* ui: JavaScript bundle reduced from ~500kb to <100kb gzipped (HTMX ~16kb + Alpine.js ~15kb + utilities)
-* ui: CSS bundle <50kb gzipped after Tailwind purge
-* ui: Server-side rendering improves Time to First Byte (target <100ms)
-* ui: First Contentful Paint target <500ms
-* ui: Time to Interactive target <1s
-* ui: Single binary deployment - no node_modules required in production
-
-REMOVED:
-
-* ui: Ember.js 3.28 framework and all related dependencies
-* ui: HashiCorp Design System (HDS) components
-* ui: Bulma CSS framework
-* ui: node_modules directory for UI (build-time Tailwind CLI only)
+* ui: Render live job definitions and ACL policy rules without CSP-restricted Alpine expressions, restore editor contrast, and report the header's API connection state accurately.
+* ui: Follow combined allocation stdout and stderr logs without reconnect loops, and keep the log viewer clear of the page edge.
+* ui: Switch job definitions between real HCL and JSON content, and restore allocation directory expansion and file previews.
+* ui: Restore task-group scale-dialog state and dismissal under the content security policy.
+* ui: Show active allocation reservations and schedulable capacity on client and topology views instead of reserved-system resources or fabricated host load.
+* ui: Keep deeply expanded allocation file trees scrollable within the workspace while preserving access to file previews and the page footer.
+* ui: Stop allocation-log SSE heartbeats cleanly without racing concurrent stream writes.
 
 MIGRATION NOTES:
 
-* Browser Requirements: Chrome/Edge 80+, Firefox 78+, Safari 14+ (2020+ browsers)
-* The new UI serves at the same `/ui/` path - no URL changes required
-* ACL tokens continue to work via cookie or header authentication
-* All existing UI functionality is preserved with the new technology stack
-* Custom CSS or JavaScript extensions targeting the old Ember UI will need to be updated
-* The UI is now rendered server-side; JavaScript is only required for interactive elements
+* The UI remains at `/ui/` and is delivered from the same executable as the server.
+* Existing integrations that customize or automate the inherited Ember DOM must be updated for the Wander UI.
+* Historical entries below 0.1.0 describe the inherited Nomad codebase through v1.6.5; later Nomad code is not part of Wander.
 
 ## 1.6.5 (December 13, 2023)
 

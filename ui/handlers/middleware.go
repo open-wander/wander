@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
+	"unicode"
 )
 
 // HTMX request headers
@@ -29,14 +31,55 @@ const (
 	HXTrigger = "HX-Trigger"
 )
 
-// Nomad ACL headers and cookies
+// ACL transport names
 const (
-	// XNomadToken is the HTTP header for Nomad ACL tokens
+	// XNomadToken is retained because it is part of the inherited HTTP API.
 	XNomadToken = "X-Nomad-Token"
 
-	// NomadTokenCookie is the cookie name for storing Nomad ACL tokens
-	NomadTokenCookie = "nomad_token"
+	// WanderTokenCookie is Wander UI state and is not part of the inherited API.
+	WanderTokenCookie = "wander_token"
+
+	// WanderNamespaceCookie and WanderRegionCookie keep cluster selection scoped
+	// to one browser rather than shared by every UI user in the server process.
+	WanderNamespaceCookie = "wander_namespace"
+	WanderRegionCookie    = "wander_region"
 )
+
+// SelectionMiddleware resolves namespace and region independently for every
+// request. URL values have priority so links remain explicit and shareable;
+// browser cookies provide continuity for links that omit the selection.
+func SelectionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		namespace := selectionValue(r, "namespace", WanderNamespaceCookie, defaultNamespace, true)
+		region := selectionValue(r, "region", WanderRegionCookie, defaultRegion, false)
+
+		ctx := context.WithValue(r.Context(), wanderNamespaceKey, namespace)
+		ctx = context.WithValue(ctx, wanderRegionKey, region)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func selectionValue(r *http.Request, queryName, cookieName, fallback string, allowWildcard bool) string {
+	if value := r.URL.Query().Get(queryName); validSelectionValue(value, allowWildcard) {
+		return value
+	}
+	if cookie, err := r.Cookie(cookieName); err == nil && validSelectionValue(cookie.Value, allowWildcard) {
+		return cookie.Value
+	}
+	return fallback
+}
+
+func validSelectionValue(value string, allowWildcard bool) bool {
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	if allowWildcard && value == "*" {
+		return true
+	}
+	return strings.IndexFunc(value, func(r rune) bool {
+		return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == '.')
+	}) == -1
+}
 
 // IsHTMXRequest checks if the request is an HTMX AJAX request by checking
 // for the HX-Request header. Returns true if the header is set to "true".
@@ -117,9 +160,9 @@ func HTMXMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// extractToken extracts the Nomad ACL token from the request.
+// extractToken extracts the ACL token from the request.
 // It first checks the X-Nomad-Token header, then falls back to checking
-// the nomad_token cookie. Returns empty string if no token is found.
+// the wander_token cookie. Returns empty string if no token is found.
 func extractToken(r *http.Request) string {
 	// Check X-Nomad-Token header first (preferred method for API calls)
 	if token := r.Header.Get(XNomadToken); token != "" {
@@ -127,7 +170,7 @@ func extractToken(r *http.Request) string {
 	}
 
 	// Fall back to cookie (used for browser-based authentication)
-	cookie, err := r.Cookie(NomadTokenCookie)
+	cookie, err := r.Cookie(WanderTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
@@ -135,11 +178,11 @@ func extractToken(r *http.Request) string {
 	return ""
 }
 
-// ACLMiddleware extracts the Nomad ACL token from the request and stores it
+// ACLMiddleware extracts the ACL token from the request and stores it
 // in the request context for downstream handlers to use.
 // The token is extracted from either:
 // 1. The X-Nomad-Token HTTP header (preferred for API calls)
-// 2. The nomad_token cookie (used for browser-based authentication)
+// 2. The wander_token cookie (used for browser-based authentication)
 //
 // Note: This middleware does NOT validate the token - it only extracts and stores it.
 // Token validation should be performed by downstream handlers or a separate middleware.
@@ -150,7 +193,7 @@ func ACLMiddleware(next http.Handler) http.Handler {
 		// Extract token from headers or cookies
 		if token := extractToken(r); token != "" {
 			// Store token in context for downstream handlers
-			ctx = context.WithValue(ctx, nomadTokenKey, token)
+			ctx = context.WithValue(ctx, wanderTokenKey, token)
 		}
 
 		// Call the next handler with the updated context

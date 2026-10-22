@@ -15,23 +15,15 @@ import (
 // for easier testing and dependency injection.
 type Handler struct {
 	logger hclog.Logger
-	// App context for shared state
+	// App context contains immutable presentation defaults shared by requests.
 	appContext *AppContext
-	// Nomad API client for making API calls
+	// nomadClient is an immutable template. Request handlers use a scoped copy.
 	nomadClient *api.Client
-	// Track if we've done the initial namespace fetch
-	namespacesRefreshed bool
-	// Track if we've done the initial regions fetch
-	regionsRefreshed bool
 }
 
-// AppContext holds shared application state like current namespace, region and user info
+// AppContext holds shared presentation state that is not request-specific.
 type AppContext struct {
-	CurrentNamespace    string
-	AvailableNamespaces []components.NamespaceInfo
-	CurrentRegion       string
-	AvailableRegions    []components.RegionInfo
-	User                *components.UserInfo
+	User *components.UserInfo
 }
 
 // Config contains configuration options for the handler.
@@ -57,7 +49,7 @@ func NewHandler(logger hclog.Logger) *Handler {
 	nomadClient, err := api.NewClient(nomadConfig)
 	if err != nil {
 		logger.Error("failed to create Nomad API client", "error", err)
-		// Continue without client - handlers will use mock data
+		// Continue without a client so handlers can report unavailability.
 		nomadClient = nil
 	} else {
 		logger.Info("Nomad API client initialized", "address", nomadConfig.Address)
@@ -67,14 +59,6 @@ func NewHandler(logger hclog.Logger) *Handler {
 		logger:      logger,
 		nomadClient: nomadClient,
 		appContext: &AppContext{
-			CurrentNamespace: "default",
-			AvailableNamespaces: []components.NamespaceInfo{
-				{Name: "default", Description: "Default namespace"},
-			},
-			CurrentRegion: "global",
-			AvailableRegions: []components.RegionInfo{
-				{Name: "global"},
-			},
 			User: &components.UserInfo{
 				Name:  "Anonymous",
 				Email: "",
@@ -88,55 +72,57 @@ func NewHandler(logger hclog.Logger) *Handler {
 	return h
 }
 
-// refreshNamespaces fetches the list of namespaces from Nomad and updates the app context.
-func (h *Handler) refreshNamespaces() {
-	if h.nomadClient == nil {
-		return
+func (h *Handler) availableNamespaces(r *http.Request, client *api.Client) []components.NamespaceInfo {
+	fallback := []components.NamespaceInfo{{Name: defaultNamespace, Description: "Default namespace"}}
+	if client == nil {
+		return fallback
 	}
 
-	namespaces, _, err := h.nomadClient.Namespaces().List(nil)
+	namespaces, _, err := client.Namespaces().List(&api.QueryOptions{AuthToken: GetTokenFromRequest(r)})
 	if err != nil {
 		// Don't warn about cluster unavailability - it's expected during startup/elections
 		if !IsClusterUnavailableError(err) {
 			h.logger.Warn("failed to fetch namespaces from Nomad", "error", err)
 		}
-		return
+		return fallback
 	}
 
-	h.appContext.AvailableNamespaces = make([]components.NamespaceInfo, 0, len(namespaces))
+	available := make([]components.NamespaceInfo, 0, len(namespaces))
 	for _, ns := range namespaces {
-		h.appContext.AvailableNamespaces = append(h.appContext.AvailableNamespaces, components.NamespaceInfo{
+		available = append(available, components.NamespaceInfo{
 			Name:        ns.Name,
 			Description: ns.Description,
 		})
 	}
 
 	h.logger.Debug("fetched namespaces from Nomad", "count", len(namespaces))
+	return available
 }
 
-// refreshRegions fetches the list of regions from Nomad and updates the app context.
-func (h *Handler) refreshRegions() {
-	if h.nomadClient == nil {
-		return
+func (h *Handler) availableRegions(client *api.Client) []components.RegionInfo {
+	fallback := []components.RegionInfo{{Name: defaultRegion}}
+	if client == nil {
+		return fallback
 	}
 
-	regions, err := h.nomadClient.Regions().List()
+	regions, err := client.Regions().List()
 	if err != nil {
 		// Don't warn about cluster unavailability - it's expected during startup/elections
 		if !IsClusterUnavailableError(err) {
 			h.logger.Warn("failed to fetch regions from Nomad", "error", err)
 		}
-		return
+		return fallback
 	}
 
-	h.appContext.AvailableRegions = make([]components.RegionInfo, 0, len(regions))
+	available := make([]components.RegionInfo, 0, len(regions))
 	for _, region := range regions {
-		h.appContext.AvailableRegions = append(h.appContext.AvailableRegions, components.RegionInfo{
+		available = append(available, components.RegionInfo{
 			Name: region,
 		})
 	}
 
 	h.logger.Debug("fetched regions from Nomad", "count", len(regions))
+	return available
 }
 
 // Logger returns the handler's logger instance.
@@ -145,66 +131,33 @@ func (h *Handler) Logger() hclog.Logger {
 	return h.logger
 }
 
-// NomadClient returns the Nomad API client.
-// Returns nil if the client is not configured or failed to initialize.
-func (h *Handler) NomadClient() *api.Client {
-	return h.nomadClient
-}
-
-// HasNomadClient returns true if a Nomad API client is available.
-func (h *Handler) HasNomadClient() bool {
-	return h.nomadClient != nil
-}
-
-// AppContext returns the shared application context.
-func (h *Handler) AppContext() *AppContext {
-	return h.appContext
-}
-
-// SetCurrentNamespace updates the current namespace in the app context.
-func (h *Handler) SetCurrentNamespace(ns string) {
-	h.appContext.CurrentNamespace = ns
-	// Also update the Nomad client's namespace
-	if h.nomadClient != nil {
-		h.nomadClient.SetNamespace(ns)
+// NomadClientForRequest returns an isolated client configuration for the
+// request while retaining the shared client's connection pool.
+func (h *Handler) NomadClientForRequest(r *http.Request) *api.Client {
+	if h.nomadClient == nil {
+		return nil
 	}
+	client := h.nomadClient.WithNamespaceAndRegion(
+		GetNamespaceFromRequest(r),
+		GetRegionFromRequest(r),
+	)
+	client.SetSecretID(GetTokenFromRequest(r))
+	return client
 }
 
-// SetCurrentRegion updates the current region in the app context.
-func (h *Handler) SetCurrentRegion(region string) {
-	h.appContext.CurrentRegion = region
-	// Also update the Nomad client's region
-	if h.nomadClient != nil {
-		h.nomadClient.SetRegion(region)
-	}
-}
-
-// BaseLayoutProps returns PageLayoutProps with common fields pre-filled from app context.
-// Handlers should use this and then fill in page-specific fields.
-// On first call, it lazily fetches namespaces and regions from Nomad if a client is available.
-func (h *Handler) BaseLayoutProps(title, description, currentPath string, breadcrumbs []components.Breadcrumb) layouts.PageLayoutProps {
-	// Lazy refresh namespaces on first request
-	if !h.namespacesRefreshed && h.nomadClient != nil {
-		h.refreshNamespaces()
-		h.namespacesRefreshed = true
-	}
-
-	// Lazy refresh regions on first request
-	if !h.regionsRefreshed && h.nomadClient != nil {
-		h.refreshRegions()
-		h.regionsRefreshed = true
-	}
-
+// BaseLayoutProps returns PageLayoutProps with common request-scoped fields.
+func (h *Handler) BaseLayoutProps(r *http.Request, title, description, currentPath string, breadcrumbs []components.Breadcrumb) layouts.PageLayoutProps {
+	client := h.NomadClientForRequest(r)
 	return layouts.PageLayoutProps{
 		Title:               title,
 		Description:         description,
 		CurrentPath:         currentPath,
 		Breadcrumbs:         breadcrumbs,
 		User:                h.appContext.User,
-		CurrentNamespace:    h.appContext.CurrentNamespace,
-		AvailableNamespaces: h.appContext.AvailableNamespaces,
-		CurrentRegion:       h.appContext.CurrentRegion,
-		AvailableRegions:    h.appContext.AvailableRegions,
+		CurrentNamespace:    GetNamespaceFromRequest(r),
+		AvailableNamespaces: h.availableNamespaces(r, client),
+		CurrentRegion:       GetRegionFromRequest(r),
+		AvailableRegions:    h.availableRegions(client),
 		Version:             "v" + version.GetVersion().VersionNumber(),
 	}
 }
@@ -230,11 +183,11 @@ func (h *Handler) CheckClusterError(w http.ResponseWriter, r *http.Request, err 
 	if IsClusterUnavailableError(err) {
 		h.logger.Warn("cluster unavailable error detected", "error", err)
 		h.RenderClusterUnavailable(w, r, ClusterUnavailableError{
-			Message: "The Nomad cluster is currently unavailable. No cluster leader has been elected.",
+			Message: "The Wander cluster is currently unavailable. No cluster leader has been elected.",
 			Details: "This usually happens when the cluster is starting up, during a leader election, or when there are network issues between server nodes.",
 			Suggestions: []string{
 				"Wait a few moments for leader election to complete",
-				"Check that all Nomad server nodes are running and can communicate",
+				"Check that all Wander server nodes are running and can communicate",
 				"Verify network connectivity between server nodes",
 				"Check server logs for leadership election issues",
 				"Contact your cluster administrator if the issue persists",

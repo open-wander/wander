@@ -2,7 +2,9 @@ package deploymentspartials
 
 import (
 	"fmt"
+	"net/url"
 	"time"
+
 	"github.com/open-wander/wander/ui/templates/components"
 )
 
@@ -43,13 +45,13 @@ templ DetailContent(deploy DeploymentDetail) {
 		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
 		if !isDeploymentTerminal(deploy.Status) {
 			hx-get={ "/ui/deployments/" + deploy.ID }
-			hx-trigger="every 5s [document.visibilityState === 'visible']"
+			hx-trigger="every 5s"
 			hx-swap="outerHTML"
 		}
 	>
 		<!-- Deployment Header -->
 		<div class="bg-white shadow rounded-lg p-6 mb-6">
-			<div class="flex items-center justify-between mb-4">
+			<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
 				<div class="flex items-center space-x-4">
 					<h1 class="text-3xl font-bold text-neutral-900">Deployment</h1>
 					<span class="text-xl font-mono text-neutral-600">{ deploy.ShortID }</span>
@@ -61,6 +63,30 @@ templ DetailContent(deploy DeploymentDetail) {
 						{ deploy.Status }
 					}
 				</div>
+				if deploy.Status == "running" {
+					<div class="flex items-center gap-3">
+						if hasUnpromotedCanaries(deploy.TaskGroups) {
+							<button
+								type="button"
+								hx-post={ "/api/deployments/" + deploy.ID + "/promote?namespace=" + url.QueryEscape(deploy.Namespace) }
+								hx-swap="none"
+								hx-confirm="Promote all healthy canaries for this deployment?"
+								class="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+							>
+								Promote canaries
+							</button>
+						}
+						<button
+							type="button"
+							hx-post={ "/api/deployments/" + deploy.ID + "/fail?namespace=" + url.QueryEscape(deploy.Namespace) }
+							hx-swap="none"
+							hx-confirm="Fail this deployment? This may trigger an automatic revert if configured."
+							class="inline-flex items-center rounded-md bg-error-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-error-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-600"
+						>
+							Fail deployment
+						</button>
+					</div>
+				}
 			</div>
 
 			<!-- Basic Information Grid -->
@@ -108,14 +134,18 @@ templ DetailContent(deploy DeploymentDetail) {
 				<div>
 					<label class="block text-sm font-medium text-neutral-500 mb-1">Created</label>
 					<p class="text-neutral-900">{ deploy.CreateTimeAgo }</p>
-					<p class="text-xs text-neutral-500">{ deploy.CreateTime.Format("2006-01-02 15:04:05 MST") }</p>
+					if !deploy.CreateTime.IsZero() {
+						<p class="text-xs text-neutral-500">{ deploy.CreateTime.Format("2006-01-02 15:04:05 MST") }</p>
+					}
 				</div>
 
 				<!-- Modified -->
 				<div>
 					<label class="block text-sm font-medium text-neutral-500 mb-1">Modified</label>
 					<p class="text-neutral-900">{ deploy.ModifyTimeAgo }</p>
-					<p class="text-xs text-neutral-500">{ deploy.ModifyTime.Format("2006-01-02 15:04:05 MST") }</p>
+					if !deploy.ModifyTime.IsZero() {
+						<p class="text-xs text-neutral-500">{ deploy.ModifyTime.Format("2006-01-02 15:04:05 MST") }</p>
+					}
 				</div>
 			</div>
 		</div>
@@ -211,6 +241,15 @@ templ DetailContent(deploy DeploymentDetail) {
 			</div>
 		</div>
 	</div>
+}
+
+func hasUnpromotedCanaries(groups []TaskGroupStatus) bool {
+	for _, group := range groups {
+		if group.DesiredCanaries > 0 && !group.Promoted {
+			return true
+		}
+	}
+	return false
 }
 
 // deploymentStatusVariant returns the badge variant for a deployment status

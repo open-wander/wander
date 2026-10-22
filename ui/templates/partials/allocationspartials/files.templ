@@ -2,6 +2,7 @@ package allocationspartials
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -70,10 +71,10 @@ templ FilesTabFull(props FilesTabProps) {
 			</div>
 		</div>
 		<!-- File Browser Container -->
-		<div id="files-container" class="flex gap-6">
+		<div id="files-container" class="workspace-surface flex gap-6">
 			<!-- File Tree Panel -->
 			<div class="flex-1 min-w-0">
-				<div class="border border-neutral-200 rounded-lg bg-white overflow-hidden">
+				<div data-file-tree-scroll class="border border-neutral-200 rounded-lg bg-white overflow-auto h-full">
 					<!-- Tree Header -->
 					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200">
 						<div class="flex items-center justify-between text-xs font-medium text-neutral-500 uppercase tracking-wide">
@@ -109,7 +110,7 @@ templ FilesTabFull(props FilesTabProps) {
 				x-show="previewOpen"
 				x-cloak
 			>
-				<div class="border border-neutral-200 rounded-lg bg-white overflow-hidden h-full">
+				<div class="border border-neutral-200 rounded-lg bg-white overflow-hidden h-full flex flex-col">
 					<!-- Preview Header -->
 					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
 						<div class="flex items-center space-x-2 min-w-0">
@@ -141,7 +142,7 @@ templ FilesTabFull(props FilesTabProps) {
 						</div>
 					</div>
 					<!-- Preview Content -->
-					<div id="file-preview-content" class="p-4 overflow-auto max-h-96">
+					<div id="file-preview-content" class="p-4 overflow-auto flex-1 min-h-0">
 						<div class="text-sm text-neutral-500 text-center py-8">
 							Select a file to preview
 						</div>
@@ -149,37 +150,6 @@ templ FilesTabFull(props FilesTabProps) {
 				</div>
 			</div>
 		</div>
-		<!-- Alpine.js file explorer state -->
-		<script type="text/javascript">
-			function fileExplorer() {
-				return {
-					previewOpen: false,
-					previewFileName: '',
-					previewDownloadUrl: '',
-					expandedDirs: {},
-
-					toggleDir(path) {
-						this.expandedDirs[path] = !this.expandedDirs[path];
-					},
-
-					isDirExpanded(path) {
-						return this.expandedDirs[path] === true;
-					},
-
-					openPreview(fileName, downloadUrl) {
-						this.previewOpen = true;
-						this.previewFileName = fileName;
-						this.previewDownloadUrl = downloadUrl;
-					},
-
-					closePreview() {
-						this.previewOpen = false;
-						this.previewFileName = '';
-						this.previewDownloadUrl = '';
-					}
-				}
-			}
-		</script>
 	</div>
 }
 
@@ -194,12 +164,16 @@ templ fileTreeNode(entry FileEntry, allocID, task string, depth int) {
 
 // directoryNode renders an expandable directory in the tree
 templ directoryNode(entry FileEntry, allocID, task string, depth int) {
-	<div class="file-tree-node" x-data={ fmt.Sprintf("{ expanded: false, loaded: false }") }>
+	<div class="file-tree-node" x-data="{ expanded: false }">
 		<!-- Directory Row -->
 		<div
 			class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
 			style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20) }
-			@click="expanded = !expanded; if (expanded && !loaded) { loaded = true; htmx.trigger($refs.dirContent, 'load'); }"
+			@click="expanded = !expanded"
+			hx-get={ fileActionURL(allocID, "list", task, entry.Path) }
+			hx-target="next .directory-contents"
+			hx-trigger="click once"
+			hx-swap="innerHTML"
 		>
 			<div class="flex items-center space-x-2 min-w-0">
 				<!-- Expand/Collapse Icon -->
@@ -229,12 +203,8 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 		<div
 			x-ref="dirContent"
 			x-show="expanded"
-			x-collapse
-			class="border-l border-neutral-200"
+			class="directory-contents border-l border-neutral-200"
 			style={ fmt.Sprintf("margin-left: %dpx", 16+depth*20+8) }
-			hx-get={ "/ui/allocations/" + allocID + "/files/list?task=" + task + "&path=" + entry.Path }
-			hx-trigger="load"
-			hx-swap="innerHTML"
 		>
 			<!-- Loading placeholder -->
 			<div class="px-4 py-2 text-sm text-neutral-500">
@@ -255,10 +225,12 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 	<div
 		class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
 		style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20+24) }
-		hx-get={ "/ui/allocations/" + allocID + "/files/preview?task=" + task + "&path=" + entry.Path }
+		hx-get={ fileActionURL(allocID, "preview", task, entry.Path) }
 		hx-target="#file-preview-content"
 		hx-swap="innerHTML"
-		@click={ fmt.Sprintf("openPreview('%s', '/ui/allocations/%s/files/download?task=%s&path=%s')", entry.Name, allocID, task, entry.Path) }
+		data-file-name={ entry.Name }
+		data-download-url={ fileActionURL(allocID, "download", task, entry.Path) }
+		@click="openPreview($el.dataset.fileName, $el.dataset.downloadUrl)"
 	>
 		<div class="flex items-center space-x-2 min-w-0">
 			<!-- File Icon -->
@@ -271,7 +243,7 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 			<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
 			<!-- Download Button -->
 			<a
-				href={ templ.SafeURL("/ui/allocations/" + allocID + "/files/download?task=" + task + "&path=" + entry.Path) }
+				href={ templ.SafeURL(fileActionURL(allocID, "download", task, entry.Path)) }
 				class="w-8 text-center opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-primary-600"
 				title="Download file"
 				download
@@ -283,6 +255,13 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 			</a>
 		</div>
 	</div>
+}
+
+func fileActionURL(allocID, action, task, path string) string {
+	query := url.Values{}
+	query.Set("task", task)
+	query.Set("path", path)
+	return "/ui/allocations/" + url.PathEscape(allocID) + "/files/" + action + "?" + query.Encode()
 }
 
 // DirectoryListing renders the children of a directory (for HTMX lazy loading)
@@ -361,7 +340,7 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 				data-content={ props.Content }
 			>
 				<!-- Initial content with line numbers (pre-rendered for immediate display) -->
-				<div class="wander-editor-wrapper theme-dark rounded-lg overflow-hidden" style="max-height: 400px; overflow: auto;">
+				<div class="wander-editor-wrapper theme-dark rounded-lg overflow-auto max-h-full">
 					<div class="wander-editor-area flex py-2">
 						<div class="wander-line-numbers px-2 text-right select-none border-r border-neutral-700" style="min-width: 3rem; color: #6b7280;">
 							@renderLineNumbers(props.Content)

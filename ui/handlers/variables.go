@@ -84,10 +84,7 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Debug("variables list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
 	// Parse query parameters
-	namespace := r.URL.Query().Get("namespace")
-	if namespace == "" {
-		namespace = "*" // Default to all namespaces
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
@@ -107,8 +104,8 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get variable data from API or fallback to mock
-	variablesList := h.getVariablesList(namespace, token)
+	// Get variable data from the API.
+	variablesList := h.getVariablesList(r, namespace, token)
 
 	// Parse search query from query string
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
@@ -150,9 +147,9 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	variablesList = paginateVariables(variablesList, page, perPage)
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Variables - Wander",
-		"View and manage Nomad variables",
+		"View and manage Wander variables",
 		"/ui/variables",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -162,7 +159,7 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render the variables list page
 	err := Render(w, r,
-		variables.List(layoutProps, variablesList, sortColumn, sortDir, searchQuery, pagination),                // Full page with layout
+		variables.List(layoutProps, variablesList, sortColumn, sortDir, searchQuery, pagination),   // Full page with layout
 		variablespartials.ListContent(variablesList, sortColumn, sortDir, searchQuery, pagination), // Partial content for HTMX requests
 	)
 
@@ -174,12 +171,11 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getVariablesList fetches variables from the Nomad API.
-// Falls back to mock data if API is unavailable.
-func (h *VariablesHandler) getVariablesList(namespace, token string) []variablespartials.VariableSummary {
-	client := h.handler.NomadClient()
+func (h *VariablesHandler) getVariablesList(r *http.Request, namespace, token string) []variablespartials.VariableSummary {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, using mock data")
-		return h.getMockVariablesList()
+		h.handler.logger.Warn("no Nomad client available")
+		return nil
 	}
 
 	// Build query options with namespace and token
@@ -200,7 +196,7 @@ func (h *VariablesHandler) getVariablesList(namespace, token string) []variables
 	varsList, _, err := client.Variables().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Warn("failed to fetch variables from API", "error", err)
-		return h.getMockVariablesList()
+		return nil
 	}
 
 	h.handler.logger.Debug("fetched variables from API", "count", len(varsList))
@@ -238,105 +234,6 @@ func (h *VariablesHandler) getVariablesList(namespace, token string) []variables
 	}
 
 	return result
-}
-
-// getMockVariablesList returns mock variable data.
-// This is used as a fallback when the Nomad API is not available.
-func (h *VariablesHandler) getMockVariablesList() []variablespartials.VariableSummary {
-	now := time.Now()
-
-	return []variablespartials.VariableSummary{
-		{
-			Path:        "nomad/jobs",
-			Namespace:   "default",
-			CreateIndex: 1000,
-			ModifyIndex: 1250,
-			ItemCount:   12,
-			Modified:    now.Add(-24 * time.Hour),
-			JobID:       "",
-		},
-		{
-			Path:        "nomad/jobs/web-frontend",
-			Namespace:   "default",
-			CreateIndex: 1100,
-			ModifyIndex: 1300,
-			ItemCount:   8,
-			Modified:    now.Add(-2 * time.Hour),
-			JobID:       "web-frontend",
-		},
-		{
-			Path:        "nomad/jobs/api-backend",
-			Namespace:   "default",
-			CreateIndex: 1150,
-			ModifyIndex: 1350,
-			ItemCount:   6,
-			Modified:    now.Add(-5 * time.Hour),
-			JobID:       "api-backend",
-		},
-		{
-			Path:        "app/config",
-			Namespace:   "default",
-			CreateIndex: 2000,
-			ModifyIndex: 2100,
-			ItemCount:   15,
-			Modified:    now.Add(-12 * time.Hour),
-			JobID:       "",
-		},
-		{
-			Path:        "app/secrets",
-			Namespace:   "default",
-			CreateIndex: 2050,
-			ModifyIndex: 2150,
-			ItemCount:   4,
-			Modified:    now.Add(-3 * 24 * time.Hour),
-			JobID:       "",
-		},
-		{
-			Path:        "app/database",
-			Namespace:   "default",
-			CreateIndex: 2100,
-			ModifyIndex: 2200,
-			ItemCount:   7,
-			Modified:    now.Add(-48 * time.Hour),
-			JobID:       "",
-		},
-		{
-			Path:        "production/frontend",
-			Namespace:   "production",
-			CreateIndex: 3000,
-			ModifyIndex: 3050,
-			ItemCount:   10,
-			Modified:    now.Add(-6 * time.Hour),
-			JobID:       "web-frontend",
-		},
-		{
-			Path:        "production/backend",
-			Namespace:   "production",
-			CreateIndex: 3100,
-			ModifyIndex: 3150,
-			ItemCount:   9,
-			Modified:    now.Add(-8 * time.Hour),
-			JobID:       "api-backend",
-		},
-		{
-			Path:        "staging/config",
-			Namespace:   "staging",
-			CreateIndex: 4000,
-			ModifyIndex: 4050,
-			ItemCount:   5,
-			Modified:    now.Add(-72 * time.Hour),
-			JobID:       "",
-		},
-		{
-			Path:        "shared/certificates",
-			Namespace:   "default",
-			CreateIndex: 5000,
-			ModifyIndex: 5100,
-			ItemCount:   3,
-			Modified:    now.Add(-96 * time.Hour),
-			JobID:       "",
-		},
-	}
 }
 
 // filterVariables filters the variables list based on search query.
@@ -409,12 +306,13 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Debug("variable create page request", "htmx", IsHTMXFromRequest(r))
 
 	// Check permissions - need write capability to create variables
+	namespace := GetNamespaceFromRequest(r)
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.CanWriteVariables("default", "*") {
+	if perms != nil && !perms.CanWriteVariables(namespace, "*") {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to create variables",
 			Capability: "variables: write",
-			Namespace:  "default",
+			Namespace:  namespace,
 			Suggestions: []string{
 				"Contact your administrator to request the 'write' capability for variables",
 				"Variables require specific path-based permissions",
@@ -424,9 +322,9 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		"Create Variable - Wander",
-		"Create a new Nomad variable",
+		"Create a new Wander variable",
 		"/ui/variables/new",
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
@@ -437,7 +335,7 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Render the create page
 	err := Render(w, r,
-		variables.Create(layoutProps),                // Full page with layout
+		variables.Create(layoutProps),     // Full page with layout
 		variablespartials.CreateContent(), // Partial content for HTMX requests
 	)
 
@@ -466,7 +364,7 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Default namespace if not provided
 	if namespace == "" {
-		namespace = "default"
+		namespace = GetNamespaceFromRequest(r)
 	}
 
 	// Check permissions - need write capability to create variables
@@ -491,50 +389,16 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse key-value pairs from the form
-	// Form fields are named: item_key_0, item_value_0, item_key_1, item_value_1, etc.
-	items := make(map[string]string)
-	for key, values := range r.Form {
-		if strings.HasPrefix(key, "item_key_") && len(values) > 0 {
-			// Extract the index from item_key_N
-			idx := strings.TrimPrefix(key, "item_key_")
-			itemKey := strings.TrimSpace(values[0])
-
-			// Get corresponding value from item_value_N
-			valueKey := "item_value_" + idx
-			if itemValues, ok := r.Form[valueKey]; ok && len(itemValues) > 0 {
-				itemValue := itemValues[0] // Don't trim value - preserve whitespace
-				if itemKey != "" {
-					items[itemKey] = itemValue
-				}
-			}
-		}
-	}
-
-	// Get Nomad client
-	client := h.handler.NomadClient()
-	if client == nil {
-		h.handler.logger.Error("no Nomad client available")
-		http.Error(w, "Nomad client not available", http.StatusInternalServerError)
+	client, writeOpts, _, items, ok := h.variableItemsWriteContext(w, r, namespace)
+	if !ok {
 		return
 	}
-
-	// Get ACL token from request context
-	token := GetTokenFromRequest(r)
 
 	// Build the variable
 	variable := &api.Variable{
 		Namespace: namespace,
 		Path:      path,
 		Items:     items,
-	}
-
-	// Build write options with namespace and token
-	writeOpts := &api.WriteOptions{
-		Namespace: namespace,
-	}
-	if token != "" {
-		writeOpts.AuthToken = token
 	}
 
 	// Create the variable via Nomad API
@@ -567,10 +431,7 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get namespace from query param
-	namespace := r.URL.Query().Get("namespace")
-	if namespace == "" {
-		namespace = "default" // Default to default namespace
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Log the request
 	h.handler.logger.Debug("variable detail request", "path", variablePath, "namespace", namespace, "htmx", IsHTMXFromRequest(r))
@@ -593,8 +454,8 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
-	// Get variable detail from API or fallback to mock
-	variableDetail := h.getVariableDetail(variablePath, namespace, token)
+	// Get variable detail from the API.
+	variableDetail := h.getVariableDetail(r, variablePath, namespace, token)
 
 	// If not found, return 404
 	if variableDetail == nil {
@@ -603,7 +464,7 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build layout props
-	layoutProps := h.handler.BaseLayoutProps(
+	layoutProps := h.handler.BaseLayoutProps(r,
 		variableDetail.Path+" - Variable - Wander",
 		"View and edit variable "+variableDetail.Path,
 		"/ui/variables/"+variablePathEncoded,
@@ -616,7 +477,7 @@ func (h *VariablesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err = Render(w, r,
-		variables.Detail(layoutProps, *variableDetail),                // Full page with layout
+		variables.Detail(layoutProps, *variableDetail),   // Full page with layout
 		variablespartials.DetailContent(*variableDetail), // Partial content for HTMX requests
 	)
 
@@ -657,7 +518,7 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		namespace = strings.TrimSpace(r.FormValue("namespace"))
 	}
 	if namespace == "" {
-		namespace = "default"
+		namespace = GetNamespaceFromRequest(r)
 	}
 
 	// Check permissions - need write capability to update variables
@@ -668,43 +529,9 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse key-value pairs from the form
-	// Form fields are named: item_key_0, item_value_0, item_key_1, item_value_1, etc.
-	items := make(map[string]string)
-	for key, values := range r.Form {
-		if strings.HasPrefix(key, "item_key_") && len(values) > 0 {
-			// Extract the index from item_key_N
-			idx := strings.TrimPrefix(key, "item_key_")
-			itemKey := strings.TrimSpace(values[0])
-
-			// Get corresponding value from item_value_N
-			valueKey := "item_value_" + idx
-			if itemValues, ok := r.Form[valueKey]; ok && len(itemValues) > 0 {
-				itemValue := itemValues[0] // Don't trim value - preserve whitespace
-				if itemKey != "" {
-					items[itemKey] = itemValue
-				}
-			}
-		}
-	}
-
-	// Get Nomad client
-	client := h.handler.NomadClient()
-	if client == nil {
-		h.handler.logger.Error("no Nomad client available")
-		http.Error(w, "Nomad client not available", http.StatusInternalServerError)
+	client, writeOpts, token, items, ok := h.variableItemsWriteContext(w, r, namespace)
+	if !ok {
 		return
-	}
-
-	// Get ACL token from request context
-	token := GetTokenFromRequest(r)
-
-	// Build write options with namespace and token
-	writeOpts := &api.WriteOptions{
-		Namespace: namespace,
-	}
-	if token != "" {
-		writeOpts.AuthToken = token
 	}
 
 	// First, read the existing variable to get its ModifyIndex (for proper CAS updates)
@@ -772,10 +599,7 @@ func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get namespace from query param
-	namespace := r.URL.Query().Get("namespace")
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := GetNamespaceFromRequest(r)
 
 	// Log the request
 	h.handler.logger.Info("variable delete request", "path", variablePath, "namespace", namespace)
@@ -788,23 +612,9 @@ func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get Nomad client
-	client := h.handler.NomadClient()
-	if client == nil {
-		h.handler.logger.Error("no Nomad client available")
-		http.Error(w, "Nomad client not available", http.StatusInternalServerError)
+	client, writeOpts, _, ok := h.variableWriteContext(w, r, namespace)
+	if !ok {
 		return
-	}
-
-	// Get ACL token from request context
-	token := GetTokenFromRequest(r)
-
-	// Build write options with namespace and token
-	writeOpts := &api.WriteOptions{
-		Namespace: namespace,
-	}
-	if token != "" {
-		writeOpts.AuthToken = token
 	}
 
 	// Delete the variable via Nomad API
@@ -822,13 +632,41 @@ func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// getVariableDetail fetches a variable by path from the Nomad API.
-// Falls back to mock data if API is unavailable. Returns nil if not found.
-func (h *VariablesHandler) getVariableDetail(path, namespace, token string) *variablespartials.VariableDetail {
-	client := h.handler.NomadClient()
+func (h *VariablesHandler) variableWriteContext(
+	w http.ResponseWriter,
+	r *http.Request,
+	namespace string,
+) (*api.Client, *api.WriteOptions, string, bool) {
+	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, using mock data")
-		return h.getMockVariableDetail(path)
+		h.handler.logger.Error("no Nomad client available")
+		http.Error(w, "Wander client not available", http.StatusInternalServerError)
+		return nil, nil, "", false
+	}
+
+	token := GetTokenFromRequest(r)
+	writeOpts := &api.WriteOptions{Namespace: namespace, AuthToken: token}
+	return client, writeOpts, token, true
+}
+
+func (h *VariablesHandler) variableItemsWriteContext(
+	w http.ResponseWriter,
+	r *http.Request,
+	namespace string,
+) (*api.Client, *api.WriteOptions, string, map[string]string, bool) {
+	client, writeOpts, token, ok := h.variableWriteContext(w, r, namespace)
+	if !ok {
+		return nil, nil, "", nil, false
+	}
+	return client, writeOpts, token, parseVariableItems(r.Form), true
+}
+
+// getVariableDetail fetches a variable by path from the Nomad API.
+func (h *VariablesHandler) getVariableDetail(r *http.Request, path, namespace, token string) *variablespartials.VariableDetail {
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		h.handler.logger.Warn("no Nomad client available")
+		return nil
 	}
 
 	// Build query options with namespace and token
@@ -855,7 +693,7 @@ func (h *VariablesHandler) getVariableDetail(path, namespace, token string) *var
 			return nil
 		}
 		h.handler.logger.Warn("failed to fetch variable from API", "error", err, "path", path)
-		return h.getMockVariableDetail(path)
+		return nil
 	}
 
 	h.handler.logger.Debug("fetched variable from API", "path", path, "itemCount", len(variable.Items))
@@ -874,84 +712,18 @@ func (h *VariablesHandler) getVariableDetail(path, namespace, token string) *var
 	}
 }
 
-// getMockVariableDetail returns mock variable detail data.
-// Returns nil if the variable is not found in mock data.
-func (h *VariablesHandler) getMockVariableDetail(path string) *variablespartials.VariableDetail {
-	now := time.Now()
+func parseVariableItems(form url.Values) map[string]string {
+	items := make(map[string]string)
+	for field, values := range form {
+		if !strings.HasPrefix(field, "key_") || len(values) == 0 {
+			continue
+		}
 
-	// Mock variable data - match some paths from the list
-	variables := map[string]variablespartials.VariableDetail{
-		"nomad/jobs": {
-			Path:        "nomad/jobs",
-			Namespace:   "default",
-			CreateIndex: 1000,
-			ModifyIndex: 1250,
-			Modified:    now.Add(-24 * time.Hour),
-			Items: map[string]string{
-				"database_url":     "postgresql://localhost:5432/nomad",
-				"redis_host":       "redis.service.consul",
-				"api_timeout":      "30s",
-				"max_connections":  "100",
-				"enable_debugging": "false",
-			},
-		},
-		"nomad/jobs/web": {
-			Path:        "nomad/jobs/web",
-			Namespace:   "default",
-			CreateIndex: 1100,
-			ModifyIndex: 1300,
-			Modified:    now.Add(-2 * time.Hour),
-			Items: map[string]string{
-				"port":            "8080",
-				"log_level":       "info",
-				"static_assets":   "/var/www/public",
-				"session_timeout": "3600",
-			},
-		},
-		"nomad/jobs/api": {
-			Path:        "nomad/jobs/api",
-			Namespace:   "default",
-			CreateIndex: 1150,
-			ModifyIndex: 1350,
-			Modified:    now.Add(-5 * time.Hour),
-			Items: map[string]string{
-				"api_key":      "test-key-12345",
-				"rate_limit":   "1000",
-				"cors_origins": "*",
-			},
-		},
-		"app/config": {
-			Path:        "app/config",
-			Namespace:   "default",
-			CreateIndex: 2000,
-			ModifyIndex: 2100,
-			Modified:    now.Add(-12 * time.Hour),
-			Items: map[string]string{
-				"app_name":         "Wander",
-				"environment":      "production",
-				"feature_flags":    "new-ui,dark-mode",
-				"maintenance_mode": "false",
-				"version":          "1.0.0",
-			},
-		},
-		"app/secrets": {
-			Path:        "app/secrets",
-			Namespace:   "default",
-			CreateIndex: 2050,
-			ModifyIndex: 2150,
-			Modified:    now.Add(-3 * 24 * time.Hour),
-			Items: map[string]string{
-				"jwt_secret":     "super-secret-key",
-				"encryption_key": "aes-256-key",
-				"api_token":      "Bearer token123",
-			},
-		},
+		itemKey := strings.TrimSpace(values[0])
+		itemValues := form["value_"+strings.TrimPrefix(field, "key_")]
+		if itemKey != "" && len(itemValues) > 0 {
+			items[itemKey] = itemValues[0]
+		}
 	}
-
-	if detail, ok := variables[path]; ok {
-		return &detail
-	}
-
-	// Return nil if not found (real behavior)
-	return nil
+	return items
 }

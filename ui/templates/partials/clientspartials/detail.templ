@@ -1,6 +1,7 @@
 package clientspartials
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/open-wander/wander/ui/templates/components"
 	"sort"
@@ -105,6 +106,7 @@ type AllocationSummary struct {
 	Status    string
 	CPUUsed   int
 	MemUsed   int64
+	DiskUsed  int64
 }
 
 // DetailContent renders the client detail page content (without layout)
@@ -249,12 +251,12 @@ templ OverviewTab(client ClientDetail) {
 					<div class="flex items-center justify-between text-sm mb-2">
 						<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU</span>
 						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
-							{ fmt.Sprintf("%d / %d MHz", client.Resources.CPUUsed, client.Resources.CPUTotal) }
+							{ fmt.Sprintf("%d / %d MHz allocated", client.Resources.CPUUsed, client.Resources.CPUTotal) }
 						</span>
 					</div>
 					@resourceBar(client.Resources.CPUUsed, client.Resources.CPUTotal)
 					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-						{ fmt.Sprintf("%d%% utilized", calculatePercentage(client.Resources.CPUUsed, client.Resources.CPUTotal)) }
+						{ fmt.Sprintf("%d%% allocated", calculatePercentage(client.Resources.CPUUsed, client.Resources.CPUTotal)) }
 					</div>
 				</div>
 				<!-- Memory Usage -->
@@ -267,7 +269,7 @@ templ OverviewTab(client ClientDetail) {
 					</div>
 					@memoryBar(client.Resources.MemUsed, client.Resources.MemTotal)
 					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.MemUsed, client.Resources.MemTotal)) }
+						{ fmt.Sprintf("%d%% allocated", calculateMemoryPercentage(client.Resources.MemUsed, client.Resources.MemTotal)) }
 					</div>
 				</div>
 				<!-- Disk Usage -->
@@ -280,7 +282,7 @@ templ OverviewTab(client ClientDetail) {
 					</div>
 					@memoryBar(client.Resources.DiskUsed, client.Resources.DiskTotal)
 					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-						{ fmt.Sprintf("%d%% utilized", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
+						{ fmt.Sprintf("%d%% allocated", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
 					</div>
 				</div>
 			</div>
@@ -800,160 +802,40 @@ templ ResourceUtilizationChart(clientID string, resourceType string, data []Reso
 	<div
 		id={ "chart-" + resourceType + "-" + clientID }
 		class="w-full h-full"
-		x-data={ buildChartData(resourceType, data) }
-		x-init="initChart()"
+		data-chart-points={ resourceDataJSON(data) }
+		data-chart-color={ resourceChartColor(resourceType) }
+		data-resource-type={ resourceType }
+		x-data="resourceUtilizationChart()"
 	>
 		<svg class="w-full h-full"></svg>
 	</div>
 }
 
-// buildChartData generates the Alpine.js data for the resource chart
-func buildChartData(resourceType string, data []ResourceDataPoint) string {
-	// Generate chart data points as JSON
-	dataPoints := "["
-	for i, point := range data {
-		if i > 0 {
-			dataPoints += ","
-		}
-		dataPoints += fmt.Sprintf(`{"time":%d,"value":%.1f}`, point.Time.Unix()*1000, point.Value)
+func resourceDataJSON(data []ResourceDataPoint) string {
+	points := make([]map[string]any, 0, len(data))
+	for _, point := range data {
+		points = append(points, map[string]any{
+			"time":  point.Time.Unix() * 1000,
+			"value": point.Value,
+		})
 	}
-	dataPoints += "]"
+	encoded, err := json.Marshal(points)
+	if err != nil {
+		return "[]"
+	}
+	return string(encoded)
+}
 
-	color := "#3b82f6" // Blue for CPU
+func resourceChartColor(resourceType string) string {
 	if resourceType == "memory" {
-		color = "#8b5cf6" // Purple for Memory
+		return "#8b5cf6"
 	}
-
-	return fmt.Sprintf(`{
-		data: %s,
-		color: '%s',
-		initChart() {
-			const container = this.$el;
-			const svg = container.querySelector('svg');
-			if (!svg || this.data.length === 0) return;
-
-			const width = container.clientWidth;
-			const height = container.clientHeight;
-			const margin = { top: 10, right: 10, bottom: 25, left: 35 };
-			const innerWidth = width - margin.left - margin.right;
-			const innerHeight = height - margin.top - margin.bottom;
-
-			// Clear existing content
-			svg.innerHTML = '';
-
-			// Create SVG group
-			const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-			g.setAttribute('transform', 'translate(' + margin.left + ',' + margin.top + ')');
-			svg.appendChild(g);
-
-			// Calculate scales
-			const xMin = Math.min(...this.data.map(d => d.time));
-			const xMax = Math.max(...this.data.map(d => d.time));
-			const yMax = 100;
-
-			// X Scale
-			const xScale = (t) => ((t - xMin) / (xMax - xMin)) * innerWidth;
-			const yScale = (v) => innerHeight - (v / yMax) * innerHeight;
-
-			// Create gradient
-			const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-			const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-			gradient.id = 'gradient-' + '%s' + '-' + Math.random().toString(36).substr(2, 9);
-			gradient.setAttribute('x1', '0%%');
-			gradient.setAttribute('y1', '0%%');
-			gradient.setAttribute('x2', '0%%');
-			gradient.setAttribute('y2', '100%%');
-
-			const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-			stop1.setAttribute('offset', '0%%');
-			stop1.setAttribute('stop-color', this.color);
-			stop1.setAttribute('stop-opacity', '0.3');
-			gradient.appendChild(stop1);
-
-			const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-			stop2.setAttribute('offset', '100%%');
-			stop2.setAttribute('stop-color', this.color);
-			stop2.setAttribute('stop-opacity', '0.05');
-			gradient.appendChild(stop2);
-
-			defs.appendChild(gradient);
-			svg.insertBefore(defs, svg.firstChild);
-
-			// Draw grid lines
-			for (let i = 0; i <= 4; i++) {
-				const y = (i / 4) * innerHeight;
-				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-				line.setAttribute('x1', '0');
-				line.setAttribute('y1', y);
-				line.setAttribute('x2', innerWidth);
-				line.setAttribute('y2', y);
-				line.setAttribute('stroke', '#e5e7eb');
-				line.setAttribute('stroke-width', '1');
-				line.setAttribute('class', 'dark:stroke-neutral-700');
-				g.appendChild(line);
-
-				// Y axis labels
-				const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-				text.setAttribute('x', '-5');
-				text.setAttribute('y', y + 4);
-				text.setAttribute('text-anchor', 'end');
-				text.setAttribute('class', 'text-xs fill-neutral-500 dark:fill-neutral-400');
-				text.textContent = (100 - i * 25) + '%%';
-				g.appendChild(text);
-			}
-
-			// Build area path
-			let areaPath = 'M ' + xScale(this.data[0].time) + ' ' + innerHeight;
-			for (const point of this.data) {
-				areaPath += ' L ' + xScale(point.time) + ' ' + yScale(point.value);
-			}
-			areaPath += ' L ' + xScale(this.data[this.data.length - 1].time) + ' ' + innerHeight + ' Z';
-
-			const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			area.setAttribute('d', areaPath);
-			area.setAttribute('fill', 'url(#' + gradient.id + ')');
-			g.appendChild(area);
-
-			// Build line path
-			let linePath = 'M';
-			for (let i = 0; i < this.data.length; i++) {
-				const point = this.data[i];
-				linePath += (i === 0 ? ' ' : ' L ') + xScale(point.time) + ' ' + yScale(point.value);
-			}
-
-			const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			line.setAttribute('d', linePath);
-			line.setAttribute('fill', 'none');
-			line.setAttribute('stroke', this.color);
-			line.setAttribute('stroke-width', '2');
-			g.appendChild(line);
-
-			// X axis labels (time)
-			const timeLabels = [xMin, xMin + (xMax - xMin) / 2, xMax];
-			for (const t of timeLabels) {
-				const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-				text.setAttribute('x', xScale(t));
-				text.setAttribute('y', innerHeight + 18);
-				text.setAttribute('text-anchor', 'middle');
-				text.setAttribute('class', 'text-xs fill-neutral-500 dark:fill-neutral-400');
-				const date = new Date(t);
-				text.textContent = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
-				g.appendChild(text);
-			}
-		}
-	}`, dataPoints, color, resourceType)
+	return "#3b82f6"
 }
 
 // DrainNodeModal renders the modal for draining a node
 templ DrainNodeModal(client ClientDetail) {
-	<div
-		x-data="{
-		get isOpen() { return drainModal },
-		close() { drainModal = false },
-		deadline: '',
-		ignoreSystem: false
-	}"
-	>
+	<div x-data="drainModalBridge()">
 		@components.Modal(components.ModalProps{
 			ID:       "drain-node-modal",
 			Title:    "Drain Node",
@@ -1025,7 +907,7 @@ templ DrainNodeModal(client ClientDetail) {
 
 // CancelDrainModal renders the modal for canceling a drain operation
 templ CancelDrainModal(client ClientDetail) {
-	<div x-data="{ get isOpen() { return cancelDrainModal }, close() { cancelDrainModal = false } }">
+	<div x-data="modalBridge('cancelDrainModal')">
 		@components.Modal(components.ModalProps{
 			ID:       "cancel-drain-modal",
 			Title:    "Cancel Drain",

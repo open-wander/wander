@@ -10,6 +10,10 @@ export default defineConfig({
   // Test directory
   testDir: './specs',
 
+  // The prototype-era specifications are retained as historical reference,
+  // but only the live embedded-cluster release suite is supported.
+  testMatch: 'release-smoke.spec.ts',
+
   // Maximum time one test can run
   timeout: 30 * 1000,
 
