@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+import { Browser, expect, Page, test } from '@playwright/test';
 
 function captureBrowserErrors(page: Page) {
   const errors: string[] = [];
@@ -48,13 +48,28 @@ async function submitVariableValue(page: Page, value: string, action: string) {
   await page.getByRole('button', { name: action }).click();
 }
 
+async function newIsolatedNamespacePages(browser: Browser) {
+  const baseURL = test.info().project.use.baseURL as string;
+  const defaultContext = await browser.newContext({ baseURL });
+  const teamContext = await browser.newContext({ baseURL });
+  return {
+    defaultPage: await defaultContext.newPage(),
+    teamPage: await teamContext.newPage(),
+    close: async () => {
+      await defaultContext.close();
+      await teamContext.close();
+    },
+  };
+}
+
+async function selectNamespace(page: Page, namespace: string) {
+  await page.getByLabel('Select namespace').click();
+  await page.getByText(namespace, { exact: true }).click();
+}
+
 test.describe('Wander release smoke', () => {
   test('isolates namespace selection between browser sessions', async ({ browser }) => {
-    const baseURL = test.info().project.use.baseURL as string;
-    const defaultContext = await browser.newContext({ baseURL });
-    const teamContext = await browser.newContext({ baseURL });
-    const defaultPage = await defaultContext.newPage();
-    const teamPage = await teamContext.newPage();
+    const { defaultPage, teamPage, close } = await newIsolatedNamespacePages(browser);
 
     try {
       await defaultPage.goto('/ui/jobs?namespace=default');
@@ -63,8 +78,7 @@ test.describe('Wander release smoke', () => {
       await expect(defaultPage.locator('[data-job-id="wander-ui-smoke"]')).toBeVisible();
       await expect(defaultPage.locator('[data-job-id="wander-ui-team-smoke"]')).toHaveCount(0);
 
-      await teamPage.getByLabel('Select namespace').click();
-      await teamPage.getByText('team-a', { exact: true }).click();
+      await selectNamespace(teamPage, 'team-a');
       await expect(teamPage).toHaveURL(/\/ui\/jobs\?.*namespace=team-a/);
       await expectTeamNamespaceJobs(teamPage);
 
@@ -80,35 +94,51 @@ test.describe('Wander release smoke', () => {
       await expect(defaultPage.locator('[data-job-id="wander-ui-smoke"]')).toBeVisible();
       await expect(defaultPage.locator('[data-job-id="wander-ui-team-smoke"]')).toHaveCount(0);
     } finally {
-      await defaultContext.close();
-      await teamContext.close();
+      await close();
     }
   });
 
-  test('creates, edits, and deletes a variable through the UI', async ({ page }) => {
-    const variablePath = 'wander-ui/browser-variable-smoke';
+  test('uses live namespaces for an isolated variable workflow', async ({ browser }) => {
+    const variablePath = `wander-ui/browser-variable-${Date.now()}`;
+    const { defaultPage, teamPage, close } = await newIsolatedNamespacePages(browser);
 
-    await openDesktopPage(page, '/ui/variables');
-    await page.getByRole('link', { name: 'Create Variable' }).click();
-    await page.getByLabel('Path').fill(variablePath);
-    await page.getByPlaceholder('Key').fill('answer');
-    await submitVariableValue(page, 'forty-two', 'Create Variable');
+    try {
+      await openDesktopPage(teamPage, '/ui/variables?namespace=default');
+      await selectNamespace(teamPage, 'team-a');
+      await teamPage.getByRole('link', { name: 'Create Variable' }).click();
 
-    await expect(page).toHaveURL(/\/ui\/variables\/wander-ui%2Fbrowser-variable-smoke/);
-    await expect(page.getByRole('heading', { name: variablePath })).toBeVisible();
-    await expect(page.getByPlaceholder('Value')).toHaveValue('forty-two');
+      const namespaceSelect = teamPage.getByLabel('Namespace', { exact: true });
+      await expect(namespaceSelect).toHaveValue('team-a');
+      await expect(namespaceSelect.locator('option[value="team-a"]')).toHaveCount(1);
+      await expect(namespaceSelect.locator('option[value="default"]')).toHaveCount(1);
+      await expect(namespaceSelect.locator('option[value="production"], option[value="staging"], option[value="development"]')).toHaveCount(0);
 
-    await submitVariableValue(page, 'updated', 'Save Variable');
-    await expect(page.getByText('Variable saved successfully')).toBeVisible();
-    await page.reload();
-    await expect(page.getByPlaceholder('Value')).toHaveValue('updated');
+      await teamPage.getByLabel('Path').fill(variablePath);
+      await teamPage.getByPlaceholder('Key').fill('answer');
+      await submitVariableValue(teamPage, 'forty-two', 'Create Variable');
 
-    await page.getByRole('button', { name: 'Delete', exact: true }).click();
-    const deleteModal = page.getByRole('dialog', { name: 'Delete Variable' });
-    await expect(deleteModal).toBeVisible();
-    await deleteModal.getByRole('button', { name: 'Delete Variable' }).click();
-    await expect(page).toHaveURL(/\/ui\/variables$/);
-    await expect(page.getByText(variablePath, { exact: true })).toHaveCount(0);
+      await expect(teamPage).toHaveURL(/namespace=team-a/);
+      await expect(teamPage.getByRole('heading', { name: variablePath })).toBeVisible();
+      await expect(teamPage.getByPlaceholder('Value')).toHaveValue('forty-two');
+
+      await openDesktopPage(defaultPage, '/ui/variables?namespace=default');
+      await expect(defaultPage.getByText(variablePath, { exact: true })).toHaveCount(0);
+
+      await submitVariableValue(teamPage, 'updated', 'Save Variable');
+      await expect(teamPage.getByText('Variable saved successfully')).toBeVisible();
+      await teamPage.reload();
+      await expect(teamPage.getByPlaceholder('Value')).toHaveValue('updated');
+
+      await teamPage.getByRole('button', { name: 'Delete', exact: true }).click();
+      const deleteModal = teamPage.getByRole('dialog', { name: 'Delete Variable' });
+      await expect(deleteModal).toBeVisible();
+      await deleteModal.getByRole('button', { name: 'Delete Variable' }).click();
+      await expect(teamPage).toHaveURL(/\/ui\/variables$/);
+      await expect(teamPage.getByText(variablePath, { exact: true })).toHaveCount(0);
+    } finally {
+      await teamPage.request.delete(`/ui/variables/${variablePath}?namespace=team-a`);
+      await close();
+    }
   });
 
   test('renders live cluster navigation and resources', async ({ page }) => {

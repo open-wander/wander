@@ -6,6 +6,6 @@ import (
 )
 
 // Create renders the full variable create page with layout.
-templ Create(layoutProps layouts.PageLayoutProps) {
-	@layouts.PageLayout(layoutProps, variablespartials.CreateContent())
+templ Create(layoutProps layouts.PageLayoutProps, createProps variablespartials.CreateProps) {
+	@layouts.PageLayout(layoutProps, variablespartials.CreateContent(createProps))
 }

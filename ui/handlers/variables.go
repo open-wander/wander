@@ -332,11 +332,15 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 			{Label: "Create", URL: ""},
 		},
 	)
+	createProps := variablespartials.CreateProps{
+		CurrentNamespace:    layoutProps.CurrentNamespace,
+		AvailableNamespaces: layoutProps.AvailableNamespaces,
+	}
 
 	// Render the create page
 	err := Render(w, r,
-		variables.Create(layoutProps),     // Full page with layout
-		variablespartials.CreateContent(), // Partial content for HTMX requests
+		variables.Create(layoutProps, createProps),   // Full page with layout
+		variablespartials.CreateContent(createProps), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -412,7 +416,8 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Info("variable created successfully", "path", createdVar.Path, "namespace", createdVar.Namespace, "itemCount", len(createdVar.Items))
 
 	// Redirect to the detail page for the new variable
-	w.Header().Set("HX-Redirect", "/ui/variables/"+url.PathEscape(createdVar.Path))
+	redirectQuery := url.Values{"namespace": {createdVar.Namespace}}
+	w.Header().Set("HX-Redirect", "/ui/variables/"+url.PathEscape(createdVar.Path)+"?"+redirectQuery.Encode())
 	w.WriteHeader(http.StatusCreated)
 }
 

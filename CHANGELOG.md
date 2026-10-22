@@ -14,6 +14,7 @@ FEATURES:
 SECURITY:
 
 * ui: Isolate namespace and region selection per request and browser so one user's selection cannot redirect another user's reads or mutations.
+* ui: Populate the variable creation namespace selector from the live cluster and preserve namespace scope after creation.
 
 IMPROVEMENTS:
 

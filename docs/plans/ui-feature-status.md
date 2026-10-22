@@ -26,7 +26,9 @@ scope and parity work list is the
   tracked as a post-0.1 enhancement.
 - Variables: live reads plus create, update, and delete actions; cluster
   failures do not fall back to fabricated records or secrets. A live browser
-  test covers the complete create/read/update/delete workflow.
+  test covers the complete create/read/update/delete workflow across isolated
+  namespaces, and the create form uses only namespaces visible from the live
+  cluster.
 - Deployments, evaluations, servers, CSI volumes/plugins, and topology: live
   read paths backed by the inherited cluster API. Topology shows active
   allocation reservations against schedulable node capacity and identifies

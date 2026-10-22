@@ -4,8 +4,13 @@ import (
 	"github.com/open-wander/wander/ui/templates/components"
 )
 
+type CreateProps struct {
+	CurrentNamespace    string
+	AvailableNamespaces []components.NamespaceInfo
+}
+
 // CreateContent renders the variable create page content (without layout)
-templ CreateContent() {
+templ CreateContent(props CreateProps) {
 	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="variableCreator()">
 		<!-- Page Header -->
 		<div class="mb-6">
@@ -41,14 +46,10 @@ templ CreateContent() {
 					@components.Select(components.SelectProps{
 						Name:        "namespace",
 						ID:          "namespace",
-						Selected:    "default",
+						Selected:    props.CurrentNamespace,
 						Placeholder: "Select a namespace",
-						Options: []components.SelectOption{
-							{Value: "default", Label: "default"},
-							{Value: "production", Label: "production"},
-							{Value: "staging", Label: "staging"},
-							{Value: "development", Label: "development"},
-						},
+						Options:     variableNamespaceOptions(props),
+						Required:    true,
 					})
 				}
 				<!-- Key-Value Items Section -->
@@ -153,4 +154,25 @@ templ CreateContent() {
 			</form>
 		</div>
 	</div>
+}
+
+func variableNamespaceOptions(props CreateProps) []components.SelectOption {
+	options := make([]components.SelectOption, 0, len(props.AvailableNamespaces)+1)
+	seen := make(map[string]struct{}, len(props.AvailableNamespaces)+1)
+	for _, namespace := range props.AvailableNamespaces {
+		if namespace.Name == "" {
+			continue
+		}
+		if _, ok := seen[namespace.Name]; ok {
+			continue
+		}
+		seen[namespace.Name] = struct{}{}
+		options = append(options, components.SelectOption{Value: namespace.Name, Label: namespace.Name})
+	}
+	if props.CurrentNamespace != "" {
+		if _, ok := seen[props.CurrentNamespace]; !ok {
+			options = append(options, components.SelectOption{Value: props.CurrentNamespace, Label: props.CurrentNamespace})
+		}
+	}
+	return options
 }
