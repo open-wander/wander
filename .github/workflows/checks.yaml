@@ -34,6 +34,7 @@ jobs:
         run: |
           make missing
           make bootstrap
+          make ui-generate
           make check
 permissions:
   contents: read

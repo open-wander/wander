@@ -56,8 +56,9 @@ jobs:
           go-version-file: '.go-version'
       - name: Get Go modules
         run: |
-          make tidy
           make bootstrap
+          make ui-generate
+          make tidy
   security:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -75,6 +76,7 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - name: Scan reachable Go vulnerabilities
         run: |
+          make templ-deps ui-generate
           go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           govulncheck ./...
       - name: Audit HTMX UI dependencies
@@ -100,6 +102,8 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      - name: Generate Wander UI
+        run: make templ-deps ui-generate
       - name: Test embedded Wander UI
         working-directory: ui/tests/e2e
         env:
@@ -124,6 +128,7 @@ jobs:
       - name: Run make dev
         run: |
           make bootstrap
+          make ui-generate
           make dev
   tests-api:
     needs: [mods]
@@ -139,7 +144,7 @@ jobs:
           GOTEST_MOD: api
         run: |
           make bootstrap
-          make generate-all
+          make ui-generate
           sudo sed -i 's!Defaults!#Defaults!g' /etc/sudoers
           sudo -E env "PATH=$PATH" make test-wander-module
   tests-groups:
@@ -165,7 +170,7 @@ jobs:
           GOTEST_GROUP: ${{matrix.groups}}
         run: |
           make bootstrap
-          make generate-all
+          make ui-generate
           make dev
           hc-install install -version ${{env.VAULT_VERSION}} -path ${{env.GOBIN}} vault
           hc-install install -version ${{env.CONSUL_VERSION}} -path ${{env.GOBIN}} consul

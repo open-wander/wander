@@ -4,6 +4,7 @@ THIS_OS := $(shell uname | cut -d- -f1)
 THIS_ARCH := $(shell uname -m)
 
 GO_MODULE = github.com/open-wander/wander
+TEMPL_VERSION = v0.3.977
 
 GIT_COMMIT := $(shell git rev-parse HEAD)
 GIT_DIRTY := $(if $(shell git status --porcelain),+CHANGES)
@@ -136,7 +137,7 @@ $(foreach t,$(ALL_TARGETS),$(eval $(call makePackageTarget,$(t))))
 bootstrap: deps lint-deps git-hooks # Install all dependencies
 
 .PHONY: deps
-deps:  ## Install build and development dependencies
+deps: templ-deps ## Install build and development dependencies
 	@echo "==> Updating build dependencies..."
 	go install github.com/hashicorp/go-bindata/go-bindata@bf7910af899725e4938903fb32048c7c0b15f12e
 	go install github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs@234c15e7648ff35458026de92b34c637bae5e6f7
@@ -150,6 +151,10 @@ deps:  ## Install build and development dependencies
 	go install golang.org/x/tools/cmd/stringer@v0.1.12
 	go install github.com/hashicorp/hc-install/cmd/hc-install@v0.9.5
 	go install github.com/shoenig/go-modtool@v0.1.1
+
+.PHONY: templ-deps
+templ-deps: ## Install the pinned Templ code generator
+	go install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
 
 .PHONY: lint-deps
 lint-deps: ## Install linter dependencies
@@ -219,7 +224,7 @@ checkproto: ## Lint protobuf files
 	@buf check breaking --config tools/buf/buf.yaml --against-config tools/buf/buf.yaml --against .git#tag=$(PROTO_COMPARE_TAG)
 
 .PHONY: generate-all
-generate-all: generate-structs proto ## Generate structs, protobufs
+generate-all: ui-generate generate-structs proto ## Generate UI, structs, and protobufs
 
 .PHONY: generate-structs
 generate-structs: LOCAL_PACKAGES = $(shell go list ./...)
