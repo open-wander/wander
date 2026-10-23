@@ -25,9 +25,11 @@ The security job runs `ci/check-license-boundary.sh` before dependency scans.
 It rejects implementation files containing BUSL 1.1 or Business Source License
 headers. It also verifies that consul-template's optional Vault Kubernetes
 authentication dependency resolves to the approved MPL-2.0 `v0.4.1` release,
-rather than the BUSL-1.1 `v0.5.0` requested transitively. These checks prevent
-accidental reintroduction of the known prohibited boundary, but do not replace
-the provenance review recorded in `docs/plans/license-provenance-audit.md`.
+rather than the BUSL-1.1 `v0.5.0` requested transitively, and rejects the
+incompletely licensed `go-spin` package from the embedded-UI release closure.
+These checks prevent accidental reintroduction of the known prohibited
+boundary, but do not replace the provenance review recorded in
+`docs/plans/license-provenance-audit.md`.
 
 ## Steps
 

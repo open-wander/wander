@@ -27,7 +27,7 @@ dependencies are repository tooling and are not part of the release binary.
 | Project source | Root license is MPL-2.0; 2,249 tracked files carry an explicit MPL-2.0 SPDX marker. | Candidate baseline still needs project-owner approval. |
 | Historical boundary | `v1.6.5` is the exact ancestor at `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f`. It contains 45 BUSL-1.1 files: 37 in the former UI and 8 elsewhere. All were removed by explicit reverts before the replacement UI began. | Exact excluded paths are recorded in `baseline-busl-exclusions.txt`. |
 | Current tree | No current implementation file contains a BUSL marker. | Marker check passes, but marker absence alone is not provenance proof. |
-| Go release dependencies | Representative scans cover the identical module closures for all release architectures: 296 third-party modules, 307 scanner records, and 2 manually classified omissions across Linux, macOS, and Windows. The requested BUSL-1.1 Vault Kubernetes auth module is replaced by its source-identical MPL-2.0 predecessor. | The CI boundary check pins the resolved replacement; the incomplete go-spin notice remains unresolved. |
+| Go release dependencies | Representative scans cover the identical module closures for all release architectures: 293 third-party modules, 305 scanner records, and 1 manually classified omission across Linux, macOS, and Windows. The requested BUSL-1.1 Vault Kubernetes auth module is replaced by its source-identical MPL-2.0 predecessor. | The CI boundary check pins the resolved replacement. |
 | Browser runtime assets | Alpine CSP 3.15.4, htmx 2.0.8, xterm 5.5.0, and xterm addon-fit 0.10.0 have exact version/hash evidence. | Notices are now retained in this directory, but the release must still define how recipients receive them. |
 | UI build dependencies | Ten locked packages, all declaring MIT. | They build embedded Alpine/Tailwind output; see `npm-release-packages.csv`. |
 | Test-only UI dependencies | Seven locked packages: four Apache-2.0 and three MIT. | Not shipped; recorded below for repository hygiene. |
@@ -98,13 +98,16 @@ Automated classifiers need the following corrections or qualifications:
   as AFL-2.0 because its aggregate VMware notice contains AFL terms for an
   unrelated operating-system component. The imported `pkg/vsphere/tags` files
   carry Apache-2.0 headers and the module's top-level work is Apache-2.0.
-- `github.com/tj/go-spin@v1.1.0` declares MIT in its tagged README but the
-  module archive omits a full license notice. Replace it or obtain and retain a
-  defensible notice before release.
-- The Google `go-licenses` scan omitted Vault Kubernetes auth and go-spin. The
-  permanent CSV adds both as explicitly marked manual records and must be read
-  with this document. Vault Kubernetes auth is manually classified from the
-  effective `v0.4.1` replacement's MPL-2.0 license.
+- The Google `go-licenses` scan omitted Vault Kubernetes auth. The permanent
+  CSV adds it as an explicitly marked manual record and must be read with this
+  document. It is manually classified from the effective `v0.4.1`
+  replacement's MPL-2.0 license.
+- `github.com/tj/go-spin@v1.1.0` was removed from the compiled closure because
+  its module archive omitted a complete license notice. Wander now provides
+  the deployment-status spinner directly without importing go-glint's spinner
+  component. This also removes the component package's otherwise-unused
+  progress-bar dependencies, `github.com/cheggaaa/pb/v3` and
+  `github.com/VividCortex/ewma`.
 
 ## Evidence files
 
@@ -134,12 +137,10 @@ maintenance and is not mislabeled here as shipped code.
 
 ## Required next decisions
 
-1. Resolve the incomplete go-spin notice, preferably by removing or replacing
-   that small transitive dependency.
-2. Decide how the executable/archive presents all required third-party notices
+1. Decide how the executable/archive presents all required third-party notices
    to recipients; files only in the source repository are not a release
    distribution process.
-3. Have the project owner approve the exact source baseline, the 45 exclusions,
+2. Have the project owner approve the exact source baseline, the 45 exclusions,
    and the independently developed UI provenance record.
-4. Repeat the inventory against the final release commit and attach the output
+3. Repeat the inventory against the final release commit and attach the output
    to the 0.1.0 release record/SBOM.

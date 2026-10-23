@@ -87,6 +87,6 @@ documented as an intentional omission.
 - [x] Review and hash third-party browser assets and UI build dependencies.
 - [x] Replace the compiled BUSL Vault Kubernetes auth dependency and enforce
       the MPL-2.0 resolution in CI.
-- [ ] Resolve the incomplete go-spin license notice.
+- [x] Remove go-spin from the compiled release closure.
 - [ ] Define how required license texts/notices accompany release recipients.
 - [ ] Approve this audit as part of the 0.1.0 release record.
