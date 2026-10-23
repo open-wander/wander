@@ -46,6 +46,18 @@ func tempAllocDir(t testing.TB) *allocdir.AllocDir {
 	return allocdir.NewAllocDir(testlog.HCLogger(t), dir, "test_allocid")
 }
 
+func startFileStream(c *Client, path string, ad *allocdir.AllocDir,
+	framer *sframer.StreamFramer) (context.CancelFunc, <-chan error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		if err := c.endpoints.FileSystem.streamFile(ctx, 0, path, 0, ad, framer, nil, false); err != nil {
+			errCh <- err
+		}
+	}()
+	return cancel, errCh
+}
+
 type nopWriteCloser struct {
 	io.Writer
 }
@@ -1815,12 +1827,8 @@ func TestFS_streamFile_Modify(t *testing.T) {
 	defer framer.Destroy()
 
 	// Start streaming
-	go func() {
-		if err := c.endpoints.FileSystem.streamFile(
-			context.Background(), 0, streamFile, 0, ad, framer, nil, false); err != nil {
-			t.Fatalf("stream() failed: %v", err)
-		}
-	}()
+	cancelStream, streamErrCh := startFileStream(c, streamFile, ad, framer)
+	defer cancelStream()
 
 	// Sleep a little before writing more. This lets us check if the watch
 	// is working.
@@ -1831,6 +1839,8 @@ func TestFS_streamFile_Modify(t *testing.T) {
 
 	select {
 	case <-resultCh:
+	case err := <-streamErrCh:
+		t.Fatalf("stream returned before receiving data: %v", err)
 	case <-time.After(10 * time.Duration(testutil.TestMultiplier()) * streamBatchWindow):
 		t.Fatalf("failed to send new data")
 	}
@@ -1891,12 +1901,8 @@ func TestFS_streamFile_Truncate(t *testing.T) {
 	defer framer.Destroy()
 
 	// Start streaming
-	go func() {
-		if err := c.endpoints.FileSystem.streamFile(
-			context.Background(), 0, streamFile, 0, ad, framer, nil, false); err != nil {
-			t.Fatalf("stream() failed: %v", err)
-		}
-	}()
+	cancelStream, streamErrCh := startFileStream(c, streamFile, ad, framer)
+	defer cancelStream()
 
 	// Sleep a little before truncating. This lets us check if the watch
 	// is working.
@@ -1922,6 +1928,8 @@ func TestFS_streamFile_Truncate(t *testing.T) {
 
 	select {
 	case <-truncateCh:
+	case err := <-streamErrCh:
+		t.Fatalf("stream returned before receiving truncate: %v", err)
 	case <-time.After(10 * time.Duration(testutil.TestMultiplier()) * streamBatchWindow):
 		t.Fatalf("did not receive truncate")
 	}
@@ -1935,6 +1943,8 @@ func TestFS_streamFile_Truncate(t *testing.T) {
 
 	select {
 	case <-dataPostTruncCh:
+	case err := <-streamErrCh:
+		t.Fatalf("stream returned before receiving data: %v", err)
 	case <-time.After(10 * time.Duration(testutil.TestMultiplier()) * streamBatchWindow):
 		t.Fatalf("did not receive post truncate data")
 	}
@@ -1995,12 +2005,8 @@ func TestFS_streamImpl_Delete(t *testing.T) {
 	defer framer.Destroy()
 
 	// Start streaming
-	go func() {
-		if err := c.endpoints.FileSystem.streamFile(
-			context.Background(), 0, streamFile, 0, ad, framer, nil, false); err != nil {
-			t.Fatalf("stream() failed: %v", err)
-		}
-	}()
+	cancelStream, streamErrCh := startFileStream(c, streamFile, ad, framer)
+	defer cancelStream()
 
 	// Sleep a little before deleting. This lets us check if the watch
 	// is working.
@@ -2011,6 +2017,8 @@ func TestFS_streamImpl_Delete(t *testing.T) {
 
 	select {
 	case <-deleteCh:
+	case err := <-streamErrCh:
+		t.Fatalf("stream returned before receiving delete: %v", err)
 	case <-time.After(10 * time.Duration(testutil.TestMultiplier()) * streamBatchWindow):
 		t.Fatalf("did not receive delete")
 	}
