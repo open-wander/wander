@@ -161,7 +161,7 @@ github.com/hashicorp/raft-boltdb/v2,v2.2.2,,,linux-amd64|linux-arm|linux-arm64|d
 github.com/hashicorp/raft,v1.5.0,,,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64
 github.com/hashicorp/serf,v0.10.1,,,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64
 github.com/hashicorp/vault/api,v1.10.0,,,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64
-github.com/hashicorp/vault/api/auth/kubernetes,v0.5.0,,,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64
+github.com/hashicorp/vault/api/auth/kubernetes,v0.5.0,github.com/hashicorp/vault/api/auth/kubernetes,v0.4.1,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64
 github.com/hashicorp/vic,v1.5.1-0.20190403131502-bbfe86ec9443,,,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64
 github.com/hashicorp/yamux,v0.1.1,,,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64
 github.com/hpcloud/tail,v1.0.1-0.20170814160653-37f427138745,,,linux-amd64|linux-arm|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64

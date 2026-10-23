@@ -6,6 +6,10 @@ go 1.27.2
 replace (
 	github.com/Microsoft/go-winio => github.com/endocrimes/go-winio v0.4.13-0.20190628114223-fb47a8b41948
 	github.com/hashicorp/hcl => github.com/hashicorp/hcl v1.0.1-0.20201016140508-a07e7d50bbee
+	// consul-template imports this optional Vault authentication method even
+	// though Wander supplies task-scoped Vault tokens and does not invoke it.
+	// Keep the source-identical MPL-2.0 release out of the BUSL-1.1 boundary.
+	github.com/hashicorp/vault/api/auth/kubernetes v0.5.0 => github.com/hashicorp/vault/api/auth/kubernetes v0.4.1
 )
 
 // Pin dependency with additional logs and defensive code to workaround panic

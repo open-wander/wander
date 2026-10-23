@@ -174,7 +174,7 @@ github.com/hashicorp/raft-autopilot,https://github.com/hashicorp/raft-autopilot/
 github.com/hashicorp/raft-boltdb/v2,https://github.com/hashicorp/raft-boltdb/blob/v2.2.2/v2/LICENSE,MPL-2.0,linux|windows|darwin
 github.com/hashicorp/serf,https://github.com/hashicorp/serf/blob/v0.10.1/LICENSE,MPL-2.0,linux|windows|darwin
 github.com/hashicorp/vault/api,https://github.com/hashicorp/vault/blob/api/v1.10.0/api/LICENSE,MPL-2.0,linux|windows|darwin
-github.com/hashicorp/vault/api/auth/kubernetes,https://github.com/hashicorp/vault/blob/api/auth/kubernetes/v0.5.0/api/auth/kubernetes/LICENSE,BUSL-1.1-manual,linux|windows|darwin
+github.com/hashicorp/vault/api/auth/kubernetes,https://github.com/hashicorp/vault/blob/api/auth/kubernetes/v0.4.1/api/auth/kubernetes/LICENSE,MPL-2.0-manual,linux|windows|darwin
 github.com/hashicorp/vic/pkg/vsphere/tags,https://github.com/hashicorp/vic/blob/bbfe86ec9443/LICENSE,Apache-2.0-manual-override,linux|windows|darwin
 github.com/hashicorp/yamux,https://github.com/hashicorp/yamux/blob/v0.1.1/LICENSE,MPL-2.0,linux|windows|darwin
 github.com/hpcloud/tail,https://github.com/hpcloud/tail/blob/37f427138745/LICENSE.txt,MIT,linux|windows|darwin

@@ -43,10 +43,10 @@ project-owner review. The release dependency inventory is maintained in
 9. The current implementation source contains no BUSL SPDX headers or Business
    Source License headers. Documentation mentions those identifiers only to
    record and enforce this boundary.
-10. The compiled dependency graph is a separate boundary. It currently contains
-    `github.com/hashicorp/vault/api/auth/kubernetes@v0.5.0`, whose own license
-    is BUSL-1.1. This is a release blocker even though the repository source
-    marker check passes.
+10. The compiled dependency graph is a separate boundary. `consul-template`
+    requests `github.com/hashicorp/vault/api/auth/kubernetes@v0.5.0`, whose own
+    license is BUSL-1.1. Wander replaces it with the source-identical MPL-2.0
+    `v0.4.1` release, and the CI boundary check enforces that resolution.
 
 ## Engineering conclusion
 
@@ -55,9 +55,9 @@ removed before the current UI was created, and there is no path continuity or
 Git-detectable file copy into the rewrite. No current repository source file
 needs deletion solely because it retains one of those files or headers.
 
-That conclusion does not clear the release: the compiled BUSL dependency must
-be removed or replaced, and the candidate source baseline still needs owner
-approval.
+The compiled BUSL dependency blocker has been remediated. That does not clear
+the release: the candidate source baseline still needs owner approval and the
+remaining actions below still apply.
 
 This does not prove legal ownership of every line in a large rewrite. Before
 release, the project owner must still confirm the allowed source baseline and
@@ -85,7 +85,8 @@ documented as an intentional omission.
       non-Git provenance.
 - [x] Generate the release source/dependency engineering inventory.
 - [x] Review and hash third-party browser assets and UI build dependencies.
-- [ ] Remove or replace the compiled BUSL Vault Kubernetes auth dependency.
+- [x] Replace the compiled BUSL Vault Kubernetes auth dependency and enforce
+      the MPL-2.0 resolution in CI.
 - [ ] Resolve the incomplete go-spin license notice.
 - [ ] Define how required license texts/notices accompany release recipients.
 - [ ] Approve this audit as part of the 0.1.0 release record.

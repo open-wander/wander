@@ -3,6 +3,8 @@
 set -euo pipefail
 
 readonly prohibited_pattern='SPDX-License-Identifier:[[:space:]]*BUSL-1[.]1|Business Source[[:space:]]+License'
+readonly vault_kubernetes_auth_module='github.com/hashicorp/vault/api/auth/kubernetes'
+readonly allowed_vault_kubernetes_auth_version='v0.4.1'
 
 if git grep -n -E "${prohibited_pattern}" -- \
   '*.go' '*.templ' '*.js' '*.ts' '*.css' '*.scss' '*.hbs' \
@@ -11,4 +13,14 @@ if git grep -n -E "${prohibited_pattern}" -- \
   exit 1
 fi
 
-echo "license boundary marker check passed"
+resolved_vault_kubernetes_auth_version="$({
+  go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' \
+    "${vault_kubernetes_auth_module}"
+})"
+
+if [[ "${resolved_vault_kubernetes_auth_version}" != "${allowed_vault_kubernetes_auth_version}" ]]; then
+  echo "prohibited Vault Kubernetes auth dependency: resolved ${resolved_vault_kubernetes_auth_version}, expected ${allowed_vault_kubernetes_auth_version}" >&2
+  exit 1
+fi
+
+echo "license boundary checks passed"
