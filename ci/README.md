@@ -6,7 +6,10 @@ continuous integration testing.
 ## Release artifact checks
 
 The build workflow verifies that every release archive contains exactly one
-Wander executable built with the embedded UI. Its Linux AMD64 job additionally:
+Wander executable built with the embedded UI, the Wander license, generated Go
+dependency material, and the retained browser notices. The same notice bundle
+is installed into OCI images and native Linux packages. Its Linux AMD64 job
+additionally:
 
 1. exercises the root redirect, UI assets, API, CSP, and disabled-UI behavior;
 2. starts a clean three-server Wander cluster and performs a rolling restart;

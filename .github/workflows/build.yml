@@ -216,6 +216,15 @@ jobs:
             "${baseline}"
 
       - name: Package
+        run: |
+          doc_dir=.release/linux/package/usr/share/doc/wander
+          mkdir -p "$doc_dir"
+          notice_dir=pkg/${{ matrix.goos }}_${{ matrix.goarch }}/.release-notices
+          cp "$notice_dir/LICENSE.txt" "$doc_dir/"
+          cp "$notice_dir/THIRD_PARTY_NOTICES.md" "$doc_dir/"
+          cp -R "$notice_dir/licenses" "$doc_dir/"
+
+      - name: Build native packages
         uses: hashicorp/actions-packaging-linux@v1
         with:
           name: ${{ env.PKG_NAME }}

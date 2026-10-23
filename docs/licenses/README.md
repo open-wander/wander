@@ -135,12 +135,18 @@ The complete `go list -m all` graph contains 747 modules, but that graph
 includes modules not compiled into the release. It is useful for supply-chain
 maintenance and is not mislabeled here as shipped code.
 
+## Release notice delivery
+
+`ci/prepare-release-notices.sh` runs the pinned Go license exporter against the
+exact target closure and adds the manually resolved Vault Kubernetes auth
+license plus the retained browser notices. Release archives include that
+generated tree, `LICENSE.txt`, and `THIRD_PARTY_NOTICES.md` alongside the single
+Wander executable. The same material is copied into OCI images at
+`/licenses/wander` and native Linux packages at `/usr/share/doc/wander`.
+
 ## Required next decisions
 
-1. Decide how the executable/archive presents all required third-party notices
-   to recipients; files only in the source repository are not a release
-   distribution process.
-2. Have the project owner approve the exact source baseline, the 45 exclusions,
+1. Have the project owner approve the exact source baseline, the 45 exclusions,
    and the independently developed UI provenance record.
-3. Repeat the inventory against the final release commit and attach the output
+2. Repeat the inventory against the final release commit and attach the output
    to the 0.1.0 release record/SBOM.

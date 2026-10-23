@@ -113,9 +113,19 @@ pkg/windows_%/wander: GO_TAGS += timetzdata
 # Define package targets for each of the build targets we actually have on this system
 define makePackageTarget
 
-pkg/$(1).zip: pkg/$(1)/wander
+pkg/$(1)/.release-notices/THIRD_PARTY_NOTICES.md: ci/prepare-release-notices.sh docs/licenses/RELEASE-NOTICES.md LICENSE $(wildcard docs/licenses/third-party/*.txt)
+	@echo "==> Preparing release notices for $(1)..."
+	@GOOS=$(firstword $(subst _, ,$(1))) \
+		GOARCH=$(lastword $(subst _, ,$(1))) \
+		CGO_ENABLED=$(CGO_ENABLED) \
+		GOFLAGS="-tags=$(GO_TAGS)" \
+		./ci/prepare-release-notices.sh pkg/$(1)
+
+pkg/$(1).zip: pkg/$(1)/wander pkg/$(1)/.release-notices/THIRD_PARTY_NOTICES.md
 	@echo "==> Packaging for $(1)..."
-	@zip -j pkg/$(1).zip pkg/$(1)/*
+	@rm -f pkg/$(1).zip
+	@cd pkg/$(1) && zip -q ../$(1).zip wander*
+	@cd pkg/$(1)/.release-notices && zip -qr ../../$(1).zip LICENSE.txt THIRD_PARTY_NOTICES.md licenses
 
 endef
 
