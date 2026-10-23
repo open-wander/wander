@@ -27,6 +27,7 @@ import (
 	"github.com/open-wander/wander/client/lib/resources"
 	cstructs "github.com/open-wander/wander/client/structs"
 	"github.com/open-wander/wander/drivers/shared/capabilities"
+	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/helper/stats"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/structs"
@@ -274,19 +275,19 @@ func (l *LibcontainerExecutor) Shutdown(signal string, grace time.Duration) erro
 			return fmt.Errorf("error unknown signal given for shutdown: %s", signal)
 		}
 
-		// Signal initial container processes only during graceful
-		// shutdown; hence `false` arg.
+		// Signal only the initial container process during graceful shutdown.
 		err = l.container.Signal(sig)
 		if err != nil {
 			return err
 		}
 
+		graceTimer, stopGraceTimer := helper.NewSafeTimer(grace)
+		defer stopGraceTimer()
 		select {
 		case <-l.userProcExited:
 			return nil
-		case <-time.After(grace):
-			// Force kill all container processes after grace period,
-			// hence `true` argument.
+		case <-graceTimer.C:
+			// SIGKILL makes libcontainer kill all container processes.
 			if err := l.container.Signal(os.Kill); err != nil {
 				return err
 			}

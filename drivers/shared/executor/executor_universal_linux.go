@@ -41,13 +41,13 @@ func setCmdUser(cmd *exec.Cmd, userid string) error {
 func lookupUserCredential(userid string) (*syscall.Credential, error) {
 	u, err := users.Lookup(userid)
 	if err != nil {
-		return fmt.Errorf("failed to identify user %v: %v", userid, err)
+		return nil, fmt.Errorf("failed to identify user %v: %v", userid, err)
 	}
 
 	// Get the groups the user is a part of
 	gidStrings, err := u.GroupIds()
 	if err != nil {
-		return fmt.Errorf("unable to lookup user's group membership: %v", err)
+		return nil, fmt.Errorf("unable to lookup user's group membership: %v", err)
 	}
 
 	gids := make([]uint32, 0, len(gidStrings))
