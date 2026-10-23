@@ -21,6 +21,7 @@ import (
 	"github.com/armon/circbuf"
 	"github.com/hashicorp/consul-template/signals"
 	hclog "github.com/hashicorp/go-hclog"
+	mdevices "github.com/moby/sys/devices"
 	"github.com/open-wander/wander/client/allocdir"
 	"github.com/open-wander/wander/client/lib/cgutil"
 	"github.com/open-wander/wander/client/lib/resources"
@@ -31,10 +32,9 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/opencontainers/cgroups"
+	deviceconfig "github.com/opencontainers/cgroups/devices/config"
 	"github.com/opencontainers/runc/libcontainer"
 	lconfigs "github.com/opencontainers/runc/libcontainer/configs"
-	"github.com/opencontainers/runc/libcontainer/devices"
-	ldevices "github.com/opencontainers/runc/libcontainer/devices"
 	"github.com/opencontainers/runc/libcontainer/specconv"
 	lutils "github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -64,7 +64,7 @@ type LibcontainerExecutor struct {
 	systemCpuStats *stats.CpuStats
 	pidCollector   *pidCollector
 
-	container      libcontainer.Container
+	container      *libcontainer.Container
 	userProc       *libcontainer.Process
 	userProcExited chan interface{}
 	exitState      *ProcessState
@@ -95,6 +95,15 @@ func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, erro
 	}
 
 	l.command = command
+
+	var credential *syscall.Credential
+	if command.User != "" {
+		var err error
+		credential, err = lookupUserCredential(command.User)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// A container groups processes under the same isolation enforcement
 	containerCfg, err := newLibcontainerConfig(command)
@@ -142,8 +151,10 @@ func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, erro
 		Init:   true,
 	}
 
-	if command.User != "" {
-		process.User = command.User
+	if credential != nil {
+		process.UID = int(credential.Uid)
+		process.GID = int(credential.Gid)
+		process.AdditionalGroups = uint32sToInts(credential.Groups)
 	}
 	l.userProc = process
 
@@ -462,11 +473,13 @@ func (l *LibcontainerExecutor) ExecStreaming(ctx context.Context, cmd []string, 
 
 	// the task process will be started by the container
 	process := &libcontainer.Process{
-		Args: cmd,
-		Env:  l.userProc.Env,
-		User: l.userProc.User,
-		Init: false,
-		Cwd:  "/",
+		Args:             cmd,
+		Env:              l.userProc.Env,
+		UID:              l.userProc.UID,
+		GID:              l.userProc.GID,
+		AdditionalGroups: append([]int(nil), l.userProc.AdditionalGroups...),
+		Init:             false,
+		Cwd:              "/",
 	}
 
 	execHelper := &execHelper{
@@ -735,15 +748,15 @@ func newLibcontainerConfig(command *ExecCommand) (*lconfigs.Config, error) {
 }
 
 // cmdDevices converts a list of driver.DeviceConfigs into excutor.Devices.
-func cmdDevices(driverDevices []*drivers.DeviceConfig) ([]*devices.Device, error) {
+func cmdDevices(driverDevices []*drivers.DeviceConfig) ([]*deviceconfig.Device, error) {
 	if len(driverDevices) == 0 {
 		return nil, nil
 	}
 
-	r := make([]*devices.Device, len(driverDevices))
+	r := make([]*deviceconfig.Device, len(driverDevices))
 
 	for i, d := range driverDevices {
-		ed, err := ldevices.DeviceFromPath(d.HostPath, d.Permissions)
+		ed, err := mdevices.DeviceFromPath(d.HostPath, d.Permissions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to make device out for %s: %v", d.HostPath, err)
 		}
@@ -752,6 +765,14 @@ func cmdDevices(driverDevices []*drivers.DeviceConfig) ([]*devices.Device, error
 	}
 
 	return r, nil
+}
+
+func uint32sToInts(values []uint32) []int {
+	result := make([]int, len(values))
+	for i, value := range values {
+		result[i] = int(value)
+	}
+	return result
 }
 
 var userMountToUnixMount = map[string]int{
