@@ -96,14 +96,21 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: ui/tests/e2e/package-lock.json
+          cache-dependency-path: |
+            ui/package-lock.json
+            ui/tests/e2e/package-lock.json
+      - name: Install UI build dependencies
+        working-directory: ui
+        run: npm ci
       - name: Install browser test dependencies
         working-directory: ui/tests/e2e
         run: |
           npm ci
           npx playwright install --with-deps chromium
       - name: Generate Wander UI
-        run: make templ-deps ui-generate
+        run: |
+          make templ-deps ui-generate
+          make -C ui install-tailwind build-css
       - name: Test embedded Wander UI
         working-directory: ui/tests/e2e
         env:
@@ -146,7 +153,7 @@ jobs:
           make bootstrap
           make ui-generate
           sudo sed -i 's!Defaults!#Defaults!g' /etc/sudoers
-          sudo -E env "PATH=$PATH" make test-wander-module
+          sudo -E env "PATH=$PATH" "GOTEST_MOD=$GOTEST_MOD" make test-wander-module
   tests-groups:
     needs: [mods]
     runs-on: ubuntu-22.04
@@ -172,10 +179,10 @@ jobs:
           make bootstrap
           make ui-generate
           make dev
-          hc-install install -version ${{env.VAULT_VERSION}} -path ${{env.GOBIN}} vault
-          hc-install install -version ${{env.CONSUL_VERSION}} -path ${{env.GOBIN}} consul
+          hc-install install -version ${{env.VAULT_VERSION}} -path "$(go env GOPATH)/bin" vault
+          hc-install install -version ${{env.CONSUL_VERSION}} -path "$(go env GOPATH)/bin" consul
           sudo sed -i 's!Defaults!#Defaults!g' /etc/sudoers
-          sudo -E env "PATH=$PATH" make test-wander
+          sudo -E env "PATH=$PATH" "GOTEST_GROUP=$GOTEST_GROUP" make test-wander
 permissions:
   contents: read
   id-token: write

@@ -3,7 +3,7 @@
 
 run:
   # Timeout for analysis.
-  deadline: 10m
+  timeout: 10m
 
   # Modules download mode (do not modify go.mod)
   module-download-mode: readonly

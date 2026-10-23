@@ -1,6 +1,6 @@
 module github.com/open-wander/wander/api
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/docker/go-units v0.5.0

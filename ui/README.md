@@ -42,7 +42,7 @@ The following files are auto-generated and should not be committed:
 
 ## Prerequisites
 
-- Go 1.27.2
+- Go 1.27.3
 - Templ CLI: `go install github.com/a-h/templ/cmd/templ@v0.3.977`
 - Air (for hot-reload): `go install github.com/air-verse/air@latest`
 - Node.js 18+ (for Tailwind CSS plugins)
