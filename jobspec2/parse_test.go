@@ -81,6 +81,28 @@ func TestParse_ConnectJob(t *testing.T) {
 	must.Eq(t, 9999, timeout)
 }
 
+func TestParse_DistinctHostsValues(t *testing.T) {
+	ci.Parallel(t)
+
+	hcl := `
+job "example" {
+  constraint {
+    distinct_hosts = true
+  }
+  constraint {
+    distinct_hosts = false
+  }
+}
+`
+
+	job, err := Parse("input.hcl", strings.NewReader(hcl))
+	require.NoError(t, err)
+	require.Equal(t, []*api.Constraint{
+		{Operand: api.ConstraintDistinctHosts},
+		{RTarget: "false", Operand: api.ConstraintDistinctHosts},
+	}, job.Constraints)
+}
+
 func TestParse_VarsAndFunctions(t *testing.T) {
 	ci.Parallel(t)
 
