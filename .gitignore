@@ -47,6 +47,10 @@ client/state/testdata/*.db
 # HTMX UI build artifacts
 ui-htmx/static/css/output.css
 
+# Local Wander development binaries
+/tmp/wander
+/tmp/ui-htmx-dev
+
 *.swp
 *.iml
 
