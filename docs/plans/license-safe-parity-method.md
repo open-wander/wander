@@ -24,7 +24,8 @@ the provenance audit and allowed source baseline remains a release gate.
 
 ## Prohibited implementation inputs
 
-- The 37 BUSL-1.1 UI files identified by the provenance audit.
+- The 45 BUSL-1.1 files identified by the provenance audit, including the 37
+  files from the former UI.
 - Source, patches, commits, generated assets, tests, or implementation details
   from later Nomad releases.
 - Copying DOM, templates, JavaScript, styles, route implementations, or tests
@@ -59,4 +60,6 @@ the provenance audit and allowed source baseline remains a release gate.
 
 - Engineering method recorded: 2026-10-22.
 - Project-owner provenance approval: pending.
-- Complete source/dependency licence inventory: pending.
+- Complete source/dependency engineering inventory: recorded 2026-10-23 in
+  `docs/licenses`; blocker remediation and project-owner approval remain
+  pending.
