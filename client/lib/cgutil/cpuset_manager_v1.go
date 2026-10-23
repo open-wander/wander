@@ -19,9 +19,8 @@ import (
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/lib/cpuset"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
-	"github.com/opencontainers/runc/libcontainer/configs"
+	"github.com/opencontainers/cgroups"
+	"github.com/opencontainers/cgroups/fs"
 	"golang.org/x/sys/unix"
 )
 
@@ -323,9 +322,9 @@ func getCPUsFromCgroupV1(group string) ([]uint16, error) {
 		return nil, err
 	}
 
-	cgroup := &configs.Cgroup{
+	cgroup := &cgroups.Cgroup{
 		Path:      group,
-		Resources: new(configs.Resources),
+		Resources: new(cgroups.Resources),
 	}
 
 	paths := map[string]string{

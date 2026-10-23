@@ -14,8 +14,8 @@ import (
 	"github.com/open-wander/wander/client/testutil"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/uuid"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs2"
+	"github.com/opencontainers/cgroups"
+	"github.com/opencontainers/cgroups/fs2"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )

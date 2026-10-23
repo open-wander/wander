@@ -19,9 +19,8 @@ import (
 	"github.com/open-wander/wander/helper"
 	"github.com/open-wander/wander/lib/cpuset"
 	"github.com/open-wander/wander/nomad/structs"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs2"
-	"github.com/opencontainers/runc/libcontainer/configs"
+	"github.com/opencontainers/cgroups"
+	"github.com/opencontainers/cgroups/fs2"
 )
 
 const (
@@ -316,7 +315,7 @@ func (c *cpusetManagerV2) write(id identity, set cpuset.CPUSet) {
 	path := c.pathOf(id)
 
 	// make a manager for the cgroup
-	m, err := fs2.NewManager(new(configs.Cgroup), path)
+	m, err := fs2.NewManager(new(cgroups.Cgroup), path)
 	if err != nil {
 		c.logger.Error("failed to manage cgroup", "path", path, "error", err)
 		return
@@ -329,7 +328,7 @@ func (c *cpusetManagerV2) write(id identity, set cpuset.CPUSet) {
 	}
 
 	// set the cpuset value for the cgroup
-	if err = m.Set(&configs.Resources{
+	if err = m.Set(&cgroups.Resources{
 		CpusetCpus:  set.String(),
 		SkipDevices: true,
 	}); err != nil {

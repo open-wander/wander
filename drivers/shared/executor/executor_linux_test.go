@@ -24,7 +24,7 @@ import (
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/plugins/drivers"
 	tu "github.com/open-wander/wander/testutil"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/cgroups"
 	lconfigs "github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/devices"
 	"github.com/shoenig/test"

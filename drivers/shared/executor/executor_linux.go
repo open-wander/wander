@@ -30,8 +30,8 @@ import (
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/plugins/drivers"
+	"github.com/opencontainers/cgroups"
 	"github.com/opencontainers/runc/libcontainer"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
 	lconfigs "github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/devices"
 	ldevices "github.com/opencontainers/runc/libcontainer/devices"
@@ -96,25 +96,17 @@ func (l *LibcontainerExecutor) Launch(command *ExecCommand) (*ProcessState, erro
 
 	l.command = command
 
-	// create a new factory which will store the container state in the allocDir
-	factory, err := libcontainer.New(
-		path.Join(command.TaskDir, "../alloc/container"),
-		// note that os.Args[0] refers to the executor shim typically
-		// and first args arguments is ignored now due
-		// until https://github.com/opencontainers/runc/pull/1888 is merged
-		libcontainer.InitArgs(os.Args[0], "libcontainer-shim"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create factory: %v", err)
-	}
-
 	// A container groups processes under the same isolation enforcement
 	containerCfg, err := newLibcontainerConfig(command)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure container(%s): %v", l.id, err)
 	}
 
-	container, err := factory.Create(l.id, containerCfg)
+	container, err := libcontainer.Create(
+		path.Join(command.TaskDir, "../alloc/container"),
+		l.id,
+		containerCfg,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create container(%s): %v", l.id, err)
 	}
@@ -273,7 +265,7 @@ func (l *LibcontainerExecutor) Shutdown(signal string, grace time.Duration) erro
 
 		// Signal initial container processes only during graceful
 		// shutdown; hence `false` arg.
-		err = l.container.Signal(sig, false)
+		err = l.container.Signal(sig)
 		if err != nil {
 			return err
 		}
@@ -284,12 +276,12 @@ func (l *LibcontainerExecutor) Shutdown(signal string, grace time.Duration) erro
 		case <-time.After(grace):
 			// Force kill all container processes after grace period,
 			// hence `true` argument.
-			if err := l.container.Signal(os.Kill, true); err != nil {
+			if err := l.container.Signal(os.Kill); err != nil {
 				return err
 			}
 		}
 	} else {
-		err := l.container.Signal(os.Kill, true)
+		err := l.container.Signal(os.Kill)
 		if err != nil {
 			return err
 		}
@@ -461,7 +453,7 @@ func (l *LibcontainerExecutor) newTerminalSocket() (pty func() (*os.File, error)
 		return nil, nil, fmt.Errorf("failed to create terminal: %v", err)
 	}
 
-	return func() (*os.File, error) { return lutils.RecvFd(parent) }, child, err
+	return func() (*os.File, error) { return lutils.RecvFile(parent) }, child, err
 
 }
 
@@ -713,8 +705,8 @@ func configureCgroups(cfg *lconfigs.Config, command *ExecCommand) error {
 
 func newLibcontainerConfig(command *ExecCommand) (*lconfigs.Config, error) {
 	cfg := &lconfigs.Config{
-		Cgroups: &lconfigs.Cgroup{
-			Resources: &lconfigs.Resources{
+		Cgroups: &cgroups.Cgroup{
+			Resources: &cgroups.Resources{
 				MemorySwappiness: nil,
 			},
 		},

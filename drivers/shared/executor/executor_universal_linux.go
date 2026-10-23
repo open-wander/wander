@@ -17,6 +17,7 @@ import (
 	"github.com/open-wander/wander/client/taskenv"
 	"github.com/open-wander/wander/helper/users"
 	"github.com/open-wander/wander/plugins/drivers"
+	"github.com/opencontainers/cgroups"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/specconv"
 )
@@ -73,8 +74,8 @@ func setCmdUser(cmd *exec.Cmd, userid string) error {
 // created by the executor
 func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 	cfg := &configs.Config{
-		Cgroups: &configs.Cgroup{
-			Resources: &configs.Resources{},
+		Cgroups: &cgroups.Cgroup{
+			Resources: &cgroups.Resources{},
 		},
 	}
 

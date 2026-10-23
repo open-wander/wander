@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
-	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
-	"github.com/opencontainers/runc/libcontainer/configs"
+	"github.com/opencontainers/cgroups"
+	"github.com/opencontainers/cgroups/fs"
 )
 
 // freezer is the name of the cgroup subsystem used for stopping / starting
@@ -24,14 +23,14 @@ const freezer = "freezer"
 
 // thawed and frozen are the two states we put a cgroup in when trying to remove it
 var (
-	thawed = &configs.Resources{Freezer: configs.Thawed}
-	frozen = &configs.Resources{Freezer: configs.Frozen}
+	thawed = &cgroups.Resources{Freezer: cgroups.Thawed}
+	frozen = &cgroups.Resources{Freezer: cgroups.Frozen}
 )
 
 // GroupKiller is used for SIGKILL-ing the process tree[s] of a cgroup by leveraging
 // the freezer cgroup subsystem.
 type GroupKiller interface {
-	KillGroup(cgroup *configs.Cgroup) error
+	KillGroup(cgroup *cgroups.Cgroup) error
 }
 
 // NewGroupKiller creates a GroupKiller with executor PID pid.
@@ -49,14 +48,14 @@ type killer struct {
 
 // KillGroup will SIGKILL the process tree present in cgroup, using the freezer
 // subsystem to prevent further forking, etc.
-func (d *killer) KillGroup(cgroup *configs.Cgroup) error {
+func (d *killer) KillGroup(cgroup *cgroups.Cgroup) error {
 	if UseV2 {
 		return d.v2(cgroup)
 	}
 	return d.v1(cgroup)
 }
 
-func (d *killer) v1(cgroup *configs.Cgroup) error {
+func (d *killer) v1(cgroup *cgroups.Cgroup) error {
 	if cgroup == nil {
 		return errors.New("missing cgroup")
 	}
@@ -69,12 +68,11 @@ func (d *killer) v1(cgroup *configs.Cgroup) error {
 	// move executor PID into the init freezer cgroup so we can kill the task
 	// pids without killing the executor (which is the process running this code,
 	// doing the killing)
-	initPath, err := cgroups.GetInitCgroupPath(freezer)
+	initPath, err := initCgroupPath(freezer)
 	if err != nil {
 		return fmt.Errorf("failed to find init cgroup: %w", err)
 	}
-	m := map[string]string{freezer: initPath}
-	if err = cgroups.EnterPid(m, d.pid); err != nil {
+	if err = cgroups.WriteCgroupProc(initPath, d.pid); err != nil {
 		return fmt.Errorf("failed to add executor pid to init cgroup: %w", err)
 	}
 
@@ -97,7 +95,26 @@ func (d *killer) v1(cgroup *configs.Cgroup) error {
 	return cgroups.RemovePath(path)
 }
 
-func (d *killer) v2(cgroup *configs.Cgroup) error {
+// initCgroupPath returns the host path for PID 1's cgroup. This preserves the
+// behavior of runc's former GetInitCgroupPath helper.
+func initCgroupPath(subsystem string) (string, error) {
+	initCgroups, err := cgroups.ParseCgroupFile("/proc/1/cgroup")
+	if err != nil {
+		return "", err
+	}
+
+	cgroup, ok := initCgroups[subsystem]
+	if !ok {
+		cgroup, ok = initCgroups[cgroups.CgroupNamePrefix+subsystem]
+	}
+	if !ok {
+		return "", cgroups.NewNotFoundError(subsystem)
+	}
+
+	return GetCgroupPathHelperV1(subsystem, cgroup)
+}
+
+func (d *killer) v2(cgroup *cgroups.Cgroup) error {
 	if cgroup == nil || cgroup.Path == "" {
 		return errors.New("missing cgroup")
 	}
