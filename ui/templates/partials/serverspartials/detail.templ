@@ -1,0 +1,146 @@
+package serverspartials
+
+import (
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// ServerDetail represents the full details of a server.
+type ServerDetail struct {
+	Name            string
+	Address         string
+	Status          string
+	Leader          bool
+	Region          string
+	Datacenter      string
+	Version         string
+	ProtocolVersion string
+	RaftVersion     string
+	BuildDate       string
+	Revision        string
+	Tags            map[string]string
+	Stats           map[string]map[string]string
+}
+
+// DetailContent renders the server detail page content for HTMX partial updates.
+templ DetailContent(server ServerDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Page Header -->
+		<div class="mb-6">
+			<div class="flex items-center gap-3 mb-2">
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+					{ server.Name }
+				</h1>
+				if server.Leader {
+					@components.Badge(components.BadgeProps{
+						Variant: "primary",
+						Size:    "md",
+						Pill:    true,
+					}) {
+						Leader
+					}
+				}
+				@components.Badge(components.BadgeProps{
+					Variant: statusVariant(server.Status),
+					Dot:     true,
+					Size:    "md",
+				}) {
+					{ server.Status }
+				}
+			</div>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400">
+				Server details and information
+			</p>
+		</div>
+		<!-- Overview Section -->
+		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+			<!-- Basic Information -->
+			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
+					Server Information
+				</h2>
+				<dl class="space-y-3">
+					@detailRow("Name", server.Name)
+					@detailRow("Address", server.Address)
+					@detailRow("Region", server.Region)
+					@detailRow("Datacenter", server.Datacenter)
+					if server.Version != "" {
+						@detailRow("Wander Version", server.Version)
+					}
+					if server.ProtocolVersion != "" {
+						@detailRow("Protocol Version", server.ProtocolVersion)
+					}
+					if server.RaftVersion != "" {
+						@detailRow("Raft Version", server.RaftVersion)
+					}
+					if server.BuildDate != "" {
+						@detailRow("Build Date", server.BuildDate)
+					}
+					if server.Revision != "" {
+						@detailRow("Revision", server.Revision)
+					}
+				</dl>
+			</div>
+			<!-- Tags -->
+			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
+					Server Tags
+				</h2>
+				if len(server.Tags) == 0 {
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">No tags available</p>
+				} else {
+					<dl class="space-y-3">
+						for key, value := range server.Tags {
+							@detailRow(key, value)
+						}
+					</dl>
+				}
+			</div>
+		</div>
+		<!-- Statistics Section -->
+		if len(server.Stats) > 0 {
+			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
+					Server Statistics
+				</h2>
+				<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+					for category, stats := range server.Stats {
+						<div>
+							<h3 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">
+								{ category }
+							</h3>
+							<dl class="space-y-2">
+								for key, value := range stats {
+									@statRow(key, value)
+								}
+							</dl>
+						</div>
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// detailRow renders a key-value row in the detail view
+templ detailRow(label, value string) {
+	<div class="flex justify-between py-2 border-b border-neutral-100 dark:border-neutral-800">
+		<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+			{ label }
+		</dt>
+		<dd class="text-sm text-neutral-900 dark:text-neutral-100 font-mono">
+			{ value }
+		</dd>
+	</div>
+}
+
+// statRow renders a key-value row in the statistics section
+templ statRow(key, value string) {
+	<div class="flex justify-between text-sm">
+		<dt class="text-neutral-600 dark:text-neutral-400">
+			{ key }
+		</dt>
+		<dd class="text-neutral-900 dark:text-neutral-100 font-mono">
+			{ value }
+		</dd>
+	</div>
+}

@@ -1,0 +1,151 @@
+package components
+
+// ProgressExamples demonstrates various ProgressBar configurations and use cases
+templ ProgressExamples() {
+	<div class="space-y-8 p-6">
+		<div>
+			<h2 class="text-lg font-semibold mb-4">Progress Bar Examples</h2>
+		</div>
+
+		<!-- Size Variants -->
+		<div class="space-y-4">
+			<h3 class="text-md font-medium text-neutral-700">Size Variants</h3>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Small</p>
+				@ProgressBar(ProgressProps{Value: 60, Size: "sm", Color: "primary"})
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Medium (default)</p>
+				@ProgressBar(ProgressProps{Value: 60, Size: "md", Color: "primary"})
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Large</p>
+				@ProgressBar(ProgressProps{Value: 60, Size: "lg", Color: "primary"})
+			</div>
+		</div>
+
+		<!-- Color Variants -->
+		<div class="space-y-4">
+			<h3 class="text-md font-medium text-neutral-700">Color Variants</h3>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Primary</p>
+				@ProgressBar(ProgressProps{Value: 70, Color: "primary", Label: true})
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Success</p>
+				@ProgressBar(ProgressProps{Value: 85, Color: "success", Label: true})
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Warning</p>
+				@ProgressBar(ProgressProps{Value: 45, Color: "warning", Label: true})
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Error</p>
+				@ProgressBar(ProgressProps{Value: 20, Color: "error", Label: true})
+			</div>
+		</div>
+
+		<!-- With and Without Labels -->
+		<div class="space-y-4">
+			<h3 class="text-md font-medium text-neutral-700">Labels</h3>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Without Label</p>
+				@ProgressBar(ProgressProps{Value: 75, Color: "primary", Label: false})
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">With Label</p>
+				@ProgressBar(ProgressProps{Value: 75, Color: "primary", Label: true, Size: "lg"})
+			</div>
+		</div>
+
+		<!-- Striped/Animated -->
+		<div class="space-y-4">
+			<h3 class="text-md font-medium text-neutral-700">Striped & Animated</h3>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Striped (Active Progress)</p>
+				@ProgressBar(ProgressProps{Value: 65, Color: "primary", Striped: true, Size: "lg"})
+			</div>
+
+			<div class="space-y-2">
+				<p class="text-sm text-neutral-600">Striped with Label</p>
+				@ProgressBar(ProgressProps{Value: 65, Color: "success", Striped: true, Label: true, Size: "lg"})
+			</div>
+		</div>
+
+		<!-- Use Cases -->
+		<div class="space-y-4">
+			<h3 class="text-md font-medium text-neutral-700">Real-World Use Cases</h3>
+
+			<div class="space-y-2">
+				<div class="flex items-center justify-between mb-1">
+					<p class="text-sm text-neutral-600">CPU Utilization</p>
+					<p class="text-sm text-neutral-500">72%</p>
+				</div>
+				@ProgressBar(ProgressProps{Value: 72, Color: "success", Size: "md"})
+			</div>
+
+			<div class="space-y-2">
+				<div class="flex items-center justify-between mb-1">
+					<p class="text-sm text-neutral-600">Memory Usage</p>
+					<p class="text-sm text-neutral-500">85%</p>
+				</div>
+				@ProgressBar(ProgressProps{Value: 85, Color: "warning", Size: "md"})
+			</div>
+
+			<div class="space-y-2">
+				<div class="flex items-center justify-between mb-1">
+					<p class="text-sm text-neutral-600">Disk Space</p>
+					<p class="text-sm text-neutral-500">94%</p>
+				</div>
+				@ProgressBar(ProgressProps{Value: 94, Color: "error", Size: "md"})
+			</div>
+
+			<div class="space-y-2">
+				<div class="flex items-center justify-between mb-1">
+					<p class="text-sm text-neutral-600">Task Completion</p>
+					<p class="text-sm text-neutral-500">55%</p>
+				</div>
+				@ProgressBar(ProgressProps{Value: 55, Color: "primary", Striped: true, Size: "md"})
+			</div>
+
+			<div class="space-y-2">
+				<div class="flex items-center justify-between mb-1">
+					<p class="text-sm text-neutral-600">Upload Progress</p>
+					<p class="text-sm text-neutral-500">100%</p>
+				</div>
+				@ProgressBar(ProgressProps{Value: 100, Color: "success", Label: true, Size: "lg"})
+			</div>
+		</div>
+
+		<!-- Custom Max Values -->
+		<div class="space-y-4">
+			<h3 class="text-md font-medium text-neutral-700">Custom Max Values</h3>
+
+			<div class="space-y-2">
+				<div class="flex items-center justify-between mb-1">
+					<p class="text-sm text-neutral-600">Jobs Running (3/5)</p>
+					<p class="text-sm text-neutral-500">60%</p>
+				</div>
+				@ProgressBar(ProgressProps{Value: 3, Max: 5, Color: "primary", Size: "md"})
+			</div>
+
+			<div class="space-y-2">
+				<div class="flex items-center justify-between mb-1">
+					<p class="text-sm text-neutral-600">Allocations (12/20)</p>
+					<p class="text-sm text-neutral-500">60%</p>
+				</div>
+				@ProgressBar(ProgressProps{Value: 12, Max: 20, Color: "success", Size: "md"})
+			</div>
+		</div>
+	</div>
+}

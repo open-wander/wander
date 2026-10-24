@@ -20,7 +20,7 @@ func (o *OperatorSchedulerCommand) Help() string {
 	helpText := `
 Usage: nomad operator scheduler <subcommand> [options]
 
-  This command groups subcommands for interacting with Nomad's scheduler
+  This command groups subcommands for interacting with Wander's scheduler
   subsystem.
 
   Get the scheduler configuration:

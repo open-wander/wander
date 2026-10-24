@@ -364,26 +364,26 @@ type ClientConfig struct {
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
 
-func (c *ClientConfig) Copy() *ClientConfig {
-	if c == nil {
-		return c
+func (a *ClientConfig) Copy() *ClientConfig {
+	if a == nil {
+		return a
 	}
 
-	nc := *c
-	nc.Servers = slices.Clone(c.Servers)
-	nc.Options = maps.Clone(c.Options)
-	nc.Meta = maps.Clone(c.Meta)
-	nc.ChrootEnv = maps.Clone(c.ChrootEnv)
-	nc.Reserved = c.Reserved.Copy()
-	nc.NoHostUUID = pointer.Copy(c.NoHostUUID)
-	nc.TemplateConfig = c.TemplateConfig.Copy()
-	nc.ServerJoin = c.ServerJoin.Copy()
-	nc.HostVolumes = helper.CopySlice(c.HostVolumes)
-	nc.HostNetworks = helper.CopySlice(c.HostNetworks)
-	nc.NomadServiceDiscovery = pointer.Copy(c.NomadServiceDiscovery)
-	nc.Artifact = c.Artifact.Copy()
-	nc.Drain = c.Drain.Copy()
-	nc.ExtraKeysHCL = slices.Clone(c.ExtraKeysHCL)
+	nc := *a
+	nc.Servers = slices.Clone(a.Servers)
+	nc.Options = maps.Clone(a.Options)
+	nc.Meta = maps.Clone(a.Meta)
+	nc.ChrootEnv = maps.Clone(a.ChrootEnv)
+	nc.Reserved = a.Reserved.Copy()
+	nc.NoHostUUID = pointer.Copy(a.NoHostUUID)
+	nc.TemplateConfig = a.TemplateConfig.Copy()
+	nc.ServerJoin = a.ServerJoin.Copy()
+	nc.HostVolumes = helper.CopySlice(a.HostVolumes)
+	nc.HostNetworks = helper.CopySlice(a.HostNetworks)
+	nc.NomadServiceDiscovery = pointer.Copy(a.NomadServiceDiscovery)
+	nc.Artifact = a.Artifact.Copy()
+	nc.Drain = a.Drain.Copy()
+	nc.ExtraKeysHCL = slices.Clone(a.ExtraKeysHCL)
 	return &nc
 }
 
@@ -1016,16 +1016,16 @@ type Telemetry struct {
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
 
-func (t *Telemetry) Copy() *Telemetry {
-	if t == nil {
+func (a *Telemetry) Copy() *Telemetry {
+	if a == nil {
 		return nil
 	}
 
-	nt := *t
-	nt.DataDogTags = slices.Clone(t.DataDogTags)
-	nt.PrefixFilter = slices.Clone(t.PrefixFilter)
-	nt.FilterDefault = pointer.Copy(t.FilterDefault)
-	nt.ExtraKeysHCL = slices.Clone(t.ExtraKeysHCL)
+	nt := *a
+	nt.DataDogTags = slices.Clone(a.DataDogTags)
+	nt.PrefixFilter = slices.Clone(a.PrefixFilter)
+	nt.FilterDefault = pointer.Copy(a.FilterDefault)
+	nt.ExtraKeysHCL = slices.Clone(a.ExtraKeysHCL)
 	return &nt
 }
 
@@ -1057,13 +1057,13 @@ type Ports struct {
 	ExtraKeysHCL []string `hcl:",unusedKeys" json:"-"`
 }
 
-func (p *Ports) Copy() *Ports {
-	if p == nil {
+func (a *Ports) Copy() *Ports {
+	if a == nil {
 		return nil
 	}
 
-	np := *p
-	np.ExtraKeysHCL = slices.Clone(p.ExtraKeysHCL)
+	np := *a
+	np.ExtraKeysHCL = slices.Clone(a.ExtraKeysHCL)
 	return &np
 }
 
@@ -1184,7 +1184,7 @@ func newDevModeConfig(devMode, connectMode bool) (*devModeConfig, error) {
 		}
 		// Ensure Consul is on PATH
 		if _, err := exec.LookPath("consul"); err != nil {
-			return nil, fmt.Errorf("-dev-connect requires a 'consul' binary in Nomad's $PATH")
+			return nil, fmt.Errorf("-dev-connect requires a 'consul' binary in Wander's $PATH")
 		}
 		mode.connectMode = true
 	}

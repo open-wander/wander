@@ -1,0 +1,10 @@
+package services
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/servicespartials"
+)
+
+templ List(layoutProps layouts.PageLayoutProps, serviceList []servicespartials.ServiceSummary) {
+	@layouts.PageLayout(layoutProps, servicespartials.ListContent(serviceList))
+}

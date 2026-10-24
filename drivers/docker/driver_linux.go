@@ -8,7 +8,7 @@ package docker
 import (
 	"strings"
 
-	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/cgroups"
 )
 
 func setCPUSetCgroup(path string, pid int) error {

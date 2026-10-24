@@ -1,0 +1,128 @@
+package components
+
+// SearchBarExample demonstrates various SearchBar configurations
+templ SearchBarExample() {
+	<div class="space-y-8 p-6">
+		<div>
+			<h2 class="text-2xl font-bold mb-6 text-neutral-900 dark:text-white">Search Bar Component</h2>
+			<p class="text-neutral-600 dark:text-neutral-400 mb-8">
+				Interactive search input with HTMX autocomplete, loading states, and keyboard shortcuts.
+			</p>
+		</div>
+
+		<!-- Example 1: Basic Search Bar -->
+		<div>
+			<h3 class="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">Basic Search</h3>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Simple search with default debounce (300ms) and no minimum character requirement.
+			</p>
+			@SearchBar(SearchBarProps{
+				Name:        "basic-search",
+				Placeholder: "Search...",
+				SearchURL:   "/api/search",
+				ResultsID:   "basic-results",
+			})
+			<div id="basic-results" class="mt-4 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg min-h-[100px]">
+				<p class="text-sm text-neutral-500 dark:text-neutral-400">Search results will appear here</p>
+			</div>
+		</div>
+
+		<!-- Example 2: Search with Minimum Characters -->
+		<div>
+			<h3 class="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">Search with Minimum Characters</h3>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Search requires at least 3 characters before triggering. Debounce set to 500ms.
+			</p>
+			@SearchBar(SearchBarProps{
+				Name:        "min-chars-search",
+				Placeholder: "Type at least 3 characters...",
+				SearchURL:   "/api/products/search",
+				ResultsID:   "product-results",
+				Debounce:    500,
+				MinChars:    3,
+			})
+			<div id="product-results" class="mt-4 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg min-h-[100px]">
+				<p class="text-sm text-neutral-500 dark:text-neutral-400">Type at least 3 characters to search products</p>
+			</div>
+		</div>
+
+		<!-- Example 3: Search with Initial Value -->
+		<div>
+			<h3 class="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">Search with Initial Value</h3>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Pre-populated search input with custom styling.
+			</p>
+			@SearchBar(SearchBarProps{
+				Name:        "prepopulated-search",
+				Placeholder: "Search users...",
+				Value:       "John Doe",
+				SearchURL:   "/api/users/search",
+				ResultsID:   "user-results",
+				Debounce:    300,
+				MinChars:    2,
+				Class:       "max-w-md",
+			})
+			<div id="user-results" class="mt-4 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg min-h-[100px]">
+				<p class="text-sm text-neutral-500 dark:text-neutral-400">User search results will appear here</p>
+			</div>
+		</div>
+
+		<!-- Example 4: Fast Search -->
+		<div>
+			<h3 class="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">Fast Search (100ms debounce)</h3>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+				Quick response search with minimal debounce for instant results.
+			</p>
+			@SearchBar(SearchBarProps{
+				Name:        "fast-search",
+				Placeholder: "Quick search...",
+				SearchURL:   "/api/quick-search",
+				ResultsID:   "quick-results",
+				Debounce:    100,
+				MinChars:    1,
+			})
+			<div id="quick-results" class="mt-4 p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg min-h-[100px]">
+				<p class="text-sm text-neutral-500 dark:text-neutral-400">Quick search results will appear here</p>
+			</div>
+		</div>
+
+		<!-- Keyboard Shortcuts Info -->
+		<div class="mt-8 p-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+			<h3 class="text-lg font-semibold mb-3 text-blue-900 dark:text-blue-100">Keyboard Shortcuts</h3>
+			<ul class="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+				<li>
+					<kbd class="px-2 py-1 bg-white dark:bg-neutral-800 border border-blue-300 dark:border-blue-700 rounded text-xs font-mono">
+						Ctrl+K
+					</kbd>
+					or
+					<kbd class="px-2 py-1 bg-white dark:bg-neutral-800 border border-blue-300 dark:border-blue-700 rounded text-xs font-mono">
+						/
+					</kbd>
+					- Focus search input
+				</li>
+				<li>
+					<kbd class="px-2 py-1 bg-white dark:bg-neutral-800 border border-blue-300 dark:border-blue-700 rounded text-xs font-mono">
+						Esc
+					</kbd>
+					- Clear search and unfocus
+				</li>
+			</ul>
+		</div>
+
+		<!-- Features List -->
+		<div class="mt-8">
+			<h3 class="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">Features</h3>
+			<ul class="space-y-2 text-sm text-neutral-600 dark:text-neutral-400 list-disc list-inside">
+				<li>Search icon indicating search functionality</li>
+				<li>Clear button appears when input has value</li>
+				<li>Loading spinner during HTMX requests</li>
+				<li>Keyboard shortcuts (Ctrl+K or /) to focus</li>
+				<li>Escape key to clear and unfocus</li>
+				<li>Configurable debounce delay</li>
+				<li>Minimum character threshold before search</li>
+				<li>HTMX integration for live results</li>
+				<li>Fully accessible with ARIA attributes</li>
+			</ul>
+		</div>
+	</div>
+}

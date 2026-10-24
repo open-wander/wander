@@ -26,7 +26,7 @@ env:
 
 jobs:
   get-go-version:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
@@ -41,7 +41,7 @@ jobs:
           echo "Building with Go $(cat .go-version)"
           echo "go-version=$(cat .go-version)" >> "$GITHUB_OUTPUT"
   get-product-version:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       product-version: ${{ steps.get-product-version.outputs.product-version }}
     steps:
@@ -55,7 +55,7 @@ jobs:
           echo "product-version=$(make version)" >> "$GITHUB_OUTPUT"
   generate-metadata-file:
     needs: get-product-version
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       filepath: ${{ steps.generate-metadata-file.outputs.filepath }}
     steps:
@@ -99,15 +99,15 @@ jobs:
       - name: Build dependencies
         run: make deps
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.977
 
-      - name: Install Yarn
+      - name: Generate UI assets
         run: |
-          npm install -g yarn
+          cd ui
+          npm ci
+          make build-css
+          templ generate
 
       - name: Build prerelease
         run: make prerelease
@@ -122,7 +122,9 @@ jobs:
         run: |
           go clean -cache
           make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          bash ci/verify-release-archive.sh pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ matrix.goos }}
           mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
@@ -151,15 +153,15 @@ jobs:
       - name: Build dependencies
         run: make deps
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.977
 
-      - name: Install Yarn
+      - name: Generate UI assets
         run: |
-          npm install -g yarn
+          cd ui
+          npm ci
+          make build-css
+          templ generate
 
       - name: Build prerelease
         run: make prerelease
@@ -194,13 +196,35 @@ jobs:
         run: |
           go clean -cache
           make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          bash ci/verify-release-archive.sh pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ matrix.goos }}
           mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
           path: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
+      - name: Rehearse packaged Linux lifecycle
+        if: matrix.goarch == 'amd64'
+        run: |
+          baseline=nomad_1.6.5_linux_amd64.zip
+          curl --fail --location --output "${baseline}" \
+            "https://releases.hashicorp.com/nomad/1.6.5/${baseline}"
+          echo "5d7836a7538808cc517ae1ee33a3ee57f908d5599adff359c250ad4170c4d4f1  ${baseline}" | sha256sum --check
+          bash ci/smoke-release-ui.sh pkg/linux_amd64/wander
+          bash ci/rehearse-release-lifecycle.sh \
+            ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_linux_amd64.zip \
+            "${baseline}"
+
       - name: Package
+        run: |
+          doc_dir=.release/linux/package/usr/share/doc/wander
+          mkdir -p "$doc_dir"
+          notice_dir=pkg/${{ matrix.goos }}_${{ matrix.goarch }}/.release-notices
+          cp "$notice_dir/LICENSE.txt" "$doc_dir/"
+          cp "$notice_dir/THIRD_PARTY_NOTICES.md" "$doc_dir/"
+          cp -R "$notice_dir/licenses" "$doc_dir/"
+
+      - name: Build native packages
         uses: hashicorp/actions-packaging-linux@v1
         with:
           name: ${{ env.PKG_NAME }}
@@ -257,15 +281,15 @@ jobs:
       - name: Build dependencies
         run: make deps
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.977
 
-      - name: Install Yarn
+      - name: Generate UI assets
         run: |
-          npm install -g yarn
+          cd ui
+          npm ci
+          make build-css
+          templ generate
 
       - name: Build prerelease
         run: make prerelease
@@ -280,6 +304,7 @@ jobs:
         run: |
           go clean -cache
           make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          bash ci/verify-release-archive.sh pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ matrix.goos }}
           mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - uses: actions/upload-artifact@v4
         with:
@@ -310,13 +335,13 @@ jobs:
 
       - name: Download Linux amd64 artifact
         if: matrix.arch == 'amd64'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}_${{ env.version }}_linux_amd64.zip
 
       - name: Download Linux arm64 artifact
         if: matrix.arch == 'arm64'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}_${{ env.version }}_linux_arm64.zip
 
@@ -355,6 +380,31 @@ jobs:
           build-args: |
             WANDER_BINARY=dist/${{ env.PKG_NAME }}
 
+  release-ui-smoke:
+    name: Packaged embedded UI smoke test
+    needs:
+      - get-go-version
+      - get-product-version
+      - build-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.build-ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ needs.get-go-version.outputs.go-version }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_linux_amd64.zip
+      - name: Verify archive and embedded UI runtime
+        env:
+          artifact_name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_linux_amd64.zip
+        run: |
+          bash ci/verify-release-archive.sh "$artifact_name" linux
+          unzip -q "$artifact_name" -d release-smoke
+          bash ci/smoke-release-ui.sh release-smoke/wander
+
   minimum-os:
     name: OS Compatibility
     # A quick smoke test of our binaries on our minimum target OS (RHEL 7). Why RHEL 7? Because the glibc version is that old (2.17).
@@ -375,7 +425,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{needs.get-go-version.outputs.go-version}}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - name: Test binary

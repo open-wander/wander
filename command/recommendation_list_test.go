@@ -36,7 +36,7 @@ func TestRecommendationListCommand_Run(t *testing.T) {
 		require.Contains(out, "No recommendations found")
 	} else {
 		require.Equal(1, code)
-		require.Contains(ui.ErrorWriter.String(), "Nomad Enterprise only endpoint")
+		require.Contains(ui.ErrorWriter.String(), "Wander Enterprise only endpoint")
 	}
 
 	// Register a test job to write a recommendation against.
@@ -60,7 +60,7 @@ func TestRecommendationListCommand_Run(t *testing.T) {
 	if srv.Enterprise {
 		require.NoError(err)
 	} else {
-		require.Error(err, "Nomad Enterprise only endpoint")
+		require.Error(err, "Wander Enterprise only endpoint")
 	}
 
 	// Perform a new list which should yield results.
@@ -77,7 +77,7 @@ func TestRecommendationListCommand_Run(t *testing.T) {
 		require.Contains(out, "CPU")
 	} else {
 		require.Equal(1, code)
-		require.Contains(ui.ErrorWriter.String(), "Nomad Enterprise only endpoint")
+		require.Contains(ui.ErrorWriter.String(), "Wander Enterprise only endpoint")
 	}
 }
 

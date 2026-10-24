@@ -227,7 +227,7 @@ func testLogRequestHandler(t *testing.T, h http.Handler) http.Handler {
 			size:      m.Written,
 			userAgent: r.UserAgent(),
 		}
-		t.Logf(ri.String())
+		t.Log(ri.String())
 	})
 }
 

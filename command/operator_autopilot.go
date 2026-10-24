@@ -27,8 +27,8 @@ func (c *OperatorAutopilotCommand) Help() string {
 	helpText := `
 Usage: nomad operator autopilot <subcommand> [options]
 
-  This command groups subcommands for interacting with Nomad's Autopilot
-  subsystem. Autopilot provides automatic, operator-friendly management of Nomad
+  This command groups subcommands for interacting with Wander's Autopilot
+  subsystem. Autopilot provides automatic, operator-friendly management of Wander
   servers. The command can be used to view or modify the current Autopilot
   configuration. For a full guide see: https://openwander.org/wander/guides/autopilot.html
 

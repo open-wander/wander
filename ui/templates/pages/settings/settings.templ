@@ -1,0 +1,11 @@
+package settings
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/settingspartials"
+)
+
+// Settings renders the full settings page with layout.
+templ Settings(layoutProps layouts.PageLayoutProps, tokenInfo settingspartials.TokenInfo) {
+	@layouts.PageLayout(layoutProps, settingspartials.SettingsContent(tokenInfo))
+}

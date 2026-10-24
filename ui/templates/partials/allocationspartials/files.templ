@@ -1,0 +1,1082 @@
+package allocationspartials
+
+import (
+	"fmt"
+	"net/url"
+	"time"
+)
+
+// FileEntry represents a file or directory in the allocation filesystem
+type FileEntry struct {
+	Name     string      // File or directory name
+	Path     string      // Full path within the allocation
+	IsDir    bool        // True if this is a directory
+	Size     int64       // File size in bytes (0 for directories)
+	ModTime  time.Time   // Last modification time
+	Children []FileEntry // Child entries (for directories)
+}
+
+// FilesTabProps contains all data needed for the Files tab
+type FilesTabProps struct {
+	AllocID      string      // Allocation ID
+	Tasks        []string    // List of task names for the selector
+	SelectedTask string      // Currently selected task
+	Files        []FileEntry // Root-level file entries
+}
+
+// FilesTabFull renders the full files tab content with task selector and tree view
+templ FilesTabFull(props FilesTabProps) {
+	<div class="p-6" x-data="fileExplorer()">
+		<!-- Header with Task Selector -->
+		<div class="flex items-center justify-between mb-6">
+			<h3 class="text-lg font-medium text-neutral-900">Files</h3>
+			<div class="flex items-center space-x-4">
+				<!-- Task Selector -->
+				<div class="flex items-center space-x-2">
+					<label for="task-select" class="text-sm font-medium text-neutral-700">Task:</label>
+					<select
+						id="task-select"
+						name="task"
+						class="block w-48 pl-3 pr-10 py-2 text-sm border-neutral-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 rounded-md"
+						hx-get={ "/ui/allocations/" + props.AllocID + "/files" }
+						hx-target="#files-container"
+						hx-include="[name='task']"
+						hx-swap="innerHTML"
+					>
+						for _, task := range props.Tasks {
+							<option
+								value={ task }
+								if task == props.SelectedTask {
+									selected
+								}
+							>
+								{ task }
+							</option>
+						}
+					</select>
+				</div>
+				<!-- Refresh Button -->
+				<button
+					type="button"
+					class="inline-flex items-center px-3 py-2 border border-neutral-300 shadow-sm text-sm font-medium rounded-md text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					hx-get={ "/ui/allocations/" + props.AllocID + "/files?task=" + props.SelectedTask }
+					hx-target="#files-container"
+					hx-swap="innerHTML"
+				>
+					<svg class="h-4 w-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+					</svg>
+					Refresh
+				</button>
+			</div>
+		</div>
+		<!-- File Browser Container -->
+		<div id="files-container" class="workspace-surface flex gap-6">
+			<!-- File Tree Panel -->
+			<div class="flex-1 min-w-0">
+				<div data-file-tree-scroll class="border border-neutral-200 rounded-lg bg-white overflow-auto h-full">
+					<!-- Tree Header -->
+					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200">
+						<div class="flex items-center justify-between text-xs font-medium text-neutral-500 uppercase tracking-wide">
+							<span>Name</span>
+							<div class="flex items-center space-x-8">
+								<span class="w-20 text-right">Size</span>
+								<span class="w-32 text-right">Modified</span>
+								<span class="w-8"></span>
+							</div>
+						</div>
+					</div>
+					<!-- Tree Content -->
+					<div class="divide-y divide-neutral-100">
+						if len(props.Files) == 0 {
+							<div class="px-4 py-8 text-center">
+								<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+								</svg>
+								<p class="mt-2 text-sm text-neutral-600">No files found for this task</p>
+							</div>
+						} else {
+							for _, entry := range props.Files {
+								@fileTreeNode(entry, props.AllocID, props.SelectedTask, 0)
+							}
+						}
+					</div>
+				</div>
+			</div>
+			<!-- File Preview Panel -->
+			<div
+				id="file-preview-panel"
+				class="w-96 flex-shrink-0"
+				x-show="previewOpen"
+				x-cloak
+			>
+				<div class="border border-neutral-200 rounded-lg bg-white overflow-hidden h-full flex flex-col">
+					<!-- Preview Header -->
+					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+						<div class="flex items-center space-x-2 min-w-0">
+							<svg class="h-4 w-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+							</svg>
+							<span class="text-sm font-medium text-neutral-900 truncate" x-text="previewFileName">file.txt</span>
+						</div>
+						<div class="flex items-center space-x-2">
+							<a
+								:href="previewDownloadUrl"
+								class="inline-flex items-center px-2 py-1 text-xs font-medium text-primary-600 hover:text-primary-700"
+								download
+							>
+								<svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+								</svg>
+								Download
+							</a>
+							<button
+								type="button"
+								class="text-neutral-400 hover:text-neutral-500"
+								@click="closePreview()"
+							>
+								<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<!-- Preview Content -->
+					<div id="file-preview-content" class="p-4 overflow-auto flex-1 min-h-0">
+						<div class="text-sm text-neutral-500 text-center py-8">
+							Select a file to preview
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// fileTreeNode renders a single file or directory node in the tree
+templ fileTreeNode(entry FileEntry, allocID, task string, depth int) {
+	if entry.IsDir {
+		@directoryNode(entry, allocID, task, depth)
+	} else {
+		@fileNode(entry, allocID, task, depth)
+	}
+}
+
+// directoryNode renders an expandable directory in the tree
+templ directoryNode(entry FileEntry, allocID, task string, depth int) {
+	<div class="file-tree-node" x-data="{ expanded: false }">
+		<!-- Directory Row -->
+		<div
+			class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
+			style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20) }
+			@click="expanded = !expanded"
+			hx-get={ fileActionURL(allocID, "list", task, entry.Path) }
+			hx-target="next .directory-contents"
+			hx-trigger="click once"
+			hx-swap="innerHTML"
+		>
+			<div class="flex items-center space-x-2 min-w-0">
+				<!-- Expand/Collapse Icon -->
+				<svg
+					class="h-4 w-4 text-neutral-400 transition-transform duration-200"
+					:class="{ 'rotate-90': expanded }"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+				</svg>
+				<!-- Folder Icon -->
+				<svg class="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+				</svg>
+				<!-- Directory Name -->
+				<span class="text-sm font-medium text-neutral-900 truncate">{ entry.Name }</span>
+			</div>
+			<div class="flex items-center space-x-8 text-xs text-neutral-500">
+				<span class="w-20 text-right">--</span>
+				<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
+				<span class="w-8"></span>
+			</div>
+		</div>
+		<!-- Children Container -->
+		<div
+			x-ref="dirContent"
+			x-show="expanded"
+			class="directory-contents border-l border-neutral-200"
+			style={ fmt.Sprintf("margin-left: %dpx", 16+depth*20+8) }
+		>
+			<!-- Loading placeholder -->
+			<div class="px-4 py-2 text-sm text-neutral-500">
+				<div class="flex items-center space-x-2">
+					<svg class="animate-spin h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span>Loading...</span>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// fileNode renders a file entry in the tree
+templ fileNode(entry FileEntry, allocID, task string, depth int) {
+	<div
+		class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
+		style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20+24) }
+		hx-get={ fileActionURL(allocID, "preview", task, entry.Path) }
+		hx-target="#file-preview-content"
+		hx-swap="innerHTML"
+		data-file-name={ entry.Name }
+		data-download-url={ fileActionURL(allocID, "download", task, entry.Path) }
+		@click="openPreview($el.dataset.fileName, $el.dataset.downloadUrl)"
+	>
+		<div class="flex items-center space-x-2 min-w-0">
+			<!-- File Icon -->
+			@fileIcon(entry.Name)
+			<!-- File Name -->
+			<span class="text-sm text-neutral-700 truncate group-hover:text-neutral-900">{ entry.Name }</span>
+		</div>
+		<div class="flex items-center space-x-8 text-xs text-neutral-500">
+			<span class="w-20 text-right">{ formatFileSize(entry.Size) }</span>
+			<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
+			<!-- Download Button -->
+			<a
+				href={ templ.SafeURL(fileActionURL(allocID, "download", task, entry.Path)) }
+				class="w-8 text-center opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-primary-600"
+				title="Download file"
+				download
+				@click.stop
+			>
+				<svg class="h-4 w-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+				</svg>
+			</a>
+		</div>
+	</div>
+}
+
+func fileActionURL(allocID, action, task, path string) string {
+	query := url.Values{}
+	query.Set("task", task)
+	query.Set("path", path)
+	return "/ui/allocations/" + url.PathEscape(allocID) + "/files/" + action + "?" + query.Encode()
+}
+
+// DirectoryListing renders the children of a directory (for HTMX lazy loading)
+templ DirectoryListing(entries []FileEntry, allocID, task string, depth int) {
+	if len(entries) == 0 {
+		<div class="px-4 py-2 text-sm text-neutral-500 italic">
+			Empty directory
+		</div>
+	} else {
+		for _, entry := range entries {
+			@fileTreeNode(entry, allocID, task, depth)
+		}
+	}
+}
+
+// FilePreviewProps contains data for rendering a file preview with syntax highlighting
+type FilePreviewProps struct {
+	FileName    string // File name
+	Path        string // Full file path
+	Content     string // File content (may be truncated)
+	IsText      bool   // True if text file
+	Size        int64  // Actual file size in bytes
+	IsTruncated bool   // True if content was truncated
+	MaxSize     int64  // Maximum size shown (for truncation message)
+}
+
+// FilePreview renders the file preview content (legacy signature for backwards compatibility)
+templ FilePreview(fileName string, content string, isText bool, size int64) {
+	@FilePreviewEnhanced(FilePreviewProps{
+		FileName:    fileName,
+		Content:     content,
+		IsText:      isText,
+		Size:        size,
+		IsTruncated: false,
+		MaxSize:     102400, // 100KB default
+	})
+}
+
+// FilePreviewEnhanced renders the file preview with full props including truncation info
+templ FilePreviewEnhanced(props FilePreviewProps) {
+	if !props.IsText {
+		<!-- Binary file display -->
+		<div class="text-center py-8">
+			<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+			</svg>
+			<p class="mt-2 text-sm text-neutral-600">Binary file ({ formatFileSize(props.Size) })</p>
+			<p class="mt-1 text-xs text-neutral-500">Preview not available for binary files</p>
+		</div>
+	} else {
+		<!-- Text file with syntax highlighting -->
+		<div class="file-preview-container">
+			<!-- File info header -->
+			<div class="flex items-center justify-between mb-2 px-1">
+				<span class="text-xs text-neutral-500">{ formatFileSize(props.Size) }</span>
+				<span class="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded">{ getLanguageLabel(props.FileName) }</span>
+			</div>
+			<!-- Truncation warning if applicable -->
+			if props.IsTruncated {
+				<div class="mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md">
+					<div class="flex items-center space-x-2">
+						<svg class="h-4 w-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+						</svg>
+						<span class="text-xs text-amber-700">
+							Large file - showing first { formatFileSize(props.MaxSize) } of { formatFileSize(props.Size) }
+						</span>
+					</div>
+				</div>
+			}
+			<!-- Code content with syntax highlighting -->
+			<div
+				id={ fmt.Sprintf("file-preview-%d", hashString(props.FileName)) }
+				class="wander-editor file-preview-editor"
+				data-language={ getFileLanguage(props.FileName) }
+				data-content={ props.Content }
+			>
+				<!-- Initial content with line numbers (pre-rendered for immediate display) -->
+				<div class="wander-editor-wrapper theme-dark rounded-lg overflow-auto max-h-full">
+					<div class="wander-editor-area flex py-2">
+						<div class="wander-line-numbers px-2 text-right select-none border-r border-neutral-700" style="min-width: 3rem; color: #6b7280;">
+							@renderLineNumbers(props.Content)
+						</div>
+						<pre class="wander-highlighted-code flex-1 px-4 m-0 whitespace-pre" style="color: #d4d4d4; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.5;">@templ.Raw(highlightContent(props.Content, getFileLanguage(props.FileName)))</pre>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// renderLineNumbers generates line number divs for the content
+templ renderLineNumbers(content string) {
+	for i := 1; i <= countLines(content); i++ {
+		<div style="height: 1.5em;">{ fmt.Sprintf("%d", i) }</div>
+	}
+}
+
+// countLines counts the number of lines in content
+func countLines(content string) int {
+	if content == "" {
+		return 1
+	}
+	count := 1
+	for _, c := range content {
+		if c == '\n' {
+			count++
+		}
+	}
+	return count
+}
+
+// hashString returns a simple hash for generating unique IDs
+func hashString(s string) int {
+	h := 0
+	for _, c := range s {
+		h = 31*h + int(c)
+	}
+	if h < 0 {
+		h = -h
+	}
+	return h
+}
+
+// highlightContent applies syntax highlighting to content based on language
+func highlightContent(content, language string) string {
+	// Escape HTML entities first
+	escaped := escapeHTML(content)
+
+	// Apply language-specific highlighting
+	switch language {
+	case "json":
+		return highlightJSON(escaped)
+	case "hcl":
+		return highlightHCL(escaped)
+	case "shell":
+		return highlightShell(escaped)
+	case "log":
+		return highlightLog(escaped)
+	default:
+		return escaped
+	}
+}
+
+// escapeHTML escapes HTML special characters
+func escapeHTML(s string) string {
+	result := ""
+	for _, c := range s {
+		switch c {
+		case '&':
+			result += "&amp;"
+		case '<':
+			result += "&lt;"
+		case '>':
+			result += "&gt;"
+		case '"':
+			result += "&quot;"
+		case '\'':
+			result += "&#39;"
+		default:
+			result += string(c)
+		}
+	}
+	return result
+}
+
+// highlightJSON applies JSON syntax highlighting
+func highlightJSON(content string) string {
+	// Simple JSON highlighting using spans
+	result := ""
+	i := 0
+	for i < len(content) {
+		c := content[i]
+
+		// String (including keys)
+		if c == '"' {
+			start := i
+			i++
+			for i < len(content) && content[i] != '"' {
+				if content[i] == '\\' && i+1 < len(content) {
+					i += 2
+				} else {
+					i++
+				}
+			}
+			if i < len(content) {
+				i++
+			}
+			str := content[start:i]
+			// Check if it's a key (followed by colon)
+			j := i
+			for j < len(content) && (content[j] == ' ' || content[j] == '\t' || content[j] == '\n') {
+				j++
+			}
+			if j < len(content) && content[j] == ':' {
+				result += `<span class="cm-attribute">` + str + `</span>`
+			} else {
+				result += `<span class="cm-string">` + str + `</span>`
+			}
+			continue
+		}
+
+		// Number
+		if c >= '0' && c <= '9' || (c == '-' && i+1 < len(content) && content[i+1] >= '0' && content[i+1] <= '9') {
+			start := i
+			for i < len(content) && (content[i] >= '0' && content[i] <= '9' || content[i] == '.' || content[i] == 'e' || content[i] == 'E' || content[i] == '+' || content[i] == '-') {
+				i++
+			}
+			result += `<span class="cm-number">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// Keywords: true, false, null
+		if i+4 <= len(content) && content[i:i+4] == "true" {
+			result += `<span class="cm-keyword">true</span>`
+			i += 4
+			continue
+		}
+		if i+5 <= len(content) && content[i:i+5] == "false" {
+			result += `<span class="cm-keyword">false</span>`
+			i += 5
+			continue
+		}
+		if i+4 <= len(content) && content[i:i+4] == "null" {
+			result += `<span class="cm-keyword">null</span>`
+			i += 4
+			continue
+		}
+
+		// Punctuation
+		if c == '{' || c == '}' || c == '[' || c == ']' || c == ':' || c == ',' {
+			result += `<span class="cm-punctuation">` + string(c) + `</span>`
+			i++
+			continue
+		}
+
+		// Everything else (whitespace, etc.)
+		result += string(c)
+		i++
+	}
+	return result
+}
+
+// highlightHCL applies HCL syntax highlighting
+func highlightHCL(content string) string {
+	hclKeywords := map[string]bool{
+		"job": true, "group": true, "task": true, "service": true, "check": true,
+		"template": true, "artifact": true, "logs": true, "resources": true,
+		"network": true, "constraint": true, "affinity": true, "spread": true,
+		"volume": true, "vault": true, "consul": true, "update": true,
+		"migrate": true, "reschedule": true, "periodic": true, "parameterized": true,
+		"scaling": true, "meta": true, "env": true, "config": true, "driver": true,
+		"true": true, "false": true, "null": true,
+	}
+
+	result := ""
+	i := 0
+	for i < len(content) {
+		c := content[i]
+
+		// Comment
+		if c == '#' || (c == '/' && i+1 < len(content) && content[i+1] == '/') {
+			start := i
+			for i < len(content) && content[i] != '\n' {
+				i++
+			}
+			result += `<span class="cm-comment">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// Multi-line comment
+		if c == '/' && i+1 < len(content) && content[i+1] == '*' {
+			start := i
+			i += 2
+			for i+1 < len(content) && !(content[i] == '*' && content[i+1] == '/') {
+				i++
+			}
+			if i+1 < len(content) {
+				i += 2
+			}
+			result += `<span class="cm-comment">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// String
+		if c == '"' {
+			start := i
+			i++
+			for i < len(content) && content[i] != '"' {
+				if content[i] == '\\' && i+1 < len(content) {
+					i += 2
+				} else {
+					i++
+				}
+			}
+			if i < len(content) {
+				i++
+			}
+			result += `<span class="cm-string">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// Number
+		if c >= '0' && c <= '9' || (c == '-' && i+1 < len(content) && content[i+1] >= '0' && content[i+1] <= '9') {
+			start := i
+			for i < len(content) && (content[i] >= '0' && content[i] <= '9' || content[i] == '.' || content[i] >= 'A' && content[i] <= 'Z' || content[i] >= 'a' && content[i] <= 'z') {
+				i++
+			}
+			result += `<span class="cm-number">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// Identifier or keyword
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' {
+			start := i
+			for i < len(content) && (content[i] >= 'a' && content[i] <= 'z' || content[i] >= 'A' && content[i] <= 'Z' || content[i] >= '0' && content[i] <= '9' || content[i] == '_' || content[i] == '-') {
+				i++
+			}
+			word := content[start:i]
+			if hclKeywords[word] {
+				result += `<span class="cm-keyword">` + word + `</span>`
+			} else {
+				result += `<span class="cm-identifier">` + word + `</span>`
+			}
+			continue
+		}
+
+		// Punctuation
+		if c == '{' || c == '}' || c == '[' || c == ']' || c == '(' || c == ')' || c == '=' || c == ':' || c == ',' {
+			result += `<span class="cm-punctuation">` + string(c) + `</span>`
+			i++
+			continue
+		}
+
+		// Everything else
+		result += string(c)
+		i++
+	}
+	return result
+}
+
+// highlightShell applies shell script syntax highlighting
+func highlightShell(content string) string {
+	shellKeywords := map[string]bool{
+		"if": true, "then": true, "else": true, "elif": true, "fi": true,
+		"for": true, "while": true, "do": true, "done": true, "case": true,
+		"esac": true, "in": true, "function": true, "return": true, "exit": true,
+		"local": true, "export": true, "readonly": true, "declare": true,
+		"set": true, "unset": true, "shift": true, "source": true,
+		"echo": true, "exec": true, "eval": true, "cd": true, "pwd": true,
+		"true": true, "false": true,
+	}
+
+	result := ""
+	i := 0
+	lineStart := true
+
+	for i < len(content) {
+		c := content[i]
+
+		// Track line starts for shebang
+		if c == '\n' {
+			result += string(c)
+			i++
+			lineStart = true
+			continue
+		}
+
+		// Shebang at start of line
+		if lineStart && c == '#' && i+1 < len(content) && content[i+1] == '!' {
+			start := i
+			for i < len(content) && content[i] != '\n' {
+				i++
+			}
+			result += `<span class="cm-comment">` + content[start:i] + `</span>`
+			continue
+		}
+
+		lineStart = false
+
+		// Comment
+		if c == '#' {
+			start := i
+			for i < len(content) && content[i] != '\n' {
+				i++
+			}
+			result += `<span class="cm-comment">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// String (double-quoted)
+		if c == '"' {
+			start := i
+			i++
+			for i < len(content) && content[i] != '"' {
+				if content[i] == '\\' && i+1 < len(content) {
+					i += 2
+				} else {
+					i++
+				}
+			}
+			if i < len(content) {
+				i++
+			}
+			result += `<span class="cm-string">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// String (single-quoted)
+		if c == '\'' {
+			start := i
+			i++
+			for i < len(content) && content[i] != '\'' {
+				i++
+			}
+			if i < len(content) {
+				i++
+			}
+			result += `<span class="cm-string">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// Variable
+		if c == '$' {
+			start := i
+			i++
+			if i < len(content) && content[i] == '{' {
+				// ${var} style
+				for i < len(content) && content[i] != '}' {
+					i++
+				}
+				if i < len(content) {
+					i++
+				}
+			} else if i < len(content) && content[i] == '(' {
+				// $(command) style
+				depth := 1
+				i++
+				for i < len(content) && depth > 0 {
+					if content[i] == '(' {
+						depth++
+					} else if content[i] == ')' {
+						depth--
+					}
+					i++
+				}
+			} else {
+				// $var style
+				for i < len(content) && (content[i] >= 'a' && content[i] <= 'z' || content[i] >= 'A' && content[i] <= 'Z' || content[i] >= '0' && content[i] <= '9' || content[i] == '_') {
+					i++
+				}
+			}
+			result += `<span class="cm-attribute">` + content[start:i] + `</span>`
+			continue
+		}
+
+		// Keyword or identifier
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' {
+			start := i
+			for i < len(content) && (content[i] >= 'a' && content[i] <= 'z' || content[i] >= 'A' && content[i] <= 'Z' || content[i] >= '0' && content[i] <= '9' || content[i] == '_') {
+				i++
+			}
+			word := content[start:i]
+			if shellKeywords[word] {
+				result += `<span class="cm-keyword">` + word + `</span>`
+			} else {
+				result += `<span class="cm-identifier">` + word + `</span>`
+			}
+			continue
+		}
+
+		// Operators
+		if c == '|' || c == '&' || c == ';' || c == '>' || c == '<' {
+			result += `<span class="cm-operator">` + string(c) + `</span>`
+			i++
+			continue
+		}
+
+		// Everything else
+		result += string(c)
+		i++
+	}
+	return result
+}
+
+// highlightLog applies log file syntax highlighting
+func highlightLog(content string) string {
+	result := ""
+	i := 0
+
+	for i < len(content) {
+		// Find end of line
+		lineEnd := i
+		for lineEnd < len(content) && content[lineEnd] != '\n' {
+			lineEnd++
+		}
+
+		line := content[i:lineEnd]
+		highlightedLine := highlightLogLine(line)
+		result += highlightedLine
+
+		// Add newline if present
+		if lineEnd < len(content) {
+			result += "\n"
+			i = lineEnd + 1
+		} else {
+			i = lineEnd
+		}
+	}
+
+	return result
+}
+
+// highlightLogLine highlights a single log line
+func highlightLogLine(line string) string {
+	// Check for error patterns
+	if containsIgnoreCase(line, "error") || containsIgnoreCase(line, "fatal") || containsIgnoreCase(line, "fail") {
+		return `<span class="cm-log-error">` + line + `</span>`
+	}
+
+	// Check for warning patterns
+	if containsIgnoreCase(line, "warn") || containsIgnoreCase(line, "warning") {
+		return `<span class="cm-log-warn">` + line + `</span>`
+	}
+
+	// Check for info patterns
+	if containsIgnoreCase(line, "info") {
+		return `<span class="cm-log-info">` + line + `</span>`
+	}
+
+	// Check for debug patterns
+	if containsIgnoreCase(line, "debug") || containsIgnoreCase(line, "trace") {
+		return `<span class="cm-log-debug">` + line + `</span>`
+	}
+
+	// Highlight timestamps at the beginning of lines
+	result := ""
+	j := 0
+
+	// Try to find a timestamp pattern at the start (e.g., [2024-01-26 10:00:00] or 2024-01-26T10:00:00)
+	if j < len(line) && line[j] == '[' {
+		// [timestamp] format
+		end := j + 1
+		for end < len(line) && line[end] != ']' {
+			end++
+		}
+		if end < len(line) {
+			end++
+			result += `<span class="cm-log-timestamp">` + line[j:end] + `</span>`
+			j = end
+		}
+	} else if j < len(line) && line[j] >= '0' && line[j] <= '9' {
+		// ISO timestamp format (2024-01-26T10:00:00)
+		end := j
+		for end < len(line) && (line[end] >= '0' && line[end] <= '9' || line[end] == '-' || line[end] == ':' || line[end] == 'T' || line[end] == '.' || line[end] == 'Z' || line[end] == '+') {
+			end++
+		}
+		if end > j+10 { // Looks like a timestamp
+			result += `<span class="cm-log-timestamp">` + line[j:end] + `</span>`
+			j = end
+		}
+	}
+
+	result += line[j:]
+	return result
+}
+
+// containsIgnoreCase checks if s contains substr (case-insensitive)
+func containsIgnoreCase(s, substr string) bool {
+	sLower := toLower(s)
+	substrLower := toLower(substr)
+	return findSubstring(sLower, substrLower) >= 0
+}
+
+// toLower converts string to lowercase
+func toLower(s string) string {
+	result := ""
+	for _, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			result += string(c + 32)
+		} else {
+			result += string(c)
+		}
+	}
+	return result
+}
+
+// getFileLanguage returns the syntax highlighting language based on file extension
+func getFileLanguage(fileName string) string {
+	ext := getFileExtension(fileName)
+	switch ext {
+	case "json":
+		return "json"
+	case "hcl", "nomad", "tf":
+		return "hcl"
+	case "sh", "bash", "zsh":
+		return "shell"
+	case "go":
+		return "go"
+	case "py":
+		return "python"
+	case "js", "ts":
+		return "javascript"
+	case "yaml", "yml":
+		return "yaml"
+	case "log", "out", "err", "stdout", "stderr":
+		return "log"
+	default:
+		return "text"
+	}
+}
+
+// getLanguageLabel returns a human-readable label for the file type
+func getLanguageLabel(fileName string) string {
+	ext := getFileExtension(fileName)
+	switch ext {
+	case "json":
+		return "JSON"
+	case "hcl":
+		return "HCL"
+	case "nomad":
+		return "Nomad"
+	case "tf":
+		return "Terraform"
+	case "sh", "bash":
+		return "Shell"
+	case "zsh":
+		return "Zsh"
+	case "go":
+		return "Go"
+	case "py":
+		return "Python"
+	case "js":
+		return "JavaScript"
+	case "ts":
+		return "TypeScript"
+	case "yaml", "yml":
+		return "YAML"
+	case "log":
+		return "Log"
+	case "out", "stdout":
+		return "stdout"
+	case "err", "stderr":
+		return "stderr"
+	case "txt":
+		return "Text"
+	case "md":
+		return "Markdown"
+	case "xml":
+		return "XML"
+	case "html":
+		return "HTML"
+	case "css":
+		return "CSS"
+	case "toml":
+		return "TOML"
+	case "ini", "conf", "cfg":
+		return "Config"
+	case "env":
+		return "Environment"
+	case "pem", "crt", "key":
+		return "Certificate"
+	default:
+		// Check if it looks like a log file by name
+		if containsLogPattern(fileName) {
+			return "Log"
+		}
+		return "Plain Text"
+	}
+}
+
+// getFileExtension extracts the file extension from a filename
+func getFileExtension(fileName string) string {
+	// Handle special cases like nginx.stdout.0
+	// Check for .stdout.N or .stderr.N pattern
+	if containsPattern(fileName, ".stdout.") {
+		return "stdout"
+	}
+	if containsPattern(fileName, ".stderr.") {
+		return "stderr"
+	}
+
+	// Get extension
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			return fileName[i+1:]
+		}
+	}
+	return ""
+}
+
+// containsPattern checks if filename contains a pattern
+func containsPattern(fileName, pattern string) bool {
+	return len(fileName) >= len(pattern) && findSubstring(fileName, pattern) >= 0
+}
+
+// findSubstring finds pattern in text, returns index or -1
+func findSubstring(text, pattern string) int {
+	for i := 0; i <= len(text)-len(pattern); i++ {
+		found := true
+		for j := 0; j < len(pattern); j++ {
+			if text[i+j] != pattern[j] {
+				found = false
+				break
+			}
+		}
+		if found {
+			return i
+		}
+	}
+	return -1
+}
+
+// containsLogPattern checks if filename contains log-related patterns
+func containsLogPattern(fileName string) bool {
+	patterns := []string{".log", "stdout", "stderr", ".out", ".err"}
+	for _, p := range patterns {
+		if containsPattern(fileName, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// fileIcon renders an appropriate icon based on file extension
+templ fileIcon(fileName string) {
+	switch getFileType(fileName) {
+		case "log":
+			<svg class="h-5 w-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+			</svg>
+		case "config":
+			<svg class="h-5 w-5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+			</svg>
+		case "script":
+			<svg class="h-5 w-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+			</svg>
+		case "binary":
+			<svg class="h-5 w-5 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+			</svg>
+		default:
+			<svg class="h-5 w-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+			</svg>
+	}
+}
+
+// getFileType returns a file type category based on extension
+func getFileType(fileName string) string {
+	// Get extension
+	ext := ""
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			ext = fileName[i+1:]
+			break
+		}
+	}
+
+	switch ext {
+	case "log", "out", "err":
+		return "log"
+	case "json", "yaml", "yml", "toml", "ini", "conf", "cfg", "env":
+		return "config"
+	case "sh", "bash", "py", "rb", "js", "go", "rs":
+		return "script"
+	case "exe", "bin", "so", "dll", "a":
+		return "binary"
+	default:
+		return "text"
+	}
+}
+
+// formatFileSize formats bytes into human readable size
+func formatFileSize(bytes int64) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%d B", bytes)
+	} else if bytes < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
+	} else if bytes < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
+	}
+	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
+}
+
+// formatFileTime formats a time for display
+func formatFileTime(t time.Time) string {
+	if t.IsZero() {
+		return "--"
+	}
+	return t.Format("Jan 2, 15:04")
+}
+
+// isTextFile determines if a file is likely text based on extension
+func IsTextFile(fileName string) bool {
+	ext := ""
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			ext = fileName[i+1:]
+			break
+		}
+	}
+
+	textExts := map[string]bool{
+		"txt": true, "log": true, "md": true, "json": true,
+		"yaml": true, "yml": true, "toml": true, "xml": true,
+		"html": true, "css": true, "js": true, "ts": true,
+		"go": true, "py": true, "rb": true, "sh": true,
+		"bash": true, "conf": true, "cfg": true, "ini": true,
+		"env": true, "out": true, "err": true, "stdout": true,
+		"stderr": true, "hcl": true, "tf": true, "nomad": true,
+	}
+
+	return textExts[ext]
+}

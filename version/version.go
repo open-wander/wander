@@ -18,13 +18,18 @@ var (
 	GitCommit   string
 	GitDescribe string
 
-	// The main version number that is being run at the moment.
+	// Version is the public Wander product version.
 	Version = "0.1.0"
+
+	// ClusterCompatibilityVersion is advertised to other Wander agents for
+	// legacy feature gates. It is deliberately independent from the public
+	// product version and must remain semver-compatible with those gates.
+	ClusterCompatibilityVersion = "1.9.0"
 
 	// A pre-release marker for the version. If this is "" (empty string)
 	// then it means that it is a final release. Otherwise, this is a pre-release
 	// such as "dev" (in development), "beta", "rc1", etc.
-	VersionPrerelease = "prealpha"
+	VersionPrerelease = "dev"
 
 	// VersionMetadata is metadata further describing the build type.
 	VersionMetadata = ""
@@ -39,12 +44,12 @@ type VersionInfo struct {
 	VersionMetadata   string
 }
 
-func (v *VersionInfo) Copy() *VersionInfo {
-	if v == nil {
+func (c *VersionInfo) Copy() *VersionInfo {
+	if c == nil {
 		return nil
 	}
 
-	nv := *v
+	nv := *c
 	return &nv
 }
 

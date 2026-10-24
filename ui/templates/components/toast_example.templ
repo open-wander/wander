@@ -1,0 +1,149 @@
+package components
+
+// ToastExample demonstrates the various ways to use the Toast notification system
+templ ToastExample() {
+	<div class="space-y-8">
+		<!-- Section: Alpine.js Triggers -->
+		<div class="space-y-4">
+			<h2 class="text-xl font-semibold text-neutral-900">Toast Triggers (Alpine.js)</h2>
+			<p class="text-sm text-neutral-600">Click buttons to show different toast variants</p>
+			<div class="flex flex-wrap gap-3">
+				<button
+					@click="$store.toasts.add({variant: 'info', title: 'Info', message: 'This is an informational message', duration: 3000})"
+					class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+				>
+					Show Info Toast
+				</button>
+				<button
+					@click="$store.toasts.add({variant: 'success', title: 'Success', message: 'Operation completed successfully!', duration: 3000})"
+					class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+				>
+					Show Success Toast
+				</button>
+				<button
+					@click="$store.toasts.add({variant: 'warning', title: 'Warning', message: 'Please review your input', duration: 4000})"
+					class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+				>
+					Show Warning Toast
+				</button>
+				<button
+					@click="$store.toasts.add({variant: 'error', title: 'Error', message: 'An error occurred while processing your request', duration: 5000})"
+					class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+				>
+					Show Error Toast
+				</button>
+				<button
+					@click="$store.toasts.add({variant: 'info', title: 'Manual Dismiss', message: 'This toast must be manually closed', duration: 0})"
+					class="px-4 py-2 bg-neutral-500 text-white rounded-lg hover:bg-neutral-600 transition-colors"
+				>
+					Manual Dismiss (No Auto-close)
+				</button>
+			</div>
+		</div>
+		<!-- Section: Multiple Toasts -->
+		<div class="space-y-4">
+			<h2 class="text-xl font-semibold text-neutral-900">Multiple Toasts</h2>
+			<p class="text-sm text-neutral-600">Stack multiple notifications</p>
+			<div class="flex flex-wrap gap-3">
+				<button
+					@click="
+						$store.toasts.add({variant: 'info', title: 'Toast 1', message: 'First notification', duration: 3000});
+						setTimeout(() => $store.toasts.add({variant: 'success', title: 'Toast 2', message: 'Second notification', duration: 3000}), 300);
+						setTimeout(() => $store.toasts.add({variant: 'warning', title: 'Toast 3', message: 'Third notification', duration: 3000}), 600);
+					"
+					class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+				>
+					Show Multiple Toasts
+				</button>
+				<button
+					@click="$store.toasts.clear()"
+					class="px-4 py-2 bg-neutral-700 text-white rounded-lg hover:bg-neutral-800 transition-colors"
+				>
+					Clear All Toasts
+				</button>
+			</div>
+		</div>
+		<!-- Section: HTMX Integration Example -->
+		<div class="space-y-4">
+			<h2 class="text-xl font-semibold text-neutral-900">HTMX Integration</h2>
+			<p class="text-sm text-neutral-600">Toast triggered from server response</p>
+			<div class="bg-neutral-100 p-4 rounded-lg space-y-2">
+				<p class="text-sm font-medium">Server-side Go code:</p>
+				<pre class="text-xs bg-white p-3 rounded border border-neutral-200 overflow-x-auto">
+					<code>
+						{ `// Set HX-Trigger header in your HTTP response` }
+						{ "\n" }
+						{ `w.Header().Set("HX-Trigger", "{\"showToast\": {\"variant\": \"success\", \"title\": \"Saved\", \"message\": \"Your changes have been saved\", \"duration\": 3000}}")` }
+					</code>
+				</pre>
+			</div>
+		</div>
+		<!-- Section: JavaScript API -->
+		<div class="space-y-4">
+			<h2 class="text-xl font-semibold text-neutral-900">JavaScript API</h2>
+			<p class="text-sm text-neutral-600">Trigger toasts from vanilla JavaScript</p>
+			<div class="bg-neutral-100 p-4 rounded-lg space-y-2">
+				<p class="text-sm font-medium">Example:</p>
+				<pre class="text-xs bg-white p-3 rounded border border-neutral-200 overflow-x-auto">
+					<code>
+						{ `// From anywhere in your JavaScript` }
+						{ "\n" }
+						{ `window.toastStore.add({` }
+						{ "\n" }
+						{ `  variant: 'success',` }
+						{ "\n" }
+						{ `  title: 'Done',` }
+						{ "\n" }
+						{ `  message: 'Task completed',` }
+						{ "\n" }
+						{ `  duration: 3000` }
+						{ "\n" }
+						{ `});` }
+					</code>
+				</pre>
+			</div>
+			<button
+				onclick="window.toastStore.add({variant: 'info', title: 'JavaScript API', message: 'This toast was triggered via vanilla JavaScript', duration: 3000})"
+				class="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+			>
+				Test JavaScript API
+			</button>
+		</div>
+		<!-- Section: Static Toast (Server-rendered) -->
+		<div class="space-y-4">
+			<h2 class="text-xl font-semibold text-neutral-900">Static Toast Example</h2>
+			<p class="text-sm text-neutral-600">Server-rendered toast component (not managed by Alpine.js store)</p>
+			<div class="max-w-md">
+				@Toast(ToastProps{
+					Variant: "info",
+					Title:   "Static Toast",
+					Message: "This is a server-rendered toast component for demonstration purposes",
+				})
+			</div>
+		</div>
+		<!-- Section: Position Examples -->
+		<div class="space-y-4">
+			<h2 class="text-xl font-semibold text-neutral-900">Toast Container Positions</h2>
+			<p class="text-sm text-neutral-600">Different corner placements (modify ToastContainer position prop)</p>
+			<div class="bg-neutral-100 p-4 rounded-lg space-y-2">
+				<p class="text-sm font-medium">Available positions:</p>
+				<ul class="text-xs space-y-1 list-disc list-inside">
+					<li><code class="bg-white px-1 py-0.5 rounded">top-right</code> - Top right corner (default)</li>
+					<li><code class="bg-white px-1 py-0.5 rounded">top-left</code> - Top left corner</li>
+					<li><code class="bg-white px-1 py-0.5 rounded">bottom-right</code> - Bottom right corner</li>
+					<li><code class="bg-white px-1 py-0.5 rounded">bottom-left</code> - Bottom left corner</li>
+				</ul>
+				<p class="text-sm font-medium mt-3">Example in base layout:</p>
+				<pre class="text-xs bg-white p-3 rounded border border-neutral-200 overflow-x-auto">
+					<code>
+						{ `@ToastContainer(ToastContainerProps{` }
+						{ "\n" }
+						{ `  Position: "top-right",` }
+						{ "\n" }
+						{ `})` }
+					</code>
+				</pre>
+			</div>
+		</div>
+	</div>
+}

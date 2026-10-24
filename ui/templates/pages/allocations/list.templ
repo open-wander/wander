@@ -1,0 +1,11 @@
+package allocations
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/allocationspartials"
+)
+
+// List renders the full allocations list page with layout.
+templ List(layoutProps layouts.PageLayoutProps, props allocationspartials.ListProps) {
+	@layouts.PageLayout(layoutProps, allocationspartials.ListContent(props))
+}

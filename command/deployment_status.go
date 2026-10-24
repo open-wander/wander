@@ -15,7 +15,6 @@ import (
 
 	"github.com/gosuri/uilive"
 	"github.com/mitchellh/go-glint"
-	"github.com/mitchellh/go-glint/components"
 	"github.com/moby/term"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/api/contexts"
@@ -24,6 +23,26 @@ import (
 
 type DeploymentStatusCommand struct {
 	Meta
+}
+
+const (
+	deploymentSpinnerInterval = 150 * time.Millisecond
+	deploymentSpinnerFrames   = `|/-\`
+)
+
+func deploymentSpinner() *glint.TextComponent {
+	started := time.Now()
+	return glint.TextFunc(func(_, _ uint) string {
+		return deploymentSpinnerFrame(time.Since(started))
+	})
+}
+
+func deploymentSpinnerFrame(elapsed time.Duration) string {
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	frame := (elapsed / deploymentSpinnerInterval) % time.Duration(len(deploymentSpinnerFrames))
+	return string(deploymentSpinnerFrames[frame])
 }
 
 func (c *DeploymentStatusCommand) Help() string {
@@ -226,7 +245,7 @@ func (c *DeploymentStatusCommand) ttyMonitor(client *api.Client, deployID string
 
 	d := glint.New()
 	spinner := glint.Layout(
-		components.Spinner(),
+		deploymentSpinner(),
 		glint.Text(fmt.Sprintf(" Deployment %q in progress...", limit(deployID, length))),
 	).Row().MarginLeft(2)
 	refreshRate := 100 * time.Millisecond
@@ -303,7 +322,7 @@ UPDATE:
 		d.Set(spinner, statusComponent)
 
 		endSpinner = glint.Layout(
-			components.Spinner(),
+			deploymentSpinner(),
 			glint.Text(fmt.Sprintf(" Deployment %q %s", limit(deployID, length), status)),
 		).Row().MarginLeft(2)
 

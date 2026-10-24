@@ -1,0 +1,135 @@
+package components
+
+// FormFieldExample demonstrates the usage of FormField and FormFieldHorizontal components
+templ FormFieldExample() {
+	<div class="max-w-2xl mx-auto p-6 space-y-8">
+		<div class="space-y-6">
+			<h2 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Form Field Examples</h2>
+
+			<!-- Vertical Layout Examples -->
+			<div class="space-y-4">
+				<h3 class="text-lg font-semibold text-neutral-800 dark:text-neutral-200">Vertical Layout (Default)</h3>
+
+				<!-- Basic field with required indicator -->
+				@FormField(FormFieldProps{
+					Label:    "Email Address",
+					ID:       "email",
+					Required: true,
+				}) {
+					@Input(InputProps{
+						Type:        "email",
+						ID:          "email",
+						Name:        "email",
+						Placeholder: "you@example.com",
+					})
+				}
+
+				<!-- Field with hint text -->
+				@FormField(FormFieldProps{
+					Label: "Username",
+					ID:    "username",
+					Hint:  "Choose a unique username between 3-20 characters",
+				}) {
+					@Input(InputProps{
+						Type:        "text",
+						ID:          "username",
+						Name:        "username",
+						Placeholder: "johndoe",
+					})
+				}
+
+				<!-- Field with error message -->
+				@FormField(FormFieldProps{
+					Label:    "Password",
+					ID:       "password",
+					Required: true,
+					Error:    "Password must be at least 8 characters long",
+				}) {
+					@Input(InputProps{
+						Type:        "password",
+						ID:          "password",
+						Name:        "password",
+						Placeholder: "Enter your password",
+					})
+				}
+
+				<!-- Field with textarea -->
+				@FormField(FormFieldProps{
+					Label: "Description",
+					ID:    "description",
+					Hint:  "Provide a brief description (optional)",
+				}) {
+					@Textarea(TextareaProps{
+						ID:          "description",
+						Name:        "description",
+						Placeholder: "Enter description...",
+						Rows:        4,
+					})
+				}
+
+				<!-- Field with select -->
+				@FormField(FormFieldProps{
+					Label:    "Country",
+					ID:       "country",
+					Required: true,
+				}) {
+					@Select(SelectProps{
+						ID:          "country",
+						Name:        "country",
+						Placeholder: "Select a country",
+						Options: []SelectOption{
+							{Value: "us", Label: "United States"},
+							{Value: "ca", Label: "Canada"},
+							{Value: "uk", Label: "United Kingdom"},
+							{Value: "au", Label: "Australia"},
+						},
+					})
+				}
+			</div>
+
+			<!-- Horizontal Layout Examples -->
+			<div class="space-y-4 pt-8 border-t border-neutral-200 dark:border-neutral-700">
+				<h3 class="text-lg font-semibold text-neutral-800 dark:text-neutral-200">Horizontal Layout</h3>
+
+				@FormFieldHorizontal(FormFieldHorizontalProps{
+					Label:    "Full Name",
+					ID:       "fullname",
+					Required: true,
+				}) {
+					@Input(InputProps{
+						Type:        "text",
+						ID:          "fullname",
+						Name:        "fullname",
+						Placeholder: "John Doe",
+					})
+				}
+
+				@FormFieldHorizontal(FormFieldHorizontalProps{
+					Label: "Bio",
+					ID:    "bio",
+					Hint:  "Tell us about yourself",
+				}) {
+					@Textarea(TextareaProps{
+						ID:          "bio",
+						Name:        "bio",
+						Placeholder: "I am a...",
+						Rows:        3,
+					})
+				}
+
+				@FormFieldHorizontal(FormFieldHorizontalProps{
+					Label:    "Notifications",
+					ID:       "notifications",
+					Hint:     "Receive email notifications",
+				}) {
+					@Checkbox(CheckboxProps{
+						ID:      "notifications",
+						Name:    "notifications",
+						Label:   "Enable notifications",
+						Checked: true,
+					})
+				}
+			</div>
+		</div>
+	</div>
+}

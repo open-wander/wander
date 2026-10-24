@@ -1,0 +1,11 @@
+package evaluations
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/evaluationspartials"
+)
+
+// List renders the full evaluations list page with layout.
+templ List(layoutProps layouts.PageLayoutProps, evalsList []evaluationspartials.EvaluationSummary) {
+	@layouts.PageLayout(layoutProps, evaluationspartials.ListContent(evalsList))
+}

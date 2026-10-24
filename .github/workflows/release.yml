@@ -7,11 +7,6 @@ on:
         description: 'The version being released'
         required: true
         type: string
-      update-changelog:
-        description: 'Update CHANGELOG'
-        required: true
-        type: boolean
-        default: false
       notification-channel:
         description: 'Slack channel to use for notifications'
         required: false
@@ -71,19 +66,19 @@ jobs:
         with:
           go-version: ${{ steps.get-go-version.outputs.go-version }}
 
-      - name: Setup node and yarn
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache-dependency-path: "ui/yarn.lock"
-
-      - name: Install Yarn
-        run: |
-          npm install -g yarn
-
       - name: Install dependencies
         run: |
           make deps
+
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.977
+
+      - name: Generate UI assets
+        run: |
+          cd ui
+          npm ci
+          make build-css
+          templ generate
 
       - name: Update notification channel
         id: notification-channel
@@ -107,7 +102,6 @@ jobs:
           git diff --color=always version/version.go
 
       - name: Update changelog
-        if: ${{ github.event.inputs.update-changelog == 'true' }}
         run: |
           echo "::group::Fetch all git repo"
           git fetch --unshallow

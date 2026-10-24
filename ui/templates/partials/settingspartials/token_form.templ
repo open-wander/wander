@@ -1,0 +1,269 @@
+package settingspartials
+
+import "github.com/open-wander/wander/ui/templates/components"
+
+// TokenInfo holds information about the current ACL token
+type TokenInfo struct {
+	IsAuthenticated bool
+	ACLDisabled     bool   // True if ACL is disabled on the cluster
+	Name            string
+	AccessorID      string
+	SecretID        string
+	Type            string // "management" or "client"
+	ExpirationTime  string // Optional expiration time
+	ExpiresSoon     bool   // True if token expires within 10 minutes
+	Policies        []TokenPolicy
+}
+
+// TokenPolicy represents an ACL policy attached to a token
+type TokenPolicy struct {
+	Name        string
+	Description string
+}
+
+// TokenFormContent renders the token authentication form and current token info.
+// This component handles three states: ACL disabled, signed-in, and signed-out.
+templ TokenFormContent(tokenInfo TokenInfo) {
+	<div id="token-form-container">
+		if tokenInfo.ACLDisabled {
+			<!-- ACL Disabled Message -->
+			<div class="max-w-xl">
+				<div class="bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 rounded-lg p-6">
+					<div class="flex items-start">
+						<div class="flex-shrink-0">
+							<svg class="h-6 w-6 text-info-600 dark:text-info-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+						</div>
+						<div class="ml-3">
+							<h3 class="text-base font-medium text-info-900 dark:text-info-100">
+								ACL is disabled
+							</h3>
+							<p class="mt-2 text-sm text-info-800 dark:text-info-200">
+								This cluster does not have Access Control Lists enabled. All requests have full access without authentication.
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		} else if !tokenInfo.IsAuthenticated {
+			<!-- Sign In Form -->
+			<div class="max-w-xl">
+				<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-4">
+					Sign in with token
+				</h3>
+				<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+					Clusters that use Access Control Lists require tokens to perform certain tasks.
+					By providing a token Secret ID, each future request will be authenticated,
+					potentially authorizing read access to additional information.
+				</p>
+
+				<form
+					hx-post="/ui/settings/token"
+					hx-target="#token-form-container"
+					hx-swap="outerHTML"
+					class="space-y-4"
+				>
+					<input type="hidden" name="action" value="signin"/>
+
+					<!-- Secret ID Input with Toggle -->
+					<div x-data="{ showSecret: false }">
+						@components.FormField(components.FormFieldProps{
+							Label:    "Secret ID",
+							ID:       "secret_id",
+							Required: true,
+							Hint:     "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+						}) {
+							<div class="relative">
+								<input
+									type="text"
+									x-bind:type="showSecret ? 'text' : 'password'"
+									id="secret_id"
+									name="secret_id"
+									class="input pr-10"
+									placeholder="Enter your token secret ID"
+									required
+								/>
+								<button
+									type="button"
+									x-on:click="showSecret = !showSecret"
+									class="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+								>
+									<svg x-show="!showSecret" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+									</svg>
+									<svg x-show="showSecret" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+									</svg>
+								</button>
+							</div>
+						}
+					</div>
+
+					<!-- Sign In Button -->
+					<div>
+						<button
+							type="submit"
+							class="btn btn-primary"
+						>
+							Sign In
+						</button>
+					</div>
+				</form>
+			</div>
+		} else {
+			<!-- Token Info Display -->
+			<div class="space-y-6">
+				<!-- Expiration Warning (if expires soon) -->
+				if tokenInfo.ExpiresSoon && tokenInfo.ExpirationTime != "" {
+					<div class="rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 p-4">
+						<div class="flex items-start">
+							<div class="flex-shrink-0">
+								<svg class="h-5 w-5 text-warning-600 dark:text-warning-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+								</svg>
+							</div>
+							<div class="ml-3">
+								<h3 class="text-sm font-medium text-warning-900 dark:text-warning-100">
+									Your access is about to expire
+								</h3>
+								<p class="mt-1 text-sm text-warning-800 dark:text-warning-200">
+									Your token will expire soon. Please obtain a new token to continue accessing the cluster.
+								</p>
+							</div>
+						</div>
+					</div>
+				}
+				<!-- Token Header with Sign Out -->
+				<div class="flex items-start justify-between">
+					<div class="flex-1">
+						<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">
+							Token: { tokenInfo.Name }
+						</h3>
+						<div class="mt-2 space-y-1 text-sm text-neutral-600 dark:text-neutral-400">
+							<div>
+								<span class="font-medium">AccessorID:</span>
+								<code class="ml-2 px-2 py-0.5 bg-neutral-100 dark:bg-neutral-700 rounded text-xs">
+									{ tokenInfo.AccessorID }
+								</code>
+							</div>
+							<div>
+								<span class="font-medium">Type:</span>
+								<span class="ml-2 px-2 py-0.5 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded text-xs font-medium">
+									{ tokenInfo.Type }
+								</span>
+							</div>
+							if tokenInfo.ExpirationTime != "" {
+								<div class={ "text-sm", templ.KV("text-warning-600 dark:text-warning-400", tokenInfo.ExpiresSoon), templ.KV("text-neutral-600 dark:text-neutral-400", !tokenInfo.ExpiresSoon) }>
+									<span class="font-medium">Expires:</span>
+									<span class="ml-2">{ tokenInfo.ExpirationTime }</span>
+								</div>
+							}
+						</div>
+					</div>
+					<form
+						hx-post="/ui/settings/token"
+						hx-target="#token-form-container"
+						hx-swap="outerHTML"
+					>
+						<input type="hidden" name="action" value="signout"/>
+						<button
+							type="submit"
+							class="btn btn-secondary"
+						>
+							Sign Out
+						</button>
+					</form>
+				</div>
+
+				<!-- Policies Section -->
+				<div>
+					<h4 class="text-base font-medium text-neutral-900 dark:text-neutral-100 mb-4">
+						Policies
+					</h4>
+					if tokenInfo.Type == "management" {
+						<div class="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4">
+							<p class="text-sm text-primary-800 dark:text-primary-200 text-center">
+								The management token has all permissions
+							</p>
+						</div>
+					} else if len(tokenInfo.Policies) > 0 {
+						<div class="space-y-3">
+							for _, policy := range tokenInfo.Policies {
+								<div class="border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
+									<div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-700">
+										<h5 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+											{ policy.Name }
+										</h5>
+									</div>
+									<div class="px-4 py-3">
+										if policy.Description != "" {
+											<p class="text-sm text-neutral-600 dark:text-neutral-400">
+												{ policy.Description }
+											</p>
+										} else {
+											<p class="text-sm text-neutral-500 dark:text-neutral-500 italic">
+												No description
+											</p>
+										}
+									</div>
+								</div>
+							}
+						</div>
+					} else {
+						<div class="bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+							<p class="text-sm text-neutral-600 dark:text-neutral-400 text-center">
+								No policies attached to this token
+							</p>
+						</div>
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// TokenSuccess renders a success message after token authentication
+templ TokenSuccess(tokenInfo TokenInfo) {
+	<div id="token-form-container">
+		<!-- Success Alert -->
+		<div class="mb-6 rounded-lg bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 p-4">
+			<div class="flex items-center">
+				<div class="flex-shrink-0">
+					<svg class="h-5 w-5 text-success-600 dark:text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+					</svg>
+				</div>
+				<div class="ml-3">
+					<p class="text-sm font-medium text-success-800 dark:text-success-200">
+						Token authenticated successfully!
+					</p>
+				</div>
+			</div>
+		</div>
+
+		<!-- Show the authenticated token info -->
+		@TokenFormContent(tokenInfo)
+	</div>
+}
+
+// TokenError renders an error message
+templ TokenError(message string) {
+	<div id="token-form-container" hx-swap-oob="true">
+		<div class="rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 p-4 mb-4">
+			<div class="flex items-center">
+				<div class="flex-shrink-0">
+					<svg class="h-5 w-5 text-error-600 dark:text-error-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+					</svg>
+				</div>
+				<div class="ml-3">
+					<p class="text-sm font-medium text-error-800 dark:text-error-200">
+						{ message }
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+}

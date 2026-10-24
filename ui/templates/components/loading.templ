@@ -1,0 +1,296 @@
+package components
+
+import "strings"
+
+// SpinnerProps contains parameters for the Spinner component
+type SpinnerProps struct {
+	Size  string // "sm", "md", "lg", "xl" - defaults to "md"
+	Color string // "primary", "white", "neutral" - defaults to "primary"
+	Class string // Additional CSS classes
+}
+
+// SkeletonProps contains parameters for the Skeleton component
+type SkeletonProps struct {
+	Type   string // "text", "title", "avatar", "button", "card", "custom" - defaults to "text"
+	Width  string // Tailwind width class (e.g., "w-full", "w-48") - defaults based on type
+	Height string // Tailwind height class (e.g., "h-4", "h-64") - defaults based on type
+	Lines  int    // For text type, number of lines - defaults to 1
+	Class  string // Additional CSS classes
+}
+
+// Spinner renders an animated loading spinner with support for different sizes and colors.
+//
+// Features:
+//   - Multiple sizes: sm, md (default), lg, xl
+//   - Color variants: primary (blue), white, neutral (gray)
+//   - Smooth animation
+//   - Accessible with proper ARIA attributes
+//
+// Example Usage:
+//
+//	@Spinner(SpinnerProps{
+//	    Size: "lg",
+//	    Color: "primary",
+//	})
+//
+//	@Spinner(SpinnerProps{
+//	    Size: "sm",
+//	    Color: "white",
+//	    Class: "my-4",
+//	})
+templ Spinner(props SpinnerProps) {
+	<div class={ buildSpinnerContainerClasses(props) } role="status">
+		<svg
+			class={ buildSpinnerClasses(props) }
+			xmlns="http://www.w3.org/2000/svg"
+			fill="none"
+			viewBox="0 0 24 24"
+		>
+			<circle
+				class="opacity-25"
+				cx="12"
+				cy="12"
+				r="10"
+				stroke="currentColor"
+				stroke-width="4"
+			></circle>
+			<path
+				class="opacity-75"
+				fill="currentColor"
+				d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+			></path>
+		</svg>
+		<span class="sr-only">Loading...</span>
+	</div>
+}
+
+// Skeleton renders a placeholder skeleton loader for various UI elements.
+//
+// Features:
+//   - Multiple types: text, title, avatar, button, card, custom
+//   - Customizable width and height with Tailwind classes
+//   - Text type supports multiple lines
+//   - Animated shimmer effect via CSS
+//
+// Example Usage:
+//
+//	@Skeleton(SkeletonProps{
+//	    Type: "title",
+//	})
+//
+//	@Skeleton(SkeletonProps{
+//	    Type: "text",
+//	    Lines: 3,
+//	})
+//
+//	@Skeleton(SkeletonProps{
+//	    Type: "custom",
+//	    Width: "w-64",
+//	    Height: "h-32",
+//	})
+templ Skeleton(props SkeletonProps) {
+	if props.Type == "text" && props.Lines > 1 {
+		@SkeletonText(props)
+	} else if props.Type == "card" {
+		@SkeletonCard(props)
+	} else {
+		<div class={ buildSkeletonClasses(props) }></div>
+	}
+}
+
+// SkeletonText renders multiple lines of skeleton text placeholders.
+//
+// Example Usage:
+//
+//	@SkeletonText(SkeletonProps{
+//	    Lines: 5,
+//	    Width: "w-full",
+//	})
+templ SkeletonText(props SkeletonProps) {
+	<div class={ buildSkeletonTextContainerClasses(props) }>
+		for i := 0; i < getSkeletonLines(props); i++ {
+			<div class={ buildSkeletonTextLineClasses(props, i) }></div>
+		}
+	</div>
+}
+
+// SkeletonCard renders a card-shaped skeleton with avatar, title, and text lines.
+//
+// Features:
+//   - Avatar placeholder at top
+//   - Title placeholder
+//   - Multiple text line placeholders
+//   - Matches typical card layout
+//
+// Example Usage:
+//
+//	@SkeletonCard(SkeletonProps{
+//	    Class: "my-4",
+//	})
+templ SkeletonCard(props SkeletonProps) {
+	<div class={ buildSkeletonCardContainerClasses(props) }>
+		<!-- Avatar -->
+		<div class="skeleton skeleton-avatar"></div>
+
+		<!-- Content -->
+		<div class="space-y-3 flex-1">
+			<!-- Title -->
+			<div class="skeleton skeleton-title"></div>
+
+			<!-- Text lines -->
+			<div class="space-y-2">
+				<div class="skeleton skeleton-text w-full"></div>
+				<div class="skeleton skeleton-text w-5/6"></div>
+				<div class="skeleton skeleton-text w-4/6"></div>
+			</div>
+		</div>
+	</div>
+}
+
+// buildSpinnerContainerClasses constructs the container class string for the spinner
+func buildSpinnerContainerClasses(props SpinnerProps) string {
+	classes := []string{"inline-flex items-center justify-center"}
+
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// buildSpinnerClasses constructs the complete CSS class string for the spinner
+func buildSpinnerClasses(props SpinnerProps) string {
+	classes := []string{"animate-spin"}
+
+	// Add size class
+	size := props.Size
+	if size == "" {
+		size = "md"
+	}
+
+	switch size {
+	case "sm":
+		classes = append(classes, "h-4 w-4")
+	case "lg":
+		classes = append(classes, "h-8 w-8")
+	case "xl":
+		classes = append(classes, "h-12 w-12")
+	default: // md
+		classes = append(classes, "h-6 w-6")
+	}
+
+	// Add color class
+	color := props.Color
+	if color == "" {
+		color = "primary"
+	}
+
+	switch color {
+	case "white":
+		classes = append(classes, "text-white")
+	case "neutral":
+		classes = append(classes, "text-neutral-500")
+	default: // primary
+		classes = append(classes, "text-primary-600")
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// buildSkeletonClasses constructs the complete CSS class string for a skeleton
+func buildSkeletonClasses(props SkeletonProps) string {
+	classes := []string{"skeleton"}
+
+	// Add type-specific class
+	skeletonType := props.Type
+	if skeletonType == "" {
+		skeletonType = "text"
+	}
+
+	switch skeletonType {
+	case "title":
+		classes = append(classes, "skeleton-title")
+	case "avatar":
+		classes = append(classes, "skeleton-avatar")
+	case "button":
+		classes = append(classes, "skeleton-button")
+	case "text":
+		classes = append(classes, "skeleton-text")
+	case "custom":
+		// No default type class for custom, user provides dimensions
+	default:
+		classes = append(classes, "skeleton-text")
+	}
+
+	// Add width class
+	if props.Width != "" {
+		classes = append(classes, props.Width)
+	}
+
+	// Add height class
+	if props.Height != "" {
+		classes = append(classes, props.Height)
+	}
+
+	// Add custom classes
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// buildSkeletonTextContainerClasses constructs the container class string for skeleton text
+func buildSkeletonTextContainerClasses(props SkeletonProps) string {
+	classes := []string{"space-y-2"}
+
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// buildSkeletonTextLineClasses constructs the class string for each skeleton text line
+func buildSkeletonTextLineClasses(props SkeletonProps, lineIndex int) string {
+	classes := []string{"skeleton", "skeleton-text"}
+
+	// Add width class
+	width := props.Width
+	if width == "" {
+		// Vary width for last line to make it look more natural
+		totalLines := getSkeletonLines(props)
+		if lineIndex == totalLines-1 {
+			width = "w-5/6"
+		} else {
+			width = "w-full"
+		}
+	}
+	classes = append(classes, width)
+
+	// Add height class if specified
+	if props.Height != "" {
+		classes = append(classes, props.Height)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// buildSkeletonCardContainerClasses constructs the container class string for skeleton card
+func buildSkeletonCardContainerClasses(props SkeletonProps) string {
+	classes := []string{"skeleton-card", "flex items-start gap-4 p-6"}
+
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// getSkeletonLines returns the number of lines for skeleton text
+func getSkeletonLines(props SkeletonProps) int {
+	if props.Lines > 0 {
+		return props.Lines
+	}
+	return 1
+}

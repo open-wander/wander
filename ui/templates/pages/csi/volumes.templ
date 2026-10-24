@@ -1,0 +1,11 @@
+package csi
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/csipartials"
+)
+
+// VolumesList renders the full CSI volumes list page with layout.
+templ VolumesList(layoutProps layouts.PageLayoutProps, props csipartials.ListProps) {
+	@layouts.PageLayout(layoutProps, csipartials.VolumesListContent(props))
+}

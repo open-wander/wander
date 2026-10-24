@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/docker/docker/libnetwork/resolvconf"
-	"github.com/docker/docker/libnetwork/types"
 	"github.com/open-wander/wander/plugins/drivers"
 )
 
@@ -37,15 +35,15 @@ func GenerateDNSMount(taskDir string, conf *drivers.DNSConfig) (*drivers.MountCo
 		return mount, nil
 	}
 
-	currRC, err := resolvconf.Get()
+	currRC, err := Read(SystemPath())
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		dnsList        = resolvconf.GetNameservers(currRC.Content, types.IP)
-		dnsSearchList  = resolvconf.GetSearchDomains(currRC.Content)
-		dnsOptionsList = resolvconf.GetOptions(currRC.Content)
+		dnsList        = currRC.Nameservers
+		dnsSearchList  = currRC.Searches
+		dnsOptionsList = currRC.Options
 	)
 	if nServers > 0 {
 		dnsList = conf.Servers
@@ -57,8 +55,7 @@ func GenerateDNSMount(taskDir string, conf *drivers.DNSConfig) (*drivers.MountCo
 		dnsOptionsList = conf.Options
 	}
 
-	_, err = resolvconf.Build(path, dnsList, dnsSearchList, dnsOptionsList)
-	if err != nil {
+	if err = Write(path, dnsList, dnsSearchList, dnsOptionsList); err != nil {
 		return nil, err
 	}
 
@@ -66,7 +63,7 @@ func GenerateDNSMount(taskDir string, conf *drivers.DNSConfig) (*drivers.MountCo
 }
 
 func copySystemDNS(filePath string) error {
-	in, err := os.Open(resolvconf.Path())
+	in, err := os.Open(SystemPath())
 	if err != nil {
 		return err
 	}

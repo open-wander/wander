@@ -7,6 +7,7 @@ import (
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
+	"sync/atomic"
 )
 
 // Create a client node with plugin info
@@ -70,12 +71,12 @@ type MockRPCServer struct {
 
 	nextCSIUnpublishResponse *structs.CSIVolumeUnpublishResponse
 	nextCSIUnpublishError    error
-	countCSIUnpublish        int
+	countCSIUnpublish        atomic.Int32
 }
 
 func (srv *MockRPCServer) Unpublish(args *structs.CSIVolumeUnpublishRequest, reply *structs.CSIVolumeUnpublishResponse) error {
 	reply = srv.nextCSIUnpublishResponse
-	srv.countCSIUnpublish++
+	srv.countCSIUnpublish.Add(1)
 	return srv.nextCSIUnpublishError
 }
 

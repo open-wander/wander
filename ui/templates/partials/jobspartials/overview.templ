@@ -1,0 +1,90 @@
+package jobspartials
+
+import (
+	"fmt"
+	"strings"
+)
+
+// OverviewTab renders the overview tab content for a job
+templ OverviewTab(job JobDetail) {
+	<div class="p-6 space-y-6">
+		<!-- Task Groups Summary -->
+		<section>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Task Groups</h3>
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+				for _, tg := range job.TaskGroups {
+					<a
+						href={ templ.SafeURL("/ui/jobs/" + job.ID + "/taskgroups/" + tg.Name) }
+						hx-get={ "/ui/jobs/" + job.ID + "/taskgroups/" + tg.Name }
+						hx-target="#main-content"
+						hx-push-url="true"
+						class="bg-neutral-50 border border-neutral-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all duration-150 cursor-pointer block"
+					>
+						<div class="flex items-center justify-between mb-2">
+							<h4 class="text-sm font-medium text-neutral-900">{ tg.Name }</h4>
+							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+								{ fmt.Sprintf("%d", tg.Count) } instances
+							</span>
+						</div>
+						<div class="text-sm text-neutral-600">
+							<div class="font-medium mb-1">Tasks:</div>
+							<div class="flex flex-wrap gap-1">
+								for _, task := range tg.Tasks {
+									<span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-white border border-neutral-300 text-neutral-700">
+										{ task }
+									</span>
+								}
+							</div>
+						</div>
+					</a>
+				}
+			</div>
+		</section>
+		<!-- Job Information -->
+		<section>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Job Information</h3>
+			<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-6">
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+					<div>
+						<dt class="text-sm font-medium text-neutral-500">ID</dt>
+						<dd class="mt-1 text-sm text-neutral-900 font-mono">{ job.ID }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500">Name</dt>
+						<dd class="mt-1 text-sm text-neutral-900">{ job.Name }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500">Type</dt>
+						<dd class="mt-1 text-sm text-neutral-900">{ job.Type }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500">Priority</dt>
+						<dd class="mt-1 text-sm text-neutral-900">{ fmt.Sprintf("%d", job.Priority) }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500">Status</dt>
+						<dd class="mt-1 text-sm text-neutral-900">{ job.Status }</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-neutral-500">Datacenters</dt>
+						<dd class="mt-1 text-sm text-neutral-900">{ strings.Join(job.Datacenters, ", ") }</dd>
+					</div>
+				</dl>
+			</div>
+		</section>
+		<!-- Constraints -->
+		<section>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Constraints</h3>
+			<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-6">
+				<div class="text-sm text-neutral-600">
+					<p class="mb-2">This section will display job constraints when available.</p>
+					<ul class="list-disc list-inside space-y-1 text-neutral-500">
+						<li>Datacenter constraints</li>
+						<li>Node attribute constraints</li>
+						<li>Resource requirements</li>
+					</ul>
+				</div>
+			</div>
+		</section>
+	</div>
+}

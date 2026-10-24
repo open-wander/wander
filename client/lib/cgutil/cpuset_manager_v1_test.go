@@ -15,7 +15,7 @@ import (
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/lib/cpuset"
 	"github.com/open-wander/wander/nomad/mock"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/cgroups"
 	"github.com/stretchr/testify/require"
 )
 

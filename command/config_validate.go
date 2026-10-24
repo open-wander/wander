@@ -20,11 +20,11 @@ func (c *ConfigValidateCommand) Help() string {
 	helpText := `
 Usage: nomad config validate <config_path> [<config_path...>]
 
-  Perform validation on a set of Nomad configuration files. This is useful
-  to test the Nomad configuration without starting the agent.
+  Perform validation on a set of Wander configuration files. This is useful
+  to test the Wander configuration without starting the agent.
 
   Accepts the path to either a single config file or a directory of
-  config files to use for configuring the Nomad agent. This option may
+  config files to use for configuring the Wander agent. This option may
   be specified multiple times. If multiple config files are used, the
   values from each will be merged together. During merging, values from
   files found later in the list are merged over values from previously

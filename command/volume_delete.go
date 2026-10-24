@@ -23,7 +23,7 @@ func (c *VolumeDeleteCommand) Help() string {
 Usage: nomad volume delete [options] <vol id>
 
   Delete a volume from an external storage provider. The volume must still be
-  registered with Nomad in order to be deleted. Deleting will fail if the
+  registered with Wander in order to be deleted. Deleting will fail if the
   volume is still in use by an allocation or in the process of being
   unpublished. If the volume no longer exists, this command will silently
   return without an error.

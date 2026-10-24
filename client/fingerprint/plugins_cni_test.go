@@ -5,6 +5,8 @@ package fingerprint
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/open-wander/wander/ci"
@@ -19,7 +21,7 @@ func TestPluginsCNIFingerprint_Fingerprint_present(t *testing.T) {
 	f := NewPluginsCNIFingerprint(testlog.HCLogger(t))
 	request := &FingerprintRequest{
 		Config: &config.Config{
-			CNIPath: "./test_fixtures/cni",
+			CNIPath: executableCNIPath(t, "./test_fixtures/cni"),
 		},
 	}
 	response := new(FingerprintResponse)
@@ -41,7 +43,7 @@ func TestPluginsCNIFingerprint_Fingerprint_multi(t *testing.T) {
 	f := NewPluginsCNIFingerprint(testlog.HCLogger(t))
 	request := &FingerprintRequest{
 		Config: &config.Config{
-			CNIPath: "./test_fixtures/cni:./test_fixtures/cni2",
+			CNIPath: executableCNIPath(t, "./test_fixtures/cni", "./test_fixtures/cni2"),
 		},
 	}
 	response := new(FingerprintResponse)
@@ -57,6 +59,34 @@ func TestPluginsCNIFingerprint_Fingerprint_multi(t *testing.T) {
 	must.Eq(t, "v1.0.2", response.Attributes[attrBridge])
 	must.Eq(t, "v9.9.9", response.Attributes[attrCustom2])
 	must.Eq(t, "v1.2.0", response.Attributes[attrVlan])
+}
+
+func executableCNIPath(t *testing.T, fixtureDirs ...string) string {
+	t.Helper()
+
+	root := t.TempDir()
+	paths := make([]string, 0, len(fixtureDirs))
+	for _, fixtureDir := range fixtureDirs {
+		destination := filepath.Join(root, filepath.Base(fixtureDir))
+		must.NoError(t, os.MkdirAll(destination, 0o755))
+
+		entries, err := os.ReadDir(fixtureDir)
+		must.NoError(t, err)
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			contents, err := os.ReadFile(filepath.Join(fixtureDir, entry.Name()))
+			must.NoError(t, err)
+			mode := os.FileMode(0o755)
+			if strings.HasSuffix(entry.Name(), ".conf") || strings.HasSuffix(entry.Name(), ".conflist") {
+				mode = 0o644
+			}
+			must.NoError(t, os.WriteFile(filepath.Join(destination, entry.Name()), contents, mode))
+		}
+		paths = append(paths, destination)
+	}
+	return strings.Join(paths, string(os.PathListSeparator))
 }
 
 func TestPluginsCNIFingerprint_Fingerprint_absent(t *testing.T) {

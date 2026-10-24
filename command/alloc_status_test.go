@@ -199,7 +199,7 @@ func TestAllocStatusCommand_Run(t *testing.T) {
 	must.StrContains(t, out, allocID)
 
 	// make sure nsd checks status output is elided if none exist
-	must.StrNotContains(t, out, `Nomad Service Checks:`)
+	must.StrNotContains(t, out, `Wander Service Checks:`)
 }
 
 func TestAllocStatusCommand_RescheduleInfo(t *testing.T) {
@@ -480,7 +480,7 @@ func TestAllocStatusCommand_NSD_Checks(t *testing.T) {
 
 	// check output
 	out := ui.OutputWriter.String()
-	must.StrContains(t, out, `Nomad Service Checks:`)
+	must.StrContains(t, out, `Wander Service Checks:`)
 	must.RegexMatch(t, regexp.MustCompile(`Service\s+Task\s+Name\s+Mode\s+Status`), out)
 	must.RegexMatch(t, regexp.MustCompile(`service1\s+\(group\)\s+check1\s+healthiness\s+(pending|failure)`), out)
 }

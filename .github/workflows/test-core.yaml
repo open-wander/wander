@@ -15,7 +15,6 @@ on:
       - 'pkg/**'
       - 'scripts/**'
       - 'terraform/**'
-      - 'ui/**'
       - 'website/**'
   push:
     branches:
@@ -35,7 +34,6 @@ on:
       - 'pkg/**'
       - 'scripts/**'
       - 'terraform/**'
-      - 'ui/**'
       - 'website/**'
 
 env:
@@ -58,8 +56,66 @@ jobs:
           go-version-file: '.go-version'
       - name: Get Go modules
         run: |
-          make tidy
           make bootstrap
+          make ui-generate
+          make tidy
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce source license boundary
+        run: bash ci/check-license-boundary.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: '.go-version'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Scan reachable Go vulnerabilities
+        run: |
+          make templ-deps ui-generate
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          govulncheck ./...
+      - name: Audit HTMX UI dependencies
+        working-directory: ui
+        run: |
+          npm ci
+          npm audit --audit-level=moderate
+  ui-browser:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: '.go-version'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            ui/package-lock.json
+            ui/tests/e2e/package-lock.json
+      - name: Install UI build dependencies
+        working-directory: ui
+        run: npm ci
+      - name: Install browser test dependencies
+        working-directory: ui/tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Generate Wander UI
+        run: |
+          make templ-deps ui-generate
+          make -C ui install-tailwind build-css
+      - name: Test embedded Wander UI
+        working-directory: ui/tests/e2e
+        env:
+          WANDER_UI_E2E: '1'
+        run: go test -run '^Test(E2E|ACLMutations|TLSTransports)$' -count=1 -v
   checks:
     uses: ./.github/workflows/checks.yaml
     needs: [mods]
@@ -76,9 +132,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: '.go-version'
+      - name: Install UI build dependencies
+        working-directory: ui
+        run: npm ci
       - name: Run make dev
         run: |
           make bootstrap
+          make ui-generate
+          make -C ui install-tailwind build-css
           make dev
   tests-api:
     needs: [mods]
@@ -94,9 +155,9 @@ jobs:
           GOTEST_MOD: api
         run: |
           make bootstrap
-          make generate-all
+          make ui-generate
           sudo sed -i 's!Defaults!#Defaults!g' /etc/sudoers
-          sudo -E env "PATH=$PATH" make test-nomad-module
+          sudo -E env "PATH=$PATH" "GOTEST_MOD=$GOTEST_MOD" make test-wander-module
   tests-groups:
     needs: [mods]
     runs-on: ubuntu-22.04
@@ -115,17 +176,21 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: '.go-version'
+      - name: Install UI build dependencies
+        working-directory: ui
+        run: npm ci
       - name: Run Matrix Tests
         env:
           GOTEST_GROUP: ${{matrix.groups}}
         run: |
           make bootstrap
-          make generate-all
+          make ui-generate
+          make -C ui install-tailwind build-css
           make dev
-          hc-install install -version ${{env.VAULT_VERSION}} -path ${{env.GOBIN}} vault
-          hc-install install -version ${{env.CONSUL_VERSION}} -path ${{env.GOBIN}} consul
+          hc-install install -version ${{env.VAULT_VERSION}} -path "$(go env GOPATH)/bin" vault
+          hc-install install -version ${{env.CONSUL_VERSION}} -path "$(go env GOPATH)/bin" consul
           sudo sed -i 's!Defaults!#Defaults!g' /etc/sudoers
-          sudo -E env "PATH=$PATH" make test-nomad
+          sudo -E env "PATH=$PATH" "GOTEST_GROUP=$GOTEST_GROUP" make test-wander
 permissions:
   contents: read
   id-token: write

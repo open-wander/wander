@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/open-wander/wander/helper/pointer"
 	"github.com/open-wander/wander/helper/uuid"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/cgroups"
 	lcc "github.com/opencontainers/runc/libcontainer/configs"
 )
 

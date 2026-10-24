@@ -114,6 +114,12 @@ func normalizeTemplates(templates []*api.Template) {
 		if t.Perms == nil {
 			t.Perms = pointer.Of("0644")
 		}
+		if t.Uid == nil {
+			t.Uid = pointer.Of(-1)
+		}
+		if t.Gid == nil {
+			t.Gid = pointer.Of(-1)
+		}
 		if t.Splay == nil {
 			t.Splay = pointer.Of(5 * time.Second)
 		}

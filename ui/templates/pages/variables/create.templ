@@ -1,0 +1,11 @@
+package variables
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/variablespartials"
+)
+
+// Create renders the full variable create page with layout.
+templ Create(layoutProps layouts.PageLayoutProps, createProps variablespartials.CreateProps) {
+	@layouts.PageLayout(layoutProps, variablespartials.CreateContent(createProps))
+}

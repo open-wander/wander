@@ -1,0 +1,11 @@
+package policies
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/policiespartials"
+)
+
+// Detail renders the full ACL policy detail page with layout.
+templ Detail(layoutProps layouts.PageLayoutProps, policy policiespartials.PolicyDetail) {
+	@layouts.PageLayout(layoutProps, policiespartials.DetailContent(policy))
+}

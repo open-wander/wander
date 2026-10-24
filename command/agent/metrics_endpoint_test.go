@@ -105,8 +105,6 @@ func TestHTTP_Metrics(t *testing.T) {
 //
 // **Cannot** be run in parallel as metrics are global.
 func TestHTTP_FreshClientAllocMetrics(t *testing.T) {
-	ci.Parallel(t)
-
 	require := require.New(t)
 	numTasks := 10
 

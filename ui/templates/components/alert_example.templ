@@ -1,0 +1,56 @@
+package components
+
+// AlertExamples demonstrates various Alert component configurations
+templ AlertExamples() {
+	<div class="space-y-4 p-6">
+		<h2 class="text-2xl font-bold mb-6">Alert Component Examples</h2>
+
+		<!-- Info Alert -->
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Info Alert</h3>
+			@Alert(AlertProps{Variant: "info", Icon: true}) {
+				This is an informational message.
+			}
+		</div>
+
+		<!-- Success Alert with Title -->
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Success Alert with Title</h3>
+			@Alert(AlertProps{Variant: "success", Title: "Success!", Icon: true}) {
+				Your operation completed successfully.
+			}
+		</div>
+
+		<!-- Warning Alert Dismissible -->
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Warning Alert (Dismissible)</h3>
+			@Alert(AlertProps{Variant: "warning", Icon: true, Dismissible: true}) {
+				Please review your changes before proceeding.
+			}
+		</div>
+
+		<!-- Error Alert with Title and Dismissible -->
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Error Alert with Title (Dismissible)</h3>
+			@Alert(AlertProps{Variant: "error", Title: "Error", Icon: true, Dismissible: true}) {
+				An error occurred while processing your request. Please try again.
+			}
+		</div>
+
+		<!-- Alert without Icon -->
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Info Alert (No Icon)</h3>
+			@Alert(AlertProps{Variant: "info", Dismissible: true}) {
+				This alert doesn't have an icon.
+			}
+		</div>
+
+		<!-- Alert with Title Only -->
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Success Alert (Title Only, No Icon)</h3>
+			@Alert(AlertProps{Variant: "success", Title: "Operation Complete"}) {
+				The system has been updated.
+			}
+		</div>
+	</div>
+}

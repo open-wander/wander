@@ -1,0 +1,283 @@
+package components
+
+// ToastProps contains parameters for individual toast notifications
+type ToastProps struct {
+	Variant  string // "info", "success", "warning", "error"
+	Title    string // Toast title text
+	Message  string // Toast message content
+	Duration int    // Auto-dismiss in ms (0 = manual dismiss only)
+	Position string // "top-right", "top-left", "bottom-right", "bottom-left"
+}
+
+// ToastContainerProps contains parameters for the toast container
+type ToastContainerProps struct {
+	Position string // "top-right", "top-left", "bottom-right", "bottom-left" - default "top-right"
+}
+
+// ToastContainer renders the global toast notification container.
+//
+// This should be included once in your base layout. It manages all toast
+// notifications using an Alpine.js store. Toasts can be triggered from:
+//   - Server-side via HTMX HX-Trigger headers
+//   - Client-side via Alpine.js store methods
+//   - JavaScript via window.toastStore
+//
+// Features:
+//   - Auto-dismiss with configurable duration
+//   - Manual dismiss with X button
+//   - Stacked toasts with proper spacing
+//   - Slide-in/fade-out animations
+//   - Position in any corner of viewport
+//   - Multiple variant styles (info, success, warning, error)
+//
+// Server-side triggering (HTMX response header):
+//   HX-Trigger: {"showToast": {"variant": "success", "title": "Saved", "message": "Changes saved successfully", "duration": 3000}}
+//
+// Client-side triggering (Alpine.js):
+//   <button @click="$store.toasts.add({variant: 'info', title: 'Info', message: 'This is info', duration: 3000})">
+//     Show Toast
+//   </button>
+//
+// JavaScript triggering:
+//   window.toastStore.add({variant: 'success', title: 'Done', message: 'Task completed', duration: 3000})
+//
+// Position Options:
+//   - "top-right" (default): Top right corner
+//   - "top-left": Top left corner
+//   - "bottom-right": Bottom right corner
+//   - "bottom-left": Bottom left corner
+templ ToastContainer(props ToastContainerProps) {
+	<div
+		x-data
+		@show-toast.window="$store.toasts.add($event.detail)"
+		class={ "fixed z-50 pointer-events-none " + toastPositionClass(props.Position) }
+		aria-live="polite"
+		aria-atomic="true"
+	>
+		<div class="flex flex-col gap-2 p-4 pointer-events-auto">
+			<template x-for="toast in $store.toasts.list" :key="toast.id">
+				<div
+					x-show="toast.visible"
+					x-transition:enter="transition ease-out duration-300"
+					x-transition:enter-start="opacity-0 transform translate-y-2"
+					x-transition:enter-end="opacity-100 transform translate-y-0"
+					x-transition:leave="transition ease-in duration-200"
+					x-transition:leave-start="opacity-100 transform translate-y-0"
+					x-transition:leave-end="opacity-0 transform translate-y-2"
+					:class="'rounded-lg shadow-lg p-4 max-w-md w-full ' + $store.toasts.variantClasses(toast.variant)"
+					role="alert"
+				>
+					<div class="flex items-start gap-3">
+						<!-- Icon -->
+						<div class="flex-shrink-0 pt-0.5">
+							<template x-if="toast.variant === 'success'">
+								<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"></path>
+								</svg>
+							</template>
+							<template x-if="toast.variant === 'error'">
+								<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"></path>
+								</svg>
+							</template>
+							<template x-if="toast.variant === 'warning'">
+								<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"></path>
+								</svg>
+							</template>
+							<template x-if="toast.variant === 'info'">
+								<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"></path>
+								</svg>
+							</template>
+						</div>
+						<!-- Content -->
+						<div class="flex-1 min-w-0">
+							<p x-show="toast.title" x-text="toast.title" class="text-sm font-semibold"></p>
+							<p x-show="toast.message" x-text="toast.message" class="text-sm mt-1"></p>
+						</div>
+						<!-- Close button -->
+						<button
+							type="button"
+							@click="$store.toasts.remove(toast.id)"
+							class="flex-shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2"
+							:class="$store.toasts.closeButtonClasses(toast.variant)"
+							aria-label="Close notification"
+						>
+							<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+								<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"></path>
+							</svg>
+						</button>
+					</div>
+					<!-- Progress bar for auto-dismiss -->
+					<div
+						x-show="toast.duration > 0"
+						class="mt-2 h-1 bg-black bg-opacity-10 rounded-full overflow-hidden"
+					>
+						<div
+							class="h-full bg-black bg-opacity-20 transition-all ease-linear"
+							:style="'width: ' + ((toast.remaining / toast.duration) * 100) + '%'"
+						></div>
+					</div>
+				</div>
+			</template>
+		</div>
+	</div>
+}
+
+// Toast renders a standalone toast notification (without container).
+//
+// This component is useful for:
+//   - Static toast examples in documentation
+//   - Server-rendered toast notifications
+//   - Custom toast implementations
+//
+// For dynamic toasts, use ToastContainer instead which manages multiple
+// toasts with Alpine.js store.
+//
+// Example:
+//   @Toast(ToastProps{
+//       Variant: "success",
+//       Title: "Success",
+//       Message: "Operation completed successfully",
+//   })
+templ Toast(props ToastProps) {
+	<div
+		class={ "rounded-lg shadow-lg p-4 max-w-md w-full " + toastVariantBgClass(props.Variant) + " " + toastVariantTextClass(props.Variant) }
+		role="alert"
+	>
+		<div class="flex items-start gap-3">
+			<!-- Icon -->
+			<div class="flex-shrink-0 pt-0.5">
+				@toastIcon(props.Variant)
+			</div>
+			<!-- Content -->
+			<div class="flex-1 min-w-0">
+				if props.Title != "" {
+					<p class="text-sm font-semibold">{ props.Title }</p>
+				}
+				if props.Message != "" {
+					<p class="text-sm mt-1">{ props.Message }</p>
+				}
+			</div>
+			<!-- Close button -->
+			<button
+				type="button"
+				class={ "flex-shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 " + toastVariantHoverClass(props.Variant) + " " + toastVariantRingClass(props.Variant) }
+				aria-label="Close notification"
+			>
+				<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+					<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"></path>
+				</svg>
+			</button>
+		</div>
+	</div>
+}
+
+// toastIcon renders the appropriate icon for the toast variant
+templ toastIcon(variant string) {
+	switch variant {
+		case "success":
+			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"></path>
+			</svg>
+		case "error":
+			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"></path>
+			</svg>
+		case "warning":
+			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"></path>
+			</svg>
+		case "info":
+			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"></path>
+			</svg>
+		default:
+			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"></path>
+			</svg>
+	}
+}
+
+// Helper functions for styling
+
+// toastPositionClass returns the positioning classes for the toast container
+func toastPositionClass(position string) string {
+	switch position {
+	case "top-left":
+		return "top-0 left-0"
+	case "bottom-right":
+		return "bottom-0 right-0"
+	case "bottom-left":
+		return "bottom-0 left-0"
+	case "top-right", "":
+		return "top-0 right-0"
+	default:
+		return "top-0 right-0"
+	}
+}
+
+// toastVariantBgClass returns background color class for the variant
+func toastVariantBgClass(variant string) string {
+	switch variant {
+	case "success":
+		return "bg-green-50"
+	case "error":
+		return "bg-red-50"
+	case "warning":
+		return "bg-yellow-50"
+	case "info":
+		return "bg-blue-50"
+	default:
+		return "bg-blue-50"
+	}
+}
+
+// toastVariantTextClass returns text color class for the variant
+func toastVariantTextClass(variant string) string {
+	switch variant {
+	case "success":
+		return "text-green-800"
+	case "error":
+		return "text-red-800"
+	case "warning":
+		return "text-yellow-800"
+	case "info":
+		return "text-blue-800"
+	default:
+		return "text-blue-800"
+	}
+}
+
+// toastVariantHoverClass returns hover class for close button
+func toastVariantHoverClass(variant string) string {
+	switch variant {
+	case "success":
+		return "text-green-700 hover:text-green-900"
+	case "error":
+		return "text-red-700 hover:text-red-900"
+	case "warning":
+		return "text-yellow-700 hover:text-yellow-900"
+	case "info":
+		return "text-blue-700 hover:text-blue-900"
+	default:
+		return "text-blue-700 hover:text-blue-900"
+	}
+}
+
+// toastVariantRingClass returns focus ring class for the variant
+func toastVariantRingClass(variant string) string {
+	switch variant {
+	case "success":
+		return "focus:ring-green-500"
+	case "error":
+		return "focus:ring-red-500"
+	case "warning":
+		return "focus:ring-yellow-500"
+	case "info":
+		return "focus:ring-blue-500"
+	default:
+		return "focus:ring-blue-500"
+	}
+}

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/open-wander/wander/acl"
+	wanderapi "github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/client"
 	"github.com/open-wander/wander/command/agent/event"
 	"github.com/open-wander/wander/helper/noxssrw"
@@ -38,6 +39,7 @@ import (
 	"github.com/open-wander/wander/nomad"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
+	uihandlers "github.com/open-wander/wander/ui/handlers"
 )
 
 const (
@@ -66,7 +68,7 @@ var (
 
 	// Displayed when ui is disabled, but overridden if the ui build
 	// tag isn't enabled
-	stubHTML = "<html><p>Nomad UI is disabled</p></html>"
+	stubHTML = "<html><p>Wander UI is disabled</p></html>"
 
 	// allowCORSWithMethods sets permissive CORS headers for a handler, used by
 	// wrapCORS and wrapCORSWithMethods
@@ -506,8 +508,23 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	uiConfigEnabled := agentConfig.UI != nil && agentConfig.UI.Enabled
 
 	if uiEnabled && uiConfigEnabled {
-		s.mux.Handle("/ui/", http.StripPrefix("/ui/", s.handleUI(agentConfig.UI.ContentSecurityPolicy, http.FileServer(&UIAssetWrapper{FileSystem: assetFS()}))))
-		s.logger.Debug("UI is enabled")
+		// Create the HTMX UI router
+		uiAPIConfig := wanderapi.DefaultConfig()
+		scheme := "http"
+		if agentConfig.TLSConfig.EnableHTTP {
+			scheme = "https"
+		}
+		uiAPIConfig.Address = fmt.Sprintf("%s://%s", scheme, agentConfig.AdvertiseAddrs.HTTP)
+		htmxHandler := uihandlers.NewHandlerWithAPIConfig(s.logger, uiAPIConfig)
+		uiRouter := uihandlers.NewRouter(htmxHandler)
+
+		// Register the HTMX UI router at /ui/
+		// The router handles all /ui/* routes including /ui/static/ and the
+		// UI-only action endpoints under /api/.
+		s.mux.Handle("/ui/", s.handleUI(agentConfig.UI.ContentSecurityPolicy, uiRouter))
+		s.mux.Handle("/api/", uiRouter)
+
+		s.logger.Debug("HTMX UI is enabled")
 	} else {
 		// Write the stubHTML
 		s.mux.HandleFunc("/ui/", func(w http.ResponseWriter, r *http.Request) {

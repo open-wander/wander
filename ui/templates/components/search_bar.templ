@@ -1,0 +1,172 @@
+package components
+
+import "fmt"
+import "strings"
+
+// SearchBarProps contains parameters for the SearchBar component
+type SearchBarProps struct {
+	Name        string
+	Label       string
+	Placeholder string
+	Value       string
+	SearchURL   string // HTMX endpoint for search
+	ResultsID   string // ID of results container
+	Debounce    int    // debounce in ms (default 300)
+	MinChars    int    // minimum chars before search
+	Class       string
+}
+
+// SearchBar renders a search input with HTMX autocomplete functionality.
+//
+// Features:
+//   - Search icon on the left
+//   - Clear button when input has value
+//   - HTMX integration with configurable debounce
+//   - Loading indicator during search requests
+//   - Keyboard shortcuts (Ctrl+K or / to focus)
+//   - Minimum character threshold before triggering search
+//
+// Example Usage:
+//
+//	@SearchBar(SearchBarProps{
+//	    Name: "search",
+//	    Placeholder: "Search...",
+//	    SearchURL: "/api/search",
+//	    ResultsID: "search-results",
+//	    Debounce: 300,
+//	    MinChars: 2,
+//	})
+//
+//	@SearchBar(SearchBarProps{
+//	    Name: "query",
+//	    Placeholder: "Search products...",
+//	    Value: "initial query",
+//	    SearchURL: "/products/search",
+//	    ResultsID: "product-results",
+//	    Debounce: 500,
+//	    MinChars: 3,
+//	    Class: "max-w-md",
+//	})
+templ SearchBar(props SearchBarProps) {
+	<div class={ buildSearchBarContainerClasses(props) } x-data="searchBar()">
+		<div class="relative">
+			<!-- Search Icon -->
+			<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+				@Icon(IconProps{Name: "search", Size: "md", Class: "text-neutral-400"})
+			</div>
+
+			<!-- Search Input -->
+			<input
+				type="search"
+				aria-label={ searchBarLabel(props) }
+				if props.Name != "" {
+					name={ props.Name }
+					id={ props.Name }
+				}
+				class="input !pl-10 !pr-20 w-full"
+				if props.Value != "" {
+					value={ props.Value }
+				}
+				if props.Placeholder != "" {
+					placeholder={ props.Placeholder }
+				} else {
+					placeholder="Search..."
+				}
+				autocomplete="off"
+				if props.SearchURL != "" {
+					hx-get={ props.SearchURL }
+				}
+				if props.ResultsID != "" {
+					hx-target={ "#" + props.ResultsID }
+				}
+				hx-trigger={ buildHxTrigger(props) }
+				hx-indicator={ "#" + getSearchBarID(props) + "-indicator" }
+				hx-swap="innerHTML"
+				data-search-bar-input
+				x-ref="input"
+				@keydown="handleKeydown($event)"
+			/>
+
+			<!-- Right Side Icons Container -->
+			<div class="absolute inset-y-0 right-0 pr-3 flex items-center gap-2">
+				<!-- Loading Indicator -->
+				<div
+					id={ getSearchBarID(props) + "-indicator" }
+					class="htmx-indicator"
+				>
+					@Spinner(SpinnerProps{Size: "sm", Color: "neutral"})
+				</div>
+
+				<!-- Clear Button -->
+				<button
+					type="button"
+					class="text-neutral-400 hover:text-neutral-600 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 rounded"
+					@click="clear()"
+					aria-label="Clear search"
+					style="display: none;"
+					data-search-bar-clear
+					x-ref="clearButton"
+				>
+					@Icon(IconProps{Name: "x", Size: "sm"})
+				</button>
+
+				<!-- Keyboard Shortcut Hint (hidden when focused) -->
+				<div
+					class="text-xs text-neutral-400 font-medium px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700"
+					data-search-bar-hint
+					x-ref="hint"
+				>
+					<span class="hidden sm:inline">/</span>
+					<span class="sm:hidden">⌘K</span>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+func searchBarLabel(props SearchBarProps) string {
+	if props.Label != "" {
+		return props.Label
+	}
+	if props.Placeholder != "" {
+		return props.Placeholder
+	}
+	return "Search"
+}
+
+// buildSearchBarContainerClasses constructs the container class string
+func buildSearchBarContainerClasses(props SearchBarProps) string {
+	classes := []string{"w-full"}
+
+	if props.Class != "" {
+		classes = append(classes, props.Class)
+	}
+
+	return strings.Join(classes, " ")
+}
+
+// buildHxTrigger constructs the hx-trigger attribute value with debounce and min chars logic
+func buildHxTrigger(props SearchBarProps) string {
+	if props.SearchURL == "" {
+		return ""
+	}
+
+	debounce := props.Debounce
+	if debounce <= 0 {
+		debounce = 300
+	}
+
+	// HTMX trigger filters execute JavaScript and are rejected when allowEval is
+	// disabled. The server remains responsible for treating short queries as an
+	// empty result set.
+	return fmt.Sprintf("keyup changed delay:%dms", debounce)
+}
+
+// getSearchBarID returns a unique ID for the search bar
+func getSearchBarID(props SearchBarProps) string {
+	if props.Name != "" {
+		return props.Name
+	}
+	return "search-bar"
+}
+

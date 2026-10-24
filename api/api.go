@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -36,19 +37,24 @@ var (
 	// envVarDeprecationWarnings collects deprecation warnings for NOMAD_* env vars
 	// that are used instead of WANDER_* env vars. This is populated during
 	// DefaultConfig() and can be retrieved via GetEnvVarDeprecationWarnings().
-	envVarDeprecationWarnings   []string
+	envVarDeprecationWarnings    []string
 	envVarDeprecationWarningSeen = make(map[string]bool)
+	envVarDeprecationWarningsMu  sync.Mutex
 )
 
 // GetEnvVarDeprecationWarnings returns any deprecation warnings that were
 // generated when reading environment variables. Call this after DefaultConfig()
 // to check if any deprecated NOMAD_* env vars were used.
 func GetEnvVarDeprecationWarnings() []string {
-	return envVarDeprecationWarnings
+	envVarDeprecationWarningsMu.Lock()
+	defer envVarDeprecationWarningsMu.Unlock()
+	return append([]string(nil), envVarDeprecationWarnings...)
 }
 
 // ClearEnvVarDeprecationWarnings clears the collected deprecation warnings.
 func ClearEnvVarDeprecationWarnings() {
+	envVarDeprecationWarningsMu.Lock()
+	defer envVarDeprecationWarningsMu.Unlock()
 	envVarDeprecationWarnings = nil
 	envVarDeprecationWarningSeen = make(map[string]bool)
 }
@@ -60,6 +66,8 @@ func getEnvWithFallback(wanderVar, nomadVar string) string {
 		return v
 	}
 	if v := os.Getenv(nomadVar); v != "" {
+		envVarDeprecationWarningsMu.Lock()
+		defer envVarDeprecationWarningsMu.Unlock()
 		// Only add warning if we haven't seen this env var before
 		if !envVarDeprecationWarningSeen[nomadVar] {
 			envVarDeprecationWarningSeen[nomadVar] = true
@@ -332,7 +340,7 @@ func defaultHttpClient() *http.Client {
 // retrieved via GetEnvVarDeprecationWarnings().
 func DefaultConfig() *Config {
 	// Clear any previous deprecation warnings
-	envVarDeprecationWarnings = nil
+	ClearEnvVarDeprecationWarnings()
 
 	config := &Config{
 		Address:   "http://127.0.0.1:4646",
@@ -557,6 +565,22 @@ func (c *Client) SetRegion(region string) {
 // SetNamespace sets the namespace to forward API requests to.
 func (c *Client) SetNamespace(namespace string) {
 	c.config.Namespace = namespace
+}
+
+// WithNamespaceAndRegion returns a request-scoped copy of the client. The copy
+// reuses the underlying HTTP client and transport but has independent API
+// configuration, so callers can safely select a namespace and region without
+// mutating a client shared by concurrent requests.
+func (c *Client) WithNamespaceAndRegion(namespace, region string) *Client {
+	if c == nil {
+		return nil
+	}
+
+	clone := *c
+	clone.config = c.config
+	clone.config.Namespace = namespace
+	clone.config.Region = region
+	return &clone
 }
 
 // GetNodeClient returns a new Client that will dial the specified node. If the

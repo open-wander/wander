@@ -14,13 +14,13 @@ type SentinelConfig struct {
 	Imports []*SentinelImport `hcl:"import,expand"`
 }
 
-func (s *SentinelConfig) Copy() *SentinelConfig {
-	if s == nil {
+func (a *SentinelConfig) Copy() *SentinelConfig {
+	if a == nil {
 		return nil
 	}
 
-	ns := *s
-	ns.Imports = helper.CopySlice(s.Imports)
+	ns := *a
+	ns.Imports = helper.CopySlice(a.Imports)
 	return &ns
 }
 

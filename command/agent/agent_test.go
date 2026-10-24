@@ -24,7 +24,17 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/nomad/structs/config"
 	"github.com/open-wander/wander/testutil"
+	"github.com/open-wander/wander/version"
 )
+
+func TestConvertServerConfigUsesCompatibilityVersion(t *testing.T) {
+	conf := DevConfig(nil)
+	require.NoError(t, conf.normalizeAddrs())
+	serverConf, err := convertServerConfig(conf)
+	require.NoError(t, err)
+	require.Equal(t, version.ClusterCompatibilityVersion, serverConf.Build)
+	require.NotEqual(t, conf.Version.VersionNumber(), serverConf.Build)
+}
 
 func TestAgent_RPC_Ping(t *testing.T) {
 	ci.Parallel(t)
@@ -671,7 +681,7 @@ func TestAgent_ServerConfig_RaftProtocol_3(t *testing.T) {
 			case 0, 3: // 0 defers to default
 				must.NoError(t, err)
 			default:
-				exp := fmt.Sprintf("raft_protocol must be 3 in Nomad v1.4 and later, got %d", tc)
+				exp := fmt.Sprintf("raft_protocol must be 3 for Nomad 1.4 compatibility, got %d", tc)
 				must.EqError(t, err, exp)
 			}
 		})

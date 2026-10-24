@@ -1,0 +1,142 @@
+package components
+
+// ChartContainerProps contains parameters for the ChartContainer component
+type ChartContainerProps struct {
+	ID     string // Required: Unique ID for D3 to target
+	Width  string // Optional: Tailwind width class (e.g., "full", "1/2", "3/4") - defaults to "full"
+	Height string // Optional: Tailwind height class (e.g., "64", "96", "screen") - defaults to "64"
+	Class  string // Optional: Additional CSS classes
+}
+
+// ChartContainer renders a responsive container for D3.js charts.
+//
+// Features:
+//   - Responsive sizing with Tailwind classes
+//   - Auto-initialization after HTMX swaps
+//   - Resize observer for responsive charts
+//   - Loading state placeholder
+//   - Dark mode support
+//   - SVG-ready container with proper aspect ratio preservation
+//
+// D3 Integration:
+//   The chart-utils.js file provides helpers for:
+//   - initChart(chartId, renderFn) - Initialize a chart with auto-resize
+//   - getChartDimensions(chartId) - Get current container dimensions
+//   - clearChart(chartId) - Clear chart content
+//
+// Example Basic Usage:
+//   @ChartContainer(ChartContainerProps{ID: "my-chart"}) {}
+//
+// Example with Custom Sizing:
+//   @ChartContainer(ChartContainerProps{
+//       ID: "sales-chart",
+//       Width: "full",
+//       Height: "96",
+//       Class: "border rounded-lg"
+//   }) {}
+//
+// Example with HTMX (lazy-load chart data):
+//   <div hx-get="/api/chart-data"
+//        hx-trigger="intersect once"
+//        hx-target="#chart-container">
+//       @ChartContainer(ChartContainerProps{ID: "chart-container"}) {
+//           @ChartLoading()
+//       }
+//   </div>
+//
+// JavaScript Usage:
+//   import { initChart } from '/static/js/chart-utils.js';
+//
+//   function renderMyChart(container, dimensions) {
+//       const svg = d3.select(container)
+//           .append('svg')
+//           .attr('width', dimensions.width)
+//           .attr('height', dimensions.height);
+//
+//       // ... your D3 chart code
+//   }
+//
+//   initChart('my-chart', renderMyChart);
+templ ChartContainer(props ChartContainerProps) {
+	<div
+		id={ props.ID }
+		class={ chartContainerClasses(props) }
+		data-chart-container
+	>
+		{ children... }
+	</div>
+}
+
+// ChartLoading renders a loading skeleton state for charts.
+// Use this as the initial state while chart data is being fetched.
+templ ChartLoading() {
+	<div class="w-full h-full flex flex-col items-center justify-center gap-4 animate-pulse">
+		<div class="w-full h-full flex items-end justify-around gap-2 px-8 pb-8">
+			<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-t" style="height: 40%"></div>
+			<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-t" style="height: 60%"></div>
+			<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-t" style="height: 80%"></div>
+			<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-t" style="height: 50%"></div>
+			<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-t" style="height: 70%"></div>
+			<div class="w-full bg-neutral-200 dark:bg-neutral-700 rounded-t" style="height: 45%"></div>
+		</div>
+		<div class="text-sm text-neutral-500 dark:text-neutral-400">Loading chart data...</div>
+	</div>
+}
+
+// ChartError renders an error state for charts.
+// Use this when chart data fails to load or chart rendering fails.
+templ ChartError(message string) {
+	<div class="w-full h-full flex flex-col items-center justify-center gap-3 text-neutral-500 dark:text-neutral-400">
+		<svg class="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+		</svg>
+		if message != "" {
+			<p class="text-sm">{ message }</p>
+		} else {
+			<p class="text-sm">Failed to load chart</p>
+		}
+	</div>
+}
+
+// ChartEmptyState renders an empty state when there's no data.
+templ ChartEmptyState(message string) {
+	<div class="w-full h-full flex flex-col items-center justify-center gap-3 text-neutral-400 dark:text-neutral-600">
+		<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+		</svg>
+		if message != "" {
+			<p class="text-sm">{ message }</p>
+		} else {
+			<p class="text-sm">No data available</p>
+		}
+	</div>
+}
+
+// chartContainerClasses generates the CSS classes for the chart container
+func chartContainerClasses(props ChartContainerProps) string {
+	classes := "chart-container"
+
+	// Width
+	width := props.Width
+	if width == "" {
+		width = "full"
+	}
+	classes += " w-" + width
+
+	// Height
+	height := props.Height
+	if height == "" {
+		height = "64"
+	}
+	classes += " h-" + height
+
+	// Base styles for chart container
+	classes += " relative overflow-hidden"
+
+	// Add custom classes
+	if props.Class != "" {
+		classes += " " + props.Class
+	}
+
+	return classes
+}

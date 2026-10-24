@@ -1,0 +1,203 @@
+package jobspartials
+
+import (
+	"time"
+	"fmt"
+	"net/url"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// JobSummary represents a summary view of a job for list display.
+type JobSummary struct {
+	ID        string
+	Name      string
+	Status    string
+	Type      string
+	Priority  int
+	Submitted time.Time
+}
+
+// PaginationMeta holds pagination metadata for list views.
+type PaginationMeta struct {
+	Page       int // Current page (1-indexed)
+	PerPage    int // Items per page
+	Total      int // Total number of items
+	TotalPages int // Total number of pages
+}
+
+// ListContent renders the jobs table content for HTMX partial updates.
+templ ListContent(jobsList []JobSummary, sortColumn string, sortDir string, searchQuery string, pagination PaginationMeta) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Jobs</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					View and manage Wander jobs
+				</p>
+			</div>
+		</div>
+		<!-- Search Bar -->
+		<div class="mb-6">
+			@components.SearchBar(components.SearchBarProps{
+				Name:        "search",
+				Placeholder: "Search jobs by name or ID...",
+				Value:       searchQuery,
+				SearchURL:   "/ui/jobs",
+				ResultsID:   "jobs-table-container",
+				Debounce:    300,
+				MinChars:    0,
+			})
+		</div>
+		<!-- Jobs Table Container -->
+		<div id="jobs-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "name", Label: "Name", Sortable: true, Align: "left", Width: "w-1/4"},
+					{Key: "status", Label: "Status", Sortable: true, Align: "center", Width: "w-32"},
+					{Key: "type", Label: "Type", Sortable: true, Align: "left", Width: "w-32"},
+					{Key: "priority", Label: "Priority", Sortable: true, Align: "center", Width: "w-24"},
+					{Key: "submitted", Label: "Submitted", Sortable: true, Align: "right"},
+				},
+				SortColumn: sortColumn,
+				SortDir:    sortDir,
+				Striped:    true,
+				Hover:      true,
+				SortURL:    "/ui/jobs",
+			}) {
+				@components.TableBody() {
+					if len(jobsList) == 0 {
+						@components.TableEmptyState("No jobs found", "There are no jobs to display")
+					} else {
+						for _, job := range jobsList {
+							@jobRow(job)
+						}
+					}
+				}
+			}
+			<!-- Pagination -->
+			@components.Pagination(components.PaginationProps{
+				Page:     pagination.Page,
+				PerPage:  pagination.PerPage,
+				Total:    pagination.Total,
+				BaseURL:  buildJobsURL(sortColumn, sortDir, searchQuery),
+				HxTarget: "#main-content",
+				HxSwap:   "innerHTML",
+			})
+		</div>
+	</div>
+}
+
+// buildJobsURL constructs the base URL for pagination with sort and search params
+func buildJobsURL(sortColumn, sortDir, searchQuery string) string {
+	baseURL := "/ui/jobs?"
+	params := url.Values{}
+
+	if sortColumn != "" {
+		params.Add("sort", sortColumn)
+	}
+	if sortDir != "" {
+		params.Add("dir", sortDir)
+	}
+	if searchQuery != "" {
+		params.Add("search", searchQuery)
+	}
+
+	if len(params) > 0 {
+		return baseURL + params.Encode() + "&"
+	}
+	return baseURL
+}
+
+// jobRow renders a single job row in the table
+templ jobRow(job JobSummary) {
+	<tr
+		data-job-id={ job.ID }
+		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+		hx-get={ fmt.Sprintf("/ui/jobs/%s", job.ID) }
+		hx-target="#main-content"
+		hx-swap="innerHTML"
+		hx-push-url="true"
+	>
+		@components.TableCell("left", "w-1/4") {
+			<a
+				href={ templ.SafeURL(fmt.Sprintf("/ui/jobs/%s", job.ID)) }
+				class="font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 dark:hover:text-primary-400"
+				@click.stop
+				hx-get={ fmt.Sprintf("/ui/jobs/%s", job.ID) }
+				hx-target="#main-content"
+				hx-swap="innerHTML"
+				hx-push-url="true"
+			>
+				{ job.Name }
+			</a>
+			<div class="text-xs text-neutral-500 dark:text-neutral-400">
+				{ job.ID }
+			</div>
+		}
+		@components.TableCell("center", "w-32") {
+			@components.Badge(components.BadgeProps{
+				Variant: statusVariant(job.Status),
+				Dot:     true,
+				Size:    "sm",
+			}) {
+				{ job.Status }
+			}
+		}
+		@components.TableCell("left", "w-32") {
+			<span class="text-neutral-700 dark:text-neutral-300">
+				{ job.Type }
+			</span>
+		}
+		@components.TableCell("center", "w-24") {
+			<span class="text-neutral-700 dark:text-neutral-300">
+				{ fmt.Sprintf("%d", job.Priority) }
+			</span>
+		}
+		@components.TableCell("right", "") {
+			<span class="text-neutral-600 dark:text-neutral-400">
+				{ formatTimeAgo(job.Submitted) }
+			</span>
+		}
+	</tr>
+}
+
+// statusVariant maps job status to badge variant
+func statusVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "dead":
+		return "neutral"
+	default:
+		return "neutral"
+	}
+}
+
+// formatTimeAgo formats a time.Time as a relative time string
+func formatTimeAgo(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+}

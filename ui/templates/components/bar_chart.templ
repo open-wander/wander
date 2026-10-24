@@ -1,0 +1,246 @@
+package components
+
+// BarChartProps contains parameters for the BarChart component
+type BarChartProps struct {
+	ID      string // Required: Unique ID for the chart
+	DataURL string // Required: URL to fetch chart data from
+	Width   string // Optional: Tailwind width class - defaults to "full"
+	Height  string // Optional: Tailwind height class - defaults to "64"
+	Class   string // Optional: Additional CSS classes
+
+	// Chart Options
+	Orientation      string // "vertical" or "horizontal" (default: "vertical")
+	ShowValues       bool   // Show value labels on bars (default: true)
+	ShowGrid         bool   // Show grid lines (default: true)
+	ColorMode        string // "single" or "multi" (default: "single")
+	Color            string // Single color for all bars (default: primary)
+	XAxisLabel       string // X axis label
+	YAxisLabel       string // Y axis label
+	ValueFormatter   string // Format string for values (e.g., ".0f", ".2f", ",")
+	MaxBarWidth      int    // Maximum bar width in pixels (default: 50)
+	BarPadding       float64 // Padding between bars 0-1 (default: 0.1)
+	MarginLeft       int    // Left margin (default: 60)
+	MarginBottom     int    // Bottom margin (default: 50)
+	RefreshInterval  int    // Auto-refresh interval in seconds (0 = disabled)
+}
+
+// BarChart renders a bar chart for comparing values across categories.
+//
+// Features:
+//   - Vertical or horizontal bar orientation
+//   - Single color or multi-color per bar
+//   - Interactive hover tooltips with exact values
+//   - Value labels on bars
+//   - Grid lines for readability
+//   - Responsive resizing
+//   - Auto-refresh support
+//   - Dark mode support
+//
+// Data Format (JSON from DataURL):
+//   {
+//     "data": [
+//       {
+//         "label": "Category A",
+//         "value": 150,
+//         "color": "#3b82f6"  // Optional, only used in multi-color mode
+//       },
+//       {
+//         "label": "Category B",
+//         "value": 220,
+//         "color": "#22c55e"
+//       },
+//       ...
+//     ],
+//     "maxValue": 250  // Optional, auto-calculated if not provided
+//   }
+//
+// Example Basic Usage:
+//   @BarChart(BarChartProps{
+//       ID: "sales-chart",
+//       DataURL: "/api/charts/sales-by-region",
+//   })
+//
+// Example Horizontal with Custom Colors:
+//   @BarChart(BarChartProps{
+//       ID: "products-chart",
+//       DataURL: "/api/charts/top-products",
+//       Orientation: "horizontal",
+//       ColorMode: "multi",
+//       ShowValues: true,
+//       Height: "96",
+//   })
+//
+// Example with All Options:
+//   @BarChart(BarChartProps{
+//       ID: "metrics-chart",
+//       DataURL: "/api/charts/metrics",
+//       Orientation: "vertical",
+//       ShowValues: true,
+//       ShowGrid: true,
+//       ColorMode: "single",
+//       Color: "#3b82f6",
+//       XAxisLabel: "Categories",
+//       YAxisLabel: "Count",
+//       ValueFormatter: ",",
+//       MaxBarWidth: 60,
+//       BarPadding: 0.15,
+//       MarginLeft: 60,
+//       MarginBottom: 50,
+//       RefreshInterval: 30,
+//   })
+//
+// Example with HTMX Lazy Loading:
+//   <div hx-get="/api/dashboard/sales-section"
+//        hx-trigger="intersect once"
+//        hx-target="#sales-container">
+//       <div id="sales-container">
+//           @BarChart(BarChartProps{
+//               ID: "sales-chart",
+//               DataURL: "/api/charts/sales",
+//           })
+//       </div>
+//   </div>
+templ BarChart(props BarChartProps) {
+	<div
+		x-data={ barChartData(props) }
+		x-init="init()"
+	>
+		@ChartContainer(ChartContainerProps{
+			ID:     props.ID,
+			Width:  props.Width,
+			Height: props.Height,
+			Class:  props.Class,
+		}) {
+			<!-- Loading state -->
+			<div x-show="loading" class="w-full h-full">
+				@ChartLoading()
+			</div>
+			<!-- Error state -->
+			<div x-show="error" class="w-full h-full" x-cloak>
+				@ChartError("Failed to load chart data")
+			</div>
+		}
+	</div>
+}
+
+// barChartData generates Alpine.js data object for the bar chart
+func barChartData(props BarChartProps) string {
+	// Set defaults
+	orientation := props.Orientation
+	if orientation == "" {
+		orientation = "vertical"
+	}
+
+	showValues := "true"
+	if !props.ShowValues {
+		showValues = "false"
+	}
+
+	showGrid := "true"
+	if !props.ShowGrid {
+		showGrid = "false"
+	}
+
+	colorMode := props.ColorMode
+	if colorMode == "" {
+		colorMode = "single"
+	}
+
+	color := props.Color
+	if color == "" {
+		color = ""
+	}
+
+	valueFormatter := props.ValueFormatter
+	if valueFormatter == "" {
+		valueFormatter = ","
+	}
+
+	maxBarWidth := props.MaxBarWidth
+	if maxBarWidth == 0 {
+		maxBarWidth = 50
+	}
+
+	barPadding := props.BarPadding
+	if barPadding == 0 {
+		barPadding = 0.1
+	}
+
+	marginLeft := props.MarginLeft
+	if marginLeft == 0 {
+		marginLeft = 60
+	}
+
+	marginBottom := props.MarginBottom
+	if marginBottom == 0 {
+		marginBottom = 50
+	}
+
+	refreshInterval := props.RefreshInterval * 1000 // Convert to milliseconds
+
+	// Build Alpine.js data object
+	return `{
+		loading: true,
+		error: false,
+		chart: null,
+		refreshTimer: null,
+		init() {
+			this.loadChart();
+			` + buildRefreshLogic(refreshInterval) + `
+		},
+		async loadChart() {
+			this.loading = true;
+			this.error = false;
+
+			try {
+				const { renderBarChartFromUrl } = await import('/static/js/bar-chart.js');
+
+				this.chart = await renderBarChartFromUrl(
+					'` + props.ID + `',
+					'` + props.DataURL + `',
+					{
+						orientation: '` + orientation + `',
+						showValues: ` + showValues + `,
+						showGrid: ` + showGrid + `,
+						colorMode: '` + colorMode + `',
+						color: '` + color + `',
+						valueFormatter: '` + valueFormatter + `',
+						maxBarWidth: ` + intToString(maxBarWidth) + `,
+						barPadding: ` + floatToString(barPadding) + `,
+						marginLeft: ` + intToString(marginLeft) + `,
+						marginBottom: ` + intToString(marginBottom) + `,
+						xAxisLabel: '` + props.XAxisLabel + `',
+						yAxisLabel: '` + props.YAxisLabel + `',
+					}
+				);
+
+				this.loading = false;
+			} catch (err) {
+				console.error('Failed to load bar chart:', err);
+				this.error = true;
+				this.loading = false;
+			}
+		},
+		async refreshChart() {
+			if (!this.chart) return;
+
+			try {
+				const response = await fetch('` + props.DataURL + `');
+				if (!response.ok) throw new Error('Failed to fetch data');
+
+				const data = await response.json();
+				this.chart.update(data);
+			} catch (err) {
+				console.error('Failed to refresh chart:', err);
+			}
+		},
+		destroy() {
+			if (this.refreshTimer) {
+				clearInterval(this.refreshTimer);
+			}
+			if (this.chart) {
+				this.chart.destroy();
+			}
+		}
+	}`
+}

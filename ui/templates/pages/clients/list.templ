@@ -1,0 +1,11 @@
+package clients
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/clientspartials"
+)
+
+// List renders the full clients list page with layout.
+templ List(layoutProps layouts.PageLayoutProps, clientsList []clientspartials.ClientSummary, filters clientspartials.ClientFilters, options clientspartials.ClientFilterOptions) {
+	@layouts.PageLayout(layoutProps, clientspartials.ListContent(clientsList, filters, options))
+}

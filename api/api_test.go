@@ -550,6 +550,33 @@ func TestClient_HeaderRaceCondition(t *testing.T) {
 	must.MapLen(t, 1, conf.Headers, must.Sprint("config headers should not mutate"))
 }
 
+func TestClientWithNamespaceAndRegionIsIsolated(t *testing.T) {
+	config := DefaultConfig()
+	config.Namespace = "base-namespace"
+	config.Region = "base-region"
+	client, err := NewClient(config)
+	must.NoError(t, err)
+
+	first := client.WithNamespaceAndRegion("team-a", "region-a")
+	second := client.WithNamespaceAndRegion("team-b", "region-b")
+
+	firstRequest, err := first.newRequest(http.MethodGet, "/v1/jobs")
+	must.NoError(t, err)
+	secondRequest, err := second.newRequest(http.MethodGet, "/v1/jobs")
+	must.NoError(t, err)
+	baseRequest, err := client.newRequest(http.MethodGet, "/v1/jobs")
+	must.NoError(t, err)
+
+	must.Eq(t, "team-a", firstRequest.params.Get("namespace"))
+	must.Eq(t, "region-a", firstRequest.params.Get("region"))
+	must.Eq(t, "team-b", secondRequest.params.Get("namespace"))
+	must.Eq(t, "region-b", secondRequest.params.Get("region"))
+	must.Eq(t, "base-namespace", baseRequest.params.Get("namespace"))
+	must.Eq(t, "base-region", baseRequest.params.Get("region"))
+	must.True(t, client.httpClient == first.httpClient)
+	must.True(t, client.httpClient == second.httpClient)
+}
+
 func TestClient_autoUnzip(t *testing.T) {
 	var client *Client = nil
 
