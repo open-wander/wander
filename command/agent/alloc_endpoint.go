@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/golang/snappy"
 	"github.com/gorilla/websocket"
@@ -555,6 +556,12 @@ type wsHandshakeMessage struct {
 func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExecRequest) (interface{}, error) {
 	allocID := args.AllocID
 	method := "Allocations.Exec"
+	var wsWriteMu sync.Mutex
+	writeMessage := func(messageType int, data []byte) error {
+		wsWriteMu.Lock()
+		defer wsWriteMu.Unlock()
+		return ws.WriteMessage(messageType, data)
+	}
 
 	// Get the correct handler
 	localClient, remoteClient, localServer := s.rpcHandlerForAlloc(allocID)
@@ -605,7 +612,7 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 			var res cstructs.StreamErrWrapper
 			err := decoder.Decode(&res)
 			if isClosedError(err) {
-				ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				writeMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				errCh <- nil
 				return
 			}
@@ -625,7 +632,7 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 				return
 			}
 
-			if err := ws.WriteMessage(websocket.TextMessage, res.Payload); err != nil {
+			if err := writeMessage(websocket.TextMessage, res.Payload); err != nil {
 				errCh <- CodedError(500, err.Error())
 				return
 			}
@@ -649,7 +656,7 @@ func (s *HTTPServer) execStreamImpl(ws *websocket.Conn, args *cstructs.AllocExec
 	if isClosedError(codedErr) {
 		codedErr = nil
 	} else if codedErr != nil {
-		ws.WriteMessage(websocket.CloseMessage,
+		writeMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(toWsCode(codedErr.Code()), codedErr.Error()))
 	}
 	ws.Close()
