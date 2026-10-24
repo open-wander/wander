@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moby/moby/v2/pkg/ioutils"
 	"github.com/hashicorp/go-msgpack/codec"
+	"github.com/moby/moby/v2/pkg/ioutils"
 	cstructs "github.com/open-wander/wander/client/structs"
 	"github.com/open-wander/wander/nomad/structs"
 )

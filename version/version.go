@@ -44,12 +44,12 @@ type VersionInfo struct {
 	VersionMetadata   string
 }
 
-func (v *VersionInfo) Copy() *VersionInfo {
-	if v == nil {
+func (c *VersionInfo) Copy() *VersionInfo {
+	if c == nil {
 		return nil
 	}
 
-	nv := *v
+	nv := *c
 	return &nv
 }
 
