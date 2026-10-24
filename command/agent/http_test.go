@@ -43,6 +43,12 @@ func makeHTTPServer(t testing.TB, cb func(c *Config)) *TestAgent {
 	return NewTestAgent(t, t.Name(), cb)
 }
 
+func noProxyHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	return &http.Client{Transport: transport}
+}
+
 func BenchmarkHTTPRequests(b *testing.B) {
 	s := makeHTTPServer(b, func(c *Config) {
 		c.Client.Enabled = false
@@ -91,11 +97,12 @@ func TestMultipleInterfaces(t *testing.T) {
 	defer s.Shutdown()
 
 	httpPort := s.ports[0]
+	client := noProxyHTTPClient()
 	for _, ip := range httpIps {
-		resp, err := http.Get(fmt.Sprintf("http://%s:%d/", ip, httpPort))
-
-		assert.Nil(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		resp, err := client.Get(fmt.Sprintf("http://%s:%d/", ip, httpPort))
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
 	}
 }
 

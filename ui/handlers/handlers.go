@@ -35,24 +35,31 @@ type Config struct {
 	// Additional config fields will be added as needed
 }
 
-// NewHandler creates a new Handler with the provided dependencies.
-// This constructor ensures all handlers have consistent initialization.
-// It creates a Nomad API client using default configuration from environment variables.
+// NewHandler creates a new Handler with the provided dependencies and the
+// default Wander API configuration from environment variables.
 // Note: API calls are deferred until first request to avoid blocking during server startup.
 func NewHandler(logger hclog.Logger) *Handler {
+	return NewHandlerWithAPIConfig(logger, api.DefaultConfig())
+}
+
+// NewHandlerWithAPIConfig creates a handler whose internal API calls use the
+// supplied Wander endpoint. Embedded servers use this to target their own
+// listener instead of assuming the default port.
+func NewHandlerWithAPIConfig(logger hclog.Logger, wanderConfig *api.Config) *Handler {
 	if logger == nil {
 		logger = hclog.NewNullLogger()
 	}
 
-	// Create Nomad API client with default config (reads from WANDER_* or NOMAD_* env vars)
-	nomadConfig := api.DefaultConfig()
-	nomadClient, err := api.NewClient(nomadConfig)
+	if wanderConfig == nil {
+		wanderConfig = api.DefaultConfig()
+	}
+	nomadClient, err := api.NewClient(wanderConfig)
 	if err != nil {
 		logger.Error("failed to create Nomad API client", "error", err)
 		// Continue without a client so handlers can report unavailability.
 		nomadClient = nil
 	} else {
-		logger.Info("Nomad API client initialized", "address", nomadConfig.Address)
+		logger.Info("Wander API client initialized", "address", wanderConfig.Address)
 	}
 
 	h := &Handler{

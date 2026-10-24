@@ -32,7 +32,7 @@ func TestUIRuntimeContract(t *testing.T) {
 		})
 		defer s.Shutdown()
 
-		resp, err := http.Get("http://" + s.Agent.config.AdvertiseAddrs.HTTP + "/ui/")
+		resp, err := noProxyHTTPClient().Get("http://" + s.Agent.config.AdvertiseAddrs.HTTP + "/ui/")
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -46,13 +46,13 @@ func TestUIRuntimeContract(t *testing.T) {
 func assertUIResponse(t *testing.T, url, bodyFragment string) {
 	t.Helper()
 
-	resp, err := http.Get(url)
+	resp, err := noProxyHTTPClient().Get(url)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, defaultUIContentSecurityPolicy, resp.Header.Get("Content-Security-Policy"))
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "response body: %s", body)
+	require.Equal(t, defaultUIContentSecurityPolicy, resp.Header.Get("Content-Security-Policy"))
 	require.True(t, strings.Contains(string(body), bodyFragment), "response body does not contain %q", bodyFragment)
 }

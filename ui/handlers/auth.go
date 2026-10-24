@@ -130,7 +130,11 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 	logger := h.logger.With("func", "ValidateToken")
 	cacheKey := token
 	if token == "" {
-		cacheKey = "\x00anonymous:" + api.DefaultConfig().Address
+		address := ""
+		if h.nomadClient != nil {
+			address = h.nomadClient.Address()
+		}
+		cacheKey = "\x00anonymous:" + address
 	}
 
 	// Check cache first
@@ -165,9 +169,9 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 		}
 	}
 
-	// Create a new client with default config
-	// This avoids concurrency issues with the shared client
-	tempClient, err := apiClientForToken(token)
+	// Create a request-scoped client that retains the handler's API endpoint.
+	// This avoids mutating the shared client configuration.
+	tempClient, err := h.apiClientForToken(token)
 	if err != nil {
 		logger.Error("failed to create temporary client for token validation", "error", err)
 		return &ACLTokenInfo{
@@ -272,11 +276,11 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) *ACLTokenInfo
 	return info
 }
 
-func apiClientForToken(token string) (*api.Client, error) {
-	client, err := api.NewClient(api.DefaultConfig())
-	if err != nil {
-		return nil, err
+func (h *Handler) apiClientForToken(token string) (*api.Client, error) {
+	if h.nomadClient == nil {
+		return nil, fmt.Errorf("Wander client not configured")
 	}
+	client := h.nomadClient.WithNamespaceAndRegion("", "")
 	client.SetSecretID(token)
 	return client, nil
 }
@@ -453,7 +457,7 @@ func (h *Handler) TokenValidationMiddleware(next http.Handler) http.Handler {
 		// Create and store user permissions for easy capability checking
 		permissions := NewUserPermissions(tokenInfo)
 		if hasToken && tokenInfo.IsValid && !permissions.IsManagement() && tokenInfo.ACLEnabled {
-			client, err := apiClientForToken(token)
+			client, err := h.apiClientForToken(token)
 			if err != nil {
 				h.logger.Warn("failed to create ACL policy client", "error", err)
 			} else if err := permissions.LoadPolicies(ctx, client); err != nil {

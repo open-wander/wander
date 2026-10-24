@@ -756,8 +756,18 @@ func newTaskConfig(variant string, command []string) TaskConfig {
 }
 
 func copyImage(t *testing.T, taskDir *allocdir.TaskDir, image string) {
+	t.Helper()
+
 	dst := filepath.Join(taskDir.LocalDir, image)
-	copyFile(filepath.Join("./test-resources/docker", image), dst, t)
+	src := filepath.Join("test-resources", "docker", image)
+	archSrc := filepath.Join("test-resources", "docker", runtime.GOARCH+"-backup", image)
+	if _, err := os.Stat(archSrc); err == nil {
+		src = archSrc
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("checking architecture-specific image %q: %v", archSrc, err)
+	}
+
+	copyFile(src, dst, t)
 }
 
 // copyFile moves an existing file to the destination

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/open-wander/wander/acl"
+	wanderapi "github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/client"
 	"github.com/open-wander/wander/command/agent/event"
 	"github.com/open-wander/wander/helper/noxssrw"
@@ -508,7 +509,13 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 
 	if uiEnabled && uiConfigEnabled {
 		// Create the HTMX UI router
-		htmxHandler := uihandlers.NewHandler(s.logger)
+		uiAPIConfig := wanderapi.DefaultConfig()
+		scheme := "http"
+		if agentConfig.TLSConfig.EnableHTTP {
+			scheme = "https"
+		}
+		uiAPIConfig.Address = fmt.Sprintf("%s://%s", scheme, agentConfig.AdvertiseAddrs.HTTP)
+		htmxHandler := uihandlers.NewHandlerWithAPIConfig(s.logger, uiAPIConfig)
 		uiRouter := uihandlers.NewRouter(htmxHandler)
 
 		// Register the HTMX UI router at /ui/
