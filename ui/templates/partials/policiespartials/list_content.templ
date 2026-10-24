@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"github.com/open-wander/wander/ui/templates/components"
+	"github.com/open-wander/wander/ui/templates/partials/tokenspartials"
 )
 
 // PolicySummary represents a summary view of an ACL policy for list display.
@@ -27,7 +28,9 @@ templ ListContent(policiesList []PolicySummary, sortColumn string, sortDir strin
 					Manage access control policies for Wander resources
 				</p>
 			</div>
+			<a href="/ui/policies/new" hx-get="/ui/policies/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Policy</a>
 		</div>
+		@tokenspartials.ACLTabs("policies")
 		<!-- Search Bar -->
 		<div class="mb-6">
 			@components.SearchBar(components.SearchBarProps{

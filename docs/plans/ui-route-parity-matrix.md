@@ -56,8 +56,8 @@ black-box run; it does not make the capability optional.
 | Variables | List and CRUD variable values | `/ui/variables`, `/new`, `/ui/variables/{path}` | GET/POST/PUT/DELETE | Variables capabilities; namespace/region | Isolated browser CRUD and ACL tests | **Partial**: path tree, JSON/list views, lock/conflict handling, validation, and copy controls |
 | Namespaces | List and select namespaces | `/ui/namespaces`, `/api/namespace/select` | Namespace reads; UI selection only | Namespace visibility | Browser and restricted-token tests | **Decision needed**: capture whether 1.6.5 exposes namespace CRUD in the applicable edition |
 | ACL settings | Sign in/out and validate browser token | `/ui/settings`, `/ui/settings/token`, `/api/v1/auth/*` | Token self/read and secure cookie mutation | Anonymous/client/management | Auth unit tests and live audit | **Wander support**, **Ready** |
-| ACL policies | List, inspect, update, and delete policies | `/ui/policies`, `/ui/policies/{name}` | GET/POST/DELETE policy | Management token | ACL mutation suite | **Partial**: inherited policy creation workflow is missing |
-| ACL tokens and roles | Manage tokens, roles, bindings, and policy relationships | Capture pending; no Wander routes | ACL token/role CRUD | Management token | Provenance audit confirms baseline UI capability | **Required gap**: clean-room implementation; do not use BUSL files |
+| ACL policies | Create, list, inspect, update, and delete policies | `/ui/policies`, `/ui/policies/new`, `/ui/policies/{name}` | GET/POST/DELETE policy | Management token | Handler, route-contract, and live ACL mutation tests | **Ready** |
+| ACL tokens and roles | Manage tokens, roles, bindings, and policy relationships | `/ui/tokens`, `/ui/tokens/new`, `/ui/tokens/{accessor}`, `/ui/roles`, `/ui/roles/new`, `/ui/roles/{id}` | ACL token/role CRUD | Management token | Handler, route-contract, secret-leak regression, and live ACL mutation tests | **Ready**: clean-room implementation using the existing MPL API client |
 | OIDC/JWT | Browser authentication flow where supported | Capture pending | OIDC/JWT auth APIs | ACL configuration | Revival checklist inventory | **Decision needed**: classify by edition and 1.6.5 configuration |
 | CSI volumes | List and inspect volumes | `/ui/csi/volumes`, `/ui/csi/volumes/{id}` | CSI volume reads | Plugin/volume read; namespace/region | Browser smoke | **Partial**: registration/deregistration, claims, allocations, and error states |
 | CSI plugins | List and inspect plugin health/allocations | `/ui/csi/plugins` | CSI plugin reads | Plugin read; region | Browser smoke | **Required gap** for plugin detail and allocation views |
@@ -76,8 +76,9 @@ black-box run; it does not make the capability optional.
    replace every `Capture pending` entry with evidence.
 3. Restore services and job-client reads. **Complete** with live handler and
    Chromium evidence; exact baseline paths remain part of batch 2 capture.
-4. Independently implement ACL token/role management only after the provenance
-   method and source baseline receive project-owner approval.
+4. Independently implement ACL token/role management without consulting the
+   excluded BUSL source. **Complete** with clean-room handlers, templates, and
+   disposable-cluster CRUD evidence.
 
 ## Acceptance criteria
 

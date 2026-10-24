@@ -1,0 +1,10 @@
+package policies
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/policiespartials"
+)
+
+templ New(props layouts.PageLayoutProps, form policiespartials.NewPolicyForm) {
+	@layouts.PageLayout(props, policiespartials.NewContent(form))
+}

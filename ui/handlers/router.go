@@ -65,6 +65,9 @@ func (r *Router) registerRoutes() {
 	// Policies routes
 	r.registerPoliciesRoutes()
 
+	// ACL token and role routes
+	r.registerACLManagementRoutes()
+
 	// CSI routes
 	r.registerCSIRoutes()
 
@@ -181,6 +184,15 @@ func (r *Router) registerPoliciesRoutes() {
 	// Policies handler handles both list and detail pages
 	r.mux.Handle("/ui/policies", r.wrapMiddleware(policiesHandler))
 	r.mux.Handle("/ui/policies/", r.wrapMiddleware(policiesHandler))
+}
+
+// registerACLManagementRoutes sets up routes for ACL token and role management.
+func (r *Router) registerACLManagementRoutes() {
+	aclHandler := NewACLManagementHandler(r.handler)
+	r.mux.Handle("/ui/tokens", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeTokensHTTP)))
+	r.mux.Handle("/ui/tokens/", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeTokensHTTP)))
+	r.mux.Handle("/ui/roles", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeRolesHTTP)))
+	r.mux.Handle("/ui/roles/", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeRolesHTTP)))
 }
 
 // registerCSIRoutes sets up routes for the CSI section.

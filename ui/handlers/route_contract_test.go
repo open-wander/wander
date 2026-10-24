@@ -19,6 +19,10 @@ var topLevelPageContracts = []string{
 	"/ui/variables/new",
 	"/ui/namespaces",
 	"/ui/policies",
+	"/ui/tokens",
+	"/ui/tokens/new",
+	"/ui/roles",
+	"/ui/roles/new",
 	"/ui/csi/plugins",
 	"/ui/csi/volumes",
 	"/ui/settings",
@@ -102,6 +106,8 @@ func TestDynamicUIRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/ui/topology/data",
 		"/ui/variables/example",
 		"/ui/policies/example",
+		"/ui/tokens/example",
+		"/ui/roles/example",
 		"/ui/csi/volumes/example",
 		"/ui/settings/token",
 		"/ui/evaluations/example",
@@ -169,6 +175,8 @@ func TestMissingDynamicResourcesHaveTruthfulStatus(t *testing.T) {
 		{path: "/ui/services/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/variables/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/policies/missing", wantStatus: http.StatusForbidden},
+		{path: "/ui/tokens/missing", wantStatus: http.StatusForbidden},
+		{path: "/ui/roles/missing", wantStatus: http.StatusForbidden},
 		{path: "/ui/csi/volumes/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/evaluations/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/deployments/missing", wantStatus: http.StatusNotFound},
@@ -182,7 +190,7 @@ func TestMissingDynamicResourcesHaveTruthfulStatus(t *testing.T) {
 }
 
 func topLevelPageStatus(path string) int {
-	if path == "/ui/policies" {
+	if path == "/ui/policies" || strings.HasPrefix(path, "/ui/tokens") || strings.HasPrefix(path, "/ui/roles") {
 		return http.StatusForbidden
 	}
 	return http.StatusOK

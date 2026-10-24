@@ -1,0 +1,10 @@
+package tokens
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/tokenspartials"
+)
+
+templ List(props layouts.PageLayoutProps, items []tokenspartials.TokenSummary, search string) {
+	@layouts.PageLayout(props, tokenspartials.ListContent(items, search))
+}

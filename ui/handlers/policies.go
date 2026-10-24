@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -42,11 +44,89 @@ func (h *PoliciesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Handle /ui/policies/{name} detail and mutation routes.
 	if strings.HasPrefix(path, "/ui/policies/") {
+		if strings.TrimSuffix(path, "/") == "/ui/policies/new" {
+			switch r.Method {
+			case http.MethodGet:
+				h.showNew(w, r, policiespartials.NewPolicyForm{})
+			case http.MethodPost:
+				h.createPolicy(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
 		h.Detail(w, r)
 		return
 	}
 
 	http.NotFound(w, r)
+}
+
+func (h *PoliciesHandler) showNew(w http.ResponseWriter, r *http.Request, form policiespartials.NewPolicyForm) {
+	perms := GetPermissionsFromRequest(r)
+	if perms == nil || !perms.IsManagement() {
+		h.handler.RenderForbidden(w, r, ForbiddenError{Message: "You do not have permission to create ACL policies", Capability: "management token"})
+		return
+	}
+	props := h.handler.BaseLayoutProps(r, "New ACL Policy - Wander", "Create a Wander ACL policy", "/ui/policies/new", []components.Breadcrumb{
+		{Label: "Home", URL: "/ui/"},
+		{Label: "ACL Policies", URL: "/ui/policies"},
+		{Label: "New Policy"},
+	})
+	if err := Render(w, r, policies.New(props, form), policiespartials.NewContent(form)); err != nil {
+		h.handler.logger.Error("failed to render new policy form", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+func (h *PoliciesHandler) createPolicy(w http.ResponseWriter, r *http.Request) {
+	perms := GetPermissionsFromRequest(r)
+	if perms == nil || !perms.IsManagement() {
+		h.handler.RenderForbidden(w, r, ForbiddenError{Message: "You do not have permission to create ACL policies", Capability: "management token"})
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		h.showNew(w, r, policiespartials.NewPolicyForm{Error: "The submitted form is invalid."})
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	description := strings.TrimSpace(r.FormValue("description"))
+	rules := strings.TrimSpace(r.FormValue("rules"))
+	form := policiespartials.NewPolicyForm{Name: name, Description: description, Rules: rules}
+	if name == "" || strings.Contains(name, "/") {
+		form.Error = "Policy name is required and cannot contain a slash."
+		h.showNew(w, r, form)
+		return
+	}
+	if rules == "" {
+		form.Error = "Policy rules are required."
+		h.showNew(w, r, form)
+		return
+	}
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{Message: "The Wander API client is unavailable."})
+		return
+	}
+	_, err := client.ACLPolicies().Upsert(&api.ACLPolicy{Name: name, Description: description, Rules: rules}, &api.WriteOptions{Region: GetRegionFromRequest(r), AuthToken: GetTokenFromRequest(r)})
+	if err != nil {
+		h.handler.logger.Warn("failed to create ACL policy", "policy", name, "error", err)
+		status := http.StatusInternalServerError
+		if apiResponseHasStatus(err, http.StatusBadRequest) {
+			status = http.StatusBadRequest
+		} else if apiResponseHasStatus(err, http.StatusForbidden) {
+			status = http.StatusForbidden
+		}
+		http.Error(w, "Unable to create ACL policy", status)
+		return
+	}
+	target := "/ui/policies/" + url.PathEscape(name)
+	if IsHTMXFromRequest(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 // List handles the policies list page
@@ -161,9 +241,14 @@ func (h *PoliciesHandler) showDetail(w http.ResponseWriter, r *http.Request, pol
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
-	policy, exists := h.getPolicyFromAPI(r, policyName, token)
-	if !exists {
-		http.NotFound(w, r)
+	policy, err := h.getPolicyFromAPI(r, policyName, token)
+	if err != nil {
+		if apiResponseHasStatus(err, http.StatusNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		h.handler.logger.Warn("failed to load ACL policy detail", "policy", policyName, "error", err)
+		http.Error(w, "Unable to load ACL policy", http.StatusInternalServerError)
 		return
 	}
 
@@ -180,7 +265,7 @@ func (h *PoliciesHandler) showDetail(w http.ResponseWriter, r *http.Request, pol
 	)
 
 	// Render the policy detail page
-	err := Render(w, r,
+	err = Render(w, r,
 		policies.Detail(layoutProps, policy),   // Full page with layout
 		policiespartials.DetailContent(policy), // Partial content for HTMX requests
 	)
@@ -232,7 +317,7 @@ func (h *PoliciesHandler) updatePolicy(w http.ResponseWriter, r *http.Request, p
 	token := GetTokenFromRequest(r)
 
 	// Build write options with token
-	writeOpts := &api.WriteOptions{}
+	writeOpts := &api.WriteOptions{Region: GetRegionFromRequest(r)}
 	if token != "" {
 		writeOpts.AuthToken = token
 	}
@@ -289,7 +374,7 @@ func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, p
 	token := GetTokenFromRequest(r)
 
 	// Build write options with token
-	writeOpts := &api.WriteOptions{}
+	writeOpts := &api.WriteOptions{Region: GetRegionFromRequest(r)}
 	if token != "" {
 		writeOpts.AuthToken = token
 	}
@@ -319,7 +404,7 @@ func (h *PoliciesHandler) getPoliciesFromAPI(r *http.Request, token string) []po
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Region: GetRegionFromRequest(r)}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
@@ -354,14 +439,14 @@ func (h *PoliciesHandler) getPoliciesFromAPI(r *http.Request, token string) []po
 }
 
 // getPolicyFromAPI fetches a single policy from the Nomad API.
-func (h *PoliciesHandler) getPolicyFromAPI(r *http.Request, name string, token string) (policiespartials.PolicyDetail, bool) {
+func (h *PoliciesHandler) getPolicyFromAPI(r *http.Request, name string, token string) (policiespartials.PolicyDetail, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		return policiespartials.PolicyDetail{}, false
+		return policiespartials.PolicyDetail{}, errors.New("Wander API client unavailable")
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Region: GetRegionFromRequest(r)}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
@@ -373,14 +458,22 @@ func (h *PoliciesHandler) getPolicyFromAPI(r *http.Request, name string, token s
 	policy, _, err := client.ACLPolicies().Info(name, queryOpts)
 	if err != nil {
 		h.handler.logger.Warn("failed to fetch policy from API", "policy", name, "error", err)
-		return policiespartials.PolicyDetail{}, false
+		return policiespartials.PolicyDetail{}, err
+	}
+	roles, _, err := client.ACLRoles().List(queryOpts)
+	if err != nil {
+		return policiespartials.PolicyDetail{}, err
+	}
+	tokens, _, err := client.ACLTokens().List(queryOpts)
+	if err != nil {
+		return policiespartials.PolicyDetail{}, err
 	}
 
 	h.handler.logger.Debug("fetched policy from API", "policy", name)
 
 	// Map API policy to template policy
 	// Note: ACL policies don't have timestamps in the API, only Raft indexes
-	return policiespartials.PolicyDetail{
+	detail := policiespartials.PolicyDetail{
 		Name:        policy.Name,
 		Description: policy.Description,
 		Rules:       policy.Rules,
@@ -388,7 +481,49 @@ func (h *PoliciesHandler) getPolicyFromAPI(r *http.Request, name string, token s
 		ModifyIndex: policy.ModifyIndex,
 		CreatedAt:   time.Time{}, // ACL policies don't have timestamps in the API
 		ModifiedAt:  time.Time{}, // ACL policies don't have timestamps in the API
-	}, true
+	}
+	detail.RelatedTokens, detail.RelatedRoles = policyRelationships(name, tokens, roles)
+	return detail, nil
+}
+
+func policyRelationships(policyName string, tokens []*api.ACLTokenListStub, roles []*api.ACLRoleListStub) ([]policiespartials.PolicyTokenBinding, []policiespartials.PolicyRoleBinding) {
+	relatedRoleNames := make(map[string]string)
+	relatedRoles := make([]policiespartials.PolicyRoleBinding, 0)
+	for _, role := range roles {
+		for _, policy := range role.Policies {
+			if policy.Name == policyName {
+				relatedRoleNames[role.ID] = role.Name
+				relatedRoles = append(relatedRoles, policiespartials.PolicyRoleBinding{ID: role.ID, Name: role.Name})
+				break
+			}
+		}
+	}
+
+	relatedTokens := make([]policiespartials.PolicyTokenBinding, 0)
+	for _, token := range tokens {
+		bindings := make([]string, 0, len(token.Roles)+1)
+		for _, policy := range token.Policies {
+			if policy == policyName {
+				bindings = append(bindings, "direct")
+				break
+			}
+		}
+		for _, role := range token.Roles {
+			if roleName, ok := relatedRoleNames[role.ID]; ok {
+				bindings = append(bindings, "role "+roleName)
+			}
+		}
+		if len(bindings) != 0 {
+			relatedTokens = append(relatedTokens, policiespartials.PolicyTokenBinding{
+				AccessorID: token.AccessorID,
+				Name:       token.Name,
+				Via:        strings.Join(bindings, ", "),
+			})
+		}
+	}
+	sort.Slice(relatedRoles, func(i, j int) bool { return relatedRoles[i].Name < relatedRoles[j].Name })
+	sort.Slice(relatedTokens, func(i, j int) bool { return relatedTokens[i].Name < relatedTokens[j].Name })
+	return relatedTokens, relatedRoles
 }
 
 // filterPolicies filters the policies list based on search query.

@@ -1,0 +1,162 @@
+package tokenspartials
+
+import (
+	"fmt"
+	"net/url"
+	"time"
+)
+
+type Option struct {
+	Value       string
+	Label       string
+	Description string
+	Selected    bool
+}
+
+type TokenView struct {
+	AccessorID     string
+	Name           string
+	Type           string
+	Global         bool
+	Policies       []string
+	Roles          []string
+	CreateTime     time.Time
+	ExpirationTime *time.Time
+	CreateIndex    uint64
+	ModifyIndex    uint64
+}
+
+type TokenForm struct {
+	Token    TokenView
+	Policies []Option
+	Roles    []Option
+	IsNew    bool
+	IsCurrent bool
+	Secret   string
+	Error    string
+}
+
+templ DetailContent(form TokenForm) {
+	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="mb-6 flex items-start justify-between gap-4">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+					if form.IsNew {
+						New ACL Token
+					} else if form.Token.Name != "" {
+						{ form.Token.Name }
+					} else {
+						ACL Token
+					}
+				</h1>
+				if !form.IsNew {
+					<p class="mt-2 break-all font-mono text-sm text-neutral-500">{ form.Token.AccessorID }</p>
+				}
+			</div>
+			if !form.IsNew {
+				<button type="button" hx-delete={ "/ui/tokens/" + url.PathEscape(form.Token.AccessorID) } hx-confirm={ tokenDeleteConfirmation(form.IsCurrent) } class="rounded-md bg-danger-600 px-4 py-2 text-sm font-medium text-white hover:bg-danger-700">Delete Token</button>
+			}
+		</div>
+		@ACLTabs("tokens")
+		if form.Secret != "" {
+			<div class="mb-6 rounded-lg border border-warning-300 bg-warning-50 p-5" role="status">
+				<h2 class="font-semibold text-warning-900">Save this secret now</h2>
+				<p class="mt-1 text-sm text-warning-800">This token secret is shown only once and cannot be retrieved later.</p>
+				<label class="mt-4 block text-sm font-medium text-warning-900" for="token-secret">Secret ID</label>
+				<code id="token-secret" class="mt-1 block w-full select-all overflow-x-auto rounded-md border border-warning-300 bg-white px-3 py-2 font-mono text-sm text-neutral-900">{ form.Secret }</code>
+			</div>
+		}
+		if form.IsCurrent {
+			<div class="mb-6 rounded-md border border-warning-300 bg-warning-50 p-4 text-sm text-warning-900" role="alert">This is the token currently used by this browser. Deleting it will immediately remove your access.</div>
+		}
+		if form.Error != "" {
+			<div class="mb-6 rounded-md border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800" role="alert">{ form.Error }</div>
+		}
+		<form method="post" action={ templ.SafeURL(tokenFormAction(form)) } hx-post={ tokenFormAction(form) } hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-neutral-900">
+			<div>
+				<label for="token-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Name</label>
+				<input id="token-name" name="name" value={ form.Token.Name } class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"/>
+			</div>
+			<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+				<div>
+					<label for="token-type" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Type</label>
+					<select id="token-type" name="type" class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800">
+						<option value="client" selected?={ form.Token.Type == "" || form.Token.Type == "client" }>Client</option>
+						<option value="management" selected?={ form.Token.Type == "management" }>Management</option>
+					</select>
+				</div>
+				if form.IsNew {
+					<div>
+						<label for="expiration-ttl" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Expiration TTL</label>
+						<input id="expiration-ttl" name="expiration_ttl" placeholder="For example: 24h (optional)" class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800"/>
+					</div>
+				}
+			</div>
+			<label class="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"><input type="checkbox" name="global" value="true" checked?={ form.Token.Global } class="rounded border-neutral-300"/>Global token</label>
+			@optionGroup("Policies", "policies", form.Policies)
+			@optionGroup("Roles", "roles", form.Roles)
+			if !form.IsNew {
+				<div class="grid grid-cols-1 gap-4 border-t border-neutral-200 pt-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400 sm:grid-cols-2">
+					<div><span class="font-medium">Created:</span> { formatTokenTime(form.Token.CreateTime) }</div>
+					<div><span class="font-medium">Expires:</span> { tokenExpiration(form.Token.ExpirationTime) }</div>
+					<div><span class="font-medium">Create index:</span> { fmt.Sprintf("%d", form.Token.CreateIndex) }</div>
+					<div><span class="font-medium">Modify index:</span> { fmt.Sprintf("%d", form.Token.ModifyIndex) }</div>
+				</div>
+			}
+			<div class="flex justify-end gap-3">
+				<a href="/ui/tokens" hx-get="/ui/tokens" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
+				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
+					if form.IsNew {
+						Create Token
+					} else {
+						Save Token
+					}
+				</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ optionGroup(label, name string, options []Option) {
+	<fieldset>
+		<legend class="text-sm font-medium text-neutral-700 dark:text-neutral-300">{ label }</legend>
+		<div class="mt-2 grid grid-cols-1 gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700 sm:grid-cols-2">
+			if len(options) == 0 {
+				<p class="text-sm text-neutral-500">No { label } are available.</p>
+			} else {
+				for _, option := range options {
+					<label class="flex items-start gap-2 rounded p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+						<input type="checkbox" name={ name } value={ option.Value } checked?={ option.Selected } class="mt-1 rounded border-neutral-300"/>
+						<span>
+							<span class="block text-sm font-medium text-neutral-900 dark:text-neutral-100">{ option.Label }</span>
+							if option.Description != "" {
+								<span class="block text-xs text-neutral-500">{ option.Description }</span>
+							}
+						</span>
+					</label>
+				}
+			}
+		</div>
+	</fieldset>
+}
+
+func tokenFormAction(form TokenForm) string {
+	if form.IsNew {
+		return "/ui/tokens/new"
+	}
+	return "/ui/tokens/" + url.PathEscape(form.Token.AccessorID)
+}
+
+func formatTokenTime(value time.Time) string {
+	if value.IsZero() {
+		return "Unknown"
+	}
+	return value.Format("Jan 2, 2006 15:04")
+}
+
+func tokenDeleteConfirmation(isCurrent bool) string {
+	if isCurrent {
+		return "Delete the token currently used by this browser? You will immediately lose access. This cannot be undone."
+	}
+	return "Delete this ACL token? This action cannot be undone."
+}

@@ -41,3 +41,24 @@ func TestPoliciesHandlerRoutesMutations(t *testing.T) {
 		})
 	}
 }
+
+func TestPolicyRelationshipsIncludesDirectAndRoleBindings(t *testing.T) {
+	roles := []*api.ACLRoleListStub{
+		{ID: "role-b", Name: "builders", Policies: []*api.ACLRolePolicyLink{{Name: "read-jobs"}}},
+		{ID: "role-o", Name: "other", Policies: []*api.ACLRolePolicyLink{{Name: "other-policy"}}},
+	}
+	tokens := []*api.ACLTokenListStub{
+		{AccessorID: "direct", Name: "direct token", Policies: []string{"read-jobs"}},
+		{AccessorID: "role", Name: "role token", Roles: []*api.ACLTokenRoleLink{{ID: "role-b"}}},
+		{AccessorID: "unrelated", Name: "unrelated token", Policies: []string{"other-policy"}},
+	}
+
+	relatedTokens, relatedRoles := policyRelationships("read-jobs", tokens, roles)
+	must.Len(t, 2, relatedTokens)
+	must.Eq(t, "direct token", relatedTokens[0].Name)
+	must.Eq(t, "direct", relatedTokens[0].Via)
+	must.Eq(t, "role token", relatedTokens[1].Name)
+	must.Eq(t, "role builders", relatedTokens[1].Via)
+	must.Len(t, 1, relatedRoles)
+	must.Eq(t, "builders", relatedRoles[0].Name)
+}

@@ -1,0 +1,108 @@
+package tokenspartials
+
+import (
+	"fmt"
+	"net/url"
+	"time"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+type TokenSummary struct {
+	AccessorID     string
+	Name           string
+	Type           string
+	Global         bool
+	PolicyCount    int
+	RoleCount      int
+	ExpirationTime *time.Time
+}
+
+templ ListContent(items []TokenSummary, search string) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">ACL Tokens</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">Create and manage credentials for Wander API access.</p>
+			</div>
+			<a href="/ui/tokens/new" hx-get="/ui/tokens/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Token</a>
+		</div>
+		@ACLTabs("tokens")
+		<div class="mb-6">
+			@components.SearchBar(components.SearchBarProps{Name: "search", Placeholder: "Search tokens by name or accessor ID...", Value: search, SearchURL: "/ui/tokens", ResultsID: "tokens-table-container", Debounce: 300})
+		</div>
+		<div id="tokens-table-container" class="overflow-hidden rounded-lg bg-white shadow dark:bg-neutral-900">
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "name", Label: "Name", Align: "left"},
+					{Key: "type", Label: "Type", Align: "left"},
+					{Key: "scope", Label: "Scope", Align: "left"},
+					{Key: "bindings", Label: "Bindings", Align: "left"},
+					{Key: "expires", Label: "Expires", Align: "right"},
+				},
+				Striped: true,
+				Hover:   true,
+			}) {
+				@components.TableBody() {
+					if len(items) == 0 {
+						@components.TableEmptyState("No tokens found", "Create an ACL token or change the search query.")
+					} else {
+						for _, item := range items {
+							<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800">
+								@components.TableCell("left", "") {
+									<a class="font-medium text-primary-600 hover:text-primary-800" href={ templ.SafeURL(tokenDetailPath(item.AccessorID)) } hx-get={ tokenDetailPath(item.AccessorID) } hx-target="#main-content" hx-push-url="true">
+										if item.Name == "" {
+											{ item.AccessorID }
+										} else {
+											{ item.Name }
+										}
+									</a>
+									<div class="mt-1 font-mono text-xs text-neutral-500">{ item.AccessorID }</div>
+								}
+								@components.TableCell("left", "") {
+									<span class="capitalize">{ item.Type }</span>
+								}
+								@components.TableCell("left", "") {
+									if item.Global {
+										<span>Global</span>
+									} else {
+										<span>Regional</span>
+									}
+								}
+								@components.TableCell("left", "") {
+									<span>{ fmt.Sprintf("%d policies, %d roles", item.PolicyCount, item.RoleCount) }</span>
+								}
+								@components.TableCell("right", "") {
+									<span>{ tokenExpiration(item.ExpirationTime) }</span>
+								}
+							</tr>
+						}
+					}
+				}
+			}
+		</div>
+	</div>
+}
+
+templ ACLTabs(active string) {
+	<nav aria-label="Access control" class="mb-6 flex gap-2 border-b border-neutral-200 dark:border-neutral-700">
+		@aclTab("Policies", "/ui/policies", active == "policies")
+		@aclTab("Tokens", "/ui/tokens", active == "tokens")
+		@aclTab("Roles", "/ui/roles", active == "roles")
+	</nav>
+}
+
+templ aclTab(label, path string, active bool) {
+	<a href={ templ.SafeURL(path) } hx-get={ path } hx-target="#main-content" hx-push-url="true" class={ templ.KV("border-primary-600 text-primary-700", active), "border-b-2 px-3 py-2 text-sm font-medium", templ.KV("border-transparent text-neutral-600 hover:text-neutral-900", !active) }>{ label }</a>
+}
+
+func tokenExpiration(expiration *time.Time) string {
+	if expiration == nil {
+		return "Never"
+	}
+	return expiration.Format("Jan 2, 2006 15:04")
+}
+
+func tokenDetailPath(accessorID string) string {
+	return "/ui/tokens/" + url.PathEscape(accessorID)
+}

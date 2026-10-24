@@ -1,0 +1,7 @@
+```release-note:feature
+ui: add ACL policy creation and complete token and role management
+```
+
+```release-note:improvement
+ui: show tokens and roles that use an ACL policy
+```

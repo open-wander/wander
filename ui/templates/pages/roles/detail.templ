@@ -1,0 +1,10 @@
+package roles
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/rolespartials"
+)
+
+templ Detail(props layouts.PageLayoutProps, form rolespartials.RoleForm) {
+	@layouts.PageLayout(props, rolespartials.DetailContent(form))
+}

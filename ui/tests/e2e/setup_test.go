@@ -504,8 +504,12 @@ func TestACLMutations(t *testing.T) {
 	}
 	assertRequestStatus(t, client, http.MethodDelete, address+"/ui/variables/acl-audit/test?namespace=default", root.SecretID, "", "", http.StatusOK)
 
-	policyJSON := `{"Name":"wander-ui-audit","Description":"temporary UI audit policy","Rules":"namespace \"default\" { policy = \"read\" }"}`
-	assertRequestStatus(t, client, http.MethodPut, address+"/v1/acl/policy/wander-ui-audit", root.SecretID, "application/json", policyJSON, http.StatusOK)
+	policyCreateForm := url.Values{
+		"name":        {"wander-ui-audit"},
+		"description": {"temporary UI audit policy"},
+		"rules":       {`namespace "default" { policy = "read" }`},
+	}
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/policies/new", root.SecretID, "application/x-www-form-urlencoded", policyCreateForm.Encode())
 	policyForm := url.Values{"description": {"updated through Wander UI"}, "rules": {`namespace "default" { policy = "write" }`}}
 	assertACLMutation(t, client, http.MethodPost, address+"/ui/policies/wander-ui-audit", root.SecretID, "application/x-www-form-urlencoded", policyForm.Encode())
 	var policy struct {
@@ -516,6 +520,95 @@ func TestACLMutations(t *testing.T) {
 	if policy.Description != "updated through Wander UI" || !strings.Contains(policy.Rules, `policy = "write"`) {
 		t.Fatalf("policy update was not persisted: %#v", policy)
 	}
+
+	roleCreateForm := url.Values{
+		"name":        {"wander-ui-audit-role"},
+		"description": {"temporary UI audit role"},
+		"policies":    {"wander-ui-audit"},
+	}
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/roles/new", root.SecretID, "application/x-www-form-urlencoded", roleCreateForm.Encode())
+	roles, _, err := rootClient.ACLRoles().List(nil)
+	if err != nil {
+		t.Fatalf("list roles after UI creation: %v", err)
+	}
+	var auditRole *api.ACLRoleListStub
+	for _, role := range roles {
+		if role.Name == "wander-ui-audit-role" {
+			auditRole = role
+			break
+		}
+	}
+	if auditRole == nil || len(auditRole.Policies) != 1 || auditRole.Policies[0].Name != "wander-ui-audit" {
+		t.Fatalf("role created through UI has unexpected policy bindings: %#v", auditRole)
+	}
+	status, body = request(t, client, http.MethodGet, address+"/ui/roles", root.SecretID, "", "")
+	requireResponseContains(t, status, body, "ACL role list", "wander-ui-audit-role")
+	roleUpdateForm := url.Values{
+		"name":        {"wander-ui-audit-role"},
+		"description": {"updated through Wander UI"},
+		"policies":    {"wander-ui-audit"},
+	}
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/roles/"+auditRole.ID, root.SecretID, "application/x-www-form-urlencoded", roleUpdateForm.Encode())
+	updatedRole, _, err := rootClient.ACLRoles().Get(auditRole.ID, nil)
+	if err != nil || updatedRole.Description != "updated through Wander UI" {
+		t.Fatalf("role update through UI was not persisted: role=%#v err=%v", updatedRole, err)
+	}
+
+	tokenCreateForm := url.Values{
+		"name":     {"wander-ui-audit-token"},
+		"type":     {"client"},
+		"policies": {"wander-ui-audit"},
+		"roles":    {auditRole.ID},
+	}
+	assertRequestStatus(t, client, http.MethodPost, address+"/ui/tokens/new", "", "application/x-www-form-urlencoded", tokenCreateForm.Encode(), http.StatusForbidden)
+	status, body = request(t, client, http.MethodPost, address+"/ui/tokens/new", root.SecretID, "application/x-www-form-urlencoded", tokenCreateForm.Encode())
+	if status != http.StatusOK {
+		t.Fatalf("create ACL token through UI returned %d: %s", status, body)
+	}
+	tokenCreateBody := append([]byte(nil), body...)
+	tokens, _, err := rootClient.ACLTokens().List(nil)
+	if err != nil {
+		t.Fatalf("list tokens after UI creation: %v", err)
+	}
+	var auditToken *api.ACLTokenListStub
+	for _, token := range tokens {
+		if token.Name == "wander-ui-audit-token" {
+			auditToken = token
+			break
+		}
+	}
+	if auditToken == nil {
+		t.Fatal("token created through UI was not returned by the API")
+	}
+	status, body = request(t, client, http.MethodGet, address+"/ui/tokens", root.SecretID, "", "")
+	requireResponseContains(t, status, body, "ACL token list", "wander-ui-audit-token", auditToken.AccessorID)
+	createdToken, _, err := rootClient.ACLTokens().Info(auditToken.AccessorID, nil)
+	if err != nil {
+		t.Fatalf("read token after UI creation: %v", err)
+	}
+	if createdToken.SecretID == "" || !bytes.Contains(tokenCreateBody, []byte(createdToken.SecretID)) {
+		t.Fatal("token create response did not display the one-time secret")
+	}
+	status, body = request(t, client, http.MethodGet, address+"/ui/policies/wander-ui-audit", root.SecretID, "", "")
+	requireResponseContains(t, status, body, "ACL policy relationships", "wander-ui-audit-token", "wander-ui-audit-role", "role wander-ui-audit-role")
+	status, body = request(t, client, http.MethodGet, address+"/ui/tokens/"+auditToken.AccessorID, root.SecretID, "", "")
+	requireResponseContains(t, status, body, "ACL token detail", "wander-ui-audit-token")
+	if bytes.Contains(body, []byte(createdToken.SecretID)) {
+		t.Fatal("token detail response leaked the token secret")
+	}
+	tokenUpdateForm := url.Values{
+		"name":     {"wander-ui-audit-token-updated"},
+		"type":     {"client"},
+		"policies": {"wander-ui-audit"},
+		"roles":    {auditRole.ID},
+	}
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/tokens/"+auditToken.AccessorID, root.SecretID, "application/x-www-form-urlencoded", tokenUpdateForm.Encode())
+	createdToken, _, err = rootClient.ACLTokens().Info(auditToken.AccessorID, nil)
+	if err != nil || createdToken.Name != "wander-ui-audit-token-updated" || len(createdToken.Roles) != 1 {
+		t.Fatalf("token update through UI was not persisted: token=%#v err=%v", createdToken, err)
+	}
+	assertACLMutation(t, client, http.MethodDelete, address+"/ui/tokens/"+auditToken.AccessorID, root.SecretID, "", "")
+	assertACLMutation(t, client, http.MethodDelete, address+"/ui/roles/"+auditRole.ID, root.SecretID, "", "")
 	assertACLMutation(t, client, http.MethodDelete, address+"/ui/policies/wander-ui-audit", root.SecretID, "", "")
 
 	deploymentOne := writeDeploymentFixture(t, 1)
