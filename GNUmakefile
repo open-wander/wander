@@ -40,8 +40,9 @@ ifndef GOTEST_GROUP
 GOTEST_GROUP := nomad client command drivers quick
 endif
 
-# tag corresponding to latest release we maintain backward compatibility with
-PROTO_COMPARE_TAG ?= v1.0.3$(if $(findstring ent,$(GO_TAGS)),+ent,)
+# Wander's immutable Nomad 1.6.5 fork boundary. Keep protobuf compatibility
+# against this remote tag until a published Wander release becomes the baseline.
+PROTO_COMPARE_TAG ?= fork-point
 
 # LAST_RELEASE is the git sha of the latest release corresponding to this branch. main should have the latest
 # published release, and release branches should point to the latest published release in the X.Y release line.
