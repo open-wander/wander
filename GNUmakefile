@@ -161,7 +161,7 @@ lint-deps: ## Install linter dependencies
 	@echo "==> Updating linter dependencies..."
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 	go install github.com/client9/misspell/cmd/misspell@v0.3.4
-	go install github.com/hashicorp/go-hclog/hclogvet@v0.1.6
+	go install github.com/hashicorp/go-hclog/hclogvet@v0.2.1-0.20261015061854-ac91e5d76395
 
 .PHONY: git-hooks
 git-dir = $(shell git rev-parse --git-dir)
