@@ -98,10 +98,14 @@ func TestMultipleInterfaces(t *testing.T) {
 
 	httpPort := s.ports[0]
 	client := noProxyHTTPClient()
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	for _, ip := range httpIps {
 		resp, err := client.Get(fmt.Sprintf("http://%s:%d/", ip, httpPort))
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		require.Equal(t, "/ui/", resp.Header.Get("Location"))
 		require.NoError(t, resp.Body.Close())
 	}
 }

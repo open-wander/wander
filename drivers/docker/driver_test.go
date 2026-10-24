@@ -3038,7 +3038,7 @@ func TestDockerDriver_StopSignal(t *testing.T) {
 			defer cleanup()
 
 			if c.variant == "stopsignal" {
-				copyImage(t, task.TaskDir(), "busybox_stopsignal.tar") // Default busybox image with STOPSIGNAL 19 added
+				createStopSignalImage(t, task.TaskDir())
 			} else {
 				copyImage(t, task.TaskDir(), "busybox.tar")
 			}

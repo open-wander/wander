@@ -711,7 +711,7 @@ func TestDockerDriver_Start_Image_HTTPS(t *testing.T) {
 	testutil.DockerCompatible(t)
 
 	taskCfg := TaskConfig{
-		Image:            "https://gcr.io/google_containers/pause:0.8.0",
+		Image:            "https://registry.k8s.io/pause:3.10",
 		ImagePullTimeout: "5m",
 	}
 	task := &drivers.TaskConfig{
@@ -759,15 +759,56 @@ func copyImage(t *testing.T, taskDir *allocdir.TaskDir, image string) {
 	t.Helper()
 
 	dst := filepath.Join(taskDir.LocalDir, image)
+	copyFile(dockerImageFixturePath(t, image), dst, t)
+}
+
+func dockerImageFixturePath(t *testing.T, image string) string {
+	t.Helper()
+
 	src := filepath.Join("test-resources", "docker", image)
 	archSrc := filepath.Join("test-resources", "docker", runtime.GOARCH+"-backup", image)
 	if _, err := os.Stat(archSrc); err == nil {
-		src = archSrc
+		return archSrc
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("checking architecture-specific image %q: %v", archSrc, err)
 	}
+	return src
+}
 
-	copyFile(src, dst, t)
+func createStopSignalImage(t *testing.T, taskDir *allocdir.TaskDir) {
+	t.Helper()
+
+	client := newTestDockerClient(t)
+	baseImage, err := os.Open(dockerImageFixturePath(t, "busybox.tar"))
+	require.NoError(t, err)
+	require.NoError(t, client.LoadImage(docker.LoadImageOptions{InputStream: baseImage}))
+
+	container, err := client.CreateContainer(docker.CreateContainerOptions{
+		Config: &docker.Config{Image: "busybox:1.29.3"},
+	})
+	require.NoError(t, err)
+	defer client.RemoveContainer(docker.RemoveContainerOptions{ID: container.ID, Force: true})
+
+	const image = "busybox:1.29.3-stopsignal"
+	_, err = client.CommitContainer(docker.CommitContainerOptions{
+		Container:  container.ID,
+		Repository: "busybox",
+		Tag:        "1.29.3-stopsignal",
+		Changes:    []string{"STOPSIGNAL 19"},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = client.RemoveImageExtended(image, docker.RemoveImageOptions{Force: true})
+	})
+
+	dst := filepath.Join(taskDir.LocalDir, "busybox_stopsignal.tar")
+	output, err := os.Create(dst)
+	require.NoError(t, err)
+	require.NoError(t, client.ExportImage(docker.ExportImageOptions{
+		Name:         image,
+		OutputStream: output,
+	}))
+	require.NoError(t, output.Close())
 }
 
 // copyFile moves an existing file to the destination

@@ -21,7 +21,7 @@ on:
 jobs:
   checks:
     # largest available self-hosted disk for extra iops because linting is io-intensive
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
