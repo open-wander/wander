@@ -95,7 +95,7 @@ func TestMultipleInterfaces(t *testing.T) {
 		resp, err := http.Get(fmt.Sprintf("http://%s:%d/", ip, httpPort))
 
 		assert.Nil(t, err)
-		assert.Equal(t, resp.StatusCode, 200)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 }
 

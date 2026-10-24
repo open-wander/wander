@@ -132,10 +132,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: '.go-version'
+      - name: Install UI build dependencies
+        working-directory: ui
+        run: npm ci
       - name: Run make dev
         run: |
           make bootstrap
           make ui-generate
+          make -C ui install-tailwind build-css
           make dev
   tests-api:
     needs: [mods]
@@ -172,12 +176,16 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: '.go-version'
+      - name: Install UI build dependencies
+        working-directory: ui
+        run: npm ci
       - name: Run Matrix Tests
         env:
           GOTEST_GROUP: ${{matrix.groups}}
         run: |
           make bootstrap
           make ui-generate
+          make -C ui install-tailwind build-css
           make dev
           hc-install install -version ${{env.VAULT_VERSION}} -path "$(go env GOPATH)/bin" vault
           hc-install install -version ${{env.CONSUL_VERSION}} -path "$(go env GOPATH)/bin" consul

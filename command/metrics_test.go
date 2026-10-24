@@ -61,7 +61,7 @@ func TestCommand_Metrics_Cases(t *testing.T) {
 			"bad argument",
 			[]string{"-address=" + url, "-foo", "bar"},
 			1,
-			"Usage: nomad operator metrics",
+			"Usage: wander operator metrics",
 			"flag provided but not defined: -foo",
 		},
 		{

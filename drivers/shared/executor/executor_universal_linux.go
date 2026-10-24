@@ -18,6 +18,7 @@ import (
 	"github.com/open-wander/wander/helper/users"
 	"github.com/open-wander/wander/plugins/drivers"
 	"github.com/opencontainers/cgroups"
+	_ "github.com/opencontainers/cgroups/devices"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/specconv"
 )
