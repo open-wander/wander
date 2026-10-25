@@ -5,7 +5,6 @@ package command
 
 import (
 	"os"
-	"path"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -21,17 +20,10 @@ func TestNodePoolInitCommand_Implements(t *testing.T) {
 }
 
 func TestNodePoolInitCommand_Run(t *testing.T) {
-	ci.Parallel(t)
 	dir := t.TempDir()
-	origDir, err := os.Getwd()
-	must.NoError(t, err)
-	err = os.Chdir(dir)
-	must.NoError(t, err)
-	t.Cleanup(func() { os.Chdir(origDir) })
+	t.Chdir(dir)
 
 	t.Run("hcl", func(t *testing.T) {
-		ci.Parallel(t)
-		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &NodePoolInitCommand{Meta: Meta{Ui: ui}}
 
@@ -48,8 +40,6 @@ func TestNodePoolInitCommand_Run(t *testing.T) {
 		must.Eq(t, "Example node pool specification written to pool.nomad.hcl\n", ui.OutputWriter.String())
 		must.Zero(t, ec)
 		reset(ui)
-		t.Cleanup(func() { os.Remove(path.Join(dir, "pool.nomad.hcl")) })
-
 		content, err := os.ReadFile(DefaultHclNodePoolInitName)
 		must.NoError(t, err)
 		must.Eq(t, asset.NodePoolSpec, content)
@@ -68,15 +58,12 @@ func TestNodePoolInitCommand_Run(t *testing.T) {
 		must.Zero(t, ec)
 		reset(ui)
 
-		t.Cleanup(func() { os.Remove(path.Join(dir, "myTest.hcl")) })
 		content, err = os.ReadFile("myTest.hcl")
 		must.NoError(t, err)
 		must.Eq(t, asset.NodePoolSpec, content)
 	})
 
 	t.Run("json", func(t *testing.T) {
-		ci.Parallel(t)
-		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &NodePoolInitCommand{Meta: Meta{Ui: ui}}
 
@@ -93,7 +80,6 @@ func TestNodePoolInitCommand_Run(t *testing.T) {
 		must.Zero(t, code)
 		reset(ui)
 
-		t.Cleanup(func() { os.Remove(path.Join(dir, "pool.nomad.json")) })
 		content, err := os.ReadFile(DefaultJsonNodePoolInitName)
 		must.NoError(t, err)
 		must.Eq(t, asset.NodePoolSpecJSON, content)
@@ -111,7 +97,6 @@ func TestNodePoolInitCommand_Run(t *testing.T) {
 		must.Zero(t, code)
 		reset(ui)
 
-		t.Cleanup(func() { os.Remove(path.Join(dir, "myTest.json")) })
 		content, err = os.ReadFile("myTest.json")
 		must.NoError(t, err)
 		must.Eq(t, asset.NodePoolSpecJSON, content)
