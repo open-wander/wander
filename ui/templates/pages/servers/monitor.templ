@@ -1,0 +1,10 @@
+package servers
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/serverspartials"
+)
+
+templ Monitor(layoutProps layouts.PageLayoutProps, props serverspartials.ServerMonitorProps) {
+	@layouts.PageLayout(layoutProps, serverspartials.ServerMonitorContent(props))
+}

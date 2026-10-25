@@ -1,0 +1,58 @@
+package serverspartials
+
+import (
+	"net/url"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+type ServerMonitorProps struct {
+	ServerName string
+	Region     string
+	Level      string
+}
+
+templ ServerSubnav(serverName, active string) {
+	<nav class="mb-6 border-b border-neutral-200 dark:border-neutral-700" aria-label="Server sections">
+		<div class="-mb-px flex gap-6">
+			<a
+				href={ templ.SafeURL("/ui/servers/" + url.PathEscape(serverName)) }
+				class={ serverSubnavClass(active == "overview") }
+				aria-current={ serverSubnavCurrent(active == "overview") }
+			>Overview</a>
+			<a
+				href={ templ.SafeURL("/ui/servers/" + url.PathEscape(serverName) + "/monitor") }
+				class={ serverSubnavClass(active == "monitor") }
+				aria-current={ serverSubnavCurrent(active == "monitor") }
+			>Monitor</a>
+		</div>
+	</nav>
+}
+
+templ ServerMonitorContent(props ServerMonitorProps) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		@ServerSubnav(props.ServerName, "monitor")
+		@components.AgentMonitor(components.AgentMonitorProps{
+			TargetType: "servers",
+			TargetID: props.ServerName,
+			TargetName: props.ServerName,
+			Region: props.Region,
+			Level: props.Level,
+		})
+	</div>
+}
+
+func serverSubnavClass(active bool) string {
+	base := "border-b-2 px-1 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500"
+	if active {
+		return base + " border-primary-500 text-primary-600 dark:text-primary-400"
+	}
+	return base + " border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+}
+
+func serverSubnavCurrent(active bool) string {
+	if active {
+		return "page"
+	}
+	return ""
+}

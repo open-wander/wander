@@ -40,6 +40,10 @@ func (h *ServersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.List(w, r)
 		return
 	}
+	if isServerMonitorRoute(path) {
+		h.handler.serveAgentMonitor(w, r, "/ui/servers/", "The server monitor page you requested could not be found.", h.serverMonitorPage, h.streamServerMonitor)
+		return
+	}
 
 	// Handle /ui/servers/{name} (detail page)
 	if strings.HasPrefix(path, "/ui/servers/") {

@@ -67,7 +67,7 @@ func (h *ClientsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		h.Monitor(w, r)
+		h.handler.serveAgentMonitor(w, r, "/ui/clients/", "The client monitor page you requested could not be found.", h.clientMonitorPage, h.streamClientMonitor)
 		return
 	}
 

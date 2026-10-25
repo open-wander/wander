@@ -345,7 +345,7 @@ test.describe('Wander release smoke', () => {
     await page.getByRole('link', { name: 'Monitor', exact: true }).click();
 
     await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+\/monitor/);
-    await expect(page.locator('[data-client-monitor]')).toBeVisible();
+    await expect(page.locator('[data-agent-monitor]')).toBeVisible();
     const monitorState = page.locator('[data-monitor-state]');
     await expect(monitorState).toHaveText('connected');
     await expect(page.locator('[data-monitor-level]')).toHaveValue('info');
@@ -360,6 +360,27 @@ test.describe('Wander release smoke', () => {
 
     await page.locator('[data-monitor-toggle]').click();
     await expect(monitorState).toHaveText('connected');
+    expect(browserErrors).toEqual([]);
+  });
+
+  test('streams server agent logs for the selected server and region', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await openDesktopPage(page, '/ui/servers?region=global');
+    await page.locator('a[href^="/ui/servers/"]').first().click();
+    await page.getByRole('link', { name: 'Monitor', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/ui\/servers\/[^/]+\/monitor/);
+    await expect(page.locator('[data-agent-monitor]')).toBeVisible();
+    const monitorState = page.locator('[data-monitor-state]');
+    await expect(monitorState).toHaveText('connected');
+    await expect(page.locator('[data-monitor-level]')).toHaveValue('info');
+
+    await page.locator('[data-monitor-level]').selectOption('warn');
+    await expect(page).toHaveURL(/level=warn/);
+    await expect(monitorState).toHaveText('connected');
+
+    await page.locator('[data-monitor-toggle]').click();
+    await expect(monitorState).toHaveText('paused');
     expect(browserErrors).toEqual([]);
   });
 

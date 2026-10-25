@@ -86,12 +86,12 @@ func TestClientMonitorPageAndPermissionStates(t *testing.T) {
 			request = request.WithContext(WithHTMXContext(request.Context(), true))
 		}
 		response := httptest.NewRecorder()
-		handler.Monitor(response, request)
+		handler.ServeHTTP(response, request)
 		if response.Code != http.StatusOK {
 			t.Fatalf("monitor page HTMX=%t status = %d; body: %s", htmx, response.Code, response.Body.String())
 		}
 		body := response.Body.String()
-		if !strings.Contains(body, "Agent Monitor") || !strings.Contains(body, `clientAgentMonitor(&#34;node-1&#34;, &#34;debug&#34;)`) {
+		if !strings.Contains(body, "Agent Monitor") || !strings.Contains(body, `agentMonitor(&#34;clients&#34;, &#34;node-1&#34;, &#34;debug&#34;, &#34;&#34;)`) {
 			t.Fatalf("monitor page HTMX=%t missing live monitor configuration: %s", htmx, body)
 		}
 		if strings.Contains(strings.ToLower(body), "<!doctype html") == htmx {
@@ -106,7 +106,7 @@ func TestClientMonitorPageAndPermissionStates(t *testing.T) {
 		ACLEnabled: true,
 	})))
 	response := httptest.NewRecorder()
-	handler.Monitor(response, request)
+	handler.ServeHTTP(response, request)
 	assertHTTPResponse(t, response, http.StatusForbidden, "agent:read")
 }
 
@@ -129,7 +129,7 @@ func TestClientMonitorStreamForwardsScopeAndFrames(t *testing.T) {
 	ctx = context.WithValue(ctx, wanderRegionKey, "region-a")
 	request = request.WithContext(ctx)
 	response := httptest.NewRecorder()
-	handler.Monitor(response, request)
+	handler.ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Content-Type"), "text/event-stream") {
 		t.Fatalf("monitor stream response = %d %q; body: %s", response.Code, response.Header().Get("Content-Type"), response.Body.String())

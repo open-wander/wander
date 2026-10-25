@@ -1065,14 +1065,16 @@ function logViewer(allocId, initialTask, initialLogType) {
 }
 
 /**
- * CLIENT AGENT MONITOR PATTERN
+ * AGENT MONITOR PATTERN
  *
- * Streams one client's agent logs through Wander's same-origin SSE proxy.
+ * Streams one client or server agent's logs through Wander's same-origin SSE proxy.
  * Output is text-only and bounded to the most recent 50 KB.
  */
-function clientAgentMonitor(clientId, initialLevel) {
+function agentMonitor(targetType, targetId, initialLevel, region = '') {
     return {
-        clientId,
+        targetType,
+        targetId,
+        region,
         level: initialLevel || 'info',
         output: '',
         maxOutputLength: 50000,
@@ -1082,8 +1084,10 @@ function clientAgentMonitor(clientId, initialLevel) {
         stream: null,
 
         buildUrl() {
-            const path = `/ui/clients/${encodeURIComponent(this.clientId)}/monitor/stream`;
-            return window.wanderScopeURL(`${path}?level=${encodeURIComponent(this.level)}`);
+            const path = `/ui/${this.targetType}/${encodeURIComponent(this.targetId)}/monitor/stream`;
+            const url = new URL(window.wanderScopeURL(`${path}?level=${encodeURIComponent(this.level)}`), window.location.origin);
+            if (this.region) url.searchParams.set('region', this.region);
+            return `${url.pathname}${url.search}`;
         },
 
         connect() {
@@ -2437,7 +2441,7 @@ document.addEventListener('alpine:init', () => {
         accordion,
         formValidation,
         logViewer,
-        clientAgentMonitor,
+        agentMonitor,
         execTerminal,
         evaluationsPanel,
         keyboardShortcuts,
@@ -2472,7 +2476,7 @@ if (typeof window !== 'undefined') {
         formValidation,
         validators,
         logViewer,
-        clientAgentMonitor,
+        agentMonitor,
         execTerminal,
         evaluationsPanel,
         keyboardShortcuts,

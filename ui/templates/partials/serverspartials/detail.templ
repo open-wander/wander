@@ -24,6 +24,7 @@ type ServerDetail struct {
 // DetailContent renders the server detail page content for HTMX partial updates.
 templ DetailContent(server ServerDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		@ServerSubnav(server.Name, "overview")
 		<!-- Page Header -->
 		<div class="mb-6">
 			<div class="flex items-center gap-3 mb-2">

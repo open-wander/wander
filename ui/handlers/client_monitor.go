@@ -24,12 +24,13 @@ var agentMonitorLevels = map[string]struct{}{
 	"error": {},
 }
 
-// Monitor serves the client agent-log page and its same-origin SSE stream.
-func (h *ClientsHandler) Monitor(w http.ResponseWriter, r *http.Request) {
-	clientID, stream, ok := parseClientMonitorPath(r.URL.Path)
+type agentMonitorHandler func(http.ResponseWriter, *http.Request, string, string)
+
+func (h *Handler) serveAgentMonitor(w http.ResponseWriter, r *http.Request, prefix, notFoundMessage string, page, streamHandler agentMonitorHandler) {
+	targetID, stream, ok := parseAgentMonitorPath(r.URL.Path, prefix)
 	if !ok {
-		h.handler.RenderNotFound(w, r, NotFoundError{
-			Message:     "The client monitor page you requested could not be found.",
+		h.RenderNotFound(w, r, NotFoundError{
+			Message:     notFoundMessage,
 			RequestPath: r.URL.Path,
 		})
 		return
@@ -42,34 +43,42 @@ func (h *ClientsHandler) Monitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if stream {
-		h.streamClientMonitor(w, r, clientID, level)
+		streamHandler(w, r, targetID, level)
 		return
 	}
-	h.clientMonitorPage(w, r, clientID, level)
+	page(w, r, targetID, level)
 }
 
 func parseClientMonitorPath(path string) (clientID string, stream bool, ok bool) {
-	parts := clientMonitorPathParts(path)
+	return parseAgentMonitorPath(path, "/ui/clients/")
+}
+
+func parseAgentMonitorPath(path, prefix string) (targetID string, stream bool, ok bool) {
+	parts := agentMonitorPathParts(path, prefix)
 	if len(parts) < 2 || len(parts) > 3 || parts[0] == "" || parts[1] != "monitor" {
 		return
 	}
 	if len(parts) == 3 && parts[2] != "stream" {
 		return
 	}
-	clientID, err := url.PathUnescape(parts[0])
-	if err != nil || clientID == "" || strings.Contains(clientID, "/") {
+	targetID, err := url.PathUnescape(parts[0])
+	if err != nil || targetID == "" || strings.Contains(targetID, "/") {
 		return "", false, false
 	}
-	return clientID, len(parts) == 3, true
+	return targetID, len(parts) == 3, true
 }
 
 func isClientMonitorRoute(path string) bool {
-	parts := clientMonitorPathParts(path)
-	return strings.HasPrefix(path, "/ui/clients/") && len(parts) >= 2 && parts[1] == "monitor"
+	return isAgentMonitorRoute(path, "/ui/clients/")
 }
 
-func clientMonitorPathParts(path string) []string {
-	remainder := strings.TrimPrefix(path, "/ui/clients/")
+func isAgentMonitorRoute(path, prefix string) bool {
+	parts := agentMonitorPathParts(path, prefix)
+	return strings.HasPrefix(path, prefix) && len(parts) >= 2 && parts[1] == "monitor"
+}
+
+func agentMonitorPathParts(path, prefix string) []string {
+	remainder := strings.TrimPrefix(path, prefix)
 	return strings.Split(strings.Trim(remainder, "/"), "/")
 }
 
@@ -127,7 +136,7 @@ func (h *ClientsHandler) clientMonitorPage(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ClientsHandler) authorizedMonitorClient(w http.ResponseWriter, r *http.Request) *api.Client {
-	if !h.canReadClientMonitor(w, r) {
+	if !h.handler.canReadAgentMonitor(w, r) {
 		return nil
 	}
 	client := h.handler.NomadClientForRequest(r)
@@ -142,12 +151,12 @@ func (h *ClientsHandler) renderMonitorError(w http.ResponseWriter, status int, r
 	http.Error(w, response, status)
 }
 
-func (h *ClientsHandler) canReadClientMonitor(w http.ResponseWriter, r *http.Request) bool {
+func (h *Handler) canReadAgentMonitor(w http.ResponseWriter, r *http.Request) bool {
 	perms := GetPermissionsFromRequest(r)
 	if perms == nil || perms.CanReadAgent() {
 		return true
 	}
-	h.handler.RenderForbidden(w, r, ForbiddenError{
+	h.RenderForbidden(w, r, ForbiddenError{
 		Message:    "You do not have permission to monitor agent logs",
 		Capability: "agent:read",
 	})
@@ -159,7 +168,10 @@ func (h *ClientsHandler) streamClientMonitor(w http.ResponseWriter, r *http.Requ
 	if client == nil {
 		return
 	}
+	h.handler.streamAgentMonitor(w, r, client, "node_id", clientID, level, "client")
+}
 
+func (h *Handler) streamAgentMonitor(w http.ResponseWriter, r *http.Request, client *api.Client, targetKey, targetID, level, targetType string) {
 	stop := make(chan struct{})
 	var stopOnce sync.Once
 	stopMonitor := func() { stopOnce.Do(func() { close(stop) }) }
@@ -170,7 +182,7 @@ func (h *ClientsHandler) streamClientMonitor(w http.ResponseWriter, r *http.Requ
 		Region:    GetRegionFromRequest(r),
 		AuthToken: GetTokenFromRequest(r),
 		Params: map[string]string{
-			"node_id":   clientID,
+			targetKey:   targetID,
 			"log_level": level,
 		},
 	}).WithContext(r.Context())
@@ -178,10 +190,11 @@ func (h *ClientsHandler) streamClientMonitor(w http.ResponseWriter, r *http.Requ
 	if frames == nil {
 		err := <-errs
 		if apiResponseHasStatus(err, http.StatusForbidden) {
-			h.handler.RenderForbidden(w, r, ForbiddenError{Message: "You do not have permission to monitor agent logs", Capability: "agent:read"})
+			h.RenderForbidden(w, r, ForbiddenError{Message: "You do not have permission to monitor agent logs", Capability: "agent:read"})
 			return
 		}
-		h.renderMonitorError(w, http.StatusBadGateway, "Failed to open client monitor", "failed to open client monitor", clientID, err)
+		h.logger.Error("failed to open agent monitor", "targetType", targetType, "targetID", targetID, "error", err)
+		http.Error(w, "Failed to open "+targetType+" monitor", http.StatusBadGateway)
 		return
 	}
 

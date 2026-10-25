@@ -447,6 +447,19 @@ func TestACLMutations(t *testing.T) {
 	assertRequestStatus(t, client, http.MethodGet, monitorURL+"/stream", restrictedToken.SecretID, "", "", http.StatusForbidden)
 	assertRequestStatus(t, client, http.MethodGet, monitorURL, root.SecretID, "", "", http.StatusOK)
 	assertMonitorStream(t, client, monitorURL+"/stream?level=warn", root.SecretID)
+	var members api.ServerMembers
+	getJSON(t, client, address+"/v1/agent/members", root.SecretID, &members)
+	if len(members.Members) == 0 {
+		t.Fatal("ACL test cluster did not register a server member")
+	}
+	serverMonitorBase := address + "/ui/servers/" + url.PathEscape(members.Members[0].Name) + "/monitor"
+	serverRegion := url.QueryEscape(members.Members[0].Tags["region"])
+	serverMonitorPage := serverMonitorBase + "?region=" + serverRegion
+	serverMonitorStream := serverMonitorBase + "/stream?level=warn&region=" + serverRegion
+	assertRequestStatus(t, client, http.MethodGet, serverMonitorPage, restrictedToken.SecretID, "", "", http.StatusForbidden)
+	assertRequestStatus(t, client, http.MethodGet, serverMonitorPage, root.SecretID, "", "", http.StatusOK)
+	assertRequestStatus(t, client, http.MethodGet, serverMonitorStream, restrictedToken.SecretID, "", "", http.StatusForbidden)
+	assertMonitorStream(t, client, serverMonitorStream, root.SecretID)
 
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/clients/"+nodeID+"/drain", "", "application/x-www-form-urlencoded", "deadline=5m", http.StatusForbidden)
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/allocations/"+allocationID+"/restart", "", "", "", http.StatusForbidden)
