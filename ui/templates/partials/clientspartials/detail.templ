@@ -112,6 +112,7 @@ type AllocationSummary struct {
 // DetailContent renders the client detail page content (without layout)
 templ DetailContent(client ClientDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ drainModal: false, cancelDrainModal: false }">
+		@ClientSubnav(client.ID, "overview")
 		<!-- Client Header -->
 		@components.Card(components.CardProps{
 			Shadow: true,

@@ -111,6 +111,9 @@ tools/missing/missing
 consul
 vault
 
+# Deslop analysis caches
+.deslop/
+
 # UI-HTMX generated files
 ui-htmx/templates/**/*_templ.go
 ui-htmx/static/css/output.css

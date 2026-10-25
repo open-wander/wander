@@ -99,6 +99,8 @@ func TestDynamicUIRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/ui/allocations/example/restart",
 		"/ui/allocations/example/stop",
 		"/ui/clients/example",
+		"/ui/clients/example/monitor",
+		"/ui/clients/example/monitor/stream",
 		"/ui/clients/example/drain",
 		"/ui/clients/example/drain/cancel",
 		"/ui/servers/example",
@@ -148,6 +150,7 @@ func TestUnknownRoutesReturnNotFound(t *testing.T) {
 	router := NewRouter(NewHandler(nil))
 	assertRoutesHaveStatus(t, router, http.MethodGet, http.StatusNotFound, []string{
 		"/ui/not-a-route",
+		"/ui/clients/example/monitor/not-a-route",
 		"/ui/services/name/extra",
 		"/ui/topology/extra",
 		"/ui/settings/not-a-route",

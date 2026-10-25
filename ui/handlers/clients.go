@@ -61,6 +61,16 @@ func (h *ClientsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle client agent monitor routes before the general detail route.
+	if isClientMonitorRoute(path) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.Monitor(w, r)
+		return
+	}
+
 	// Handle /ui/clients/{id} (detail page)
 	if strings.HasPrefix(path, "/ui/clients/") {
 		if r.Method != http.MethodGet {
@@ -88,7 +98,7 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Check permissions - need read-nodes capability
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.HasCapability("", "node:read") {
+	if perms != nil && !perms.CanReadNode() {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to view client nodes",
 			Capability: "node:read",
@@ -225,7 +235,7 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 	// Check permissions - need read-nodes capability
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && !perms.HasCapability("", "node:read") {
+	if perms != nil && !perms.CanReadNode() {
 		h.handler.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to view client node details",
 			Capability: "node:read",

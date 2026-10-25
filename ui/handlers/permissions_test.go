@@ -123,6 +123,39 @@ func TestNewUserPermissions_ClientToken(t *testing.T) {
 	}
 }
 
+func TestUserPermissions_GlobalReadPolicies(t *testing.T) {
+	newClientPermissions := func() *UserPermissions {
+		return NewUserPermissions(&ACLTokenInfo{
+			Token:      &api.ACLToken{Type: "client"},
+			IsValid:    true,
+			ACLEnabled: true,
+		})
+	}
+
+	perms := newClientPermissions()
+	if err := perms.parsePolicy(&api.ACLPolicy{Rules: `agent { policy = "read" } node { policy = "write" }`}); err != nil {
+		t.Fatalf("parse global read policy: %v", err)
+	}
+	if !perms.CanReadAgent() {
+		t.Fatal("agent read policy did not grant monitor access")
+	}
+	if !perms.CanReadNode() {
+		t.Fatal("node write policy did not grant node read access")
+	}
+
+	if err := perms.parsePolicy(&api.ACLPolicy{Rules: `agent { policy = "deny" } node { policy = "deny" }`}); err != nil {
+		t.Fatalf("parse global deny policy: %v", err)
+	}
+	if perms.CanReadAgent() || perms.CanReadNode() {
+		t.Fatal("deny policy must override global read access")
+	}
+
+	disabled := NewUserPermissions(&ACLTokenInfo{IsValid: true, ACLEnabled: false})
+	if !disabled.CanReadAgent() || !disabled.CanReadNode() {
+		t.Fatal("ACL-disabled clusters must allow agent and node reads")
+	}
+}
+
 func TestMatchesNamespace(t *testing.T) {
 	tests := []struct {
 		namespace string

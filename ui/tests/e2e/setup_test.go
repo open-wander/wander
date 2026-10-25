@@ -442,6 +442,11 @@ func TestACLMutations(t *testing.T) {
 	}
 	nodeID := nodes[0].ID
 	allocationID := waitForRunningAllocation(t, client, address, root.SecretID, smokeJobID)
+	monitorURL := address + "/ui/clients/" + nodeID + "/monitor"
+	assertRequestStatus(t, client, http.MethodGet, monitorURL, restrictedToken.SecretID, "", "", http.StatusForbidden)
+	assertRequestStatus(t, client, http.MethodGet, monitorURL+"/stream", restrictedToken.SecretID, "", "", http.StatusForbidden)
+	assertRequestStatus(t, client, http.MethodGet, monitorURL, root.SecretID, "", "", http.StatusOK)
+	assertMonitorStream(t, client, monitorURL+"/stream?level=warn", root.SecretID)
 
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/clients/"+nodeID+"/drain", "", "application/x-www-form-urlencoded", "deadline=5m", http.StatusForbidden)
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/allocations/"+allocationID+"/restart", "", "", "", http.StatusForbidden)
@@ -739,6 +744,29 @@ func assertRequestStatus(t *testing.T, client *http.Client, method, endpoint, to
 	if status != expected {
 		t.Fatalf("%s %s returned %d, want %d: %s", method, endpoint, status, expected, payload)
 	}
+}
+
+func assertMonitorStream(t *testing.T, client *http.Client, endpoint, token string) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		cancel()
+		t.Fatalf("create monitor stream request: %v", err)
+	}
+	req.Header.Set("X-Nomad-Token", token)
+	resp, err := client.Do(req)
+	if err != nil {
+		cancel()
+		t.Fatalf("open monitor stream: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
+		cancel()
+		_ = resp.Body.Close()
+		t.Fatalf("monitor stream returned %d with content type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	cancel()
+	_ = resp.Body.Close()
 }
 
 func assertACLMutation(t *testing.T, client *http.Client, method, endpoint, token, contentType, body string) {

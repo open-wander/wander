@@ -28,6 +28,11 @@ type UserPermissions struct {
 	// Map structure: namespace -> path -> capabilities
 	variableCapabilities map[string]map[string][]string
 
+	// Global policies are compiled by the inherited ACL engine so precedence
+	// stays identical to the server's authorization contract.
+	globalPolicies []*acl.Policy
+	globalACL      *acl.ACL
+
 	// Reference to Nomad client for fetching policies
 	client *api.Client
 }
@@ -132,6 +137,12 @@ func (p *UserPermissions) parsePolicy(policy *api.ACLPolicy) error {
 		}
 	}
 
+	p.globalPolicies = append(p.globalPolicies, parsed)
+	compiled, err := acl.NewACL(false, p.globalPolicies)
+	if err != nil {
+		return err
+	}
+	p.globalACL = compiled
 	return nil
 }
 
@@ -350,6 +361,23 @@ func (p *UserPermissions) CanWriteCSI(namespace string) bool {
 // CanListCSI returns true if the user can list CSI volumes in the namespace.
 func (p *UserPermissions) CanListCSI(namespace string) bool {
 	return p.HasCapability(namespace, acl.NamespaceCapabilityCSIListVolume)
+}
+
+// CanReadAgent returns true when the token may read agent-level data such as
+// the monitor stream.
+func (p *UserPermissions) CanReadAgent() bool {
+	if !p.ACLEnabled() || p.IsManagement() {
+		return true
+	}
+	return !p.IsAnonymous() && p.globalACL != nil && p.globalACL.AllowAgentRead()
+}
+
+// CanReadNode returns true when the token may inspect client nodes.
+func (p *UserPermissions) CanReadNode() bool {
+	if !p.ACLEnabled() || p.IsManagement() {
+		return true
+	}
+	return !p.IsAnonymous() && p.globalACL != nil && p.globalACL.AllowNodeRead()
 }
 
 // GetToken returns the underlying ACL token, if available.

@@ -338,6 +338,31 @@ test.describe('Wander release smoke', () => {
     expect(browserErrors).toEqual([]);
   });
 
+  test('streams client agent logs and persists the selected level', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await openDesktopPage(page, '/ui/clients?region=global');
+    await page.locator('[data-client-id] a[href^="/ui/clients/"]').first().click();
+    await page.getByRole('link', { name: 'Monitor', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+\/monitor/);
+    await expect(page.locator('[data-client-monitor]')).toBeVisible();
+    const monitorState = page.locator('[data-monitor-state]');
+    await expect(monitorState).toHaveText('connected');
+    await expect(page.locator('[data-monitor-level]')).toHaveValue('info');
+
+    await page.locator('[data-monitor-level]').selectOption('debug');
+    await expect(page).toHaveURL(/level=debug/);
+    await expect(monitorState).toHaveText('connected');
+
+    await page.locator('[data-monitor-toggle]').click();
+    await expect(monitorState).toHaveText('paused');
+    await expect(page.locator('[data-monitor-toggle]')).toHaveText('Resume');
+
+    await page.locator('[data-monitor-toggle]').click();
+    await expect(monitorState).toHaveText('connected');
+    expect(browserErrors).toEqual([]);
+  });
+
   test('opens live allocation logs and exec views', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/allocations');

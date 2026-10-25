@@ -1065,6 +1065,105 @@ function logViewer(allocId, initialTask, initialLogType) {
 }
 
 /**
+ * CLIENT AGENT MONITOR PATTERN
+ *
+ * Streams one client's agent logs through Wander's same-origin SSE proxy.
+ * Output is text-only and bounded to the most recent 50 KB.
+ */
+function clientAgentMonitor(clientId, initialLevel) {
+    return {
+        clientId,
+        level: initialLevel || 'info',
+        output: '',
+        maxOutputLength: 50000,
+        connectionState: 'disconnected',
+        connectionError: '',
+        isStreaming: false,
+        stream: null,
+
+        buildUrl() {
+            const path = `/ui/clients/${encodeURIComponent(this.clientId)}/monitor/stream`;
+            return window.wanderScopeURL(`${path}?level=${encodeURIComponent(this.level)}`);
+        },
+
+        connect() {
+            this.disconnect(false);
+            this.connectionState = 'connecting';
+            this.connectionError = '';
+            this.isStreaming = true;
+
+            const stream = new EventSource(this.buildUrl());
+            this.stream = stream;
+            stream.onopen = () => {
+                this.connectionState = 'connected';
+            };
+            stream.addEventListener('log', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this.append(data.message || '');
+                } catch (_) {
+                    this.append(event.data || '');
+                }
+            });
+            stream.addEventListener('error', (event) => {
+                if (event.data) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        this.connectionError = data.message || 'The monitor stream stopped unexpectedly.';
+                    } catch (_) {
+                        this.connectionError = 'The monitor stream stopped unexpectedly.';
+                    }
+                } else {
+                    this.connectionError = 'The monitor stream disconnected.';
+                }
+                this.connectionState = 'error';
+                this.disconnect(false);
+                this.connectionState = 'error';
+            });
+        },
+
+        disconnect(markPaused = true) {
+            if (this.stream) {
+                this.stream.close();
+                this.stream = null;
+            }
+            this.isStreaming = false;
+            if (markPaused) this.connectionState = 'paused';
+        },
+
+        toggle() {
+            if (this.isStreaming) {
+                this.disconnect(true);
+            } else {
+                this.connect();
+            }
+        },
+
+        changeLevel() {
+            if (this.output) {
+                this.append(`\n...changing log level to ${this.level}...\n\n`);
+            }
+            const url = new URL(window.location.href);
+            url.searchParams.set('level', this.level);
+            window.history.replaceState({}, '', url);
+            this.connect();
+        },
+
+        append(chunk) {
+            this.output += String(chunk);
+            if (this.output.length > this.maxOutputLength) {
+                this.output = this.output.slice(-this.maxOutputLength);
+            }
+            this.$nextTick(() => {
+                if (this.$refs.output) {
+                    this.$refs.output.scrollTop = this.$refs.output.scrollHeight;
+                }
+            });
+        }
+    };
+}
+
+/**
  * EXEC TERMINAL PATTERN
  *
  * Interactive terminal emulator using xterm.js for exec sessions.
@@ -2338,6 +2437,7 @@ document.addEventListener('alpine:init', () => {
         accordion,
         formValidation,
         logViewer,
+        clientAgentMonitor,
         execTerminal,
         evaluationsPanel,
         keyboardShortcuts,
@@ -2372,6 +2472,7 @@ if (typeof window !== 'undefined') {
         formValidation,
         validators,
         logViewer,
+        clientAgentMonitor,
         execTerminal,
         evaluationsPanel,
         keyboardShortcuts,
