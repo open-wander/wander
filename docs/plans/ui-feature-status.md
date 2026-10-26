@@ -123,9 +123,12 @@ be used to defer baseline behavior without explicit approval:
   detail panels.
 - Structured job-version diffs and job templates/file upload. Known baseline
   behavior is required for 0.1.0 unless an explicit deviation is approved.
-- Global keyboard shortcuts, consistent copy controls, and improved relative
-  time display.
-- Optional SSO/JWT login flows.
+- Consistent copy controls and improved relative time display. The applicable
+  Nomad 1.6.5 global keyboard shortcuts are required before 0.1.0 and are
+  tracked in the revival checklist rather than this post-release backlog.
+- Additional authentication methods beyond the Nomad 1.6.5 behavior contract.
+  Configured OIDC browser sign-in is required before 0.1.0; no separate
+  interactive JWT action was observed in the approved baseline capture.
 - Complete dark-mode coverage and add a persisted system/light/dark theme
   selector. Some components already contain dark-mode utility classes, but the
   0.1.0 shell does not currently expose or claim a complete dark theme. The
