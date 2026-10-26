@@ -440,7 +440,7 @@ func (h *AllocationLogsHandler) getAllocationDetailForLogs(r *http.Request, allo
 			State:     taskState.State,
 			Failed:    taskState.Failed,
 			StartedAt: taskState.StartedAt,
-			Restarts:  int(taskState.Restarts),
+			Restarts:  taskState.Restarts,
 		})
 	}
 	sort.Slice(tasks, func(i, j int) bool {

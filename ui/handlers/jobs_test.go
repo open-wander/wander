@@ -208,6 +208,16 @@ func assertHTTPResponse(t *testing.T, response *httptest.ResponseRecorder, wantS
 	}
 }
 
+func TestCheckedUint64ToInt(t *testing.T) {
+	if got, ok := checkedUint64ToInt(42); !ok || got != 42 {
+		t.Fatalf("checkedUint64ToInt(42) = (%d, %t)", got, ok)
+	}
+	tooLarge := uint64(^uint(0)>>1) + 1
+	if _, ok := checkedUint64ToInt(tooLarge); ok {
+		t.Fatalf("checkedUint64ToInt(%d) unexpectedly succeeded", tooLarge)
+	}
+}
+
 func newJobsTestHandler(t *testing.T, address string) *Handler {
 	t.Helper()
 	config := api.DefaultConfig()

@@ -66,5 +66,5 @@ func subtractReserved(total int64, reserved uint64) int64 {
 	if total <= 0 || reserved >= uint64(total) {
 		return 0
 	}
-	return total - int64(reserved)
+	return total - int64(reserved) // #nosec G115 -- reserved is proven smaller than the positive int64 total above.
 }

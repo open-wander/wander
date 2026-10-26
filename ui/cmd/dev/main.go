@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/open-wander/wander/ui/handlers"
@@ -36,7 +37,15 @@ func main() {
 	addr := fmt.Sprintf(":%s", *port)
 	logger.Info("Server listening", "address", addr, "url", fmt.Sprintf("http://localhost:%s/ui/", *port))
 
-	if err := http.ListenAndServe(addr, router.Handler()); err != nil {
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           router.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil {
 		logger.Error("Server failed", "error", err)
 		os.Exit(1)
 	}

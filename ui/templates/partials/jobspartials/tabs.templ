@@ -8,7 +8,7 @@ import (
 
 // JobVersion represents a version of a job
 type JobVersion struct {
-	Version    int       // Version number
+	Version    uint64    // Version number
 	Stable     bool      // Whether this version is marked as stable
 	SubmitTime time.Time // When this version was submitted
 	Active     bool      // Whether this is the currently active version
@@ -22,7 +22,7 @@ type JobDefinition struct {
 	HCLContent  string // Original submitted HCL, when available
 	JSONContent string // Live job encoded as JSON
 	Format      string // "hcl" or "json"
-	Version     int    // Current version number
+	Version     uint64 // Current version number
 	ReadOnly    bool   // Whether editing is disabled when source is unavailable
 }
 

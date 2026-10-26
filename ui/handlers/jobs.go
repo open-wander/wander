@@ -623,6 +623,13 @@ func safeInt(i *int) int {
 	return *i
 }
 
+func checkedUint64ToInt(value uint64) (int, bool) {
+	if value > uint64(^uint(0)>>1) {
+		return 0, false
+	}
+	return int(value), true // #nosec G115 -- guarded by the platform int maximum above.
+}
+
 // renderTabContent handles rendering individual tab content
 func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, jobID, tabName string) {
 	// Parse namespace from job ID if provided (format: jobID@namespace)
@@ -780,9 +787,9 @@ func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobsp
 		return jobspartials.JobDefinition{}, err
 	}
 
-	version := 0
+	version := uint64(0)
 	if job.Version != nil {
-		version = int(*job.Version)
+		version = *job.Version
 	}
 	definition := jobspartials.JobDefinition{
 		JobID:   jobID,
@@ -797,7 +804,12 @@ func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobsp
 	definition.JSONContent = string(jobJSON)
 	definition.Content = definition.JSONContent
 
-	submission, _, err := client.Jobs().Submission(jobName, version, queryOpts)
+	submissionVersion, supported := checkedUint64ToInt(version)
+	if !supported {
+		definition.ReadOnly = true
+		return definition, nil
+	}
+	submission, _, err := client.Jobs().Submission(jobName, submissionVersion, queryOpts)
 	if err == nil && submission != nil && submission.Source != "" {
 		definition.Format = submission.Format
 		if strings.HasPrefix(definition.Format, "hcl") {
@@ -923,7 +935,7 @@ func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartia
 		}
 
 		result = append(result, jobspartials.JobVersion{
-			Version:    int(version),
+			Version:    version,
 			Stable:     stable,
 			SubmitTime: submitTime,
 			Active:     active,
@@ -966,13 +978,13 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 	newVersionStr := versionParts[0]
 	oldVersionStr := strings.TrimSuffix(versionParts[1], "/")
 
-	newVersion, err := strconv.Atoi(newVersionStr)
+	newVersion, err := strconv.ParseUint(newVersionStr, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid new version number", http.StatusBadRequest)
 		return
 	}
 
-	oldVersion, err := strconv.Atoi(oldVersionStr)
+	oldVersion, err := strconv.ParseUint(oldVersionStr, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid old version number", http.StatusBadRequest)
 		return
@@ -1032,7 +1044,7 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 
 // getJobVersionDefinition fetches a specific job version from the Nomad API
 // and returns it as an HCL string for diff comparison.
-func (h *JobsHandler) getJobVersionDefinition(r *http.Request, jobName, namespace string, version int) (string, error) {
+func (h *JobsHandler) getJobVersionDefinition(r *http.Request, jobName, namespace string, version uint64) (string, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		return "", fmt.Errorf("no Wander client available")
@@ -1067,7 +1079,7 @@ func (h *JobsHandler) getJobVersionDefinition(r *http.Request, jobName, namespac
 		if v == nil || v.Version == nil {
 			continue
 		}
-		if int(*v.Version) == version {
+		if *v.Version == version {
 			targetJob = v
 			break
 		}
@@ -1159,7 +1171,7 @@ func (h *JobsHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(renderScaleSuccess(tgName, count)))
+	_, _ = w.Write([]byte(renderScaleSuccess(tgName, count))) // #nosec G705 -- renderScaleSuccess HTML-escapes its only string input.
 }
 
 // renderScaleSuccess returns the HTML for a successful scale operation
@@ -1504,9 +1516,9 @@ type PlanJobRequest struct {
 
 // PlanJobResponse represents the response from plan endpoint
 type PlanJobResponse struct {
-	Created   int      `json:"created"`
-	Updated   int      `json:"updated"`
-	Destroyed int      `json:"destroyed"`
+	Created   uint64   `json:"created"`
+	Updated   uint64   `json:"updated"`
+	Destroyed uint64   `json:"destroyed"`
 	Diff      string   `json:"diff"`
 	Warnings  []string `json:"warnings,omitempty"`
 	Error     string   `json:"error,omitempty"`
@@ -1802,7 +1814,7 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 type RevertToVersionResponse struct {
 	EvalID  string `json:"evalId"`
 	JobID   string `json:"jobId"`
-	Version int    `json:"version"`
+	Version uint64 `json:"version"`
 	Error   string `json:"error,omitempty"`
 }
 
@@ -1844,7 +1856,7 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	version, err := strconv.Atoi(versionStr)
+	version, err := strconv.ParseUint(versionStr, 10, 64)
 	if err != nil {
 		h.handler.logger.Error("invalid version number", "version", versionStr, "error", err)
 		w.Header().Set("Content-Type", "application/json")
@@ -1894,7 +1906,7 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 		"version", version,
 	)
 
-	registerResp, _, err := client.Jobs().Revert(jobName, uint64(version), nil, writeOpts, "", "")
+	registerResp, _, err := client.Jobs().Revert(jobName, version, nil, writeOpts, "", "")
 	if err != nil {
 		h.handler.logger.Error("failed to revert job", "error", err, "jobID", jobName, "version", version)
 		w.Header().Set("Content-Type", "application/json")
@@ -2155,9 +2167,9 @@ func (h *JobsHandler) buildPlanResponse(planResp *api.JobPlanResponse) PlanJobRe
 	if planResp.Annotations != nil && planResp.Annotations.DesiredTGUpdates != nil {
 		for _, update := range planResp.Annotations.DesiredTGUpdates {
 			if update != nil {
-				response.Created += int(update.Place)
-				response.Updated += int(update.InPlaceUpdate)
-				response.Destroyed += int(update.Stop + update.DestructiveUpdate)
+				response.Created += update.Place
+				response.Updated += update.InPlaceUpdate
+				response.Destroyed += update.Stop + update.DestructiveUpdate
 			}
 		}
 	}

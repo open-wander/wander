@@ -43,57 +43,6 @@ func TestHandlerCreation(t *testing.T) {
 	}
 }
 
-// TestPlaceholderHandler tests the placeholder handler functionality
-func TestPlaceholderHandler(t *testing.T) {
-	handler := placeholderHandler("Test Page")
-
-	// Test non-HTMX request (should return full page)
-	req := httptest.NewRequest(http.MethodGet, "/ui/test", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status OK, got %d", w.Code)
-	}
-
-	body := w.Body.String()
-	if body == "" {
-		t.Error("Response body is empty")
-	}
-
-	// Should contain the page name
-	if len(body) > 0 && body[:15] != "<!DOCTYPE html>" {
-		t.Error("Full page response should start with DOCTYPE")
-	}
-}
-
-// TestPlaceholderHandlerHTMX tests the placeholder with HTMX request
-func TestPlaceholderHandlerHTMX(t *testing.T) {
-	handler := placeholderHandler("Test Page")
-
-	// Test HTMX request (should return partial)
-	req := httptest.NewRequest(http.MethodGet, "/ui/test", nil)
-	req.Header.Set("HX-Request", "true")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status OK, got %d", w.Code)
-	}
-
-	body := w.Body.String()
-	if body == "" {
-		t.Error("Response body is empty")
-	}
-
-	// Partial response should not have DOCTYPE
-	if len(body) > 15 && body[:15] == "<!DOCTYPE html>" {
-		t.Error("Partial response should not start with DOCTYPE")
-	}
-}
-
 // TestStaticHandler404 tests static handler returns 404 for missing files
 func TestStaticHandler404(t *testing.T) {
 	logger := hclog.NewNullLogger()

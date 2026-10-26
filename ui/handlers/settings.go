@@ -108,15 +108,7 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 
 	if action == "signout" {
 		// Clear the token cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:     WanderTokenCookie,
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   requestUsesTLS(r),
-			SameSite: http.SameSiteStrictMode,
-		})
+		http.SetCookie(w, browserCookie(r, WanderTokenCookie, "", -1, http.SameSiteStrictMode))
 
 		// Clear the token from cache if present
 		cache := getTokenCache()
@@ -165,15 +157,7 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set the token cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     WanderTokenCookie,
-		Value:    secretID,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   requestUsesTLS(r),
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   86400 * 7, // 7 days
-	})
+	http.SetCookie(w, browserCookie(r, WanderTokenCookie, secretID, 86400*7, http.SameSiteStrictMode))
 
 	h.handler.logger.Info("token authenticated successfully",
 		"name", tokenInfo.Name,
@@ -189,6 +173,20 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 
 func requestUsesTLS(r *http.Request) bool {
 	return r.TLS != nil
+}
+
+func browserCookie(r *http.Request, name, value string, maxAge int, sameSite http.SameSite) *http.Cookie {
+	// #nosec G124 -- Secure is enabled for HTTPS requests and intentionally
+	// disabled for the supported localhost HTTP development flow.
+	return &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   requestUsesTLS(r),
+		SameSite: sameSite,
+	}
 }
 
 // getTokenInfo retrieves token information from the request.

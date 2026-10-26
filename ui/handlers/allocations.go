@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"mime"
 	"net/http"
+	pathpkg "path"
 	"sort"
 	"strconv"
 	"strings"
@@ -734,7 +736,7 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 			Failed:     taskState.Failed,
 			StartedAt:  taskState.StartedAt,
 			FinishedAt: taskState.FinishedAt,
-			Restarts:   int(taskState.Restarts),
+			Restarts:   taskState.Restarts,
 			Resources:  taskResources,
 			Events:     events,
 		})
@@ -1003,13 +1005,7 @@ func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.
 	content, size, isText := h.getFileContent(r, allocID, path, token)
 
 	// Get file name from path
-	fileName := path
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			fileName = path[i+1:]
-			break
-		}
-	}
+	fileName := pathpkg.Base(path)
 
 	// Check for binary files
 	if !isText {
@@ -1103,11 +1099,19 @@ func (h *AllocationsHandler) FilesDownloadHandler(w http.ResponseWriter, r *http
 	contentType := getContentTypeForFile(fileName, isText)
 
 	// Set headers for download
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
+	w.Header().Set("Content-Disposition", downloadContentDisposition(fileName))
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 
-	w.Write([]byte(content))
+	_, _ = w.Write([]byte(content)) // #nosec G705 -- forced attachment with nosniff; content is never inserted into HTML.
+}
+
+func downloadContentDisposition(fileName string) string {
+	if fileName == "." || fileName == "/" || fileName == "" {
+		fileName = "download"
+	}
+	return mime.FormatMediaType("attachment", map[string]string{"filename": fileName})
 }
 
 // getContentTypeForFile determines the appropriate MIME type based on file extension

@@ -14,7 +14,7 @@ import (
 
 // Context key for ACL token information
 const (
-	aclTokenInfoKey contextKey = "acl_token_info"
+	aclTokenInfoKey contextKey = "acl_token_info" // #nosec G101 -- request-context key name, not a credential.
 )
 
 // ACLTokenInfo contains validated ACL token information

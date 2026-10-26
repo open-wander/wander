@@ -363,7 +363,7 @@ func (lc *LinkChecker) addMissingAssetLocked(url, sourcePage string, statusCode 
 
 // writeResults writes the results to a markdown file
 func writeResults(results CheckResults, outputFile string) error {
-	f, err := os.Create(outputFile)
+	f, err := os.Create(outputFile) // #nosec G304 -- outputFile is an explicit trusted CLI destination, not remote input.
 	if err != nil {
 		return err
 	}

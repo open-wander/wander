@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/open-wander/wander/ui/templates/components"
+	"math/bits"
 	"sort"
 	"time"
 )
@@ -713,7 +714,7 @@ func bytesBarColor(used uint64, total uint64) string {
 		return "bg-neutral-400 dark:bg-neutral-500"
 	}
 
-	percentage := (used * 100) / total
+	percentage := bytesPercentage(used, total)
 
 	if percentage >= 90 {
 		return "bg-red-500 dark:bg-red-600"
@@ -726,11 +727,20 @@ func bytesBarColor(used uint64, total uint64) string {
 }
 
 // calculateBytesPercentage calculates percentage of bytes used
-func calculateBytesPercentage(used uint64, total uint64) int {
+func calculateBytesPercentage(used uint64, total uint64) uint64 {
+	return bytesPercentage(used, total)
+}
+
+func bytesPercentage(used uint64, total uint64) uint64 {
 	if total == 0 {
 		return 0
 	}
-	return int((used * 100) / total)
+	if used >= total {
+		return 100
+	}
+	high, low := bits.Mul64(used, 100)
+	percentage, _ := bits.Div64(high, low, total)
+	return percentage
 }
 
 // formatBytes formats a byte count into a human-readable string

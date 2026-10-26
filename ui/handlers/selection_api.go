@@ -116,15 +116,7 @@ func containsSelection(values []string, selected string) bool {
 }
 
 func selectionCookie(r *http.Request, name, value string) *http.Cookie {
-	return &http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     "/",
-		MaxAge:   int((365 * 24 * time.Hour) / time.Second),
-		HttpOnly: true,
-		Secure:   r.TLS != nil,
-		SameSite: http.SameSiteLaxMode,
-	}
+	return browserCookie(r, name, value, int((365*24*time.Hour)/time.Second), http.SameSiteLaxMode)
 }
 
 func setSelectionNavigation(w http.ResponseWriter, r *http.Request, key, value string) {

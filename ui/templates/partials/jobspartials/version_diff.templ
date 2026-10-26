@@ -16,8 +16,8 @@ type DiffLine struct {
 // VersionDiff represents the diff between two versions
 type VersionDiff struct {
 	JobID       string     // Job ID
-	OldVersion  int        // Previous version number
-	NewVersion  int        // New version number
+	OldVersion  uint64     // Previous version number
+	NewVersion  uint64     // New version number
 	Lines       []DiffLine // Diff lines
 	TotalAdded  int        // Total lines added
 	TotalRemoved int       // Total lines removed

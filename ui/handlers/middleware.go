@@ -34,7 +34,7 @@ const (
 // ACL transport names
 const (
 	// XNomadToken is retained because it is part of the inherited HTTP API.
-	XNomadToken = "X-Nomad-Token"
+	XNomadToken = "X-Nomad-Token" // #nosec G101 -- inherited public HTTP header name, not a credential.
 
 	// WanderTokenCookie is Wander UI state and is not part of the inherited API.
 	WanderTokenCookie = "wander_token"

@@ -29,7 +29,7 @@ type TaskStatus struct {
 	Failed     bool
 	StartedAt  time.Time
 	FinishedAt time.Time
-	Restarts   int
+	Restarts   uint64
 	Resources  TaskResources
 	Events     []TaskEvent
 }
