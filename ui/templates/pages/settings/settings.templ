@@ -6,6 +6,6 @@ import (
 )
 
 // Settings renders the full settings page with layout.
-templ Settings(layoutProps layouts.PageLayoutProps, tokenInfo settingspartials.TokenInfo) {
-	@layouts.PageLayout(layoutProps, settingspartials.SettingsContent(tokenInfo))
+templ Settings(layoutProps layouts.PageLayoutProps, tokenInfo settingspartials.TokenInfo, oidcMethods []settingspartials.OIDCAuthMethod, authError string) {
+	@layouts.PageLayout(layoutProps, settingspartials.SettingsContent(tokenInfo, oidcMethods, authError))
 }

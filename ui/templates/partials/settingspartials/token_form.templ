@@ -21,10 +21,21 @@ type TokenPolicy struct {
 	Description string
 }
 
+// OIDCAuthMethod is a configured browser-capable SSO method.
+type OIDCAuthMethod struct {
+	Name    string
+	Default bool
+}
+
 // TokenFormContent renders the token authentication form and current token info.
 // This component handles three states: ACL disabled, signed-in, and signed-out.
-templ TokenFormContent(tokenInfo TokenInfo) {
+templ TokenFormContent(tokenInfo TokenInfo, oidcMethods []OIDCAuthMethod, authError string) {
 	<div id="token-form-container">
+		if authError != "" {
+			<div class="rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 p-4 mb-6" role="alert">
+				<p class="text-sm font-medium text-error-800 dark:text-error-200">{ authError }</p>
+			</div>
+		}
 		if tokenInfo.ACLDisabled {
 			<!-- ACL Disabled Message -->
 			<div class="max-w-xl">
@@ -49,6 +60,21 @@ templ TokenFormContent(tokenInfo TokenInfo) {
 		} else if !tokenInfo.IsAuthenticated {
 			<!-- Sign In Form -->
 			<div class="max-w-xl">
+				if len(oidcMethods) > 0 {
+					<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-4">
+						Sign in with SSO
+					</h3>
+					<div class="space-y-3 mb-8">
+						for _, method := range oidcMethods {
+							<form method="post" action="/ui/settings/oidc">
+								<input type="hidden" name="auth_method" value={ method.Name }/>
+								<button type="submit" class="btn btn-primary w-full sm:w-auto">
+									Sign in with { method.Name }
+								</button>
+							</form>
+						}
+					</div>
+				}
 				<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-4">
 					Sign in with token
 				</h3>
@@ -244,7 +270,7 @@ templ TokenSuccess(tokenInfo TokenInfo) {
 		</div>
 
 		<!-- Show the authenticated token info -->
-		@TokenFormContent(tokenInfo)
+		@TokenFormContent(tokenInfo, nil, "")
 	</div>
 }
 

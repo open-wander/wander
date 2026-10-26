@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"net/http"
 
 	"github.com/hashicorp/go-hclog"
@@ -19,6 +20,9 @@ type Handler struct {
 	appContext *AppContext
 	// nomadClient is an immutable template. Request handlers use a scoped copy.
 	nomadClient *api.Client
+	// oidcCookieKey signs short-lived browser login transactions. It is created
+	// once per process and intentionally never persisted.
+	oidcCookieKey []byte
 }
 
 // AppContext holds shared presentation state that is not request-specific.
@@ -62,9 +66,16 @@ func NewHandlerWithAPIConfig(logger hclog.Logger, wanderConfig *api.Config) *Han
 		logger.Info("Wander API client initialized", "address", wanderConfig.Address)
 	}
 
+	oidcCookieKey := make([]byte, 32)
+	if _, err := rand.Read(oidcCookieKey); err != nil {
+		logger.Error("failed to initialize OIDC transaction signing key", "error", err)
+		oidcCookieKey = nil
+	}
+
 	h := &Handler{
-		logger:      logger,
-		nomadClient: nomadClient,
+		logger:        logger,
+		nomadClient:   nomadClient,
+		oidcCookieKey: oidcCookieKey,
 		appContext: &AppContext{
 			User: &components.UserInfo{
 				Name:  "Anonymous",

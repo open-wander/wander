@@ -33,6 +33,7 @@ var topLevelPageContracts = []string{
 	"/ui/csi/plugins",
 	"/ui/csi/volumes",
 	"/ui/settings",
+	"/ui/settings/tokens",
 	"/ui/evaluations",
 	"/ui/deployments",
 }
@@ -84,6 +85,7 @@ func TestActionRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/api/clients/example/eligibility",
 		"/api/deployments/example/fail",
 		"/api/v1/auth/clear-cache",
+		"/ui/settings/oidc",
 	})
 
 	response := httptest.NewRecorder()

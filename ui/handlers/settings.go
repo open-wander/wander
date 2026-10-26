@@ -28,10 +28,14 @@ func NewSettingsHandler(h *Handler) *SettingsHandler {
 func (h *SettingsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	// Handle /ui/settings exactly (main settings page)
-	if path == "/ui/settings" {
+	// The Nomad 1.6.5-compatible token page is also the OIDC callback URI.
+	if path == "/ui/settings" || path == oidcCallbackPath {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if path == oidcCallbackPath && hasOIDCCallbackParameters(r) {
+			h.CompleteOIDC(w, r)
 			return
 		}
 		h.Show(w, r)
@@ -48,22 +52,37 @@ func (h *SettingsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if path == "/ui/settings/oidc" {
+		if r.Method == http.MethodPost {
+			h.StartOIDC(w, r)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	http.NotFound(w, r)
 }
 
 // Show handles the settings page
 func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
+	h.ShowWithError(w, r, "")
+}
+
+// ShowWithError renders settings with a generic authentication error.
+func (h *SettingsHandler) ShowWithError(w http.ResponseWriter, r *http.Request, authError string) {
 	// Log the request
 	h.handler.logger.Debug("settings page request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
 	// Get current token info from actual validation
 	tokenInfo := h.getTokenInfo(r)
+	oidcMethods := h.oidcMethods(r)
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(r,
 		"Settings - Wander",
 		"Configure Wander settings",
-		"/ui/settings",
+		oidcCallbackPath,
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
 			{Label: "Settings", URL: ""},
@@ -72,8 +91,8 @@ func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
 
 	// Render the settings page
 	err := Render(w, r,
-		settings.Settings(layoutProps, tokenInfo),   // Full page with layout
-		settingspartials.SettingsContent(tokenInfo), // Partial content for HTMX requests
+		settings.Settings(layoutProps, tokenInfo, oidcMethods, authError),
+		settingspartials.SettingsContent(tokenInfo, oidcMethods, authError),
 	)
 
 	if err != nil {
@@ -81,6 +100,11 @@ func (h *SettingsHandler) Show(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+func hasOIDCCallbackParameters(r *http.Request) bool {
+	query := r.URL.Query()
+	return query.Has("code") || query.Has("state") || query.Has("error")
 }
 
 // UpdateToken handles POST requests to update the ACL token
@@ -118,7 +142,7 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 
 		// Return updated token form (signed out state)
 		tokenInfo := h.getTokenInfo(r) // This will detect ACL disabled if needed
-		err := RenderPartial(w, r, settingspartials.TokenFormContent(tokenInfo))
+		err := RenderPartial(w, r, settingspartials.TokenFormContent(tokenInfo, nil, ""))
 		if err != nil {
 			h.handler.logger.Error("failed to render token form", "error", err)
 		}
@@ -178,13 +202,17 @@ func requestUsesTLS(r *http.Request) bool {
 func browserCookie(r *http.Request, name, value string, maxAge int, sameSite http.SameSite) *http.Cookie {
 	// #nosec G124 -- Secure is enabled for HTTPS requests and intentionally
 	// disabled for the supported localhost HTTP development flow.
+	return browserCookieWithSecure(name, value, maxAge, sameSite, requestUsesTLS(r))
+}
+
+func browserCookieWithSecure(name, value string, maxAge int, sameSite http.SameSite, secure bool) *http.Cookie {
 	return &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   requestUsesTLS(r),
+		Secure:   secure,
 		SameSite: sameSite,
 	}
 }
