@@ -18,8 +18,11 @@ type ServerDetail struct {
 	BuildDate       string
 	Revision        string
 	Tags            map[string]string
+	SortedTags      []ServerTag
 	Stats           map[string]map[string]string
 }
+
+type ServerTag struct { Name, Value string }
 
 // DetailContent renders the server detail page content for HTMX partial updates.
 templ DetailContent(server ServerDetail) {
@@ -86,12 +89,18 @@ templ DetailContent(server ServerDetail) {
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
 					Server Tags
 				</h2>
-				if len(server.Tags) == 0 {
+				if len(server.SortedTags) == 0 {
 					<p class="text-sm text-neutral-500 dark:text-neutral-400">No tags available</p>
 				} else {
 					<dl class="space-y-3">
-						for key, value := range server.Tags {
-							@detailRow(key, value)
+						for _, tag := range server.SortedTags {
+							<div class="flex items-center gap-2 border-b border-neutral-100 py-2 dark:border-neutral-800" data-server-tag>
+								<dt class="w-1/3 text-sm font-medium text-neutral-500 dark:text-neutral-400">{ tag.Name }</dt>
+								<dd class="flex min-w-0 flex-1 items-center justify-between gap-2 text-sm text-neutral-900 dark:text-neutral-100">
+									<span class="truncate font-mono">{ tag.Value }</span>
+									@components.CopyButton(tag.Value, "Copy "+tag.Name+" tag")
+								</dd>
+							</div>
 						}
 					</dl>
 				}

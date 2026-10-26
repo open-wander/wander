@@ -1,6 +1,9 @@
 package components
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Column represents a table column configuration
 type Column struct {
@@ -20,6 +23,7 @@ type TableProps struct {
 	Compact    bool     // Enable compact spacing
 	Hover      bool     // Enable row hover effect
 	SortURL    string   // Base URL for sort links (e.g., "/jobs")
+	HxTarget   string   // HTMX target selector (optional, defaults to closest table)
 	Class      string   // Additional CSS classes
 }
 
@@ -90,7 +94,7 @@ templ sortableHeaderCell(col Column, props TableProps) {
 			type="button"
 			class="group inline-flex items-center gap-2 w-full text-left font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800 rounded-sm"
 			hx-get={ buildSortURL(props.SortURL, col.Key, props.SortColumn, props.SortDir) }
-			hx-target="closest table"
+			hx-target={ tableHxTarget(props.HxTarget) }
 			hx-swap="outerHTML"
 			hx-indicator="#table-loading"
 			hx-push-url="true"
@@ -99,6 +103,11 @@ templ sortableHeaderCell(col Column, props TableProps) {
 			@sortIndicator(col.Key, props.SortColumn, props.SortDir)
 		</button>
 	</th>
+}
+
+func tableHxTarget(target string) string {
+	if target == "" { return "closest table" }
+	return target
 }
 
 // staticHeaderCell renders a non-sortable column header
@@ -314,5 +323,9 @@ func buildSortURL(baseURL string, colKey string, currentSortCol string, currentS
 	}
 
 	// Build URL with query parameters
-	return fmt.Sprintf("%s?sort=%s&dir=%s", baseURL, colKey, newDir)
+	separator := "?"
+	if strings.Contains(baseURL, "?") {
+		separator = "&"
+	}
+	return fmt.Sprintf("%s%ssort=%s&dir=%s", baseURL, separator, colKey, newDir)
 }

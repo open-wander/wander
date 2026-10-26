@@ -30,23 +30,7 @@ func TestParseServerMonitorPath(t *testing.T) {
 }
 
 func TestServerMonitorPageAndPermissionStates(t *testing.T) {
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/v1/agent/members":
-			_, _ = w.Write([]byte(`{"ServerRegion":"region-a","ServerDC":"dc1","Members":[{"Name":"server-1","Addr":"127.0.0.1","Port":4648,"Status":"alive","Tags":{"region":"region-a","dc":"dc1"}}]}`))
-		case "/v1/status/leader":
-			_, _ = w.Write([]byte(`"127.0.0.1:4647"`))
-		case "/v1/agent/self":
-			_, _ = w.Write([]byte(`{"member":{"Name":"different-server"}}`))
-		case "/v1/namespaces", "/v1/regions":
-			_, _ = w.Write([]byte(`[]`))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer backend.Close()
-	handler := NewServersHandler(newJobsTestHandler(t, backend.URL))
+	handler := newServersTestHandler(t, `{"ServerRegion":"region-a","ServerDC":"dc1","Members":[{"Name":"server-1","Addr":"127.0.0.1","Port":4648,"Status":"alive","Tags":{"region":"region-a","dc":"dc1"}}]}`)
 
 	for _, htmx := range []bool{false, true} {
 		request := httptest.NewRequest(http.MethodGet, "/ui/servers/server-1/monitor?level=warn", nil)

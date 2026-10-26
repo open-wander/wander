@@ -6,6 +6,6 @@ import (
 )
 
 // List renders the full servers list page with layout.
-templ List(layoutProps layouts.PageLayoutProps, serversList []serverspartials.ServerSummary, sortColumn string, sortDir string) {
-	@layouts.PageLayout(layoutProps, serverspartials.ListContent(serversList, sortColumn, sortDir))
+templ List(layoutProps layouts.PageLayoutProps, serversList []serverspartials.ServerSummary, sortColumn string, sortDir string, pagination serverspartials.PaginationMeta, listURL string) {
+	@layouts.PageLayout(layoutProps, serverspartials.ListContent(serversList, sortColumn, sortDir, pagination, listURL))
 }

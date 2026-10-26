@@ -2,7 +2,11 @@ package handlers
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/open-wander/wander/api"
@@ -62,15 +66,17 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Get live server data.
 	serversList := h.getServersList(r)
 
-	// Parse sort parameters from query string
-	sortColumn := r.URL.Query().Get("sort")
-	sortDir := r.URL.Query().Get("dir")
-
-	// Default sort if not specified
-	if sortColumn == "" {
-		sortColumn = "name"
-		sortDir = "asc"
+	sortColumn, sortDir := serverSortOptions(r.URL.Query())
+	sortServers(serversList, sortColumn, sortDir)
+	page := parsePage(r.URL.Query().Get("page"))
+	perPage := 8
+	if r.URL.Query().Has("per_page") {
+		perPage = parsePerPage(r.URL.Query().Get("per_page"))
 	}
+	page = boundedServerPage(page, len(serversList), perPage)
+	pagination := serverspartials.PaginationMeta{Page: page, PerPage: perPage, Total: len(serversList)}
+	serversList = paginateServers(serversList, page, perPage)
+	listURL := serverListURL(GetRegionFromRequest(r))
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(r,
@@ -85,8 +91,8 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render the servers list page
 	err := Render(w, r,
-		servers.List(layoutProps, serversList, sortColumn, sortDir),   // Full page with layout
-		serverspartials.ListContent(serversList, sortColumn, sortDir), // Partial content for HTMX requests
+		servers.List(layoutProps, serversList, sortColumn, sortDir, pagination, listURL),
+		serverspartials.ListContent(serversList, sortColumn, sortDir, pagination, listURL),
 	)
 
 	if err != nil {
@@ -125,14 +131,7 @@ func (h *ServersHandler) getServersList(r *http.Request) []serverspartials.Serve
 
 	result := make([]serverspartials.ServerSummary, 0, len(serverMembers.Members))
 	for _, member := range serverMembers.Members {
-		// Build the full address
-		addr := fmt.Sprintf("%s:%d", member.Addr, member.Port)
-
 		// Get values from tags with defaults
-		region := member.Tags["region"]
-		if region == "" {
-			region = serverMembers.ServerRegion
-		}
 		dc := member.Tags["dc"]
 		if dc == "" {
 			dc = serverMembers.ServerDC
@@ -142,21 +141,16 @@ func (h *ServersHandler) getServersList(r *http.Request) []serverspartials.Serve
 		// Check if this member is the leader
 		isLeader := false
 		if leaderAddr != "" {
-			// Leader addr format is typically "ip:port"
-			isLeader = addr == leaderAddr || member.Addr+":4647" == leaderAddr
+			isLeader = serverRPCAddress(member) == leaderAddr
 		}
-
-		// Check if this is a raft voter (non-voting servers have "nonvoter" in tags)
-		isRaftVoter := member.Tags["raft_vsn"] != "" // Presence of raft_vsn indicates server participation
 
 		result = append(result, serverspartials.ServerSummary{
 			Name:       member.Name,
-			Address:    addr,
+			Address:    member.Addr,
+			Port:       strconv.Itoa(int(member.Port)),
 			Status:     member.Status,
 			Leader:     isLeader,
-			Region:     region,
 			Datacenter: dc,
-			RaftVoter:  isRaftVoter,
 			Version:    version,
 		})
 	}
@@ -243,7 +237,7 @@ func (h *ServersHandler) getServerDetail(r *http.Request, serverName string) (se
 	}
 
 	// Build the full address
-	addr := fmt.Sprintf("%s:%d", targetMember.Addr, targetMember.Port)
+	addr := serverRPCAddress(targetMember)
 
 	// Check if this member is the leader
 	isLeader := false
@@ -287,6 +281,115 @@ func (h *ServersHandler) getServerDetail(r *http.Request, serverName string) (se
 		BuildDate:       targetMember.Tags["build_date"],
 		Revision:        targetMember.Tags["revision"],
 		Tags:            targetMember.Tags,
+		SortedTags:      sortedServerTags(targetMember.Tags),
 		Stats:           stats,
 	}, true
+}
+
+func serverSortOptions(query url.Values) (string, string) {
+	column := query.Get("sort")
+	if column == "isLeader" {
+		column = "leader"
+	}
+	validColumns := map[string]bool{"name": true, "status": true, "leader": true, "address": true, "port": true, "datacenter": true, "version": true}
+	if !validColumns[column] {
+		return "leader", "desc"
+	}
+	direction := strings.ToLower(query.Get("dir"))
+	if direction == "" && query.Has("desc") {
+		if legacyDesc, err := strconv.ParseBool(query.Get("desc")); err == nil && legacyDesc {
+			direction = "desc"
+		} else {
+			direction = "asc"
+		}
+	}
+	if direction != "desc" {
+		direction = "asc"
+	}
+	return column, direction
+}
+
+func sortServers(servers []serverspartials.ServerSummary, column, direction string) {
+	sort.SliceStable(servers, func(i, j int) bool {
+		left, right := servers[i], servers[j]
+		var less bool
+		switch column {
+		case "status":
+			less = left.Status < right.Status
+		case "leader":
+			less = !left.Leader && right.Leader
+		case "address":
+			less = left.Address < right.Address
+		case "port":
+			leftPort, _ := strconv.Atoi(left.Port)
+			rightPort, _ := strconv.Atoi(right.Port)
+			less = leftPort < rightPort
+		case "datacenter":
+			less = left.Datacenter < right.Datacenter
+		case "version":
+			less = left.Version < right.Version
+		default:
+			less = left.Name < right.Name
+		}
+		if direction == "desc" {
+			return !less && !serverSortEqual(left, right, column)
+		}
+		return less
+	})
+}
+
+func serverSortEqual(left, right serverspartials.ServerSummary, column string) bool {
+	switch column {
+	case "status":
+		return left.Status == right.Status
+	case "leader":
+		return left.Leader == right.Leader
+	case "address":
+		return left.Address == right.Address
+	case "port":
+		return left.Port == right.Port
+	case "datacenter":
+		return left.Datacenter == right.Datacenter
+	case "version":
+		return left.Version == right.Version
+	default:
+		return left.Name == right.Name
+	}
+}
+
+func paginateServers(servers []serverspartials.ServerSummary, page, perPage int) []serverspartials.ServerSummary {
+	start := (page - 1) * perPage
+	if start >= len(servers) {
+		return []serverspartials.ServerSummary{}
+	}
+	end := min(start+perPage, len(servers))
+	return servers[start:end]
+}
+
+func boundedServerPage(page, total, perPage int) int {
+	totalPages := max(1, (total+perPage-1)/perPage)
+	return min(page, totalPages)
+}
+
+func serverRPCAddress(member *api.AgentMember) string {
+	port := member.Tags["port"]
+	if port == "" {
+		port = strconv.Itoa(int(member.Port))
+	}
+	return net.JoinHostPort(member.Addr, port)
+}
+
+func sortedServerTags(tags map[string]string) []serverspartials.ServerTag {
+	result := make([]serverspartials.ServerTag, 0, len(tags))
+	for name, value := range tags {
+		result = append(result, serverspartials.ServerTag{Name: name, Value: value})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+
+func serverListURL(region string) string {
+	query := url.Values{}
+	query.Set("region", region)
+	return "/ui/servers?" + query.Encode()
 }

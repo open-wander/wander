@@ -1167,6 +1167,55 @@ function agentMonitor(targetType, targetId, initialLevel, region = '') {
     };
 }
 
+function copyText(value) {
+    return {
+        copied: false,
+        async copy() {
+            let succeeded = false;
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(value);
+                    succeeded = true;
+                }
+            } catch (_) {
+                // Browser clipboard permissions vary; use the selection-based
+                // fallback below before reporting a failure.
+            }
+
+            if (!succeeded) {
+                succeeded = copyTextFallback(value);
+            }
+
+            if (succeeded) {
+                this.copied = true;
+                window.setTimeout(() => { this.copied = false; }, 1500);
+                return;
+            }
+
+            this.copied = false;
+            window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Failed to copy to clipboard' } }));
+        }
+    };
+}
+
+function copyTextFallback(value) {
+    const textArea = document.createElement('textarea');
+    textArea.value = value;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.select();
+
+    try {
+        return document.execCommand('copy');
+    } catch (_) {
+        return false;
+    } finally {
+        textArea.remove();
+    }
+}
+
 /**
  * EXEC TERMINAL PATTERN
  *
@@ -2442,6 +2491,7 @@ document.addEventListener('alpine:init', () => {
         formValidation,
         logViewer,
         agentMonitor,
+        copyText,
         execTerminal,
         evaluationsPanel,
         keyboardShortcuts,
@@ -2477,6 +2527,7 @@ if (typeof window !== 'undefined') {
         validators,
         logViewer,
         agentMonitor,
+        copyText,
         execTerminal,
         evaluationsPanel,
         keyboardShortcuts,

@@ -366,7 +366,21 @@ test.describe('Wander release smoke', () => {
   test('streams server agent logs for the selected server and region', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/servers?region=global');
+
+    for (const column of ['Name', 'Status', 'Leader', 'Address', 'Port', 'Datacenter', 'Version']) {
+      await expect(page.getByRole('columnheader', { name: column })).toBeVisible();
+    }
+    await expect(page.locator('[data-server-port]').first()).not.toBeEmpty();
+    await expect(page.locator('[data-server-version]').first()).not.toBeEmpty();
+
     await page.locator('a[href^="/ui/servers/"]').first().click();
+    const tagNames = await page.locator('[data-server-tag] dt').allTextContents();
+    expect(tagNames.length).toBeGreaterThan(0);
+    expect(tagNames).toEqual([...tagNames].sort());
+    const copyButton = page.locator('[data-copy-button]').first();
+    await copyButton.click();
+    await expect(copyButton).toContainText('Copied');
+
     await page.getByRole('link', { name: 'Monitor', exact: true }).click();
 
     await expect(page).toHaveURL(/\/ui\/servers\/[^/]+\/monitor/);

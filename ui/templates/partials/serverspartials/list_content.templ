@@ -8,16 +8,21 @@ import (
 type ServerSummary struct {
 	Name       string
 	Address    string
+	Port       string
 	Status     string
 	Leader     bool
-	Region     string
 	Datacenter string
-	RaftVoter  bool
 	Version    string
 }
 
+type PaginationMeta struct {
+	Page    int
+	PerPage int
+	Total   int
+}
+
 // ListContent renders the servers table content for HTMX partial updates.
-templ ListContent(serversList []ServerSummary, sortColumn string, sortDir string) {
+templ ListContent(serversList []ServerSummary, sortColumn string, sortDir string, pagination PaginationMeta, listURL string) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="sm:flex sm:items-center sm:justify-between mb-6">
 			<div>
@@ -31,17 +36,19 @@ templ ListContent(serversList []ServerSummary, sortColumn string, sortDir string
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "name", Label: "Name", Sortable: true, Align: "left"},
-					{Key: "address", Label: "Address", Sortable: true, Align: "left"},
 					{Key: "status", Label: "Status", Sortable: true, Align: "center", Width: "w-24"},
-					{Key: "region", Label: "Region", Sortable: true, Align: "left", Width: "w-28"},
+					{Key: "leader", Label: "Leader", Sortable: true, Align: "center", Width: "w-24"},
+					{Key: "address", Label: "Address", Sortable: true, Align: "left"},
+					{Key: "port", Label: "Port", Sortable: true, Align: "right", Width: "w-24"},
 					{Key: "datacenter", Label: "Datacenter", Sortable: true, Align: "left", Width: "w-28"},
-					{Key: "raft", Label: "Raft Voter", Sortable: true, Align: "center", Width: "w-28"},
+					{Key: "version", Label: "Version", Sortable: true, Align: "left", Width: "w-28"},
 				},
 				SortColumn: sortColumn,
 				SortDir:    sortDir,
 				Striped:    false,
 				Hover:      true,
-				SortURL:    "/ui/servers",
+				SortURL:    listURL,
+				HxTarget:   "#main-content",
 			}) {
 				@components.TableBody() {
 					if len(serversList) == 0 {
@@ -53,15 +60,21 @@ templ ListContent(serversList []ServerSummary, sortColumn string, sortDir string
 					}
 				}
 			}
+			@components.Pagination(components.PaginationProps{
+				Page: pagination.Page,
+				PerPage: pagination.PerPage,
+				Total: pagination.Total,
+				BaseURL: serverPaginationURL(listURL, sortColumn, sortDir),
+			})
 		</div>
 	</div>
 }
 
 // serverRow renders a single server row in the table with leader highlighting
 templ serverRow(server ServerSummary) {
-	<tr class={ serverRowClasses(server.Leader) }>
+	<tr class={ serverRowClasses(server.Leader) } data-server-row>
 		@components.TableCell("left", "") {
-			<div class="flex items-center gap-2">
+			<div class="flex items-center gap-2" data-server-name>
 				<a
 					href={ templ.URL("/ui/servers/" + server.Name) }
 					hx-get={ "/ui/servers/" + server.Name }
@@ -83,11 +96,6 @@ templ serverRow(server ServerSummary) {
 				}
 			</div>
 		}
-		@components.TableCell("left", "") {
-			<span class="text-neutral-700 dark:text-neutral-300 font-mono text-sm">
-				{ server.Address }
-			</span>
-		}
 		@components.TableCell("center", "w-24") {
 			@components.Badge(components.BadgeProps{
 				Variant: statusVariant(server.Status),
@@ -97,34 +105,40 @@ templ serverRow(server ServerSummary) {
 				{ server.Status }
 			}
 		}
-		@components.TableCell("left", "w-28") {
-			<span class="text-neutral-700 dark:text-neutral-300">
-				{ server.Region }
-			</span>
+		@components.TableCell("center", "w-24") {
+			@components.Badge(components.BadgeProps{Variant: leaderVariant(server.Leader), Size: "sm"}) {
+				{ leaderLabel(server.Leader) }
+			}
+		}
+		@components.TableCell("left", "") {
+			<span class="text-neutral-700 dark:text-neutral-300 font-mono text-sm" data-server-address>{ server.Address }</span>
+		}
+		@components.TableCell("right", "w-24") {
+			<span class="text-neutral-700 dark:text-neutral-300 font-mono text-sm" data-server-port>{ server.Port }</span>
 		}
 		@components.TableCell("left", "w-28") {
 			<span class="text-neutral-700 dark:text-neutral-300">
 				{ server.Datacenter }
 			</span>
 		}
-		@components.TableCell("center", "w-28") {
-			if server.RaftVoter {
-				@components.Badge(components.BadgeProps{
-					Variant: "success",
-					Size:    "sm",
-				}) {
-					Voter
-				}
-			} else {
-				@components.Badge(components.BadgeProps{
-					Variant: "neutral",
-					Size:    "sm",
-				}) {
-					Non-Voter
-				}
-			}
+		@components.TableCell("left", "w-28") {
+			<span class="text-neutral-700 dark:text-neutral-300" data-server-version>{ server.Version }</span>
 		}
 	</tr>
+}
+
+func leaderLabel(leader bool) string {
+	if leader { return "True" }
+	return "False"
+}
+
+func leaderVariant(leader bool) string {
+	if leader { return "success" }
+	return "neutral"
+}
+
+func serverPaginationURL(listURL, sortColumn, sortDir string) string {
+	return listURL + "&sort=" + sortColumn + "&dir=" + sortDir
 }
 
 // serverRowClasses returns CSS classes for the server row with leader highlighting

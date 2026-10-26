@@ -13,3 +13,7 @@ ui: restore the client agent-log monitor with level selection and pause/resume
 ```release-note:feature
 ui: restore the server agent-log monitor with region-aware targeting
 ```
+
+```release-note:feature
+ui: restore the inherited server list columns, pagination, RPC details, and copyable tags
+```
