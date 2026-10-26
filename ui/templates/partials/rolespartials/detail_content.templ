@@ -41,7 +41,7 @@ templ DetailContent(form RoleForm) {
 				}
 			</div>
 			if !form.IsNew {
-				<button type="button" hx-delete={ "/ui/roles/" + url.PathEscape(form.Role.ID) } hx-confirm="Delete this ACL role? Tokens linked to it will lose the role's permissions." class="rounded-md bg-danger-600 px-4 py-2 text-sm font-medium text-white hover:bg-danger-700">Delete Role</button>
+				<button type="button" hx-delete={ "/ui/access-control/roles/" + url.PathEscape(form.Role.ID) } hx-confirm="Delete this ACL role? Tokens linked to it will lose the role's permissions." class="rounded-md bg-danger-600 px-4 py-2 text-sm font-medium text-white hover:bg-danger-700">Delete Role</button>
 			}
 		</div>
 		@tokenspartials.ACLTabs("roles")
@@ -84,7 +84,7 @@ templ DetailContent(form RoleForm) {
 				</div>
 			}
 			<div class="flex justify-end gap-3">
-				<a href="/ui/roles" hx-get="/ui/roles" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
+				<a href="/ui/access-control/roles" hx-get="/ui/access-control/roles" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
 				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
 					if form.IsNew {
 						Create Role
@@ -99,7 +99,7 @@ templ DetailContent(form RoleForm) {
 
 func roleFormAction(form RoleForm) string {
 	if form.IsNew {
-		return "/ui/roles/new"
+	return "/ui/access-control/roles/new"
 	}
-	return "/ui/roles/" + url.PathEscape(form.Role.ID)
+	return "/ui/access-control/roles/" + url.PathEscape(form.Role.ID)
 }

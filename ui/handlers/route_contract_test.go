@@ -18,6 +18,13 @@ var topLevelPageContracts = []string{
 	"/ui/variables",
 	"/ui/variables/new",
 	"/ui/namespaces",
+	"/ui/access-control",
+	"/ui/access-control/policies",
+	"/ui/access-control/policies/new",
+	"/ui/access-control/tokens",
+	"/ui/access-control/tokens/new",
+	"/ui/access-control/roles",
+	"/ui/access-control/roles/new",
 	"/ui/policies",
 	"/ui/tokens",
 	"/ui/tokens/new",
@@ -109,6 +116,9 @@ func TestDynamicUIRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/ui/services/example",
 		"/ui/topology/data",
 		"/ui/variables/example",
+		"/ui/access-control/policies/example",
+		"/ui/access-control/tokens/example",
+		"/ui/access-control/roles/example",
 		"/ui/policies/example",
 		"/ui/tokens/example",
 		"/ui/roles/example",
@@ -158,6 +168,7 @@ func TestUnknownRoutesReturnNotFound(t *testing.T) {
 		"/ui/topology/extra",
 		"/ui/settings/not-a-route",
 		"/ui/settings/not-a-route/token",
+		"/ui/access-control/not-a-route",
 		"/api/jobs/example/not-an-action",
 		"/api/namespace/not-an-action",
 		"/api/region/not-an-action",
@@ -180,6 +191,9 @@ func TestMissingDynamicResourcesHaveTruthfulStatus(t *testing.T) {
 		{path: "/ui/servers/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/services/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/variables/missing", wantStatus: http.StatusNotFound},
+		{path: "/ui/access-control/policies/missing", wantStatus: http.StatusForbidden},
+		{path: "/ui/access-control/tokens/missing", wantStatus: http.StatusForbidden},
+		{path: "/ui/access-control/roles/missing", wantStatus: http.StatusForbidden},
 		{path: "/ui/policies/missing", wantStatus: http.StatusForbidden},
 		{path: "/ui/tokens/missing", wantStatus: http.StatusForbidden},
 		{path: "/ui/roles/missing", wantStatus: http.StatusForbidden},
@@ -196,7 +210,7 @@ func TestMissingDynamicResourcesHaveTruthfulStatus(t *testing.T) {
 }
 
 func topLevelPageStatus(path string) int {
-	if path == "/ui/policies" || strings.HasPrefix(path, "/ui/tokens") || strings.HasPrefix(path, "/ui/roles") {
+	if strings.HasPrefix(path, aclBasePath) || path == legacyPoliciesPath || strings.HasPrefix(path, legacyTokensPath) || strings.HasPrefix(path, legacyRolesPath) {
 		return http.StatusForbidden
 	}
 	return http.StatusOK

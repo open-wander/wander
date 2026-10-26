@@ -22,11 +22,11 @@ templ ListContent(items []RoleSummary, search string) {
 				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">ACL Roles</h1>
 				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">Group policies into reusable token roles.</p>
 			</div>
-			<a href="/ui/roles/new" hx-get="/ui/roles/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Role</a>
+			<a href="/ui/access-control/roles/new" hx-get="/ui/access-control/roles/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Role</a>
 		</div>
 		@tokenspartials.ACLTabs("roles")
 		<div class="mb-6">
-			@components.SearchBar(components.SearchBarProps{Name: "search", Placeholder: "Search roles by name or description...", Value: search, SearchURL: "/ui/roles", ResultsID: "roles-table-container", Debounce: 300})
+			@components.SearchBar(components.SearchBarProps{Name: "search", Placeholder: "Search roles by name or description...", Value: search, SearchURL: "/ui/access-control/roles", ResultsID: "roles-table-container", Debounce: 300})
 		</div>
 		<div id="roles-table-container" class="overflow-hidden rounded-lg bg-white shadow dark:bg-neutral-900">
 			@components.Table(components.TableProps{
@@ -64,5 +64,5 @@ templ ListContent(items []RoleSummary, search string) {
 }
 
 func roleDetailPath(roleID string) string {
-	return "/ui/roles/" + url.PathEscape(roleID)
+	return "/ui/access-control/roles/" + url.PathEscape(roleID)
 }

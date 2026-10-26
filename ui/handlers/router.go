@@ -62,11 +62,8 @@ func (r *Router) registerRoutes() {
 	// Namespaces routes
 	r.registerNamespacesRoutes()
 
-	// Policies routes
-	r.registerPoliciesRoutes()
-
-	// ACL token and role routes
-	r.registerACLManagementRoutes()
+	// ACL overview, policy, token, and role routes
+	r.registerAccessControlRoutes()
 
 	// CSI routes
 	r.registerCSIRoutes()
@@ -177,22 +174,22 @@ func (r *Router) registerNamespacesRoutes() {
 	r.mux.Handle("/ui/namespaces", r.wrapMiddleware(namespacesHandler))
 }
 
-// registerPoliciesRoutes sets up routes for the ACL policies section.
-func (r *Router) registerPoliciesRoutes() {
-	policiesHandler := NewPoliciesHandler(r.handler)
+// registerAccessControlRoutes sets up the Nomad 1.6.5-compatible ACL route
+// hierarchy and preserves Wander's earlier top-level paths as aliases.
+func (r *Router) registerAccessControlRoutes() {
+	accessControlHandler := NewAccessControlHandler(r.handler)
+	r.mux.Handle(aclBasePath, r.wrapMiddleware(accessControlHandler))
+	r.mux.Handle(aclBasePath+"/", r.wrapMiddleware(accessControlHandler))
 
-	// Policies handler handles both list and detail pages
-	r.mux.Handle("/ui/policies", r.wrapMiddleware(policiesHandler))
-	r.mux.Handle("/ui/policies/", r.wrapMiddleware(policiesHandler))
-}
-
-// registerACLManagementRoutes sets up routes for ACL token and role management.
-func (r *Router) registerACLManagementRoutes() {
-	aclHandler := NewACLManagementHandler(r.handler)
-	r.mux.Handle("/ui/tokens", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeTokensHTTP)))
-	r.mux.Handle("/ui/tokens/", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeTokensHTTP)))
-	r.mux.Handle("/ui/roles", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeRolesHTTP)))
-	r.mux.Handle("/ui/roles/", r.wrapMiddleware(http.HandlerFunc(aclHandler.ServeRolesHTTP)))
+	for legacyPath, canonicalPath := range map[string]string{
+		legacyPoliciesPath: aclPoliciesPath,
+		legacyTokensPath:   aclTokensPath,
+		legacyRolesPath:    aclRolesPath,
+	} {
+		alias := rewritePathPrefix(legacyPath, canonicalPath, accessControlHandler)
+		r.mux.Handle(legacyPath, r.wrapMiddleware(alias))
+		r.mux.Handle(legacyPath+"/", r.wrapMiddleware(alias))
+	}
 }
 
 // registerCSIRoutes sets up routes for the CSI section.

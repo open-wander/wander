@@ -28,7 +28,7 @@ templ ListContent(policiesList []PolicySummary, sortColumn string, sortDir strin
 					Manage access control policies for Wander resources
 				</p>
 			</div>
-			<a href="/ui/policies/new" hx-get="/ui/policies/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Policy</a>
+			<a href="/ui/access-control/policies/new" hx-get="/ui/access-control/policies/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Policy</a>
 		</div>
 		@tokenspartials.ACLTabs("policies")
 		<!-- Search Bar -->
@@ -37,7 +37,7 @@ templ ListContent(policiesList []PolicySummary, sortColumn string, sortDir strin
 				Name:        "search",
 				Placeholder: "Search policies by name or description...",
 				Value:       searchQuery,
-				SearchURL:   "/ui/policies",
+				SearchURL:   "/ui/access-control/policies",
 				ResultsID:   "policies-table-container",
 				Debounce:    300,
 				MinChars:    0,
@@ -55,7 +55,7 @@ templ ListContent(policiesList []PolicySummary, sortColumn string, sortDir strin
 				SortDir:    sortDir,
 				Striped:    true,
 				Hover:      true,
-				SortURL:    "/ui/policies",
+				SortURL:    "/ui/access-control/policies",
 			}) {
 				@components.TableBody() {
 					if len(policiesList) == 0 {
@@ -73,7 +73,7 @@ templ ListContent(policiesList []PolicySummary, sortColumn string, sortDir strin
 
 // buildPoliciesURL constructs the base URL with sort and search params
 func buildPoliciesURL(sortColumn, sortDir, searchQuery string) string {
-	baseURL := "/ui/policies?"
+	baseURL := "/ui/access-control/policies?"
 	params := url.Values{}
 
 	if sortColumn != "" {
@@ -96,7 +96,7 @@ func buildPoliciesURL(sortColumn, sortDir, searchQuery string) string {
 templ policyRow(policy PolicySummary) {
 	<tr
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-		hx-get={ fmt.Sprintf("/ui/policies/%s", policy.Name) }
+		hx-get={ fmt.Sprintf("/ui/access-control/policies/%s", policy.Name) }
 		hx-target="#main-content"
 		hx-swap="innerHTML"
 		hx-push-url="true"

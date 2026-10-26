@@ -427,7 +427,10 @@ func TestACLMutations(t *testing.T) {
 		t.Fatalf("create namespace-restricted token: %v", err)
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	status, body := request(t, client, http.MethodGet, address+"/ui/jobs?namespace="+namespaceSmokeName, restrictedToken.SecretID, "", "")
+	assertRequestStatus(t, client, http.MethodGet, address+"/ui/access-control", "", "", "", http.StatusForbidden)
+	status, body := request(t, client, http.MethodGet, address+"/ui/access-control", root.SecretID, "", "")
+	requireResponseContains(t, status, body, "access-control overview", "Access Control", "Policies", "Tokens", "Roles")
+	status, body = request(t, client, http.MethodGet, address+"/ui/jobs?namespace="+namespaceSmokeName, restrictedToken.SecretID, "", "")
 	requireResponseContains(t, status, body, "restricted namespace jobs", namespaceSmokeJobID)
 	if strings.Contains(string(body), smokeJobID) {
 		t.Fatalf("restricted namespace response leaked default job %q", smokeJobID)
@@ -527,9 +530,9 @@ func TestACLMutations(t *testing.T) {
 		"description": {"temporary UI audit policy"},
 		"rules":       {`namespace "default" { policy = "read" }`},
 	}
-	assertACLMutation(t, client, http.MethodPost, address+"/ui/policies/new", root.SecretID, "application/x-www-form-urlencoded", policyCreateForm.Encode())
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/access-control/policies/new", root.SecretID, "application/x-www-form-urlencoded", policyCreateForm.Encode())
 	policyForm := url.Values{"description": {"updated through Wander UI"}, "rules": {`namespace "default" { policy = "write" }`}}
-	assertACLMutation(t, client, http.MethodPost, address+"/ui/policies/wander-ui-audit", root.SecretID, "application/x-www-form-urlencoded", policyForm.Encode())
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/access-control/policies/wander-ui-audit", root.SecretID, "application/x-www-form-urlencoded", policyForm.Encode())
 	var policy struct {
 		Description string
 		Rules       string
@@ -544,7 +547,7 @@ func TestACLMutations(t *testing.T) {
 		"description": {"temporary UI audit role"},
 		"policies":    {"wander-ui-audit"},
 	}
-	assertACLMutation(t, client, http.MethodPost, address+"/ui/roles/new", root.SecretID, "application/x-www-form-urlencoded", roleCreateForm.Encode())
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/access-control/roles/new", root.SecretID, "application/x-www-form-urlencoded", roleCreateForm.Encode())
 	roles, _, err := rootClient.ACLRoles().List(nil)
 	if err != nil {
 		t.Fatalf("list roles after UI creation: %v", err)
@@ -559,14 +562,14 @@ func TestACLMutations(t *testing.T) {
 	if auditRole == nil || len(auditRole.Policies) != 1 || auditRole.Policies[0].Name != "wander-ui-audit" {
 		t.Fatalf("role created through UI has unexpected policy bindings: %#v", auditRole)
 	}
-	status, body = request(t, client, http.MethodGet, address+"/ui/roles", root.SecretID, "", "")
+	status, body = request(t, client, http.MethodGet, address+"/ui/access-control/roles", root.SecretID, "", "")
 	requireResponseContains(t, status, body, "ACL role list", "wander-ui-audit-role")
 	roleUpdateForm := url.Values{
 		"name":        {"wander-ui-audit-role"},
 		"description": {"updated through Wander UI"},
 		"policies":    {"wander-ui-audit"},
 	}
-	assertACLMutation(t, client, http.MethodPost, address+"/ui/roles/"+auditRole.ID, root.SecretID, "application/x-www-form-urlencoded", roleUpdateForm.Encode())
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/access-control/roles/"+auditRole.ID, root.SecretID, "application/x-www-form-urlencoded", roleUpdateForm.Encode())
 	updatedRole, _, err := rootClient.ACLRoles().Get(auditRole.ID, nil)
 	if err != nil || updatedRole.Description != "updated through Wander UI" {
 		t.Fatalf("role update through UI was not persisted: role=%#v err=%v", updatedRole, err)
@@ -578,8 +581,8 @@ func TestACLMutations(t *testing.T) {
 		"policies": {"wander-ui-audit"},
 		"roles":    {auditRole.ID},
 	}
-	assertRequestStatus(t, client, http.MethodPost, address+"/ui/tokens/new", "", "application/x-www-form-urlencoded", tokenCreateForm.Encode(), http.StatusForbidden)
-	status, body = request(t, client, http.MethodPost, address+"/ui/tokens/new", root.SecretID, "application/x-www-form-urlencoded", tokenCreateForm.Encode())
+	assertRequestStatus(t, client, http.MethodPost, address+"/ui/access-control/tokens/new", "", "application/x-www-form-urlencoded", tokenCreateForm.Encode(), http.StatusForbidden)
+	status, body = request(t, client, http.MethodPost, address+"/ui/access-control/tokens/new", root.SecretID, "application/x-www-form-urlencoded", tokenCreateForm.Encode())
 	if status != http.StatusOK {
 		t.Fatalf("create ACL token through UI returned %d: %s", status, body)
 	}
@@ -598,7 +601,7 @@ func TestACLMutations(t *testing.T) {
 	if auditToken == nil {
 		t.Fatal("token created through UI was not returned by the API")
 	}
-	status, body = request(t, client, http.MethodGet, address+"/ui/tokens", root.SecretID, "", "")
+	status, body = request(t, client, http.MethodGet, address+"/ui/access-control/tokens", root.SecretID, "", "")
 	requireResponseContains(t, status, body, "ACL token list", "wander-ui-audit-token", auditToken.AccessorID)
 	createdToken, _, err := rootClient.ACLTokens().Info(auditToken.AccessorID, nil)
 	if err != nil {
@@ -607,9 +610,9 @@ func TestACLMutations(t *testing.T) {
 	if createdToken.SecretID == "" || !bytes.Contains(tokenCreateBody, []byte(createdToken.SecretID)) {
 		t.Fatal("token create response did not display the one-time secret")
 	}
-	status, body = request(t, client, http.MethodGet, address+"/ui/policies/wander-ui-audit", root.SecretID, "", "")
+	status, body = request(t, client, http.MethodGet, address+"/ui/access-control/policies/wander-ui-audit", root.SecretID, "", "")
 	requireResponseContains(t, status, body, "ACL policy relationships", "wander-ui-audit-token", "wander-ui-audit-role", "role wander-ui-audit-role")
-	status, body = request(t, client, http.MethodGet, address+"/ui/tokens/"+auditToken.AccessorID, root.SecretID, "", "")
+	status, body = request(t, client, http.MethodGet, address+"/ui/access-control/tokens/"+auditToken.AccessorID, root.SecretID, "", "")
 	requireResponseContains(t, status, body, "ACL token detail", "wander-ui-audit-token")
 	if bytes.Contains(body, []byte(createdToken.SecretID)) {
 		t.Fatal("token detail response leaked the token secret")
@@ -620,14 +623,14 @@ func TestACLMutations(t *testing.T) {
 		"policies": {"wander-ui-audit"},
 		"roles":    {auditRole.ID},
 	}
-	assertACLMutation(t, client, http.MethodPost, address+"/ui/tokens/"+auditToken.AccessorID, root.SecretID, "application/x-www-form-urlencoded", tokenUpdateForm.Encode())
+	assertACLMutation(t, client, http.MethodPost, address+"/ui/access-control/tokens/"+auditToken.AccessorID, root.SecretID, "application/x-www-form-urlencoded", tokenUpdateForm.Encode())
 	createdToken, _, err = rootClient.ACLTokens().Info(auditToken.AccessorID, nil)
 	if err != nil || createdToken.Name != "wander-ui-audit-token-updated" || len(createdToken.Roles) != 1 {
 		t.Fatalf("token update through UI was not persisted: token=%#v err=%v", createdToken, err)
 	}
-	assertACLMutation(t, client, http.MethodDelete, address+"/ui/tokens/"+auditToken.AccessorID, root.SecretID, "", "")
-	assertACLMutation(t, client, http.MethodDelete, address+"/ui/roles/"+auditRole.ID, root.SecretID, "", "")
-	assertACLMutation(t, client, http.MethodDelete, address+"/ui/policies/wander-ui-audit", root.SecretID, "", "")
+	assertACLMutation(t, client, http.MethodDelete, address+"/ui/access-control/tokens/"+auditToken.AccessorID, root.SecretID, "", "")
+	assertACLMutation(t, client, http.MethodDelete, address+"/ui/access-control/roles/"+auditRole.ID, root.SecretID, "", "")
+	assertACLMutation(t, client, http.MethodDelete, address+"/ui/access-control/policies/wander-ui-audit", root.SecretID, "", "")
 
 	deploymentOne := writeDeploymentFixture(t, 1)
 	runJobFile(t, binary, address, root.SecretID, deploymentOne)

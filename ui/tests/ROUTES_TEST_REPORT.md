@@ -55,8 +55,9 @@ Tests cannot run due to existing compilation errors in the codebase that must be
    - `/ui/variables/default/my-var` - Variable detail page
 
 8. **Policies Routes**
-   - `/ui/policies` - ACL policies listing page
-   - `/ui/policies/admin` - ACL policy detail page
+   - `/ui/access-control` - ACL management overview
+   - `/ui/access-control/policies` - ACL policies listing page
+   - `/ui/access-control/policies/admin` - ACL policy detail page
 
 9. **CSI Routes**
    - `/ui/csi/volumes` - CSI volumes listing page

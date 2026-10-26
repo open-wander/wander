@@ -30,7 +30,7 @@ func TestPoliciesHandlerRoutesMutations(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.method, func(t *testing.T) {
-			request := httptest.NewRequest(test.method, "/ui/policies/test-policy", strings.NewReader(test.body.Encode()))
+			request := httptest.NewRequest(test.method, aclPoliciesPath+"/test-policy", strings.NewReader(test.body.Encode()))
 			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			request = request.WithContext(WithPermissions(request.Context(), permissions))
 			response := httptest.NewRecorder()

@@ -19,7 +19,7 @@ templ NewContent(form NewPolicyForm) {
 		if form.Error != "" {
 			<div class="mb-6 rounded-md border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800" role="alert">{ form.Error }</div>
 		}
-		<form method="post" action="/ui/policies/new" hx-post="/ui/policies/new" hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-neutral-900">
+		<form method="post" action="/ui/access-control/policies/new" hx-post="/ui/access-control/policies/new" hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-neutral-900">
 			<div>
 				<label for="policy-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Name</label>
 				<input id="policy-name" name="name" value={ form.Name } required class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"/>
@@ -33,7 +33,7 @@ templ NewContent(form NewPolicyForm) {
 				<textarea id="policy-rules" name="rules" rows="16" required spellcheck="false" class="mt-1 w-full rounded-md border border-neutral-300 bg-neutral-950 px-3 py-2 font-mono text-sm text-neutral-100">{ form.Rules }</textarea>
 			</div>
 			<div class="flex justify-end gap-3">
-				<a href="/ui/policies" hx-get="/ui/policies" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
+				<a href="/ui/access-control/policies" hx-get="/ui/access-control/policies" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
 				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Create Policy</button>
 			</div>
 		</form>

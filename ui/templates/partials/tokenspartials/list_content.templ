@@ -25,11 +25,11 @@ templ ListContent(items []TokenSummary, search string) {
 				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">ACL Tokens</h1>
 				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">Create and manage credentials for Wander API access.</p>
 			</div>
-			<a href="/ui/tokens/new" hx-get="/ui/tokens/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Token</a>
+			<a href="/ui/access-control/tokens/new" hx-get="/ui/access-control/tokens/new" hx-target="#main-content" hx-push-url="true" class="mt-4 sm:mt-0 inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">New Token</a>
 		</div>
 		@ACLTabs("tokens")
 		<div class="mb-6">
-			@components.SearchBar(components.SearchBarProps{Name: "search", Placeholder: "Search tokens by name or accessor ID...", Value: search, SearchURL: "/ui/tokens", ResultsID: "tokens-table-container", Debounce: 300})
+			@components.SearchBar(components.SearchBarProps{Name: "search", Placeholder: "Search tokens by name or accessor ID...", Value: search, SearchURL: "/ui/access-control/tokens", ResultsID: "tokens-table-container", Debounce: 300})
 		</div>
 		<div id="tokens-table-container" class="overflow-hidden rounded-lg bg-white shadow dark:bg-neutral-900">
 			@components.Table(components.TableProps{
@@ -86,9 +86,10 @@ templ ListContent(items []TokenSummary, search string) {
 
 templ ACLTabs(active string) {
 	<nav aria-label="Access control" class="mb-6 flex gap-2 border-b border-neutral-200 dark:border-neutral-700">
-		@aclTab("Policies", "/ui/policies", active == "policies")
-		@aclTab("Tokens", "/ui/tokens", active == "tokens")
-		@aclTab("Roles", "/ui/roles", active == "roles")
+		@aclTab("Overview", "/ui/access-control", active == "overview")
+		@aclTab("Policies", "/ui/access-control/policies", active == "policies")
+		@aclTab("Tokens", "/ui/access-control/tokens", active == "tokens")
+		@aclTab("Roles", "/ui/access-control/roles", active == "roles")
 	</nav>
 }
 
@@ -104,5 +105,5 @@ func tokenExpiration(expiration *time.Time) string {
 }
 
 func tokenDetailPath(accessorID string) string {
-	return "/ui/tokens/" + url.PathEscape(accessorID)
+	return "/ui/access-control/tokens/" + url.PathEscape(accessorID)
 }

@@ -28,11 +28,11 @@ func NewACLManagementHandler(handler *Handler) *ACLManagementHandler {
 }
 
 func (h *ACLManagementHandler) ServeTokensHTTP(w http.ResponseWriter, r *http.Request) {
-	h.serveResource(w, r, "/ui/tokens", h.listTokens, h.newToken, h.tokenDetail)
+	h.serveResource(w, r, aclTokensPath, h.listTokens, h.newToken, h.tokenDetail)
 }
 
 func (h *ACLManagementHandler) ServeRolesHTTP(w http.ResponseWriter, r *http.Request) {
-	h.serveResource(w, r, "/ui/roles", h.listRoles, h.newRole, h.roleDetail)
+	h.serveResource(w, r, aclRolesPath, h.listRoles, h.newRole, h.roleDetail)
 }
 
 func (h *ACLManagementHandler) serveResource(
@@ -112,6 +112,24 @@ func (h *ACLManagementHandler) client(r *http.Request) (*api.Client, *api.QueryO
 		&api.WriteOptions{Region: region, AuthToken: token}
 }
 
+func (h *ACLManagementHandler) readableClient(w http.ResponseWriter, r *http.Request) (*api.Client, *api.QueryOptions, bool) {
+	client, queryOptions, _ := h.client(r)
+	if client == nil {
+		h.renderUnavailable(w, r)
+		return nil, nil, false
+	}
+	return client, queryOptions, true
+}
+
+func (h *ACLManagementHandler) listPolicies(w http.ResponseWriter, r *http.Request, client *api.Client, queryOptions *api.QueryOptions, operation string) ([]*api.ACLPolicyListStub, bool) {
+	policies, _, err := client.ACLPolicies().List(queryOptions)
+	if err != nil {
+		h.renderAPIError(w, r, err, operation)
+		return nil, false
+	}
+	return policies, true
+}
+
 func (h *ACLManagementHandler) listTokens(w http.ResponseWriter, r *http.Request) {
 	client, queryOptions, _ := h.client(r)
 	if client == nil {
@@ -139,7 +157,7 @@ func (h *ACLManagementHandler) listTokens(w http.ResponseWriter, r *http.Request
 		},
 	)
 
-	props := h.handler.BaseLayoutProps(r, "ACL Tokens - Wander", "Manage Wander ACL tokens", "/ui/tokens", aclBreadcrumbs("Tokens"))
+	props := h.handler.BaseLayoutProps(r, "ACL Tokens - Wander", "Manage Wander ACL tokens", aclTokensPath, aclBreadcrumbs("Tokens"))
 	h.renderComponents(w, r, tokens.List(props, items, search), tokenspartials.ListContent(items, search), "render ACL token list")
 }
 
@@ -166,7 +184,7 @@ func (h *ACLManagementHandler) newToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	target := "/ui/tokens/" + url.PathEscape(created.AccessorID)
+	target := aclTokensPath + "/" + url.PathEscape(created.AccessorID)
 	h.renderTokenForm(w, requestWithURL(r, target), tokenspartials.TokenForm{Token: tokenView(created), Secret: created.SecretID})
 }
 
@@ -205,7 +223,7 @@ func (h *ACLManagementHandler) tokenDetail(w http.ResponseWriter, r *http.Reques
 			h.renderAPIError(w, r, err, "delete ACL token")
 			return
 		}
-		h.redirectAfterMutation(w, r, "/ui/tokens", "Token deleted successfully")
+		h.redirectAfterMutation(w, r, aclTokensPath, "Token deleted successfully")
 	default:
 		h.methodNotAllowed(w)
 	}
@@ -231,10 +249,9 @@ func (h *ACLManagementHandler) renderTokenForm(w http.ResponseWriter, r *http.Re
 		h.renderUnavailable(w, r)
 		return
 	}
-	policiesList, _, policyErr := client.ACLPolicies().List(queryOptions)
+	policiesList, policiesOK := h.listPolicies(w, r, client, queryOptions, "load ACL policies")
 	rolesList, _, roleErr := client.ACLRoles().List(queryOptions)
-	if policyErr != nil {
-		h.renderAPIError(w, r, policyErr, "load ACL policies")
+	if !policiesOK {
 		return
 	}
 	if roleErr != nil {
@@ -249,13 +266,13 @@ func (h *ACLManagementHandler) renderTokenForm(w http.ResponseWriter, r *http.Re
 	}
 
 	title := "New ACL Token"
-	currentPath := "/ui/tokens/new"
+	currentPath := aclTokensPath + "/new"
 	if !form.IsNew {
 		title = form.Token.Name
 		if title == "" {
 			title = form.Token.AccessorID
 		}
-		currentPath = "/ui/tokens/" + url.PathEscape(form.Token.AccessorID)
+		currentPath = aclTokensPath + "/" + url.PathEscape(form.Token.AccessorID)
 	}
 	props := h.handler.BaseLayoutProps(r, title+" - Wander", "Manage Wander ACL token", currentPath, aclBreadcrumbs(title))
 	h.renderComponents(w, r, tokens.Detail(props, form), tokenspartials.DetailContent(form), "render ACL token")
@@ -282,7 +299,7 @@ func (h *ACLManagementHandler) listRoles(w http.ResponseWriter, r *http.Request)
 		func(left, right rolespartials.RoleSummary) bool { return left.Name < right.Name },
 	)
 
-	props := h.handler.BaseLayoutProps(r, "ACL Roles - Wander", "Manage Wander ACL roles", "/ui/roles", aclBreadcrumbs("Roles"))
+	props := h.handler.BaseLayoutProps(r, "ACL Roles - Wander", "Manage Wander ACL roles", aclRolesPath, aclBreadcrumbs("Roles"))
 	h.renderComponents(w, r, roles.List(props, items, search), rolespartials.ListContent(items, search), "render ACL role list")
 }
 
@@ -306,7 +323,7 @@ func (h *ACLManagementHandler) newRole(w http.ResponseWriter, r *http.Request) {
 		h.renderAPIError(w, r, err, "create ACL role")
 		return
 	}
-	target := "/ui/roles/" + url.PathEscape(created.ID)
+	target := aclRolesPath + "/" + url.PathEscape(created.ID)
 	h.renderRoleForm(w, requestWithURL(r, target), rolespartials.RoleForm{Role: roleView(created)})
 }
 
@@ -345,7 +362,7 @@ func (h *ACLManagementHandler) roleDetail(w http.ResponseWriter, r *http.Request
 			h.renderAPIError(w, r, err, "delete ACL role")
 			return
 		}
-		h.redirectAfterMutation(w, r, "/ui/roles", "Role deleted successfully")
+		h.redirectAfterMutation(w, r, aclRolesPath, "Role deleted successfully")
 	default:
 		h.methodNotAllowed(w)
 	}
@@ -366,23 +383,21 @@ func (h *ACLManagementHandler) getRole(w http.ResponseWriter, r *http.Request, r
 }
 
 func (h *ACLManagementHandler) renderRoleForm(w http.ResponseWriter, r *http.Request, form rolespartials.RoleForm) {
-	client, queryOptions, _ := h.client(r)
-	if client == nil {
-		h.renderUnavailable(w, r)
+	client, queryOptions, ok := h.readableClient(w, r)
+	if !ok {
 		return
 	}
-	policiesList, _, err := client.ACLPolicies().List(queryOptions)
-	if err != nil {
-		h.renderAPIError(w, r, err, "load ACL policies")
+	policiesList, ok := h.listPolicies(w, r, client, queryOptions, "load ACL policies")
+	if !ok {
 		return
 	}
 	form.Policies = buildOptions(policiesList, form.Role.Policies, policyOptionFields)
 
 	title := "New ACL Role"
-	currentPath := "/ui/roles/new"
+	currentPath := aclRolesPath + "/new"
 	if !form.IsNew {
 		title = form.Role.Name
-		currentPath = "/ui/roles/" + url.PathEscape(form.Role.ID)
+		currentPath = aclRolesPath + "/" + url.PathEscape(form.Role.ID)
 	}
 	props := h.handler.BaseLayoutProps(r, title+" - Wander", "Manage Wander ACL role", currentPath, aclBreadcrumbs(title))
 	h.renderComponents(w, r, roles.Detail(props, form), rolespartials.DetailContent(form), "render ACL role")
@@ -608,5 +623,5 @@ func requestWithURL(r *http.Request, target string) *http.Request {
 }
 
 func aclBreadcrumbs(label string) []components.Breadcrumb {
-	return []components.Breadcrumb{{Label: "Home", URL: "/ui/"}, {Label: "Access Control", URL: "/ui/policies"}, {Label: label}}
+	return []components.Breadcrumb{{Label: "Home", URL: "/ui/"}, {Label: "Access Control", URL: aclBasePath}, {Label: label}}
 }

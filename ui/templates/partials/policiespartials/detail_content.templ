@@ -328,9 +328,9 @@ func policyTokenLabel(token PolicyTokenBinding) string {
 }
 
 func policyTokenPath(accessorID string) string {
-	return "/ui/tokens/" + url.PathEscape(accessorID)
+	return "/ui/access-control/tokens/" + url.PathEscape(accessorID)
 }
 
 func policyRolePath(roleID string) string {
-	return "/ui/roles/" + url.PathEscape(roleID)
+	return "/ui/access-control/roles/" + url.PathEscape(roleID)
 }

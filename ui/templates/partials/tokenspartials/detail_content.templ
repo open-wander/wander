@@ -54,7 +54,7 @@ templ DetailContent(form TokenForm) {
 				}
 			</div>
 			if !form.IsNew {
-				<button type="button" hx-delete={ "/ui/tokens/" + url.PathEscape(form.Token.AccessorID) } hx-confirm={ tokenDeleteConfirmation(form.IsCurrent) } class="rounded-md bg-danger-600 px-4 py-2 text-sm font-medium text-white hover:bg-danger-700">Delete Token</button>
+				<button type="button" hx-delete={ "/ui/access-control/tokens/" + url.PathEscape(form.Token.AccessorID) } hx-confirm={ tokenDeleteConfirmation(form.IsCurrent) } class="rounded-md bg-danger-600 px-4 py-2 text-sm font-medium text-white hover:bg-danger-700">Delete Token</button>
 			}
 		</div>
 		@ACLTabs("tokens")
@@ -104,7 +104,7 @@ templ DetailContent(form TokenForm) {
 				</div>
 			}
 			<div class="flex justify-end gap-3">
-				<a href="/ui/tokens" hx-get="/ui/tokens" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
+				<a href="/ui/access-control/tokens" hx-get="/ui/access-control/tokens" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
 				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
 					if form.IsNew {
 						Create Token
@@ -142,9 +142,9 @@ templ optionGroup(label, name string, options []Option) {
 
 func tokenFormAction(form TokenForm) string {
 	if form.IsNew {
-		return "/ui/tokens/new"
+	return "/ui/access-control/tokens/new"
 	}
-	return "/ui/tokens/" + url.PathEscape(form.Token.AccessorID)
+	return "/ui/access-control/tokens/" + url.PathEscape(form.Token.AccessorID)
 }
 
 func formatTokenTime(value time.Time) string {

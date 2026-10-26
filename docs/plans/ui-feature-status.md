@@ -30,8 +30,9 @@ scope and parity work list is the
   sign-out.
 - Namespaces: live cluster reads and UI namespace selection. Namespace creation,
   editing, and deletion are not exposed in the 0.1 UI.
-- ACL policies: live reads plus update and delete actions. Policy creation is
-  tracked as a post-0.1 enhancement.
+- Access control: the Nomad 1.6.5-compatible `/ui/access-control` overview and
+  policy, token, and role routes provide live counts and complete clean-room
+  CRUD/binding workflows. Earlier Wander top-level ACL paths remain aliases.
 - Variables: live reads plus create, update, and delete actions; cluster
   failures do not fall back to fabricated records or secrets. A live browser
   test covers the complete create/read/update/delete workflow across isolated
@@ -108,9 +109,6 @@ an inherited 0.1.0 requirement or a post-0.1 enhancement; this list must not
 be used to defer baseline behavior without explicit approval:
 
 - CSI plugin detail pages with controller/node allocation health.
-- ACL policy creation forms, policy-to-token discovery, and token/role
-  lifecycle management. Baseline ACL behavior requires a clean-room
-  implementation because its old UI source is prohibited.
 - Allocation ports, services, reschedule/preemption history, and task lifecycle
   visualization.
 - Task-group allocation tables, filters, volumes, and lifecycle visualization.

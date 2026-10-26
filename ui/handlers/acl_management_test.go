@@ -33,7 +33,7 @@ func TestACLTokenCreateAndSecretVisibility(t *testing.T) {
 	defer backend.Close()
 
 	handler := NewACLManagementHandler(newJobsTestHandler(t, backend.URL))
-	createRequest := managementRequest(http.MethodPost, "/ui/tokens/new", url.Values{
+	createRequest := managementRequest(http.MethodPost, aclTokensPath+"/new", url.Values{
 		"name":           {"automation"},
 		"type":           {"client"},
 		"global":         {"true"},
@@ -47,7 +47,7 @@ func TestACLTokenCreateAndSecretVisibility(t *testing.T) {
 
 	must.Eq(t, http.StatusOK, createResponse.Code)
 	must.StrContains(t, createResponse.Body.String(), "create-only-secret")
-	must.Eq(t, "/ui/tokens/accessor-1", createResponse.Header().Get("HX-Push-Url"))
+	must.Eq(t, aclTokensPath+"/accessor-1", createResponse.Header().Get("HX-Push-Url"))
 	must.Eq(t, "automation", created.Name)
 	must.Eq(t, "client", created.Type)
 	must.True(t, created.Global)
@@ -56,7 +56,7 @@ func TestACLTokenCreateAndSecretVisibility(t *testing.T) {
 	must.Eq(t, "role-1", created.Roles[0].ID)
 	must.Eq(t, "24h0m0s", created.ExpirationTTL.String())
 
-	detailRequest := managementRequest(http.MethodGet, "/ui/tokens/accessor-1", nil)
+	detailRequest := managementRequest(http.MethodGet, aclTokensPath+"/accessor-1", nil)
 	detailRequest.Header.Set("HX-Request", "true")
 	detailResponse := httptest.NewRecorder()
 	handler.ServeTokensHTTP(detailResponse, detailRequest)
@@ -79,7 +79,7 @@ func TestACLRoleCreateUsesSelectedPolicies(t *testing.T) {
 	defer backend.Close()
 
 	handler := NewACLManagementHandler(newJobsTestHandler(t, backend.URL))
-	request := managementRequest(http.MethodPost, "/ui/roles/new", url.Values{
+	request := managementRequest(http.MethodPost, aclRolesPath+"/new", url.Values{
 		"name":        {"operators"},
 		"description": {"Operations team"},
 		"policies":    {"read-jobs", "submit-jobs"},
@@ -89,7 +89,7 @@ func TestACLRoleCreateUsesSelectedPolicies(t *testing.T) {
 	handler.ServeRolesHTTP(response, request)
 
 	must.Eq(t, http.StatusOK, response.Code)
-	must.Eq(t, "/ui/roles/role-1", response.Header().Get("HX-Push-Url"))
+	must.Eq(t, aclRolesPath+"/role-1", response.Header().Get("HX-Push-Url"))
 	must.Eq(t, "operators", created.Name)
 	must.Len(t, 2, created.Policies)
 	must.Eq(t, "read-jobs", created.Policies[0].Name)
@@ -98,14 +98,14 @@ func TestACLRoleCreateUsesSelectedPolicies(t *testing.T) {
 
 func TestACLManagementRequiresManagementToken(t *testing.T) {
 	handler := NewACLManagementHandler(&Handler{logger: hclog.NewNullLogger()})
-	for _, path := range []string{"/ui/tokens", "/ui/tokens/new", "/ui/roles", "/ui/roles/new"} {
+	for _, path := range []string{aclTokensPath, aclTokensPath + "/new", aclRolesPath, aclRolesPath + "/new"} {
 		t.Run(path, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, path, nil)
 			request = request.WithContext(WithPermissions(request.Context(), NewUserPermissions(&ACLTokenInfo{
 				Token: &api.ACLToken{Type: "client"}, IsValid: true, ACLEnabled: true,
 			})))
 			response := httptest.NewRecorder()
-			if strings.HasPrefix(path, "/ui/tokens") {
+			if strings.HasPrefix(path, aclTokensPath) {
 				handler.ServeTokensHTTP(response, request)
 			} else {
 				handler.ServeRolesHTTP(response, request)
@@ -136,9 +136,9 @@ func TestACLManagementReportsMissingResourcesAndAPIFailures(t *testing.T) {
 		serve      func(http.ResponseWriter, *http.Request)
 		wantStatus int
 	}{
-		{path: "/ui/tokens/missing", serve: handler.ServeTokensHTTP, wantStatus: http.StatusNotFound},
-		{path: "/ui/roles/missing", serve: handler.ServeRolesHTTP, wantStatus: http.StatusNotFound},
-		{path: "/ui/tokens", serve: handler.ServeTokensHTTP, wantStatus: http.StatusInternalServerError},
+		{path: aclTokensPath + "/missing", serve: handler.ServeTokensHTTP, wantStatus: http.StatusNotFound},
+		{path: aclRolesPath + "/missing", serve: handler.ServeRolesHTTP, wantStatus: http.StatusNotFound},
+		{path: aclTokensPath, serve: handler.ServeTokensHTTP, wantStatus: http.StatusInternalServerError},
 	} {
 		t.Run(test.path, func(t *testing.T) {
 			response := httptest.NewRecorder()
@@ -149,7 +149,7 @@ func TestACLManagementReportsMissingResourcesAndAPIFailures(t *testing.T) {
 }
 
 func TestACLFormValidation(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/ui/tokens/new", strings.NewReader(url.Values{
+	request := httptest.NewRequest(http.MethodPost, aclTokensPath+"/new", strings.NewReader(url.Values{
 		"type":           {"client"},
 		"expiration_ttl": {"yesterday"},
 	}.Encode()))
@@ -158,7 +158,7 @@ func TestACLFormValidation(t *testing.T) {
 	must.NotNil(t, token)
 	must.StrContains(t, tokenError, "positive duration")
 
-	request = httptest.NewRequest(http.MethodPost, "/ui/roles/new", strings.NewReader(url.Values{"name": {"operators"}}.Encode()))
+	request = httptest.NewRequest(http.MethodPost, aclRolesPath+"/new", strings.NewReader(url.Values{"name": {"operators"}}.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	role, roleError := parseRoleForm(request, "")
 	must.Eq(t, "operators", role.Name)
@@ -178,7 +178,7 @@ func TestPolicyCreate(t *testing.T) {
 	defer backend.Close()
 
 	handler := NewPoliciesHandler(newJobsTestHandler(t, backend.URL))
-	request := managementRequest(http.MethodPost, "/ui/policies/new", url.Values{
+	request := managementRequest(http.MethodPost, aclPoliciesPath+"/new", url.Values{
 		"name":        {"read-jobs"},
 		"description": {"Read job data"},
 		"rules":       {`namespace "default" { policy = "read" }`},
@@ -188,7 +188,7 @@ func TestPolicyCreate(t *testing.T) {
 	handler.ServeHTTP(response, request)
 
 	must.Eq(t, http.StatusOK, response.Code)
-	must.Eq(t, "/ui/policies/read-jobs", response.Header().Get("HX-Redirect"))
+	must.Eq(t, aclPoliciesPath+"/read-jobs", response.Header().Get("HX-Redirect"))
 	must.Eq(t, "read-jobs", created.Name)
 	must.Eq(t, "Read job data", created.Description)
 }

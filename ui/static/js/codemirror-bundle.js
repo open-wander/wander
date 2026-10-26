@@ -1201,7 +1201,7 @@
           formData.append('description', this.description);
           formData.append('rules', this.currentRules);
 
-          const response = await fetch(`/ui/policies/${this.policyName}`, {
+          const response = await fetch(`/ui/access-control/policies/${this.policyName}`, {
             method: 'POST',
             body: formData
           });
@@ -1275,7 +1275,7 @@
         this.error = null;
 
         try {
-          const response = await fetch(`/ui/policies/${this.policyName}`, {
+          const response = await fetch(`/ui/access-control/policies/${this.policyName}`, {
             method: 'DELETE'
           });
 
@@ -1285,7 +1285,7 @@
           }
 
           // Policy deleted successfully, redirect to policies list
-          window.location.href = '/ui/policies';
+          window.location.href = '/ui/access-control/policies';
 
         } catch (err) {
           this.error = err.message;

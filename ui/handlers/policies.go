@@ -32,8 +32,8 @@ func NewPoliciesHandler(h *Handler) *PoliciesHandler {
 func (h *PoliciesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	// Handle /ui/policies exactly (list page)
-	if path == "/ui/policies" {
+	// Handle the policies list page.
+	if path == aclPoliciesPath {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -42,9 +42,9 @@ func (h *PoliciesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle /ui/policies/{name} detail and mutation routes.
-	if strings.HasPrefix(path, "/ui/policies/") {
-		if strings.TrimSuffix(path, "/") == "/ui/policies/new" {
+	// Handle policy detail and mutation routes.
+	if strings.HasPrefix(path, aclPoliciesPath+"/") {
+		if strings.TrimSuffix(path, "/") == aclPoliciesPath+"/new" {
 			switch r.Method {
 			case http.MethodGet:
 				h.showNew(w, r, policiespartials.NewPolicyForm{})
@@ -68,9 +68,10 @@ func (h *PoliciesHandler) showNew(w http.ResponseWriter, r *http.Request, form p
 		h.handler.RenderForbidden(w, r, ForbiddenError{Message: "You do not have permission to create ACL policies", Capability: "management token"})
 		return
 	}
-	props := h.handler.BaseLayoutProps(r, "New ACL Policy - Wander", "Create a Wander ACL policy", "/ui/policies/new", []components.Breadcrumb{
+	props := h.handler.BaseLayoutProps(r, "New ACL Policy - Wander", "Create a Wander ACL policy", aclPoliciesPath+"/new", []components.Breadcrumb{
 		{Label: "Home", URL: "/ui/"},
-		{Label: "ACL Policies", URL: "/ui/policies"},
+		{Label: "Access Control", URL: aclBasePath},
+		{Label: "ACL Policies", URL: aclPoliciesPath},
 		{Label: "New Policy"},
 	})
 	if err := Render(w, r, policies.New(props, form), policiespartials.NewContent(form)); err != nil {
@@ -120,7 +121,7 @@ func (h *PoliciesHandler) createPolicy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unable to create ACL policy", status)
 		return
 	}
-	target := "/ui/policies/" + url.PathEscape(name)
+	target := aclPoliciesPath + "/" + url.PathEscape(name)
 	if IsHTMXFromRequest(r) {
 		w.Header().Set("HX-Redirect", target)
 		w.WriteHeader(http.StatusOK)
@@ -179,10 +180,10 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 	layoutProps := h.handler.BaseLayoutProps(r,
 		"ACL Policies - Wander",
 		"View and manage Wander ACL policies",
-		"/ui/policies",
+		aclPoliciesPath,
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
-			{Label: "Access Control", URL: ""},
+			{Label: "Access Control", URL: aclBasePath},
 			{Label: "Policies", URL: ""},
 		},
 	)
@@ -203,7 +204,7 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 // Detail handles the policy detail page
 func (h *PoliciesHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Extract policy name from path
-	policyName := strings.TrimPrefix(r.URL.Path, "/ui/policies/")
+	policyName := strings.TrimPrefix(r.URL.Path, aclPoliciesPath+"/")
 	policyName = strings.TrimSuffix(policyName, "/")
 
 	// Handle different HTTP methods
@@ -256,10 +257,11 @@ func (h *PoliciesHandler) showDetail(w http.ResponseWriter, r *http.Request, pol
 	layoutProps := h.handler.BaseLayoutProps(r,
 		policy.Name+" - ACL Policy - Wander",
 		"View and edit ACL policy: "+policy.Name,
-		"/ui/policies/"+policyName,
+		aclPoliciesPath+"/"+policyName,
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
-			{Label: "ACL Policies", URL: "/ui/policies"},
+			{Label: "Access Control", URL: aclBasePath},
+			{Label: "ACL Policies", URL: aclPoliciesPath},
 			{Label: policy.Name, URL: ""},
 		},
 	)
@@ -391,7 +393,7 @@ func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, p
 	h.handler.logger.Info("policy deleted successfully", "policy", policyName)
 
 	// Return success response and redirect to policies list
-	w.Header().Set("HX-Redirect", "/ui/policies")
+	w.Header().Set("HX-Redirect", aclPoliciesPath)
 	w.Header().Set("HX-Trigger", `{"showToast": {"message": "Policy deleted successfully", "type": "success"}}`)
 	w.WriteHeader(http.StatusOK)
 }
