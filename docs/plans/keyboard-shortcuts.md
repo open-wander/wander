@@ -57,7 +57,8 @@ render assertions, and the live embedded-cluster Chromium release suite. The
 browser coverage verifies help, disable/re-enable, rebinding, scoped major-area
 navigation, main-section and tab movement, parent navigation, and search focus.
 
-The CSI plugin detail/allocation-health gap was completed on 2026-10-27. The
-next storage compatibility work is CSI volume registration/deregistration,
-claims, allocation completeness, and denied/unavailable state coverage as
-recorded in the route-parity matrix and revival checklist.
+The CSI plugin and volume detail compatibility gaps were completed on
+2026-10-27. Registration and deregistration remain inherited API/CLI
+operations rather than Nomad 1.6.5 browser requirements. The next focused UI
+blocker is evaluation/deployment empty, denied, failed, blocked, and completed
+state coverage recorded in the route-parity matrix and revival checklist.

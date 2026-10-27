@@ -77,8 +77,7 @@ func TestCSIPluginsListPaginatesWithoutLosingFilters(t *testing.T) {
 		plugins[index] = &api.CSIPluginListStub{ID: fmt.Sprintf("plugin-%02d", index), Provider: "org.example.csi"}
 	}
 	handler := csiTestHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/plugins" || r.URL.Query().Get("type") != "csi" {
-			http.NotFound(w, r)
+		if !requireCSIListRequest(t, w, r, "/v1/plugins") {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -187,4 +186,13 @@ func csiTestHandler(t *testing.T, backend http.HandlerFunc) *CSIHandler {
 
 func testPluginAllocation(id, kind string, healthy bool, updatedUnix int64) PluginAllocation {
 	return PluginAllocation{AllocationID: id, Type: kind, Healthy: healthy, Updated: time.Unix(updatedUnix, 0)}
+}
+
+func requireCSIListRequest(t *testing.T, w http.ResponseWriter, r *http.Request, path string) bool {
+	t.Helper()
+	if r.URL.Path == path && r.URL.Query().Get("type") == "csi" {
+		return true
+	}
+	http.NotFound(w, r)
+	return false
 }

@@ -42,6 +42,10 @@ scope and parity work list is the
   read paths backed by the inherited cluster API. Topology shows active
   allocation reservations against schedulable node capacity and identifies
   the selected region without inventing heartbeat data.
+- CSI volumes: live controller/node health, complete capability constraints,
+  separate read and read/write allocation claim tables, and truthful denied,
+  missing, and unavailable responses. CSI mutations remain inherited API/CLI
+  operations and are not part of the Nomad 1.6.5 browser contract.
 
 ## Required before the 0.1.0 release
 

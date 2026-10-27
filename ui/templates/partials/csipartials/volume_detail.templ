@@ -14,8 +14,6 @@ type VolumeDetail struct {
 	PluginID            string
 	Provider            string
 	Schedulable         bool
-	AccessMode          string
-	AttachMode          string
 	MountOptions        string
 	Capacity            int64
 	AllocationsCount    int
@@ -28,7 +26,14 @@ type VolumeDetail struct {
 	ControllersExpected int
 	NodesHealthy        int
 	NodesExpected       int
-	Allocations         []AllocationInfo
+	Capabilities        []VolumeCapability
+	ReadAllocations     []AllocationInfo
+	WriteAllocations    []AllocationInfo
+}
+
+type VolumeCapability struct {
+	AccessMode string
+	AttachMode string
 }
 
 // AllocationInfo represents basic allocation information for volume detail
@@ -40,7 +45,6 @@ type AllocationInfo struct {
 	NodeID    string
 	NodeName  string
 	Status    string
-	ReadOnly  bool
 	Created   time.Time
 }
 
@@ -88,37 +92,10 @@ templ VolumeDetailContent(volume VolumeDetail) {
 				</div>
 			</div>
 		</div>
-		<!-- Tabs -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
-			@components.Tabs(components.TabsProps{
-				Tabs: []components.Tab{
-					{
-						ID:      "overview",
-						Label:   "Overview",
-						Icon:    "home",
-						URL:     "/ui/csi/volumes/" + volume.ID + "/overview",
-						Content: OverviewTab(volume),
-						Active:  true,
-					},
-					{
-						ID:      "allocations",
-						Label:   "Allocations",
-						Icon:    "user",
-						URL:     "/ui/csi/volumes/" + volume.ID + "/allocations",
-						Content: AllocationsTab(volume),
-					},
-					{
-						ID:      "health",
-						Label:   "Health",
-						Icon:    "heart",
-						URL:     "/ui/csi/volumes/" + volume.ID + "/health",
-						Content: HealthTab(volume),
-					},
-				},
-				ActiveTab: "overview",
-				Mode:      "htmx",
-				PanelID:   "volume-detail-panel",
-			})
+		<div class="space-y-6">
+			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg">@OverviewTab(volume)</div>
+			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg">@AllocationsTab(volume)</div>
+			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg">@HealthTab(volume)</div>
 		</div>
 	</div>
 }

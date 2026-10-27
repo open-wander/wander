@@ -2,22 +2,27 @@ package csipartials
 
 import (
 	"fmt"
+	"github.com/open-wander/wander/ui/templates/components"
 	"net/url"
 	"time"
-	"github.com/open-wander/wander/ui/templates/components"
 )
 
 // VolumeSummary represents a summary view of a CSI volume for list display.
 type VolumeSummary struct {
-	ID          string
-	Name        string
-	PluginID    string
-	Provider    string
-	Schedulable bool
-	AccessMode  string
-	AttachMode  string
-	Allocations int
-	Created     time.Time
+	ID                  string
+	Name                string
+	PluginID            string
+	Provider            string
+	Schedulable         bool
+	AccessMode          string
+	AttachMode          string
+	Allocations         int
+	Created             time.Time
+	ControllerRequired  bool
+	ControllersHealthy  int
+	ControllersExpected int
+	NodesHealthy        int
+	NodesExpected       int
 }
 
 // FilterOptions contains the available options for each filter.
@@ -162,10 +167,10 @@ templ VolumesTable(props ListProps) {
 		Columns: []components.Column{
 			{Key: "id", Label: "ID", Sortable: true, Align: "left", Width: "w-40"},
 			{Key: "name", Label: "Name", Sortable: true, Align: "left", Width: "w-1/5"},
-			{Key: "plugin", Label: "Plugin ID", Sortable: true, Align: "left", Width: "w-1/6"},
-			{Key: "provider", Label: "Provider", Sortable: true, Align: "left", Width: "w-1/5"},
-			{Key: "schedulable", Label: "Schedulable", Sortable: true, Align: "center", Width: "w-28"},
-			{Key: "accessmode", Label: "Access Mode", Sortable: true, Align: "left"},
+			{Key: "provider", Label: "Plugin / Provider", Sortable: true, Align: "left", Width: "w-1/5"},
+			{Key: "schedulable", Label: "Health", Sortable: true, Align: "center", Width: "w-28"},
+			{Key: "controllers", Label: "Controllers", Sortable: true, Align: "center", Width: "w-28"},
+			{Key: "nodes", Label: "Nodes", Sortable: true, Align: "center", Width: "w-28"},
 			{Key: "allocations", Label: "Allocs", Sortable: true, Align: "center", Width: "w-20"},
 		},
 		SortColumn: props.SortColumn,
@@ -198,6 +203,7 @@ templ VolumesTable(props ListProps) {
 // volumeRow renders a single volume row in the table
 templ volumeRow(volume VolumeSummary) {
 	<tr
+		data-volume-id={ volume.ID }
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
 		hx-get={ fmt.Sprintf("/ui/csi/volumes/%s", volume.ID) }
 		hx-target="#main-content"
@@ -222,15 +228,9 @@ templ volumeRow(volume VolumeSummary) {
 				{ volume.Name }
 			</a>
 		}
-		@components.TableCell("left", "w-1/6") {
-			<span class="text-neutral-700 dark:text-neutral-300 text-sm">
-				{ volume.PluginID }
-			</span>
-		}
 		@components.TableCell("left", "w-1/5") {
-			<span class="text-neutral-700 dark:text-neutral-300 text-sm font-mono">
-				{ volume.Provider }
-			</span>
+			<div class="text-sm text-neutral-700 dark:text-neutral-300">{ volume.PluginID }</div>
+			<div class="font-mono text-xs text-neutral-500 dark:text-neutral-400">{ volume.Provider }</div>
 		}
 		@components.TableCell("center", "w-28") {
 			if volume.Schedulable {
@@ -251,10 +251,15 @@ templ volumeRow(volume VolumeSummary) {
 				}
 			}
 		}
-		@components.TableCell("left", "") {
-			<span class="text-neutral-700 dark:text-neutral-300 text-sm">
-				{ formatAccessMode(volume.AccessMode) }
-			</span>
+		@components.TableCell("center", "w-28") {
+			if volume.ControllerRequired {
+				@volumeHealthCount(volume.ControllersHealthy, volume.ControllersExpected)
+			} else {
+				<span class="text-sm text-neutral-500 dark:text-neutral-400">Not required</span>
+			}
+		}
+		@components.TableCell("center", "w-28") {
+			@volumeHealthCount(volume.NodesHealthy, volume.NodesExpected)
 		}
 		@components.TableCell("center", "w-20") {
 			<span class="text-neutral-700 dark:text-neutral-300 font-medium">
@@ -262,6 +267,12 @@ templ volumeRow(volume VolumeSummary) {
 			</span>
 		}
 	</tr>
+}
+
+templ volumeHealthCount(healthy, expected int) {
+	<span class={ templ.KV("text-green-700 dark:text-green-400", expected > 0 && healthy >= expected), templ.KV("text-red-700 dark:text-red-400", expected == 0 || healthy < expected), "text-sm font-medium" }>
+		{ fmt.Sprintf("%d / %d", healthy, expected) }
+	</span>
 }
 
 // buildPluginOptions creates select options for plugin filter

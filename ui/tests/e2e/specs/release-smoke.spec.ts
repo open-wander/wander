@@ -93,6 +93,22 @@ async function openDialog(page: Page, triggerName: string, dialogName: string) {
 }
 
 test.describe('Wander release smoke', () => {
+  test('opens CSI volume claims when the cluster has a volume', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await openDesktopPage(page, '/ui/csi/volumes?region=global');
+    const volumeRows = page.locator('[data-volume-id]');
+    test.skip((await volumeRows.count()) === 0, 'the disposable cluster has no CSI volume fixture');
+
+    const volumeID = await volumeRows.first().getAttribute('data-volume-id');
+    await volumeRows.first().locator('a[href^="/ui/csi/volumes/"]').click();
+    await expect(page).toHaveURL(/\/ui\/csi\/volumes\/[^/]+/);
+    await expect(page.getByText(volumeID ?? '', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Capability Constraints' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Read-only claims' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Read/write claims' })).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
   test('opens CSI plugin details when the cluster has a plugin', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/csi/plugins?region=global');

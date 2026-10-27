@@ -17,19 +17,11 @@ import (
 	"github.com/open-wander/wander/ui/templates/partials/csipartials"
 )
 
-// VolumeSummary represents a summary view of a CSI volume for list display.
-// This structure will eventually be populated from the Nomad API.
-type VolumeSummary struct {
-	ID          string
-	Name        string
-	PluginID    string
-	Provider    string
-	Schedulable bool
-	AccessMode  string
-	AttachMode  string
-	Allocations int
-	Created     time.Time
-}
+// The handler and templates share volume view models so live API values are
+// mapped once and cannot drift between full-page and HTMX responses.
+type VolumeSummary = csipartials.VolumeSummary
+type VolumeDetail = csipartials.VolumeDetail
+type AllocationInfo = csipartials.AllocationInfo
 
 // CSIHandler handles requests for the CSI volumes pages.
 type CSIHandler struct {
@@ -95,11 +87,10 @@ func (h *CSIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// Extract volume ID from path
-		volumeID := strings.TrimPrefix(path, "/ui/csi/volumes/")
-		// Remove any trailing slashes or additional path segments
-		if idx := strings.Index(volumeID, "/"); idx != -1 {
-			volumeID = volumeID[:idx]
+		volumeID, err := url.PathUnescape(strings.Trim(strings.TrimPrefix(path, "/ui/csi/volumes/"), "/"))
+		if err != nil || volumeID == "" || strings.Contains(volumeID, "/") {
+			http.NotFound(w, r)
+			return
 		}
 		h.VolumeDetail(w, r, volumeID)
 		return
@@ -155,7 +146,11 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get all volumes from Nomad API
-	allVolumes := h.getVolumesList(r, namespace, token)
+	allVolumes, err := h.getVolumesList(r, namespace, token)
+	if err != nil {
+		h.renderVolumeListError(w, r, namespace, err)
+		return
+	}
 
 	// Extract filter options from all volumes (before filtering)
 	filterOptions := h.extractFilterOptions(allVolumes)
@@ -172,25 +167,9 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 
 	paginatedVolumes := filteredVolumes[startIdx:endIdx]
 
-	// Convert to partial type
-	volumesList := make([]csipartials.VolumeSummary, len(paginatedVolumes))
-	for i, v := range paginatedVolumes {
-		volumesList[i] = csipartials.VolumeSummary{
-			ID:          v.ID,
-			Name:        v.Name,
-			PluginID:    v.PluginID,
-			Provider:    v.Provider,
-			Schedulable: v.Schedulable,
-			AccessMode:  v.AccessMode,
-			AttachMode:  v.AttachMode,
-			Allocations: v.Allocations,
-			Created:     v.Created,
-		}
-	}
-
 	// Build props
 	props := csipartials.ListProps{
-		Volumes: volumesList,
+		Volumes: paginatedVolumes,
 		FilterOptions: csipartials.FilterOptions{
 			Plugins:   filterOptions.Plugins,
 			Providers: filterOptions.Providers,
@@ -234,7 +213,7 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the volumes list page
-	err := Render(w, r,
+	err = Render(w, r,
 		csi.VolumesList(layoutProps, props),   // Full page with layout
 		csipartials.VolumesListContent(props), // Partial content for HTMX requests
 	)
@@ -337,8 +316,10 @@ func (h *CSIHandler) sortVolumes(volumes []VolumeSummary, column, dir string) {
 			less = volumes[i].Provider < volumes[j].Provider
 		case "schedulable":
 			less = volumes[i].Schedulable && !volumes[j].Schedulable
-		case "accessmode":
-			less = volumes[i].AccessMode < volumes[j].AccessMode
+		case "controllers":
+			less = volumes[i].ControllersHealthy < volumes[j].ControllersHealthy
+		case "nodes":
+			less = volumes[i].NodesHealthy < volumes[j].NodesHealthy
 		case "allocations":
 			less = volumes[i].Allocations < volumes[j].Allocations
 		case "created":
@@ -355,22 +336,17 @@ func (h *CSIHandler) sortVolumes(volumes []VolumeSummary, column, dir string) {
 }
 
 // getVolumesList fetches CSI volumes from the Nomad API.
-// Falls back to empty list if API is unavailable.
-func (h *CSIHandler) getVolumesList(r *http.Request, namespace, token string) []VolumeSummary {
+func (h *CSIHandler) getVolumesList(r *http.Request, namespace, token string) ([]VolumeSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty volumes list")
-		return []VolumeSummary{}
+		return nil, errNomadClientUnavailable
 	}
 
 	// Build query options with namespace and ACL token
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
-	}
-
-	// Set ACL token if available
-	if token != "" {
-		queryOpts.AuthToken = token
+		Region:    GetRegionFromRequest(r),
+		AuthToken: token,
 	}
 
 	// Log the request for debugging
@@ -381,69 +357,50 @@ func (h *CSIHandler) getVolumesList(r *http.Request, namespace, token string) []
 	// Fetch volumes from the API
 	volumes, _, err := client.CSIVolumes().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch CSI volumes from Nomad API", "error", err)
-		return []VolumeSummary{}
+		return nil, err
 	}
 
 	// Convert API response to our summary type
 	result := make([]VolumeSummary, 0, len(volumes))
 	for _, vol := range volumes {
+		if vol == nil {
+			continue
+		}
 		// Calculate total allocations (readers + writers)
 		totalAllocs := vol.CurrentReaders + vol.CurrentWriters
 
 		result = append(result, VolumeSummary{
-			ID:          vol.ID,
-			Name:        vol.Name,
-			PluginID:    vol.PluginID,
-			Provider:    vol.Provider,
-			Schedulable: vol.Schedulable,
-			AccessMode:  string(vol.AccessMode),
-			AttachMode:  string(vol.AttachmentMode),
-			Allocations: totalAllocs,
-			Created:     time.Time{},
+			ID:                  vol.ID,
+			Name:                vol.Name,
+			PluginID:            vol.PluginID,
+			Provider:            vol.Provider,
+			Schedulable:         vol.Schedulable,
+			AccessMode:          string(vol.AccessMode),
+			AttachMode:          string(vol.AttachmentMode),
+			Allocations:         totalAllocs,
+			Created:             time.Time{},
+			ControllerRequired:  vol.ControllerRequired,
+			ControllersHealthy:  vol.ControllersHealthy,
+			ControllersExpected: vol.ControllersExpected,
+			NodesHealthy:        vol.NodesHealthy,
+			NodesExpected:       vol.NodesExpected,
 		})
 	}
 
-	return result
+	return result, nil
 }
 
-// VolumeDetail represents detailed information about a CSI volume.
-// This will eventually be populated from the Nomad API.
-type VolumeDetail struct {
-	ID                  string
-	Name                string
-	Namespace           string
-	PluginID            string
-	Provider            string
-	Schedulable         bool
-	AccessMode          string
-	AttachMode          string
-	MountOptions        string
-	Capacity            int64 // in bytes
-	AllocationsCount    int
-	ReadAllocsCount     int
-	WriteAllocsCount    int
-	Created             time.Time
-	ExternalID          string
-	ControllerRequired  bool
-	ControllersHealthy  int
-	ControllersExpected int
-	NodesHealthy        int
-	NodesExpected       int
-	Allocations         []AllocationInfo
-}
-
-// AllocationInfo represents basic allocation information for volume detail
-type AllocationInfo struct {
-	ID        string
-	Name      string
-	JobID     string
-	TaskGroup string
-	NodeID    string
-	NodeName  string
-	Status    string
-	ReadOnly  bool
-	Created   time.Time
+func (h *CSIHandler) renderVolumeListError(w http.ResponseWriter, r *http.Request, namespace string, err error) {
+	if apiResponseHasStatus(err, http.StatusForbidden) {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message: "You do not have permission to list CSI volumes", Capability: "csi-list-volume", Namespace: namespace,
+		})
+		return
+	}
+	h.handler.logger.Error("failed to fetch CSI volumes", "namespace", namespace, "error", err)
+	h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+		Message: "Wander could not load CSI volumes from the cluster.",
+	})
 }
 
 // VolumeDetail handles the CSI volume detail page
@@ -476,69 +433,29 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 	token := GetTokenFromRequest(r)
 
 	// Get volume details
-	volume := h.getVolumeDetail(r, volumeID, namespace, token)
-	if volume == nil {
-		http.NotFound(w, r)
+	volume, err := h.getVolumeDetail(r, volumeID, namespace, token)
+	if err != nil {
+		h.renderVolumeDetailError(w, r, volumeID, namespace, err)
 		return
-	}
-
-	// Convert to partial type
-	volumeDetail := csipartials.VolumeDetail{
-		ID:                  volume.ID,
-		Name:                volume.Name,
-		Namespace:           volume.Namespace,
-		PluginID:            volume.PluginID,
-		Provider:            volume.Provider,
-		Schedulable:         volume.Schedulable,
-		AccessMode:          volume.AccessMode,
-		AttachMode:          volume.AttachMode,
-		MountOptions:        volume.MountOptions,
-		Capacity:            volume.Capacity,
-		AllocationsCount:    volume.AllocationsCount,
-		ReadAllocsCount:     volume.ReadAllocsCount,
-		WriteAllocsCount:    volume.WriteAllocsCount,
-		Created:             volume.Created,
-		ExternalID:          volume.ExternalID,
-		ControllerRequired:  volume.ControllerRequired,
-		ControllersHealthy:  volume.ControllersHealthy,
-		ControllersExpected: volume.ControllersExpected,
-		NodesHealthy:        volume.NodesHealthy,
-		NodesExpected:       volume.NodesExpected,
-	}
-
-	// Convert allocations
-	volumeDetail.Allocations = make([]csipartials.AllocationInfo, len(volume.Allocations))
-	for i, a := range volume.Allocations {
-		volumeDetail.Allocations[i] = csipartials.AllocationInfo{
-			ID:        a.ID,
-			Name:      a.Name,
-			JobID:     a.JobID,
-			TaskGroup: a.TaskGroup,
-			NodeID:    a.NodeID,
-			NodeName:  a.NodeName,
-			Status:    a.Status,
-			ReadOnly:  a.ReadOnly,
-			Created:   a.Created,
-		}
 	}
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(r,
-		volumeDetail.Name+" - CSI Volume - Wander",
-		"CSI Volume detail for "+volumeDetail.Name,
-		"/ui/csi/volumes/"+volumeID,
+		volume.Name+" - CSI Volume - Wander",
+		"CSI Volume detail for "+volume.Name,
+		"/ui/csi/volumes/"+url.PathEscape(volumeID),
 		[]components.Breadcrumb{
 			{Label: "Home", URL: "/ui/"},
 			{Label: "Storage", URL: ""},
 			{Label: "Volumes", URL: "/ui/csi/volumes"},
-			{Label: volumeDetail.Name, URL: ""},
+			{Label: volume.Name, URL: ""},
 		},
 	)
 
 	// Render the volume detail page
-	err := Render(w, r,
-		csi.VolumeDetail(layoutProps, volumeDetail),   // Full page with layout
-		csipartials.VolumeDetailContent(volumeDetail), // Partial content for HTMX requests
+	err = Render(w, r,
+		csi.VolumeDetail(layoutProps, *volume),
+		csipartials.VolumeDetailContent(*volume),
 	)
 
 	if err != nil {
@@ -549,22 +466,17 @@ func (h *CSIHandler) VolumeDetail(w http.ResponseWriter, r *http.Request, volume
 }
 
 // getVolumeDetail fetches CSI volume details from the Nomad API.
-// Returns nil if volume not found or API is unavailable.
-func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token string) *VolumeDetail {
+func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token string) (*VolumeDetail, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, cannot fetch volume detail")
-		return nil
+		return nil, errNomadClientUnavailable
 	}
 
 	// Build query options with namespace and ACL token
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
-	}
-
-	// Set ACL token if available
-	if token != "" {
-		queryOpts.AuthToken = token
+		Region:    GetRegionFromRequest(r),
+		AuthToken: token,
 	}
 
 	// Log the request for debugging
@@ -576,11 +488,10 @@ func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token
 	// Fetch volume from the API
 	vol, _, err := client.CSIVolumes().Info(volumeID, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch CSI volume from Nomad API",
-			"volumeID", volumeID,
-			"namespace", namespace,
-			"error", err)
-		return nil
+		return nil, err
+	}
+	if vol == nil {
+		return nil, errors.New("Nomad returned an empty CSI volume response")
 	}
 
 	created := time.Time{}
@@ -603,8 +514,12 @@ func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token
 	}
 
 	// Convert allocations from the Allocations list
-	allocations := make([]AllocationInfo, 0, len(vol.Allocations))
+	readAllocations := make([]AllocationInfo, 0, len(vol.ReadAllocs))
+	writeAllocations := make([]AllocationInfo, 0, len(vol.WriteAllocs))
 	for _, alloc := range vol.Allocations {
+		if alloc == nil {
+			continue
+		}
 		// Determine if this allocation is a reader or writer
 		isReadOnly := false
 		if vol.ReadAllocs != nil {
@@ -617,7 +532,7 @@ func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token
 			allocCreated = time.Unix(0, alloc.CreateTime)
 		}
 
-		allocations = append(allocations, AllocationInfo{
+		allocation := AllocationInfo{
 			ID:        alloc.ID,
 			Name:      alloc.Name,
 			JobID:     alloc.JobID,
@@ -625,8 +540,26 @@ func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token
 			NodeID:    alloc.NodeID,
 			NodeName:  alloc.NodeName,
 			Status:    alloc.ClientStatus,
-			ReadOnly:  isReadOnly,
 			Created:   allocCreated,
+		}
+		if isReadOnly {
+			readAllocations = append(readAllocations, allocation)
+		} else {
+			writeAllocations = append(writeAllocations, allocation)
+		}
+	}
+
+	capabilities := make([]csipartials.VolumeCapability, 0, len(vol.RequestedCapabilities))
+	for _, capability := range vol.RequestedCapabilities {
+		if capability != nil {
+			capabilities = append(capabilities, csipartials.VolumeCapability{
+				AccessMode: string(capability.AccessMode), AttachMode: string(capability.AttachmentMode),
+			})
+		}
+	}
+	if len(capabilities) == 0 && (vol.AccessMode != "" || vol.AttachmentMode != "") {
+		capabilities = append(capabilities, csipartials.VolumeCapability{
+			AccessMode: string(vol.AccessMode), AttachMode: string(vol.AttachmentMode),
 		})
 	}
 
@@ -642,8 +575,6 @@ func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token
 		PluginID:            vol.PluginID,
 		Provider:            vol.Provider,
 		Schedulable:         vol.Schedulable,
-		AccessMode:          string(vol.AccessMode),
-		AttachMode:          string(vol.AttachmentMode),
 		MountOptions:        mountOptions,
 		Capacity:            vol.Capacity,
 		AllocationsCount:    totalCount,
@@ -656,7 +587,27 @@ func (h *CSIHandler) getVolumeDetail(r *http.Request, volumeID, namespace, token
 		ControllersExpected: vol.ControllersExpected,
 		NodesHealthy:        vol.NodesHealthy,
 		NodesExpected:       vol.NodesExpected,
-		Allocations:         allocations,
+		Capabilities:        capabilities,
+		ReadAllocations:     readAllocations,
+		WriteAllocations:    writeAllocations,
+	}, nil
+}
+
+func (h *CSIHandler) renderVolumeDetailError(w http.ResponseWriter, r *http.Request, volumeID, namespace string, err error) {
+	switch {
+	case apiResponseHasStatus(err, http.StatusNotFound):
+		h.handler.RenderNotFound(w, r, NotFoundError{
+			Message: "The requested CSI volume was not found.", RequestPath: r.URL.Path,
+		})
+	case apiResponseHasStatus(err, http.StatusForbidden):
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message: "You do not have permission to view CSI volume details", Capability: "csi-read-volume", Namespace: namespace,
+		})
+	default:
+		h.handler.logger.Error("failed to fetch CSI volume", "volumeID", volumeID, "namespace", namespace, "error", err)
+		h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+			Message: "Wander could not load the CSI volume from the cluster.",
+		})
 	}
 }
 
