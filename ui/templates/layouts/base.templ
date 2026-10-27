@@ -35,6 +35,7 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			<script src="/ui/static/js/selection-scope.js"></script>
 			<script src="/ui/static/js/codemirror-bundle.js"></script>
 			<script src="/ui/static/js/alpine-patterns.js"></script>
+			<script src="/ui/static/js/keyboard-shortcuts.js"></script>
 			<!-- SSE Client - Auto-reconnecting EventSource wrapper -->
 			<script src="/ui/static/js/sse-client.js"></script>
 			<!-- ANSI parser - Terminal color support for logs -->
@@ -49,10 +50,6 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			data-wander-namespace={ props.CurrentNamespace }
 			data-wander-region={ props.CurrentRegion }
 			hx-ext="head-support"
-			x-data="keyboardShortcuts()"
-			x-init="init()"
-			@keydown.window="handleKeyDown($event)"
-			@keyup.window="handleKeyUp($event)"
 		>
 			<!-- HTMX Configuration -->
 			<meta name="htmx-config" content='{"historyCacheSize":20,"defaultSwapStyle":"innerHTML","defaultSwapDelay":0,"timeout":30000,"allowEval":false,"allowScriptTags":false}'/>
@@ -70,6 +67,7 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 					ID: "evaluations",
 				})
 			</div>
+			@components.KeyboardShortcutsDialog()
 		</body>
 	</html>
 }

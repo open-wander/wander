@@ -24,6 +24,8 @@ func TestBaseLayoutExposesResolvedSelectionToScopeHelper(t *testing.T) {
 		`data-wander-namespace="team-a"`,
 		`data-wander-region="region-a"`,
 		`src="/ui/static/js/selection-scope.js"`,
+		`src="/ui/static/js/keyboard-shortcuts.js"`,
+		`data-keyboard-shortcuts-dialog`,
 	} {
 		if !strings.Contains(html, expected) {
 			t.Errorf("rendered layout missing %s", expected)

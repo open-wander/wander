@@ -574,4 +574,60 @@ test.describe('Wander release smoke', () => {
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     expect(browserErrors).toEqual([]);
   });
+
+  test('supports global shortcut help, preferences, rebinding, and navigation', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await openDesktopPage(page, '/ui/jobs?namespace=default&region=global');
+
+    await page.keyboard.press('Shift+/');
+    let dialog = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Change shortcut for Go to ACL Tokens' })).toHaveText('G then A');
+
+    const enabled = dialog.getByLabel('Enable keyboard shortcuts');
+    await enabled.uncheck();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('g');
+    await page.keyboard.press('c');
+    await expect(page).toHaveURL(/\/ui\/jobs/);
+
+    await page.keyboard.press('Shift+/');
+    dialog = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel('Enable keyboard shortcuts').check();
+    await dialog.getByRole('button', { name: 'Change shortcut for Focus search' }).click();
+    await page.keyboard.press('x');
+    await page.keyboard.press('Enter');
+    await expect(dialog.getByRole('button', { name: 'Change shortcut for Focus search' })).toHaveText('X');
+    await page.keyboard.press('Escape');
+
+    await page.keyboard.press('x');
+    await expect(page.locator('#global-search')).toBeFocused();
+    await page.locator('#global-search').blur();
+    await page.keyboard.press('g');
+    await page.keyboard.press('c');
+    await expect(page).toHaveURL(/\/ui\/clients/);
+    await expect(page).toHaveURL(/namespace=default/);
+    await expect(page).toHaveURL(/region=global/);
+
+    await page.keyboard.press('Shift+ArrowDown');
+    await expect(page).toHaveURL(/\/ui\/servers/);
+    await page.keyboard.press('g');
+    await page.keyboard.press('j');
+    await expect(page).toHaveURL(/\/ui\/jobs/);
+    await page.locator('[data-job-id="wander-ui-smoke"] a').first().click();
+    await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('Shift+ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Definition' })).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('Shift+ArrowLeft');
+    await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('body')).toHaveAttribute('data-wander-namespace', 'default');
+    await expect(page.locator('body')).toHaveAttribute('data-wander-region', 'global');
+    await page.keyboard.press('u');
+    await expect(page).toHaveURL(/\/ui\/jobs\?/);
+
+    await page.keyboard.press('Control+k');
+    await expect(page.locator('#global-search')).toBeFocused();
+    expect(browserErrors).toEqual([]);
+  });
 });

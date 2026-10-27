@@ -122,8 +122,8 @@ be used to defer baseline behavior without explicit approval:
 - Structured job-version diffs and job templates/file upload. Known baseline
   behavior is required for 0.1.0 unless an explicit deviation is approved.
 - Consistent copy controls and improved relative time display. The applicable
-  Nomad 1.6.5 global keyboard shortcuts are required before 0.1.0 and are
-  tracked in the revival checklist rather than this post-release backlog.
+  Nomad 1.6.5 global keyboard shortcuts are restored and verified; their
+  compatibility evidence is tracked in the revival checklist.
 - Additional authentication methods beyond the Nomad 1.6.5 behavior contract.
   Configured OIDC browser sign-in is required before 0.1.0; no separate
   interactive JWT action was observed in the approved baseline capture.
