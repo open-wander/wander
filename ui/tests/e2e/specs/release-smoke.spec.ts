@@ -93,6 +93,22 @@ async function openDialog(page: Page, triggerName: string, dialogName: string) {
 }
 
 test.describe('Wander release smoke', () => {
+  test('opens CSI plugin details when the cluster has a plugin', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await openDesktopPage(page, '/ui/csi/plugins?region=global');
+    const pluginRows = page.locator('[data-plugin-id]');
+    test.skip((await pluginRows.count()) === 0, 'the disposable cluster has no CSI plugin fixture');
+
+    const pluginID = await pluginRows.first().getAttribute('data-plugin-id');
+    await pluginRows.first().locator('a[href^="/ui/csi/plugins/"]').click();
+    await expect(page).toHaveURL(/\/ui\/csi\/plugins\/[^/]+/);
+    await expect(page.getByRole('heading', { name: pluginID ?? '' })).toBeVisible();
+    await page.getByRole('link', { name: 'Allocations', exact: true }).click();
+    await expect(page).toHaveURL(/\/allocations/);
+    await expect(page.getByRole('heading', { name: 'Plugin Allocations' })).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
   test('dispatches and purges a parameterized child job', async ({ page }) => {
     await openDesktopPage(page, '/ui/jobs/wander-ui-parameterized?namespace=dispatch-test&region=global');
 

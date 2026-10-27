@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"errors"
 	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui/templates/components"
 	"github.com/open-wander/wander/ui/templates/pages/csi"
@@ -55,6 +58,27 @@ func (h *CSIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle /ui/csi/plugins/{id} and /ui/csi/plugins/{id}/allocations.
+	if strings.HasPrefix(path, "/ui/csi/plugins/") {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		remainder := strings.Trim(strings.TrimPrefix(path, "/ui/csi/plugins/"), "/")
+		segments := strings.Split(remainder, "/")
+		pluginID, err := url.PathUnescape(segments[0])
+		if err != nil || pluginID == "" || len(segments) > 2 || (len(segments) == 2 && segments[1] != "allocations") {
+			http.NotFound(w, r)
+			return
+		}
+		if len(segments) == 2 {
+			h.PluginAllocations(w, r, pluginID)
+			return
+		}
+		h.PluginDetail(w, r, pluginID)
+		return
+	}
+
 	// Handle /ui/csi/volumes exactly (list page)
 	if path == "/ui/csi/volumes" {
 		if r.Method != http.MethodGet {
@@ -83,6 +107,8 @@ func (h *CSIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	http.NotFound(w, r)
 }
+
+var errNomadClientUnavailable = errors.New("Nomad client unavailable")
 
 // VolumesList handles the CSI volumes list page
 func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
@@ -114,8 +140,8 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	searchQuery := query.Get("search")
 	sortColumn := query.Get("sort")
 	sortDir := query.Get("dir")
-	pageStr := query.Get("page")
-	perPageStr := query.Get("per_page")
+	page := positiveBoundedInt(query.Get("page"), 1, math.MaxInt)
+	perPage := positiveBoundedInt(query.Get("per_page"), 25, 100)
 
 	// Default sort
 	if sortColumn == "" {
@@ -123,16 +149,6 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 	}
 	if sortDir == "" {
 		sortDir = "asc"
-	}
-
-	// Default pagination
-	page := 1
-	perPage := 25
-	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-		page = p
-	}
-	if pp, err := strconv.Atoi(perPageStr); err == nil && pp > 0 && pp <= 100 {
-		perPage = pp
 	}
 
 	// Get ACL token from request context
@@ -152,20 +168,7 @@ func (h *CSIHandler) VolumesList(w http.ResponseWriter, r *http.Request) {
 
 	// Calculate pagination
 	total := len(filteredVolumes)
-	totalPages := int(math.Ceil(float64(total) / float64(perPage)))
-	if page > totalPages && totalPages > 0 {
-		page = totalPages
-	}
-
-	// Apply pagination
-	startIdx := (page - 1) * perPage
-	endIdx := startIdx + perPage
-	if endIdx > total {
-		endIdx = total
-	}
-	if startIdx > total {
-		startIdx = total
-	}
+	page, totalPages, startIdx, endIdx := paginationBounds(total, page, perPage)
 
 	paginatedVolumes := filteredVolumes[startIdx:endIdx]
 
@@ -695,6 +698,8 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 	searchQuery := query.Get("search")
 	sortColumn := query.Get("sort")
 	sortDir := query.Get("dir")
+	page := positiveBoundedInt(query.Get("page"), 1, math.MaxInt)
+	perPage := positiveBoundedInt(query.Get("per_page"), 25, 100)
 
 	// Default sort
 	if sortColumn == "" {
@@ -708,17 +713,24 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get all plugins from Nomad API
-	allPlugins := h.getPluginsList(r, token)
+	allPlugins, err := h.getPluginsList(r, token)
+	if err != nil {
+		h.renderPluginListError(w, r, err)
+		return
+	}
 
 	// Apply search filter
 	filteredPlugins := h.filterPlugins(allPlugins, searchQuery)
 
 	// Apply sorting
 	h.sortPlugins(filteredPlugins, sortColumn, sortDir)
+	total := len(filteredPlugins)
+	page, _, start, end := paginationBounds(total, page, perPage)
+	paginatedPlugins := filteredPlugins[start:end]
 
 	// Convert to partial type
-	pluginsList := make([]csipartials.PluginSummary, len(filteredPlugins))
-	for i, p := range filteredPlugins {
+	pluginsList := make([]csipartials.PluginSummary, len(paginatedPlugins))
+	for i, p := range paginatedPlugins {
 		pluginsList[i] = csipartials.PluginSummary{
 			ID:                  p.ID,
 			Provider:            p.Provider,
@@ -736,6 +748,9 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 		Search:     searchQuery,
 		SortColumn: sortColumn,
 		SortDir:    sortDir,
+		Page:       page,
+		PerPage:    perPage,
+		Total:      total,
 	}
 
 	// Check if this is an HTMX request for table update only
@@ -761,7 +776,7 @@ func (h *CSIHandler) PluginsList(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the plugins list page
-	err := Render(w, r,
+	err = Render(w, r,
 		csi.PluginsList(layoutProps, props),   // Full page with layout
 		csipartials.PluginsListContent(props), // Partial content for HTMX requests
 	)
@@ -794,37 +809,36 @@ func (h *CSIHandler) filterPlugins(plugins []PluginSummary, search string) []Plu
 
 // sortPlugins sorts the plugins list by the specified column
 func (h *CSIHandler) sortPlugins(plugins []PluginSummary, column, dir string) {
-	sort.Slice(plugins, func(i, j int) bool {
-		var less bool
-
+	sort.SliceStable(plugins, func(i, j int) bool {
+		comparison := 0
 		switch column {
 		case "id":
-			less = plugins[i].ID < plugins[j].ID
+			comparison = strings.Compare(plugins[i].ID, plugins[j].ID)
 		case "provider":
-			less = plugins[i].Provider < plugins[j].Provider
+			comparison = strings.Compare(plugins[i].Provider, plugins[j].Provider)
 		case "controllers":
-			less = plugins[i].ControllersHealthy < plugins[j].ControllersHealthy
+			comparison = plugins[i].ControllersHealthy - plugins[j].ControllersHealthy
 		case "nodes":
-			less = plugins[i].NodesHealthy < plugins[j].NodesHealthy
+			comparison = plugins[i].NodesHealthy - plugins[j].NodesHealthy
 		default:
-			less = plugins[i].ID < plugins[j].ID
+			comparison = strings.Compare(plugins[i].ID, plugins[j].ID)
 		}
-
+		if comparison == 0 {
+			comparison = strings.Compare(plugins[i].ID, plugins[j].ID)
+		}
 		if dir == "desc" {
-			return !less
+			return comparison > 0
 		}
-		return less
+		return comparison < 0
 	})
 }
 
 // getPluginsList fetches CSI plugins from the Nomad API.
-// Falls back to empty list if API is unavailable.
 // Note: CSI plugins are cluster-wide resources, not namespaced.
-func (h *CSIHandler) getPluginsList(r *http.Request, token string) []PluginSummary {
+func (h *CSIHandler) getPluginsList(r *http.Request, token string) ([]PluginSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty plugins list")
-		return []PluginSummary{}
+		return nil, errNomadClientUnavailable
 	}
 
 	// Build query options with ACL token (no namespace - plugins are cluster-wide)
@@ -842,8 +856,7 @@ func (h *CSIHandler) getPluginsList(r *http.Request, token string) []PluginSumma
 	// Fetch plugins from the API
 	plugins, _, err := client.CSIPlugins().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch CSI plugins from Nomad API", "error", err)
-		return []PluginSummary{}
+		return nil, err
 	}
 
 	// Convert API response to our summary type
@@ -860,5 +873,331 @@ func (h *CSIHandler) getPluginsList(r *http.Request, token string) []PluginSumma
 		})
 	}
 
+	return result, nil
+}
+
+func (h *CSIHandler) renderPluginListError(w http.ResponseWriter, r *http.Request, err error) {
+	if apiResponseHasStatus(err, http.StatusForbidden) {
+		h.renderPluginForbidden(w, r, "You do not have permission to view CSI plugins")
+		return
+	}
+	h.handler.logger.Error("failed to fetch CSI plugins", "error", err)
+	h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+		Message: "Wander could not load CSI plugins from the cluster.",
+	})
+}
+
+// The handler and templates share one view model so API values are mapped once.
+type PluginDetail = csipartials.PluginDetail
+type PluginAllocation = csipartials.PluginAllocation
+
+type pluginAllocationsPage struct {
+	Plugin      PluginDetail
+	Allocations []PluginAllocation
+	Type        string
+	Health      string
+	Sort        string
+	Direction   string
+	Page        int
+	PerPage     int
+	Total       int
+	TotalPages  int
+}
+
+// PluginDetail renders the CSI plugin overview and its recent allocations.
+func (h *CSIHandler) PluginDetail(w http.ResponseWriter, r *http.Request, pluginID string) {
+	plugin, ok := h.loadPluginDetail(w, r, pluginID)
+	if !ok {
+		return
+	}
+
+	layoutProps := h.handler.BaseLayoutProps(r,
+		plugin.ID+" - CSI Plugin - Wander",
+		"CSI plugin detail for "+plugin.ID,
+		"/ui/csi/plugins/"+url.PathEscape(plugin.ID),
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Storage", URL: ""},
+			{Label: "Plugins", URL: "/ui/csi/plugins"},
+			{Label: plugin.ID, URL: ""},
+		},
+	)
+
+	h.renderPluginPage(w, r, pluginID, "detail",
+		csi.PluginDetail(layoutProps, *plugin),
+		csipartials.PluginDetailContent(*plugin),
+	)
+}
+
+// PluginAllocations renders the filterable and paginated CSI allocation view.
+func (h *CSIHandler) PluginAllocations(w http.ResponseWriter, r *http.Request, pluginID string) {
+	plugin, ok := h.loadPluginDetail(w, r, pluginID)
+	if !ok {
+		return
+	}
+
+	page := buildPluginAllocationsPage(*plugin, r.URL.Query())
+	view := toPluginAllocationsView(page)
+	layoutProps := h.handler.BaseLayoutProps(r,
+		plugin.ID+" allocations - CSI Plugin - Wander",
+		"CSI plugin allocations for "+plugin.ID,
+		"/ui/csi/plugins/"+url.PathEscape(plugin.ID)+"/allocations",
+		[]components.Breadcrumb{
+			{Label: "Home", URL: "/ui/"},
+			{Label: "Storage", URL: ""},
+			{Label: "Plugins", URL: "/ui/csi/plugins"},
+			{Label: plugin.ID, URL: "/ui/csi/plugins/" + url.PathEscape(plugin.ID)},
+			{Label: "Allocations", URL: ""},
+		},
+	)
+
+	h.renderPluginPage(w, r, pluginID, "allocations",
+		csi.PluginAllocations(layoutProps, view),
+		csipartials.PluginAllocationsContent(view),
+	)
+}
+
+func (h *CSIHandler) loadPluginDetail(w http.ResponseWriter, r *http.Request, pluginID string) (*PluginDetail, bool) {
+	plugin, err := h.getPluginDetail(r, pluginID, GetTokenFromRequest(r))
+	if err != nil {
+		h.renderPluginError(w, r, pluginID, err)
+		return nil, false
+	}
+	return plugin, true
+}
+
+func (h *CSIHandler) renderPluginPage(w http.ResponseWriter, r *http.Request, pluginID, page string, full, partial templ.Component) {
+	if err := Render(w, r, full, partial); err != nil {
+		h.handler.logger.Error("failed to render CSI plugin page", "pluginID", pluginID, "page", page, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+func (h *CSIHandler) getPluginDetail(r *http.Request, pluginID, token string) (*PluginDetail, error) {
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return nil, errNomadClientUnavailable
+	}
+
+	query := resourceQueryOptions(token)
+	plugin, _, err := client.CSIPlugins().Info(pluginID, query)
+	if err != nil {
+		return nil, err
+	}
+	if plugin == nil {
+		return nil, errors.New("Nomad returned an empty CSI plugin response")
+	}
+
+	allocations := make(map[string]*api.AllocationListStub, len(plugin.Allocations))
+	for _, allocation := range plugin.Allocations {
+		if allocation != nil {
+			allocations[allocation.ID] = allocation
+		}
+	}
+
+	return &PluginDetail{
+		ID:                  plugin.ID,
+		Provider:            plugin.Provider,
+		Version:             plugin.Version,
+		ControllerRequired:  plugin.ControllerRequired,
+		ControllersHealthy:  plugin.ControllersHealthy,
+		ControllersExpected: plugin.ControllersExpected,
+		NodesHealthy:        plugin.NodesHealthy,
+		NodesExpected:       plugin.NodesExpected,
+		Controllers:         joinPluginAllocations("controller", plugin.Controllers, allocations),
+		Nodes:               joinPluginAllocations("node", plugin.Nodes, allocations),
+	}, nil
+}
+
+func joinPluginAllocations(kind string, records map[string]*api.CSIInfo, allocations map[string]*api.AllocationListStub) []PluginAllocation {
+	result := make([]PluginAllocation, 0, len(records))
+	for nodeID, info := range records {
+		if info == nil {
+			continue
+		}
+		item := PluginAllocation{
+			Type:              kind,
+			AllocationID:      info.AllocID,
+			NodeID:            nodeID,
+			Healthy:           info.Healthy,
+			HealthDescription: info.HealthDescription,
+			Updated:           info.UpdateTime,
+		}
+		if allocation := allocations[info.AllocID]; allocation != nil {
+			item.AllocationKnown = true
+			item.NodeID = firstNonEmpty(allocation.NodeID, item.NodeID)
+			item.NodeName = allocation.NodeName
+			item.JobID = allocation.JobID
+			item.Namespace = allocation.Namespace
+			item.TaskGroup = allocation.TaskGroup
+			item.JobVersion = allocation.JobVersion
+			item.ClientStatus = allocation.ClientStatus
+			item.Created = unixNanoTime(allocation.CreateTime)
+			item.Modified = unixNanoTime(allocation.ModifyTime)
+			item.CPU, item.MemoryMB, item.ResourcesKnown = allocatedCapacity(allocation.AllocatedResources)
+		}
+		result = append(result, item)
+	}
+	sortPluginAllocations(result, "modified", "desc")
 	return result
+}
+
+func allocatedCapacity(resources *api.AllocatedResources) (cpu, memoryMB int64, known bool) {
+	if resources == nil {
+		return 0, 0, false
+	}
+	for _, task := range resources.Tasks {
+		if task == nil {
+			continue
+		}
+		cpu += task.Cpu.CpuShares
+		memoryMB += task.Memory.MemoryMB
+	}
+	return cpu, memoryMB, true
+}
+
+func buildPluginAllocationsPage(plugin PluginDetail, query url.Values) pluginAllocationsPage {
+	typeFilter := query.Get("type")
+	if typeFilter != "controller" && typeFilter != "node" {
+		typeFilter = ""
+	}
+	healthFilter := query.Get("healthy")
+	if healthFilter != "true" && healthFilter != "false" {
+		healthFilter = ""
+	}
+	sortColumn := query.Get("sort")
+	if sortColumn != "health" && sortColumn != "id" {
+		sortColumn = "modified"
+	}
+	direction := query.Get("dir")
+	if direction != "asc" {
+		direction = "desc"
+	}
+	page := positiveBoundedInt(query.Get("page"), 1, math.MaxInt)
+	perPage := positiveBoundedInt(query.Get("per_page"), 25, 100)
+
+	combined := make([]PluginAllocation, 0, len(plugin.Controllers)+len(plugin.Nodes))
+	if typeFilter != "node" {
+		combined = append(combined, plugin.Controllers...)
+	}
+	if typeFilter != "controller" {
+		combined = append(combined, plugin.Nodes...)
+	}
+	if healthFilter != "" {
+		wantHealthy := healthFilter == "true"
+		filtered := combined[:0]
+		for _, allocation := range combined {
+			if allocation.Healthy == wantHealthy {
+				filtered = append(filtered, allocation)
+			}
+		}
+		combined = filtered
+	}
+	sortPluginAllocations(combined, sortColumn, direction)
+
+	total := len(combined)
+	page, totalPages, start, end := paginationBounds(total, page, perPage)
+
+	return pluginAllocationsPage{
+		Plugin: plugin, Allocations: combined[start:end], Type: typeFilter,
+		Health: healthFilter, Sort: sortColumn, Direction: direction,
+		Page: page, PerPage: perPage, Total: total, TotalPages: totalPages,
+	}
+}
+
+func sortPluginAllocations(allocations []PluginAllocation, column, direction string) {
+	sort.SliceStable(allocations, func(i, j int) bool {
+		comparison := 0
+		switch column {
+		case "health":
+			if allocations[i].Healthy != allocations[j].Healthy {
+				if allocations[i].Healthy {
+					comparison = 1
+				} else {
+					comparison = -1
+				}
+			}
+		case "id":
+			comparison = strings.Compare(allocations[i].AllocationID, allocations[j].AllocationID)
+		default:
+			comparison = allocations[i].Updated.Compare(allocations[j].Updated)
+		}
+		if comparison == 0 {
+			comparison = strings.Compare(allocations[i].AllocationID, allocations[j].AllocationID)
+		}
+		if direction == "desc" {
+			return comparison > 0
+		}
+		return comparison < 0
+	})
+}
+
+func positiveBoundedInt(raw string, fallback, maximum int) int {
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return fallback
+	}
+	return min(value, maximum)
+}
+
+func paginationBounds(total, page, perPage int) (boundedPage, totalPages, start, end int) {
+	totalPages = (total + perPage - 1) / perPage
+	boundedPage = page
+	if totalPages == 0 {
+		boundedPage = 1
+	} else if boundedPage > totalPages {
+		boundedPage = totalPages
+	}
+	start = min((boundedPage-1)*perPage, total)
+	end = min(start+perPage, total)
+	return boundedPage, totalPages, start, end
+}
+
+func unixNanoTime(value int64) time.Time {
+	if value <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, value)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func (h *CSIHandler) renderPluginError(w http.ResponseWriter, r *http.Request, pluginID string, err error) {
+	switch {
+	case apiResponseHasStatus(err, http.StatusNotFound):
+		h.handler.RenderNotFound(w, r, NotFoundError{
+			Message:     "The requested CSI plugin was not found.",
+			RequestPath: r.URL.Path,
+		})
+	case apiResponseHasStatus(err, http.StatusForbidden):
+		h.renderPluginForbidden(w, r, "You do not have permission to view CSI plugin details")
+	default:
+		h.handler.logger.Error("failed to fetch CSI plugin", "pluginID", pluginID, "error", err)
+		h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+			Message: "Wander could not load the CSI plugin from the cluster.",
+		})
+	}
+}
+
+func (h *CSIHandler) renderPluginForbidden(w http.ResponseWriter, r *http.Request, message string) {
+	h.handler.RenderForbidden(w, r, ForbiddenError{
+		Message:    message,
+		Capability: "csi-list-volume",
+		Namespace:  "default",
+	})
+}
+
+func toPluginAllocationsView(page pluginAllocationsPage) csipartials.PluginAllocationsProps {
+	return csipartials.PluginAllocationsProps{
+		Plugin: page.Plugin, Allocations: page.Allocations,
+		Type: page.Type, Health: page.Health, Sort: page.Sort, Direction: page.Direction,
+		Page: page.Page, PerPage: page.PerPage, Total: page.Total, TotalPages: page.TotalPages,
+	}
 }

@@ -2,8 +2,8 @@ package csipartials
 
 import (
 	"fmt"
-	"net/url"
 	"github.com/open-wander/wander/ui/templates/components"
+	"net/url"
 )
 
 // PluginSummary represents a summary view of a CSI plugin for list display.
@@ -23,6 +23,9 @@ type PluginsListProps struct {
 	Search     string
 	SortColumn string
 	SortDir    string
+	Page       int
+	PerPage    int
+	Total      int
 }
 
 // PluginsListContent renders the CSI plugins table content for HTMX partial updates.
@@ -80,23 +83,32 @@ templ PluginsTable(props PluginsListProps) {
 			}
 		}
 	}
+	@components.Pagination(components.PaginationProps{
+		Page:     props.Page,
+		PerPage:  props.PerPage,
+		Total:    props.Total,
+		BaseURL:  buildPluginsPaginationURL(props),
+		HxTarget: "#plugins-table-container",
+		HxSwap:   "innerHTML",
+	})
 }
 
 // pluginRow renders a single plugin row in the table
 templ pluginRow(plugin PluginSummary) {
 	<tr
+		data-plugin-id={ plugin.ID }
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-		hx-get={ fmt.Sprintf("/ui/csi/volumes?plugin=%s", plugin.ID) }
+		hx-get={ fmt.Sprintf("/ui/csi/plugins/%s", url.PathEscape(plugin.ID)) }
 		hx-target="#main-content"
 		hx-swap="innerHTML"
 		hx-push-url="true"
 	>
 		@components.TableCell("left", "w-1/4") {
 			<a
-				href={ templ.SafeURL(fmt.Sprintf("/ui/csi/volumes?plugin=%s", plugin.ID)) }
+				href={ templ.SafeURL(fmt.Sprintf("/ui/csi/plugins/%s", url.PathEscape(plugin.ID))) }
 				class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
 				@click.stop
-				hx-get={ fmt.Sprintf("/ui/csi/volumes?plugin=%s", plugin.ID) }
+				hx-get={ fmt.Sprintf("/ui/csi/plugins/%s", url.PathEscape(plugin.ID)) }
 				hx-target="#main-content"
 				hx-swap="innerHTML"
 				hx-push-url="true"
@@ -183,4 +195,21 @@ func buildPluginsSearchURL(sortColumn, sortDir string) string {
 		return baseURL + params.Encode() + "&"
 	}
 	return baseURL
+}
+
+func buildPluginsPaginationURL(props PluginsListProps) string {
+	params := url.Values{}
+	if props.Search != "" {
+		params.Set("search", props.Search)
+	}
+	if props.SortColumn != "" {
+		params.Set("sort", props.SortColumn)
+	}
+	if props.SortDir != "" {
+		params.Set("dir", props.SortDir)
+	}
+	if encoded := params.Encode(); encoded != "" {
+		return "/ui/csi/plugins?" + encoded
+	}
+	return "/ui/csi/plugins"
 }

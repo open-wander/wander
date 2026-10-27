@@ -100,6 +100,9 @@ remote job while preserving the selected region through navigation.
 - [x] Complete keyboard-only and basic screen-reader navigation checks. The
   browser release suite checks landmarks, control names, form labels, unique
   IDs, and keyboard-only navigation.
+- [x] Restore CSI plugin detail and allocation routes with live controller/node
+  health, provider/version, allocation metadata and allocated resources,
+  filtering, sorting, pagination, and truthful backend errors.
 
 ## Post-0.1 feature backlog
 
@@ -108,7 +111,6 @@ These are unimplemented capabilities. The
 an inherited 0.1.0 requirement or a post-0.1 enhancement; this list must not
 be used to defer baseline behavior without explicit approval:
 
-- CSI plugin detail pages with controller/node allocation health.
 - Allocation ports, services, reschedule/preemption history, and task lifecycle
   visualization.
 - Task-group allocation tables, filters, volumes, and lifecycle visualization.

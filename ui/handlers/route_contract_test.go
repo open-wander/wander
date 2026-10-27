@@ -125,6 +125,8 @@ func TestDynamicUIRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/ui/tokens/example",
 		"/ui/roles/example",
 		"/ui/csi/volumes/example",
+		"/ui/csi/plugins/example",
+		"/ui/csi/plugins/example/allocations",
 		"/ui/settings/token",
 		"/ui/evaluations/example",
 		"/ui/deployments/example",
@@ -200,6 +202,7 @@ func TestMissingDynamicResourcesHaveTruthfulStatus(t *testing.T) {
 		{path: "/ui/tokens/missing", wantStatus: http.StatusForbidden},
 		{path: "/ui/roles/missing", wantStatus: http.StatusForbidden},
 		{path: "/ui/csi/volumes/missing", wantStatus: http.StatusNotFound},
+		{path: "/ui/csi/plugins/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/evaluations/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/deployments/missing", wantStatus: http.StatusNotFound},
 	} {

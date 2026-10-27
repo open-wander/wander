@@ -57,5 +57,7 @@ render assertions, and the live embedded-cluster Chromium release suite. The
 browser coverage verifies help, disable/re-enable, rebinding, scoped major-area
 navigation, main-section and tab movement, parent navigation, and search focus.
 
-The next 0.1.0 UI compatibility slice is the CSI plugin detail and allocation
-health gap recorded in the route-parity matrix and revival checklist.
+The CSI plugin detail/allocation-health gap was completed on 2026-10-27. The
+next storage compatibility work is CSI volume registration/deregistration,
+claims, allocation completeness, and denied/unavailable state coverage as
+recorded in the route-parity matrix and revival checklist.

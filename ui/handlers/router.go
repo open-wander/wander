@@ -196,8 +196,9 @@ func (r *Router) registerAccessControlRoutes() {
 func (r *Router) registerCSIRoutes() {
 	csiHandler := NewCSIHandler(r.handler)
 
-	// CSI handler handles plugins list, volumes list and detail pages
+	// CSI handler handles plugin and volume list/detail pages.
 	r.mux.Handle("/ui/csi/plugins", r.wrapMiddleware(csiHandler))
+	r.mux.Handle("/ui/csi/plugins/", r.wrapMiddleware(csiHandler))
 	r.mux.Handle("/ui/csi/volumes", r.wrapMiddleware(csiHandler))
 	r.mux.Handle("/ui/csi/volumes/", r.wrapMiddleware(csiHandler))
 }
