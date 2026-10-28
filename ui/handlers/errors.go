@@ -13,6 +13,27 @@ func apiResponseHasStatus(err error, status int) bool {
 	return errors.As(err, &responseErr) && responseErr.StatusCode() == status
 }
 
+func (h *Handler) renderJobScopedReadError(w http.ResponseWriter, r *http.Request, namespace, action, resource string, notFound bool, err error) {
+	switch {
+	case notFound:
+		h.RenderNotFound(w, r, NotFoundError{
+			Message:     "The requested " + resource + " was not found.",
+			RequestPath: r.URL.Path,
+		})
+	case apiResponseHasStatus(err, http.StatusForbidden):
+		h.RenderForbidden(w, r, ForbiddenError{
+			Message:    "You do not have permission to " + action,
+			Capability: "read-job",
+			Namespace:  namespace,
+		})
+	default:
+		h.logger.Error("failed to "+action, "error", err)
+		h.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+			Message: "Wander could not " + action + " from the cluster.",
+		})
+	}
+}
+
 // ForbiddenError represents a 403 Forbidden error with details
 type ForbiddenError struct {
 	Message     string

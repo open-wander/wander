@@ -1,10 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +45,12 @@ func (h *DeploymentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Handle /ui/deployments/{id} (detail page)
 	if strings.HasPrefix(path, "/ui/deployments/") {
-		h.Detail(w, r)
+		deploymentID, err := url.PathUnescape(strings.Trim(strings.TrimPrefix(path, "/ui/deployments/"), "/"))
+		if err != nil || deploymentID == "" || strings.Contains(deploymentID, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		h.Detail(w, r, deploymentID)
 		return
 	}
 
@@ -76,64 +82,27 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 	namespace := GetNamespaceFromRequest(r)
 	statusFilter := query.Get("status")
 	jobFilter := query.Get("job")
-	searchQuery := query.Get("search")
-	sortColumn := query.Get("sort")
-	sortDir := query.Get("dir")
-	pageStr := query.Get("page")
-	perPageStr := query.Get("per_page")
-
-	// Default sorting
-	if sortColumn == "" {
-		sortColumn = "created"
-	}
-	if sortDir == "" {
-		sortDir = "desc"
-	}
-
-	// Default pagination
-	page := 1
-	perPage := 25
-	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-		page = p
-	}
-	if pp, err := strconv.Atoi(perPageStr); err == nil && pp > 0 && pp <= 100 {
-		perPage = pp
-	}
+	view := parseListViewOptions(query, "created", "desc")
 
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
 	// Get all deployments with server-side filtering
-	allDeployments := h.getDeploymentsList(r, namespace, token, statusFilter, jobFilter)
+	allDeployments, err := h.getDeploymentsList(r, namespace, token, statusFilter, jobFilter)
+	if err != nil {
+		h.renderDeploymentsError(w, r, namespace, "list deployments", err)
+		return
+	}
 
 	// Apply client-side search filter (status/job already filtered server-side)
-	filteredDeployments := h.filterDeployments(allDeployments, "", "", searchQuery)
+	filteredDeployments := h.filterDeployments(allDeployments, "", "", view.search)
 
 	// Apply sorting
-	h.sortDeployments(filteredDeployments, sortColumn, sortDir)
+	h.sortDeployments(filteredDeployments, view.sort, view.dir)
 
 	// Calculate pagination
 	total := len(filteredDeployments)
-	totalPages := (total + perPage - 1) / perPage // Ceiling division
-	if totalPages == 0 {
-		totalPages = 1
-	}
-	if page > totalPages {
-		page = totalPages
-	}
-
-	// Apply pagination
-	startIdx := (page - 1) * perPage
-	endIdx := startIdx + perPage
-	if startIdx < 0 {
-		startIdx = 0
-	}
-	if endIdx > total {
-		endIdx = total
-	}
-	if startIdx > total {
-		startIdx = total
-	}
+	_, _, startIdx, endIdx := paginationBounds(total, view.page, view.perPage)
 
 	paginatedDeployments := filteredDeployments[startIdx:endIdx]
 
@@ -152,6 +121,9 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 		// Calculate deployment metrics from task groups
 		var totalDesired, totalPlaced, totalHealthy, totalUnhealthy int
 		for _, tg := range deploy.TaskGroups {
+			if tg == nil {
+				continue
+			}
 			totalDesired += tg.DesiredTotal
 			totalPlaced += tg.PlacedAllocs
 			totalHealthy += tg.HealthyAllocs
@@ -187,7 +159,7 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		deployments.List(layoutProps, deploymentsList),   // Full page with layout
 		deploymentspartials.ListContent(deploymentsList), // Partial content for HTMX requests
 	)
@@ -200,17 +172,17 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDeploymentsList fetches deployments from the Nomad API with server-side filtering.
-// Falls back to empty list if API is unavailable.
-func (h *DeploymentsHandler) getDeploymentsList(r *http.Request, namespace, token, statusFilter, jobFilter string) []DeploymentSummary {
+func (h *DeploymentsHandler) getDeploymentsList(r *http.Request, namespace, token, statusFilter, jobFilter string) ([]DeploymentSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty deployments list")
-		return []DeploymentSummary{}
+		h.handler.logger.Warn("no Nomad client available for deployments list")
+		return nil, errNomadClientUnavailable
 	}
 
 	// Build query options with namespace
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
+		Region:    GetRegionFromRequest(r),
 	}
 
 	// Set ACL token if available
@@ -241,7 +213,7 @@ func (h *DeploymentsHandler) getDeploymentsList(r *http.Request, namespace, toke
 	deploys, _, err := client.Deployments().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch deployments from Nomad API", "error", err)
-		return []DeploymentSummary{}
+		return nil, err
 	}
 
 	h.handler.logger.Debug("fetched deployments from API", "count", len(deploys))
@@ -264,7 +236,7 @@ func (h *DeploymentsHandler) getDeploymentsList(r *http.Request, namespace, toke
 		})
 	}
 
-	return result
+	return result, nil
 }
 
 // filterDeployments applies client-side filtering to the deployments list.
@@ -312,37 +284,30 @@ func (h *DeploymentsHandler) filterDeployments(deploys []DeploymentSummary, stat
 // sortDeployments sorts the deployments list by the specified column
 func (h *DeploymentsHandler) sortDeployments(deploys []DeploymentSummary, column, dir string) {
 	sort.Slice(deploys, func(i, j int) bool {
-		var less bool
-
-		switch column {
-		case "id":
-			less = deploys[i].ID < deploys[j].ID
-		case "job":
-			less = deploys[i].JobID < deploys[j].JobID
-		case "version":
-			less = deploys[i].JobVersion < deploys[j].JobVersion
-		case "status":
-			less = deploys[i].Status < deploys[j].Status
-		case "created":
-			less = deploys[i].CreateTime.Before(deploys[j].CreateTime)
-		default:
-			// Default to sorting by created time
-			less = deploys[i].CreateTime.Before(deploys[j].CreateTime)
-		}
-
 		if dir == "desc" {
-			return !less
+			return sortDeploymentLess(deploys[j], deploys[i], column)
 		}
-		return less
+		return sortDeploymentLess(deploys[i], deploys[j], column)
 	})
 }
 
-// Detail handles the deployment detail page
-func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
-	// Extract deployment ID from path
-	deploymentID := strings.TrimPrefix(r.URL.Path, "/ui/deployments/")
-	deploymentID = strings.TrimSuffix(deploymentID, "/")
+func sortDeploymentLess(left, right DeploymentSummary, column string) bool {
+	switch column {
+	case "id":
+		return left.ID < right.ID
+	case "job":
+		return left.JobID < right.JobID
+	case "version":
+		return left.JobVersion < right.JobVersion
+	case "status":
+		return left.Status < right.Status
+	default:
+		return left.CreateIndex < right.CreateIndex
+	}
+}
 
+// Detail handles the deployment detail page
+func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request, deploymentID string) {
 	// Log the request
 	h.handler.logger.Debug("deployment detail request", "deploymentID", deploymentID, "htmx", IsHTMXFromRequest(r))
 
@@ -350,9 +315,9 @@ func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get deployment detail from Nomad API
-	deploymentDetail, found := h.getDeploymentDetail(r, deploymentID, token)
-	if !found {
-		http.NotFound(w, r)
+	deploymentDetail, err := h.getDeploymentDetail(r, deploymentID, token)
+	if err != nil {
+		h.renderDeploymentsError(w, r, GetNamespaceFromRequest(r), "load deployment", err)
 		return
 	}
 
@@ -369,7 +334,7 @@ func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		deployments.Detail(layoutProps, deploymentDetail),   // Full page with layout
 		deploymentspartials.DetailContent(deploymentDetail), // Partial content for HTMX requests
 	)
@@ -382,15 +347,17 @@ func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDeploymentDetail fetches a specific deployment from the Nomad API.
-func (h *DeploymentsHandler) getDeploymentDetail(r *http.Request, deploymentID, token string) (deploymentspartials.DeploymentDetail, bool) {
+var errDeploymentNotFound = errors.New("deployment not found")
+
+func (h *DeploymentsHandler) getDeploymentDetail(r *http.Request, deploymentID, token string) (deploymentspartials.DeploymentDetail, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available")
-		return deploymentspartials.DeploymentDetail{}, false
+		return deploymentspartials.DeploymentDetail{}, errNomadClientUnavailable
 	}
 
 	// Build query options
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Namespace: GetNamespaceFromRequest(r), Region: GetRegionFromRequest(r)}
 
 	// Set ACL token if available
 	if token != "" {
@@ -407,12 +374,12 @@ func (h *DeploymentsHandler) getDeploymentDetail(r *http.Request, deploymentID, 
 	deploy, _, err := client.Deployments().Info(deploymentID, queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch deployment from Nomad API", "error", err)
-		return deploymentspartials.DeploymentDetail{}, false
+		return deploymentspartials.DeploymentDetail{}, err
 	}
 
 	if deploy == nil {
 		h.handler.logger.Debug("deployment not found", "deploymentID", deploymentID)
-		return deploymentspartials.DeploymentDetail{}, false
+		return deploymentspartials.DeploymentDetail{}, errDeploymentNotFound
 	}
 
 	// Get short ID (first 8 characters)
@@ -430,6 +397,9 @@ func (h *DeploymentsHandler) getDeploymentDetail(r *http.Request, deploymentID, 
 	// Convert task groups to detail format
 	taskGroups := make([]deploymentspartials.TaskGroupStatus, 0, len(deploy.TaskGroups))
 	for name, tg := range deploy.TaskGroups {
+		if tg == nil {
+			continue
+		}
 		taskGroups = append(taskGroups, deploymentspartials.TaskGroupStatus{
 			Name:            name,
 			AutoRevert:      tg.AutoRevert,
@@ -462,5 +432,10 @@ func (h *DeploymentsHandler) getDeploymentDetail(r *http.Request, deploymentID, 
 		ModifyTime:        modifyTime,
 		ModifyTimeAgo:     modifyTimeAgo,
 		TaskGroups:        taskGroups,
-	}, true
+	}, nil
+}
+
+func (h *DeploymentsHandler) renderDeploymentsError(w http.ResponseWriter, r *http.Request, namespace, action string, err error) {
+	notFound := errors.Is(err, errDeploymentNotFound) || apiResponseHasStatus(err, http.StatusNotFound)
+	h.handler.renderJobScopedReadError(w, r, namespace, action, "deployment", notFound, err)
 }

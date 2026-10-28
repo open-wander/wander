@@ -59,6 +59,7 @@ navigation, main-section and tab movement, parent navigation, and search focus.
 
 The CSI plugin and volume detail compatibility gaps were completed on
 2026-10-27. Registration and deregistration remain inherited API/CLI
-operations rather than Nomad 1.6.5 browser requirements. The next focused UI
-blocker is evaluation/deployment empty, denied, failed, blocked, and completed
-state coverage recorded in the route-parity matrix and revival checklist.
+operations rather than Nomad 1.6.5 browser requirements. Evaluation and
+deployment state/error compatibility was completed on 2026-10-28. The next
+focused UI blocker is the job-level deployment/evaluation sorting and priority
+coverage recorded in the revival checklist and route-parity matrix.

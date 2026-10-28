@@ -1,10 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +47,12 @@ func (h *EvaluationsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		h.Detail(w, r)
+		evalID, err := url.PathUnescape(strings.Trim(strings.TrimPrefix(path, "/ui/evaluations/"), "/"))
+		if err != nil || evalID == "" || strings.Contains(evalID, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		h.Detail(w, r, evalID)
 		return
 	}
 
@@ -77,64 +83,27 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	statusFilter := query.Get("status")
 	typeFilter := query.Get("type")
 	jobFilter := query.Get("job")
-	searchQuery := query.Get("search")
-	sortColumn := query.Get("sort")
-	sortDir := query.Get("dir")
-	pageStr := query.Get("page")
-	perPageStr := query.Get("per_page")
-
-	// Default sorting
-	if sortColumn == "" {
-		sortColumn = "created"
-	}
-	if sortDir == "" {
-		sortDir = "desc"
-	}
-
-	// Default pagination
-	page := 1
-	perPage := 25
-	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-		page = p
-	}
-	if pp, err := strconv.Atoi(perPageStr); err == nil && pp > 0 && pp <= 100 {
-		perPage = pp
-	}
+	view := parseListViewOptions(query, "created", "desc")
 
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
 	// Get all evaluations with server-side filtering
-	allEvaluations := h.getEvaluationsList(r, namespace, token, statusFilter, typeFilter, jobFilter)
+	allEvaluations, err := h.getEvaluationsList(r, namespace, token, statusFilter, typeFilter, jobFilter)
+	if err != nil {
+		h.renderEvaluationsError(w, r, namespace, "list evaluations", err)
+		return
+	}
 
 	// Apply client-side search filter (status/type/job already filtered server-side)
-	filteredEvaluations := h.filterEvaluations(allEvaluations, "", "", "", searchQuery)
+	filteredEvaluations := h.filterEvaluations(allEvaluations, "", "", "", view.search)
 
 	// Apply sorting
-	h.sortEvaluations(filteredEvaluations, sortColumn, sortDir)
+	h.sortEvaluations(filteredEvaluations, view.sort, view.dir)
 
 	// Calculate pagination
 	total := len(filteredEvaluations)
-	totalPages := (total + perPage - 1) / perPage // Ceiling division
-	if totalPages == 0 {
-		totalPages = 1
-	}
-	if page > totalPages {
-		page = totalPages
-	}
-
-	// Apply pagination
-	startIdx := (page - 1) * perPage
-	endIdx := startIdx + perPage
-	if startIdx < 0 {
-		startIdx = 0
-	}
-	if endIdx > total {
-		endIdx = total
-	}
-	if startIdx > total {
-		startIdx = total
-	}
+	_, _, startIdx, endIdx := paginationBounds(total, view.page, view.perPage)
 
 	paginatedEvaluations := filteredEvaluations[startIdx:endIdx]
 
@@ -190,7 +159,7 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		evaluations.List(layoutProps, evalsList),   // Full page with layout
 		evaluationspartials.ListContent(evalsList), // Partial content for HTMX requests
 	)
@@ -203,11 +172,7 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // Detail handles the evaluation detail request
-func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
-	// Extract evaluation ID from path
-	evalID := strings.TrimPrefix(r.URL.Path, "/ui/evaluations/")
-	evalID = strings.TrimSuffix(evalID, "/")
-
+func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request, evalID string) {
 	// Log the request
 	h.handler.logger.Debug("evaluation detail request", "evalID", evalID, "htmx", IsHTMXFromRequest(r))
 
@@ -215,9 +180,9 @@ func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get evaluation detail
-	evalDetail, found := h.getEvaluationDetail(r, evalID, token)
-	if !found {
-		http.Error(w, "Evaluation not found", http.StatusNotFound)
+	evalDetail, err := h.getEvaluationDetail(r, evalID, token)
+	if err != nil {
+		h.renderEvaluationsError(w, r, GetNamespaceFromRequest(r), "load evaluation", err)
 		return
 	}
 
@@ -234,7 +199,7 @@ func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		evaluations.Detail(layoutProps, evalDetail),   // Full page with layout
 		evaluationspartials.DetailContent(evalDetail), // Partial content for HTMX requests
 	)
@@ -247,15 +212,16 @@ func (h *EvaluationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 }
 
 // getEvaluationDetail fetches a single evaluation from the Nomad API.
-func (h *EvaluationsHandler) getEvaluationDetail(r *http.Request, evalID string, token string) (evaluationspartials.EvaluationDetail, bool) {
+var errEvaluationNotFound = errors.New("evaluation not found")
+
+func (h *EvaluationsHandler) getEvaluationDetail(r *http.Request, evalID string, token string) (evaluationspartials.EvaluationDetail, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty evaluation detail")
-		return evaluationspartials.EvaluationDetail{ID: evalID}, false
+		return evaluationspartials.EvaluationDetail{}, errNomadClientUnavailable
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Namespace: GetNamespaceFromRequest(r), Region: GetRegionFromRequest(r)}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
@@ -264,7 +230,10 @@ func (h *EvaluationsHandler) getEvaluationDetail(r *http.Request, evalID string,
 	eval, _, err := client.Evaluations().Info(evalID, queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch evaluation from Nomad API", "error", err, "evalID", evalID)
-		return evaluationspartials.EvaluationDetail{ID: evalID}, false
+		return evaluationspartials.EvaluationDetail{}, err
+	}
+	if eval == nil {
+		return evaluationspartials.EvaluationDetail{}, errEvaluationNotFound
 	}
 
 	// Get short ID (first 8 characters)
@@ -287,6 +256,9 @@ func (h *EvaluationsHandler) getEvaluationDetail(r *http.Request, evalID string,
 	failedTGAllocs := make(map[string]evaluationspartials.AllocationMetric)
 	if eval.FailedTGAllocs != nil {
 		for tgName, metrics := range eval.FailedTGAllocs {
+			if metrics == nil {
+				continue
+			}
 			failedTGAllocs[tgName] = evaluationspartials.AllocationMetric{
 				NodesEvaluated:     metrics.NodesEvaluated,
 				NodesFiltered:      metrics.NodesFiltered,
@@ -328,7 +300,7 @@ func (h *EvaluationsHandler) getEvaluationDetail(r *http.Request, evalID string,
 		QueuedAllocations: eval.QueuedAllocations,
 	}
 
-	return detail, true
+	return detail, nil
 }
 
 // convertResourcesMap converts API Resources to template Resources
@@ -339,11 +311,17 @@ func convertResourcesMap(resources map[string]*api.Resources) map[string]*evalua
 	result := make(map[string]*evaluationspartials.Resources)
 	for k, v := range resources {
 		if v != nil {
-			result[k] = &evaluationspartials.Resources{
-				CPU:      *v.CPU,
-				MemoryMB: *v.MemoryMB,
-				DiskMB:   *v.DiskMB,
+			converted := &evaluationspartials.Resources{}
+			if v.CPU != nil {
+				converted.CPU = *v.CPU
 			}
+			if v.MemoryMB != nil {
+				converted.MemoryMB = *v.MemoryMB
+			}
+			if v.DiskMB != nil {
+				converted.DiskMB = *v.DiskMB
+			}
+			result[k] = converted
 		}
 	}
 	return result
@@ -368,17 +346,17 @@ func convertScoreMetaData(scores []*api.NodeScoreMeta) []*evaluationspartials.No
 }
 
 // getEvaluationsList fetches evaluations from the Nomad API with server-side filtering.
-// Falls back to empty list if API is unavailable.
-func (h *EvaluationsHandler) getEvaluationsList(r *http.Request, namespace, token, statusFilter, typeFilter, jobFilter string) []EvaluationSummary {
+func (h *EvaluationsHandler) getEvaluationsList(r *http.Request, namespace, token, statusFilter, typeFilter, jobFilter string) ([]EvaluationSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty evaluations list")
-		return []EvaluationSummary{}
+		h.handler.logger.Warn("no Nomad client available for evaluations list")
+		return nil, errNomadClientUnavailable
 	}
 
 	// Build query options with namespace
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
+		Region:    GetRegionFromRequest(r),
 	}
 
 	// Set ACL token if available
@@ -412,7 +390,7 @@ func (h *EvaluationsHandler) getEvaluationsList(r *http.Request, namespace, toke
 	evals, _, err := client.Evaluations().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch evaluations from Nomad API", "error", err)
-		return []EvaluationSummary{}
+		return nil, err
 	}
 
 	h.handler.logger.Debug("fetched evaluations from API", "count", len(evals))
@@ -438,7 +416,12 @@ func (h *EvaluationsHandler) getEvaluationsList(r *http.Request, namespace, toke
 		})
 	}
 
-	return result
+	return result, nil
+}
+
+func (h *EvaluationsHandler) renderEvaluationsError(w http.ResponseWriter, r *http.Request, namespace, action string, err error) {
+	notFound := errors.Is(err, errEvaluationNotFound) || apiResponseHasStatus(err, http.StatusNotFound)
+	h.handler.renderJobScopedReadError(w, r, namespace, action, "evaluation", notFound, err)
 }
 
 // filterEvaluations applies client-side filtering to the evaluations list.
@@ -495,43 +478,36 @@ func (h *EvaluationsHandler) filterEvaluations(evals []EvaluationSummary, status
 // sortEvaluations sorts the evaluations list by the specified column
 func (h *EvaluationsHandler) sortEvaluations(evals []EvaluationSummary, column, dir string) {
 	sort.Slice(evals, func(i, j int) bool {
-		var less bool
-
-		switch column {
-		case "id":
-			less = evals[i].ID < evals[j].ID
-		case "job":
-			less = evals[i].JobID < evals[j].JobID
-		case "status":
-			less = evals[i].Status < evals[j].Status
-		case "type":
-			less = evals[i].Type < evals[j].Type
-		case "triggered":
-			less = evals[i].TriggeredBy < evals[j].TriggeredBy
-		case "priority":
-			less = evals[i].Priority < evals[j].Priority
-		case "created":
-			less = evals[i].CreateTime.Before(evals[j].CreateTime)
-		default:
-			// Default to sorting by created time
-			less = evals[i].CreateTime.Before(evals[j].CreateTime)
-		}
-
 		if dir == "desc" {
-			return !less
+			return sortEvaluationLess(evals[j], evals[i], column)
 		}
-		return less
+		return sortEvaluationLess(evals[i], evals[j], column)
 	})
+}
+
+func sortEvaluationLess(left, right EvaluationSummary, column string) bool {
+	switch column {
+	case "id":
+		return left.ID < right.ID
+	case "job":
+		return left.JobID < right.JobID
+	case "status":
+		return left.Status < right.Status
+	case "type":
+		return left.Type < right.Type
+	case "triggered":
+		return left.TriggeredBy < right.TriggeredBy
+	case "priority":
+		return left.Priority < right.Priority
+	default:
+		return left.CreateTime.Before(right.CreateTime)
+	}
 }
 
 // formatTimeAgo formats a time as a human-readable "time ago" string.
 func formatTimeAgo(t time.Time) string {
 	if t.IsZero() {
 		return "Unknown"
-	}
-
-	if t.IsZero() {
-		return "unknown"
 	}
 
 	d := time.Since(t)
