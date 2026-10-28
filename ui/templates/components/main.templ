@@ -11,7 +11,7 @@ type MainProps struct {
 templ Main(props MainProps, content templ.Component) {
 	<main
 		id="main-content"
-		class="flex-1 overflow-y-auto bg-neutral-50"
+		class="min-h-0 flex-1 overflow-y-auto bg-neutral-50"
 		role="main"
 		tabindex="-1"
 	>
@@ -25,7 +25,7 @@ templ Main(props MainProps, content templ.Component) {
 templ MainFullWidth(props MainProps, content templ.Component) {
 	<main
 		id="main-content"
-		class="flex-1 overflow-y-auto bg-neutral-50"
+		class="min-h-0 flex-1 overflow-y-auto bg-neutral-50"
 		role="main"
 		tabindex="-1"
 	>

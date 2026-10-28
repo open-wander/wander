@@ -26,7 +26,6 @@ type ExecTabProps struct {
 templ ExecTabContent(props ExecTabProps) {
 	<div
 		x-data={ execTerminalData(props) }
-		x-init="init()"
 		x-on:beforeunload.window="disconnect()"
 		class="p-6"
 	>
@@ -47,6 +46,7 @@ templ ExecTabContent(props ExecTabProps) {
 					></span>
 					<span
 						x-text="connectionState"
+						data-exec-connection-state
 						class="text-xs text-neutral-500 capitalize"
 					></span>
 				</div>

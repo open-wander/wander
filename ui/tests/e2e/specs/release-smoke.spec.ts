@@ -465,8 +465,27 @@ test.describe('Wander release smoke', () => {
     expect(layout.paddingBottom).toBe('32px');
 
     await openAllocationView(page, href!, 'exec', /exec|terminal/i);
-    const terminalHeight = await page.locator('[data-exec-terminal]').evaluate(element => element.getBoundingClientRect().height);
+    const terminal = page.locator('[data-exec-terminal]');
+    await expect(terminal.locator('.xterm')).toHaveCount(1);
+    const terminalHeight = await terminal.evaluate(element => element.getBoundingClientRect().height);
     expect(terminalHeight).toBe(layout.maxHeight);
+    const mainScroll = await page.locator('#main-content').evaluate(element => {
+      element.scrollTop = element.scrollHeight;
+      return {
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        scrollTop: element.scrollTop,
+      };
+    });
+    expect(mainScroll.scrollHeight).toBeGreaterThan(mainScroll.clientHeight);
+    expect(mainScroll.scrollTop).toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Connect', exact: true }).first().click();
+    await expect(page.locator('[data-exec-connection-state]')).toHaveText('connected');
+    await terminal.click();
+    await page.keyboard.type('echo wander-browser-exec');
+    await page.keyboard.press('Enter');
+    await expect(terminal.locator('.xterm-rows')).toContainText('wander-browser-exec');
 
     await openAllocationView(page, href!, 'files', /files|fixture/i);
     await page.getByText('fixture', { exact: true }).last().click();
