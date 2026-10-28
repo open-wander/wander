@@ -17,7 +17,8 @@ scope and parity work list is the
   IDs. The scale-confirmation dialog now displays live counts and can be
   dismissed by its close and cancel controls or Escape. Negative counts,
   successful mutation, ACL denial, and cluster rejection have regression
-  coverage; constrained autoscaling min/max coverage remains on the checklist.
+  coverage. The live Chromium smoke also verifies inclusive autoscaling
+  minimum and maximum bounds and blocks out-of-range confirmation.
 - Allocations: live detail, files, logs, raw API data, restart/stop actions,
   and same-origin WebSocket exec.
 - Clients: live list and detail data, drain, cancel drain, active allocation

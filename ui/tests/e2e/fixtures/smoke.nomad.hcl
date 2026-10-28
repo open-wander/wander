@@ -3,6 +3,12 @@ job "wander-ui-smoke" {
   type        = "service"
 
   group "web" {
+    scaling {
+      enabled = true
+      min     = 1
+      max     = 2
+    }
+
     service {
       name     = "wander-ui-http"
       provider = "nomad"

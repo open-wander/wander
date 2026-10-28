@@ -543,14 +543,26 @@ test.describe('Wander release smoke', () => {
     await openDesktopPage(page, '/ui/jobs/wander-ui-smoke/taskgroups/web');
 
     const count = page.getByLabel('Instance count');
+    const decrement = page.getByRole('button', { name: 'Decrease count' });
+    const increment = page.getByRole('button', { name: 'Increase count' });
     const scaleButton = page.getByRole('button', { name: 'Scale', exact: true });
     await expect(count).toHaveValue('1');
+    await expect(count).toHaveAttribute('min', '1');
+    await expect(count).toHaveAttribute('max', '2');
+    await expect(page.getByText('Min:', { exact: true }).locator('..')).toContainText('1');
+    await expect(page.getByText('Max:', { exact: true }).locator('..')).toContainText('2');
+    await expect(decrement).toBeDisabled();
+    await expect(increment).toBeEnabled();
     await expect(scaleButton).toBeDisabled();
-    await count.fill('-1');
+    await count.fill('0');
+    await expect(scaleButton).toBeDisabled();
+    await count.fill('3');
     await expect(scaleButton).toBeDisabled();
     await count.fill('1');
-    await page.getByRole('button', { name: 'Increase count' }).click();
+    await increment.click();
     await expect(count).toHaveValue('2');
+    await expect(increment).toBeDisabled();
+    await expect(decrement).toBeEnabled();
     await expect(scaleButton).toBeEnabled();
 
     const dialog = page.getByRole('dialog', { name: 'Confirm Scale Operation' });
