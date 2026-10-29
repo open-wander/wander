@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"maps"
@@ -1754,6 +1755,7 @@ func (h *JobsHandler) AllocationsPoll(w http.ResponseWriter, r *http.Request) {
 type PlanJobRequest struct {
 	Definition string `json:"definition"`
 	Format     string `json:"format"`
+	Variables  string `json:"variables"`
 }
 
 // PlanJobResponse represents the response from plan endpoint
@@ -1770,6 +1772,41 @@ type PlanJobResponse struct {
 type RunJobRequest struct {
 	Definition string `json:"definition"`
 	Format     string `json:"format"`
+	Variables  string `json:"variables"`
+}
+
+func parseSubmittedJob(client *api.Client, definition, format, variables string) (*api.Job, *api.JobSubmission, error) {
+	if format == "" {
+		format = "hcl"
+	}
+
+	switch format {
+	case "hcl":
+		job, err := client.Jobs().ParseHCLOpts(&api.JobsParseRequest{
+			JobHCL:       definition,
+			Variables:    variables,
+			Canonicalize: true,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse HCL: %w", err)
+		}
+		return job, &api.JobSubmission{
+			Source:    definition,
+			Format:    "hcl2",
+			Variables: variables,
+		}, nil
+	case "json":
+		if strings.TrimSpace(variables) != "" {
+			return nil, nil, errors.New("variables are only supported for HCL job definitions")
+		}
+		job := &api.Job{}
+		if err := json.Unmarshal([]byte(definition), job); err != nil {
+			return nil, nil, fmt.Errorf("failed to parse JSON: %w", err)
+		}
+		return job, &api.JobSubmission{Source: definition, Format: "json"}, nil
+	default:
+		return nil, nil, fmt.Errorf("invalid format: %s (must be 'hcl' or 'json')", format)
+	}
 }
 
 // RunJobResponse represents the response from run endpoint
@@ -1828,36 +1865,13 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse the job definition based on format
-	var job *api.Job
-	var parseErr error
-
-	if req.Format == "json" {
-		// Parse JSON job definition
-		h.handler.logger.Debug("parsing JSON job definition", "length", len(req.Definition))
-		parseErr = json.Unmarshal([]byte(req.Definition), &job)
-		if parseErr != nil {
-			h.handler.logger.Error("failed to parse JSON job definition", "error", parseErr)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(PlanJobResponse{
-				Error: fmt.Sprintf("Invalid JSON job definition: %v", parseErr),
-			})
-			return
-		}
-	} else {
-		// Parse HCL job definition using Nomad API
-		h.handler.logger.Debug("parsing HCL job definition", "length", len(req.Definition))
-		job, parseErr = client.Jobs().ParseHCL(req.Definition, true)
-		if parseErr != nil {
-			h.handler.logger.Error("failed to parse HCL job definition", "error", parseErr)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(PlanJobResponse{
-				Error: fmt.Sprintf("Invalid HCL job definition: %v", parseErr),
-			})
-			return
-		}
+	job, _, parseErr := parseSubmittedJob(client, req.Definition, req.Format, req.Variables)
+	if parseErr != nil {
+		h.handler.logger.Error("failed to parse job definition", "error", parseErr)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: parseErr.Error()})
+		return
 	}
 
 	// Ensure job has required fields
@@ -1958,43 +1972,12 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse the job definition based on format
-	var job *api.Job
-	var parseErr error
-
-	if req.Format == "hcl" || req.Format == "" {
-		// Parse HCL job definition
-		h.handler.logger.Debug("parsing HCL job definition", "length", len(req.Definition))
-		job, parseErr = client.Jobs().ParseHCL(req.Definition, true)
-		if parseErr != nil {
-			h.handler.logger.Error("failed to parse HCL job definition", "error", parseErr)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(RunJobResponse{
-				Error: fmt.Sprintf("Failed to parse HCL: %s", parseErr.Error()),
-			})
-			return
-		}
-	} else if req.Format == "json" {
-		// Parse JSON job definition
-		h.handler.logger.Debug("parsing JSON job definition", "length", len(req.Definition))
-		job = &api.Job{}
-		if err := json.Unmarshal([]byte(req.Definition), job); err != nil {
-			h.handler.logger.Error("failed to parse JSON job definition", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(RunJobResponse{
-				Error: fmt.Sprintf("Failed to parse JSON: %s", err.Error()),
-			})
-			return
-		}
-	} else {
-		h.handler.logger.Error("invalid job format", "format", req.Format)
+	job, submission, parseErr := parseSubmittedJob(client, req.Definition, req.Format, req.Variables)
+	if parseErr != nil {
+		h.handler.logger.Error("failed to parse job definition", "error", parseErr)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(RunJobResponse{
-			Error: fmt.Sprintf("Invalid format: %s (must be 'hcl' or 'json')", req.Format),
-		})
+		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: parseErr.Error()})
 		return
 	}
 
@@ -2016,7 +1999,7 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 		"hasToken", token != "",
 	)
 
-	registerResp, _, err := client.Jobs().Register(job, writeOpts)
+	registerResp, _, err := client.Jobs().RegisterOpts(job, &api.RegisterOptions{Submission: submission}, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to register job", "error", err, "jobID", safeString(job.ID))
 		w.Header().Set("Content-Type", "application/json")

@@ -126,7 +126,8 @@ be used to defer baseline behavior without explicit approval:
 - Richer topology filtering and allocation overlays.
 - Additional job/client filters, columns, charts, eligibility analysis, and
   detail panels.
-- Structured job-version diffs and job templates/file upload. Known baseline
+- Structured job-version diffs and job template management. Client-side job
+  file upload and HCL2 variables are restored. Remaining known baseline
   behavior is required for 0.1.0 unless an explicit deviation is approved.
 - Consistent copy controls and improved relative time display. The applicable
   Nomad 1.6.5 global keyboard shortcuts are restored and verified; their

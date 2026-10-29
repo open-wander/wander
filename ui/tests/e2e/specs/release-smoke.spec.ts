@@ -438,6 +438,13 @@ test.describe('Wander release smoke', () => {
       expect(response?.status(), route).toBe(200);
       await expect(page.locator('body'), route).not.toContainText(/\bNomad\b/);
     }
+    const variablesInput = page.getByLabel('HCL Variables');
+    await expect(variablesInput).toBeVisible();
+    await variablesInput.fill('image = "busybox:stable"');
+    await page.getByRole('button', { name: 'JSON', exact: true }).click();
+    await expect(variablesInput).toBeHidden();
+    await page.getByRole('button', { name: 'HCL', exact: true }).click();
+    await expect(variablesInput).toHaveValue('image = "busybox:stable"');
     expect(browserErrors).toEqual([]);
   });
 

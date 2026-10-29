@@ -1320,6 +1320,7 @@
       format: format || 'hcl',
       namespace: namespace || 'default',
       currentValue: initialValue || '',
+      variables: '',
       hasContent: false,
       isPlanning: false,
       isRunning: false,
@@ -1359,6 +1360,7 @@
 
       clearEditor() {
         this.currentValue = '';
+        this.variables = '';
         this.hasContent = false;
         if (this.editor) {
           this.editor.setValue('');
@@ -1794,7 +1796,8 @@ EOF
             },
             body: JSON.stringify({
               definition: this.currentValue,
-              format: this.format
+              format: this.format,
+              variables: this.format === 'hcl' ? this.variables : ''
             })
           });
 
@@ -1847,7 +1850,8 @@ EOF
             },
             body: JSON.stringify({
               definition: this.currentValue,
-              format: this.format
+              format: this.format,
+              variables: this.format === 'hcl' ? this.variables : ''
             })
           });
 

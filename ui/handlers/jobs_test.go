@@ -107,6 +107,88 @@ func TestGetJobOverviewKeepsCoreDetailWhenOverviewReadsFail(t *testing.T) {
 	}
 }
 
+func TestJobPlanAndRunPreserveHCLVariablesAndSubmission(t *testing.T) {
+	const (
+		definition = `variable "image" { type = string }
+job "variable-job" { datacenters = ["dc1"] }`
+		variables = `image = "busybox:stable"`
+	)
+	parseCalls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/jobs/parse":
+			parseCalls++
+			var request api.JobsParseRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode parse request: %v", err)
+			}
+			if request.JobHCL != definition || request.Variables != variables || !request.Canonicalize || request.HCLv1 {
+				t.Errorf("unexpected parse request: %#v", request)
+			}
+			writeJSON(t, w, json.RawMessage(`{"ID":"variable-job"}`))
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/job/variable-job/plan":
+			if r.URL.Query().Get("namespace") != "team-a" {
+				t.Errorf("plan namespace = %q, want team-a", r.URL.Query().Get("namespace"))
+			}
+			writeJSON(t, w, json.RawMessage(`{}`))
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/jobs":
+			if r.URL.Query().Get("namespace") != "team-a" {
+				t.Errorf("run namespace = %q, want team-a", r.URL.Query().Get("namespace"))
+			}
+			var request api.JobRegisterRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Errorf("decode registration request: %v", err)
+			}
+			if request.Job == nil || safeString(request.Job.ID) != "variable-job" {
+				t.Errorf("unexpected registered job: %#v", request.Job)
+			}
+			if request.Submission == nil || request.Submission.Source != definition || request.Submission.Format != "hcl2" || request.Submission.Variables != variables {
+				t.Errorf("unexpected job submission: %#v", request.Submission)
+			}
+			writeJSON(t, w, json.RawMessage(`{"EvalID":"eval-variable"}`))
+		default:
+			t.Errorf("unexpected API request: %s %s", r.Method, r.URL.String())
+			http.NotFound(w, r)
+		}
+	}))
+	defer backend.Close()
+
+	handler := NewJobsHandler(newJobsTestHandler(t, backend.URL))
+	requestBody, err := json.Marshal(PlanJobRequest{Definition: definition, Format: "hcl", Variables: variables})
+	if err != nil {
+		t.Fatalf("encode request: %v", err)
+	}
+	for _, target := range []string{
+		"/ui/jobs/_new/plan?namespace=team-a",
+		"/ui/jobs/_new/run?namespace=team-a",
+	} {
+		request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(string(requestBody)))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s status = %d; body: %s", target, response.Code, response.Body.String())
+		}
+	}
+	if parseCalls != 2 {
+		t.Fatalf("parse calls = %d, want 2", parseCalls)
+	}
+}
+
+func TestJobRunRejectsVariablesForJSON(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("JSON variables reached backend: %s %s", r.Method, r.URL.String())
+		http.NotFound(w, r)
+	}))
+	defer backend.Close()
+
+	body := `{"definition":"{\"ID\":\"example\"}","format":"json","variables":"image = \"busybox\""}`
+	request := httptest.NewRequest(http.MethodPost, "/ui/jobs/_new/run", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	NewJobsHandler(newJobsTestHandler(t, backend.URL)).ServeHTTP(response, request)
+
+	assertHTTPResponse(t, response, http.StatusBadRequest, "variables are only supported for HCL")
+}
+
 func TestJobsRouteAPIStates(t *testing.T) {
 	tests := []struct {
 		name        string
