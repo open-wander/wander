@@ -108,7 +108,7 @@ func TestJobsListRendersAndFiltersParityFieldsFromOneAPIRead(t *testing.T) {
 	defer backend.Close()
 
 	handler := newJobsTestHandler(t, backend.URL)
-	target := "/ui/jobs?prefix=web&status=running&status=pending&type=service&type=batch&datacenter=dc1&node_pool=default&sort=name&dir=asc"
+	target := "/ui/jobs?prefix=web&status=running&status=pending&type=service&type=batch&datacenter=dc1&node_pool=default&sort=name&dir=asc&per_page=25"
 	request := httptest.NewRequest(http.MethodGet, target, nil)
 	response := httptest.NewRecorder()
 
@@ -127,6 +127,7 @@ func TestJobsListRendersAndFiltersParityFieldsFromOneAPIRead(t *testing.T) {
 		"Allocations", "2 running / 4 total", "1 pending · 0 complete · 1 unhealthy",
 		"Pack · web-pack", "Nomad Pack: web-pack 1.2.3",
 		"status=running", "status=pending", "type=service", "type=batch",
+		"Rows per page", `name="per_page"`, `value="25" selected`, "per_page=25",
 	} {
 		if !strings.Contains(body, value) {
 			t.Errorf("response does not contain %q", value)
@@ -138,6 +139,25 @@ func TestJobsListRendersAndFiltersParityFieldsFromOneAPIRead(t *testing.T) {
 	if strings.Count(body, "Pack ·") != 1 {
 		t.Fatalf("Pack markers = %d, want only the metadata-backed job", strings.Count(body, "Pack ·"))
 	}
+	if !containsURLValues(body, "per_page=25", "sort=name") {
+		t.Fatal("job sort URL does not preserve per_page=25")
+	}
+}
+
+func containsURLValues(body string, values ...string) bool {
+	for _, attribute := range strings.Split(body, `hx-get="`) {
+		url, _, _ := strings.Cut(attribute, `"`)
+		if strings.HasPrefix(url, "/ui/jobs?") {
+			matches := true
+			for _, value := range values {
+				matches = matches && strings.Contains(url, value)
+			}
+			if matches {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestJobListFilterHelpers(t *testing.T) {

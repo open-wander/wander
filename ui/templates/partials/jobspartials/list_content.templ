@@ -84,18 +84,21 @@ templ ListContent(props ListProps) {
 			</div>
 		</div>
 		<form id="jobs-filters" class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/jobs" hx-get="/ui/jobs" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<input type="hidden" name="sort" value={ props.SortColumn }/>
+			<input type="hidden" name="dir" value={ props.SortDir }/>
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
 				@jobFilterInput("search", "Search", "Search by job name or ID", props.Filters.Search)
 				@jobFilterInput("prefix", "ID prefix", "Job ID starts with…", props.Filters.Prefix)
 				@jobFilterSelect("datacenter", "Datacenter", "All datacenters", props.Filters.Datacenter, props.FilterOptions.Datacenters)
 				@jobFilterSelect("node_pool", "Node pool", "All node pools", props.Filters.NodePool, props.FilterOptions.NodePools)
+				@jobPageSizeSelect(props.Pagination.PerPage)
 			</div>
 			<div class="mt-4 flex flex-wrap items-start gap-4">
 				@multiValueFilter("status", "Status", props.Filters.Statuses, props.FilterOptions.Statuses)
 				@multiValueFilter("type", "Type", props.Filters.Types, props.FilterOptions.Types)
 				<div class="ml-auto flex items-center gap-3 pt-1">
 					if hasActiveJobFilters(props.Filters) {
-						<a href="/ui/jobs" hx-get="/ui/jobs" hx-target="#main-content" hx-push-url="true" class="text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">Clear filters</a>
+						<a href={ templ.SafeURL(jobPageSizeURL(props.Pagination.PerPage)) } hx-get={ jobPageSizeURL(props.Pagination.PerPage) } hx-target="#main-content" hx-push-url="true" class="text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">Clear filters</a>
 					}
 					<button type="submit" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply filters</button>
 				</div>
@@ -120,7 +123,7 @@ templ ListContent(props ListProps) {
 				Striped: true,
 				Compact: true,
 				Hover: true,
-				SortURL: buildJobsURL(props.Filters, "", ""),
+				SortURL: buildJobsURL(props.Filters, "", "", props.Pagination.PerPage),
 				HxTarget: "#main-content",
 				Class: "min-w-[90rem]",
 			}) {
@@ -138,7 +141,7 @@ templ ListContent(props ListProps) {
 				Page: props.Pagination.Page,
 				PerPage: props.Pagination.PerPage,
 				Total: props.Pagination.Total,
-				BaseURL: buildJobsURL(props.Filters, props.SortColumn, props.SortDir),
+				BaseURL: buildJobsURL(props.Filters, props.SortColumn, props.SortDir, 0),
 				HxTarget: "#main-content",
 				HxSwap: "innerHTML",
 			})
@@ -161,6 +164,17 @@ templ jobFilterSelect(name, label, placeholder, selected string, options []strin
 			<option value="">{ placeholder }</option>
 			for _, option := range options {
 				<option value={ option } selected?={ selected == option }>{ option }</option>
+			}
+		</select>
+	</label>
+}
+
+templ jobPageSizeSelect(selected int) {
+	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+		<span>Rows per page</span>
+		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+			for _, option := range []int{10, 25, 50, 100} {
+				<option value={ fmt.Sprintf("%d", option) } selected?={ selected == option }>{ fmt.Sprintf("%d", option) }</option>
 			}
 		</select>
 	</label>
@@ -218,7 +232,7 @@ templ textCell(value string) {
 	}
 }
 
-func buildJobsURL(filters JobListFilters, sortColumn, sortDir string) string {
+func buildJobsURL(filters JobListFilters, sortColumn, sortDir string, perPage int) string {
 	params := url.Values{}
 	if filters.Search != "" { params.Set("search", filters.Search) }
 	if filters.Prefix != "" { params.Set("prefix", filters.Prefix) }
@@ -228,9 +242,12 @@ func buildJobsURL(filters JobListFilters, sortColumn, sortDir string) string {
 	if filters.NodePool != "" { params.Set("node_pool", filters.NodePool) }
 	if sortColumn != "" { params.Set("sort", sortColumn) }
 	if sortDir != "" { params.Set("dir", sortDir) }
+	if perPage > 0 { params.Set("per_page", fmt.Sprintf("%d", perPage)) }
 	if encoded := params.Encode(); encoded != "" { return "/ui/jobs?" + encoded }
 	return "/ui/jobs"
 }
+
+func jobPageSizeURL(perPage int) string { return fmt.Sprintf("/ui/jobs?per_page=%d", perPage) }
 
 func hasActiveJobFilters(filters JobListFilters) bool {
 	return filters.Search != "" || filters.Prefix != "" || len(filters.Statuses) > 0 || len(filters.Types) > 0 || filters.Datacenter != "" || filters.NodePool != ""

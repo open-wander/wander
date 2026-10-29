@@ -401,6 +401,14 @@ test.describe('Wander release smoke', () => {
     await expect(row).toContainText('running');
     await expect(row).toContainText('1 running / 1 total');
 
+    await page.goto('/ui/jobs?page=2&per_page=10');
+    await page.getByLabel('Rows per page').selectOption('25');
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    await expectURLParams(page, { per_page: '25', sort: 'submitted', dir: 'desc' });
+    expect(new URL(page.url()).searchParams.has('page')).toBe(false);
+    await expect(page.getByLabel('Rows per page')).toHaveValue('25');
+    await expect(row).toBeVisible();
+
     await page.getByLabel('ID prefix').fill('missing');
     await page.getByRole('button', { name: 'Apply filters' }).click();
     await expect(page).toHaveURL(/prefix=missing/);
@@ -413,7 +421,7 @@ test.describe('Wander release smoke', () => {
     await page.getByLabel('Node pool').selectOption('default');
     await page.getByRole('button', { name: 'Apply filters' }).click();
 
-    await expectURLParams(page, { status: 'running', type: 'service', datacenter: 'dc1', node_pool: 'default' });
+    await expectURLParams(page, { status: 'running', type: 'service', datacenter: 'dc1', node_pool: 'default', per_page: '25' });
     await expect(row).toBeVisible();
     expect(browserErrors).toEqual([]);
   });
