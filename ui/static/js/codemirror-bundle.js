@@ -857,7 +857,9 @@
 		this.definitions[this.format] ||= this.originalValue;
 
         this.$nextTick(() => {
-          this.editor = new WanderEditor(this.$refs.editorContainer, {
+          const editorContainer = this.$refs?.editorContainer;
+          if (!editorContainer?.isConnected) return;
+          this.editor = new WanderEditor(editorContainer, {
             value: this.originalValue,
             language: this.format,
             readOnly: true,

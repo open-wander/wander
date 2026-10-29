@@ -344,7 +344,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch job detail from Nomad API
-	jobDetail, err := h.getJobDetail(r, jobName, namespace, GetTokenFromRequest(r))
+	jobDetail, err := h.getJobOverview(r, jobName, namespace, GetTokenFromRequest(r))
 	if err != nil {
 		// Check if this is a cluster unavailability error first
 		if h.handler.CheckClusterError(w, r, err) {
@@ -663,14 +663,53 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 
 	// Convert API response to our JobDetail type
 	jobDetail := jobspartials.JobDetail{
-		ID:          safeString(job.ID),
-		Name:        safeString(job.Name),
-		Status:      safeString(job.Status),
-		Type:        safeString(job.Type),
-		Priority:    safeInt(job.Priority),
-		Datacenters: job.Datacenters,
-		Periodic:    job.IsPeriodic(),
-		TaskGroups:  make([]jobspartials.TaskGroupSummary, 0, len(job.TaskGroups)),
+		ID:             safeString(job.ID),
+		Name:           safeString(job.Name),
+		Status:         safeString(job.Status),
+		Type:           safeString(job.Type),
+		Priority:       safeInt(job.Priority),
+		Datacenters:    job.Datacenters,
+		Periodic:       job.IsPeriodic(),
+		NodePool:       safeString(job.NodePool),
+		AllAtOnce:      safeBool(job.AllAtOnce),
+		ParentID:       safeString(job.ParentID),
+		Dispatched:     job.Dispatched,
+		TaskGroups:     make([]jobspartials.TaskGroupSummary, 0, len(job.TaskGroups)),
+		Metadata:       make([]jobspartials.JobMetadata, 0, len(job.Meta)),
+		Volumes:        make([]jobspartials.JobVolume, 0),
+		LifecycleTasks: make([]jobspartials.JobLifecycleTask, 0),
+	}
+	if job.Periodic != nil {
+		specs := append([]string(nil), job.Periodic.Specs...)
+		if spec := safeString(job.Periodic.Spec); spec != "" {
+			specs = append([]string{spec}, specs...)
+		}
+		jobDetail.PeriodicDetails = &jobspartials.PeriodicDetails{
+			Enabled:         safeBool(job.Periodic.Enabled),
+			Specs:           specs,
+			TimeZone:        safeString(job.Periodic.TimeZone),
+			ProhibitOverlap: safeBool(job.Periodic.ProhibitOverlap),
+		}
+	}
+	if job.Multiregion != nil {
+		jobDetail.Multiregion = make([]jobspartials.JobRegion, 0, len(job.Multiregion.Regions))
+		for _, region := range job.Multiregion.Regions {
+			if region == nil {
+				continue
+			}
+			jobDetail.Multiregion = append(jobDetail.Multiregion, jobspartials.JobRegion{
+				Name: region.Name, Count: safeInt(region.Count), Datacenters: region.Datacenters, NodePool: region.NodePool,
+			})
+		}
+		sort.Slice(jobDetail.Multiregion, func(i, j int) bool { return jobDetail.Multiregion[i].Name < jobDetail.Multiregion[j].Name })
+	}
+	metadataKeys := make([]string, 0, len(job.Meta))
+	for key := range job.Meta {
+		metadataKeys = append(metadataKeys, key)
+	}
+	sort.Strings(metadataKeys)
+	for _, key := range metadataKeys {
+		jobDetail.Metadata = append(jobDetail.Metadata, jobspartials.JobMetadata{Key: key, Value: job.Meta[key]})
 	}
 	if job.IsParameterized() {
 		jobDetail.Parameterized = &jobspartials.ParameterizedJob{
@@ -682,6 +721,7 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 			jobDetail.Parameterized.Payload = "optional"
 		}
 	}
+	jobDetail.ChildJobs.Applicable = jobDetail.Periodic || jobDetail.Parameterized != nil
 
 	// Extract task group summaries
 	for _, tg := range job.TaskGroups {
@@ -694,7 +734,27 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 		for _, task := range tg.Tasks {
 			if task != nil {
 				taskNames = append(taskNames, task.Name)
+				if task.Lifecycle != nil {
+					jobDetail.LifecycleTasks = append(jobDetail.LifecycleTasks, jobspartials.JobLifecycleTask{
+						TaskGroup: safeString(tg.Name), Task: task.Name, Hook: task.Lifecycle.Hook, Sidecar: task.Lifecycle.Sidecar,
+					})
+				}
 			}
+		}
+		volumeNames := make([]string, 0, len(tg.Volumes))
+		for name := range tg.Volumes {
+			volumeNames = append(volumeNames, name)
+		}
+		sort.Strings(volumeNames)
+		for _, name := range volumeNames {
+			volume := tg.Volumes[name]
+			if volume == nil {
+				continue
+			}
+			jobDetail.Volumes = append(jobDetail.Volumes, jobspartials.JobVolume{
+				TaskGroup: safeString(tg.Name), Name: name, Type: volume.Type, Source: volume.Source,
+				ReadOnly: volume.ReadOnly, PerAllocation: volume.PerAlloc,
+			})
 		}
 
 		taskGroupSummary := jobspartials.TaskGroupSummary{
@@ -705,6 +765,12 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 
 		jobDetail.TaskGroups = append(jobDetail.TaskGroups, taskGroupSummary)
 	}
+	sort.Slice(jobDetail.LifecycleTasks, func(i, j int) bool {
+		if jobDetail.LifecycleTasks[i].TaskGroup != jobDetail.LifecycleTasks[j].TaskGroup {
+			return jobDetail.LifecycleTasks[i].TaskGroup < jobDetail.LifecycleTasks[j].TaskGroup
+		}
+		return jobDetail.LifecycleTasks[i].Task < jobDetail.LifecycleTasks[j].Task
+	})
 
 	h.handler.logger.Debug("fetched job from API",
 		"jobID", jobID,
@@ -714,6 +780,60 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 	)
 
 	return &jobDetail, nil
+}
+
+// getJobOverview enriches core job detail with overview-only reads. Summary
+// and allocation failures remain local to their sections so operators can
+// still use the job header and other tabs while the cluster is degraded.
+func (h *JobsHandler) getJobOverview(r *http.Request, jobID, namespace, token string) (*jobspartials.JobDetail, error) {
+	jobDetail, err := h.getJobDetail(r, jobID, namespace, token)
+	if err != nil || jobDetail == nil {
+		return jobDetail, err
+	}
+
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return jobDetail, nil
+	}
+	queryOpts := &api.QueryOptions{Namespace: namespace, AuthToken: token}
+
+	summary, _, summaryErr := client.Jobs().Summary(jobID, queryOpts)
+	if summaryErr != nil {
+		h.handler.logger.Warn("failed to fetch job allocation summary", "jobID", jobID, "namespace", namespace, "error", summaryErr)
+	} else {
+		jobDetail.Allocations = summarizeJobAllocations(summary)
+		if jobDetail.ChildJobs.Applicable && summary != nil {
+			jobDetail.ChildJobs.Available = true
+			if summary.Children != nil {
+				jobDetail.ChildJobs.Pending = summary.Children.Pending
+				jobDetail.ChildJobs.Running = summary.Children.Running
+				jobDetail.ChildJobs.Dead = summary.Children.Dead
+			}
+		}
+	}
+
+	evaluations, evaluationsErr := h.fetchJobEvaluations(r, jobID, namespace, token)
+	if evaluationsErr != nil {
+		h.handler.logger.Warn("failed to fetch job placement status", "jobID", jobID, "namespace", namespace, "error", evaluationsErr)
+	} else {
+		jobDetail.PlacementFailuresAvailable = true
+		if len(evaluations) > 0 {
+			jobDetail.PlacementFailures = evaluations[0].PlacementFailures
+		}
+	}
+
+	allocations, _, allocationsErr := client.Jobs().Allocations(jobID, true, queryOpts)
+	if allocationsErr != nil {
+		h.handler.logger.Warn("failed to fetch recent job allocations", "jobID", jobID, "namespace", namespace, "error", allocationsErr)
+		return jobDetail, nil
+	}
+	jobDetail.RecentAllocationsAvailable = true
+	projected := projectJobAllocations(allocations)
+	if len(projected) > 5 {
+		projected = projected[:5]
+	}
+	jobDetail.RecentAllocations = projected
+	return jobDetail, nil
 }
 
 // safeString safely dereferences a string pointer, returning empty string if nil
@@ -730,6 +850,10 @@ func safeInt(i *int) int {
 		return 0
 	}
 	return *i
+}
+
+func safeBool(value *bool) bool {
+	return value != nil && *value
 }
 
 func checkedUint64ToInt(value uint64) (int, bool) {
@@ -749,8 +873,15 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		namespace = jobID[idx+1:]
 	}
 
-	// Get job detail data
-	jobDetail, err := h.getJobDetail(r, jobName, namespace, GetTokenFromRequest(r))
+	// Only the overview needs summary and recent-allocation reads. Other tabs
+	// retain the single core job read before fetching their own data.
+	var jobDetail *jobspartials.JobDetail
+	var err error
+	if tabName == "overview" {
+		jobDetail, err = h.getJobOverview(r, jobName, namespace, GetTokenFromRequest(r))
+	} else {
+		jobDetail, err = h.getJobDetail(r, jobName, namespace, GetTokenFromRequest(r))
+	}
 	if err != nil {
 		h.handler.logger.Error("failed to fetch job for tab content", "error", err, "jobID", jobID, "tab", tabName)
 		http.Error(w, "Failed to fetch job from Wander API", http.StatusInternalServerError)
@@ -1506,57 +1637,7 @@ func (h *JobsHandler) getJobAllocations(r *http.Request, jobID string, page, per
 
 	h.handler.logger.Debug("fetched job allocations from API", "count", len(allocs))
 
-	// Convert API allocations to our template type
-	allAllocations := make([]jobspartials.JobAllocation, 0, len(allocs))
-	for _, alloc := range allocs {
-		if alloc == nil {
-			continue
-		}
-
-		// Extract resource information from AllocatedResources if available
-		cpuUsed := 0
-		cpuMax := 0
-		memUsed := 0
-		memMax := 0
-
-		if alloc.AllocatedResources != nil && len(alloc.AllocatedResources.Tasks) > 0 {
-			// Sum up resources from all tasks in the allocation
-			for _, taskRes := range alloc.AllocatedResources.Tasks {
-				if taskRes != nil {
-					cpuMax += int(taskRes.Cpu.CpuShares)
-					memMax += int(taskRes.Memory.MemoryMB)
-				}
-			}
-
-		}
-
-		// Convert create time from nanoseconds to time.Time
-		created := time.Time{}
-		if alloc.CreateTime > 0 {
-			created = time.Unix(0, alloc.CreateTime)
-		}
-
-		jobAlloc := jobspartials.JobAllocation{
-			ID:        alloc.ID,
-			ShortID:   shortIdentifier(alloc.ID),
-			TaskGroup: alloc.TaskGroup,
-			NodeID:    alloc.NodeID,
-			NodeName:  alloc.NodeName,
-			Status:    alloc.ClientStatus,
-			CPU:       cpuUsed,
-			CPUMax:    cpuMax,
-			Memory:    memUsed,
-			MemoryMax: memMax,
-			Created:   created,
-		}
-
-		allAllocations = append(allAllocations, jobAlloc)
-	}
-
-	// Sort by creation time (newest first)
-	sort.Slice(allAllocations, func(i, j int) bool {
-		return allAllocations[i].Created.After(allAllocations[j].Created)
-	})
+	allAllocations := projectJobAllocations(allocs)
 
 	// Calculate pagination
 	total := len(allAllocations)
@@ -1588,6 +1669,58 @@ func (h *JobsHandler) getJobAllocations(r *http.Request, jobID string, page, per
 			TotalPages: totalPages,
 		},
 	}
+}
+
+func projectJobAllocations(allocs []*api.AllocationListStub) []jobspartials.JobAllocation {
+	result := make([]jobspartials.JobAllocation, 0, len(allocs))
+	for _, alloc := range allocs {
+		if alloc == nil {
+			continue
+		}
+
+		// Extract resource information from AllocatedResources if available
+		cpuUsed := 0
+		cpuMax := 0
+		memUsed := 0
+		memMax := 0
+
+		if alloc.AllocatedResources != nil && len(alloc.AllocatedResources.Tasks) > 0 {
+			// Sum up resources from all tasks in the allocation
+			for _, taskRes := range alloc.AllocatedResources.Tasks {
+				if taskRes != nil {
+					cpuMax += int(taskRes.Cpu.CpuShares)
+					memMax += int(taskRes.Memory.MemoryMB)
+				}
+			}
+
+		}
+
+		// Convert create time from nanoseconds to time.Time
+		created := time.Time{}
+		if alloc.CreateTime > 0 {
+			created = time.Unix(0, alloc.CreateTime)
+		}
+
+		result = append(result, jobspartials.JobAllocation{
+			ID:        alloc.ID,
+			ShortID:   shortIdentifier(alloc.ID),
+			TaskGroup: alloc.TaskGroup,
+			NodeID:    alloc.NodeID,
+			NodeName:  alloc.NodeName,
+			Status:    alloc.ClientStatus,
+			CPU:       cpuUsed,
+			CPUMax:    cpuMax,
+			Memory:    memUsed,
+			MemoryMax: memMax,
+			Created:   created,
+		})
+	}
+
+	// Sort by creation time (newest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Created.After(result[j].Created)
+	})
+	return result
 }
 
 // AllocationsPoll handles the polling endpoint for allocations table body.
@@ -2139,24 +2272,24 @@ func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspar
 		jobName = jobID[:idx]
 		namespace = jobID[idx+1:]
 	}
-
-	client := h.handler.NomadClientForRequest(r)
-	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty evaluations list")
+	evaluations, err := h.fetchJobEvaluations(r, jobName, namespace, GetTokenFromRequest(r))
+	if err != nil {
+		h.handler.logger.Error("failed to fetch job evaluations from Nomad API", "error", err)
 		return []jobspartials.JobEvaluation{}
 	}
+	return evaluations
+}
 
-	// Get ACL token from request context
-	token := GetTokenFromRequest(r)
+func (h *JobsHandler) fetchJobEvaluations(r *http.Request, jobName, namespace, token string) ([]jobspartials.JobEvaluation, error) {
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return nil, fmt.Errorf("no Nomad client available")
+	}
 
 	// Build query options with namespace
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
-	}
-
-	// Set ACL token if available
-	if token != "" {
-		queryOpts.AuthToken = token
+		AuthToken: token,
 	}
 
 	// Fetch evaluations from the API
@@ -2167,8 +2300,7 @@ func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspar
 
 	evals, _, err := client.Jobs().Evaluations(jobName, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch job evaluations from Nomad API", "error", err)
-		return []jobspartials.JobEvaluation{}
+		return nil, err
 	}
 
 	h.handler.logger.Debug("fetched job evaluations from API", "count", len(evals))
@@ -2192,7 +2324,13 @@ func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspar
 		// Extract placement failures details if any
 		var placementFailures []jobspartials.PlacementFailure
 		if hasPlacementFailures {
-			for tgName, metrics := range eval.FailedTGAllocs {
+			taskGroups := make([]string, 0, len(eval.FailedTGAllocs))
+			for taskGroup := range eval.FailedTGAllocs {
+				taskGroups = append(taskGroups, taskGroup)
+			}
+			sort.Strings(taskGroups)
+			for _, tgName := range taskGroups {
+				metrics := eval.FailedTGAllocs[tgName]
 				if metrics == nil {
 					continue
 				}
@@ -2203,7 +2341,13 @@ func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspar
 					reasons = append(reasons, fmt.Sprintf("%d nodes exhausted", metrics.NodesExhausted))
 				}
 				if metrics.NodesAvailable != nil {
-					for dc, count := range metrics.NodesAvailable {
+					datacenters := make([]string, 0, len(metrics.NodesAvailable))
+					for datacenter := range metrics.NodesAvailable {
+						datacenters = append(datacenters, datacenter)
+					}
+					sort.Strings(datacenters)
+					for _, dc := range datacenters {
+						count := metrics.NodesAvailable[dc]
 						if count == 0 {
 							reasons = append(reasons, fmt.Sprintf("No nodes available in %s", dc))
 						}
@@ -2247,7 +2391,7 @@ func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspar
 		return result[i].Created.After(result[j].Created)
 	})
 
-	return result
+	return result, nil
 }
 
 // buildPlanResponse converts a Nomad JobPlanResponse to our PlanJobResponse format.

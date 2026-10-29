@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +11,101 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/open-wander/wander/api"
 )
+
+func TestGetJobOverviewProjectsLiveSummaryAllocationsAndMetadata(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertMonitorQueryValue(t, r, "namespace", "team-a")
+		if r.Header.Get("X-Nomad-Token") != "browser-token" {
+			t.Errorf("token header = %q, want browser-token", r.Header.Get("X-Nomad-Token"))
+		}
+		switch r.URL.Path {
+		case "/v1/job/example":
+			writeJSON(t, w, json.RawMessage(`{
+				"ID":"example","Name":"Example","Status":"running","Type":"service","NodePool":"workers",
+				"Meta":{"zeta":"last","alpha":"first"},
+				"ParameterizedJob":{"Payload":"required","MetaRequired":["environment"]},
+				"TaskGroups":[{"Name":"web","Count":1,
+					"Volumes":{"cache":{"Type":"host","Source":"cache-data","ReadOnly":true,"PerAlloc":true}},
+					"Tasks":[{"Name":"setup","Lifecycle":{"Hook":"prestart","Sidecar":false}}]
+				}]
+			}`))
+		case "/v1/job/example/summary":
+			writeJSON(t, w, json.RawMessage(`{"JobID":"example","Summary":{"web":{"Running":1,"Complete":2,"Failed":1}},"Children":{"Pending":1,"Running":2,"Dead":3}}`))
+		case "/v1/job/example/allocations":
+			writeJSON(t, w, json.RawMessage(`[
+				{"ID":"allocation-1","TaskGroup":"web","NodeName":"node-a","ClientStatus":"complete","CreateTime":100},
+				{"ID":"allocation-2","TaskGroup":"web","NodeName":"node-b","ClientStatus":"running","CreateTime":200},
+				{"ID":"allocation-3","TaskGroup":"web","NodeName":"node-c","ClientStatus":"complete","CreateTime":300},
+				{"ID":"allocation-4","TaskGroup":"web","NodeName":"node-d","ClientStatus":"complete","CreateTime":400},
+				{"ID":"allocation-5","TaskGroup":"web","NodeName":"node-e","ClientStatus":"complete","CreateTime":500},
+				{"ID":"allocation-6","TaskGroup":"web","NodeName":"node-f","ClientStatus":"running","CreateTime":600}
+			]`))
+		case "/v1/job/example/evaluations":
+			writeJSON(t, w, json.RawMessage(`[
+				{"ID":"evaluation-new","CreateTime":200,"FailedTGAllocs":{"web":{"NodesExhausted":2,"NodesAvailable":{"dc1":0}}}},
+				{"ID":"evaluation-old","CreateTime":100,"FailedTGAllocs":{"old":{"NodesExhausted":9}}}
+			]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer backend.Close()
+
+	handler := NewJobsHandler(newJobsTestHandler(t, backend.URL))
+	detail, err := handler.getJobOverview(
+		httptest.NewRequest(http.MethodGet, "/ui/jobs/example?namespace=team-a", nil),
+		"example", "team-a", "browser-token",
+	)
+	if err != nil {
+		t.Fatalf("get job overview: %v", err)
+	}
+	if detail.Allocations.Total() != 4 || detail.Allocations.Running != 1 || detail.Allocations.Unhealthy() != 1 {
+		t.Fatalf("unexpected allocation summary: %#v", detail.Allocations)
+	}
+	if len(detail.Metadata) != 2 || detail.Metadata[0].Key != "alpha" || detail.Metadata[1].Key != "zeta" {
+		t.Fatalf("metadata is not sorted: %#v", detail.Metadata)
+	}
+	checks := []struct {
+		name  string
+		valid bool
+		value any
+	}{
+		{name: "recent allocations", valid: detail.RecentAllocationsAvailable && len(detail.RecentAllocations) == 5 && detail.RecentAllocations[0].ID == "allocation-6" && detail.RecentAllocations[4].ID == "allocation-2", value: detail.RecentAllocations},
+		{name: "child-job summary", valid: detail.ChildJobs.Available && detail.ChildJobs.Total() == 6 && detail.ChildJobs.Running == 2, value: detail.ChildJobs},
+		{name: "current placement failures", valid: detail.PlacementFailuresAvailable && len(detail.PlacementFailures) == 1 && detail.PlacementFailures[0].TaskGroup == "web" && !strings.Contains(detail.PlacementFailures[0].Reason, "9"), value: detail.PlacementFailures},
+		{name: "scheduling and volumes", valid: detail.NodePool == "workers" && len(detail.Volumes) == 1 && detail.Volumes[0].Name == "cache" && detail.Volumes[0].ReadOnly && detail.Volumes[0].PerAllocation, value: detail},
+		{name: "lifecycle", valid: len(detail.LifecycleTasks) == 1 && detail.LifecycleTasks[0].Task == "setup" && detail.LifecycleTasks[0].Hook == "prestart", value: detail.LifecycleTasks},
+	}
+	for _, check := range checks {
+		if !check.valid {
+			t.Errorf("unexpected %s projection: %#v", check.name, check.value)
+		}
+	}
+}
+
+func TestGetJobOverviewKeepsCoreDetailWhenOverviewReadsFail(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/job/example" {
+			writeJSON(t, w, json.RawMessage(`{"ID":"example","Name":"Example","Status":"running","Type":"service","ParameterizedJob":{"Payload":"optional"}}`))
+			return
+		}
+		http.Error(w, "overview unavailable", http.StatusServiceUnavailable)
+	}))
+	defer backend.Close()
+
+	detail, err := NewJobsHandler(newJobsTestHandler(t, backend.URL)).getJobOverview(
+		httptest.NewRequest(http.MethodGet, "/ui/jobs/example", nil), "example", "default", "",
+	)
+	if err != nil {
+		t.Fatalf("overview read failures should not hide core detail: %v", err)
+	}
+	if detail == nil || detail.Name != "Example" {
+		t.Fatalf("core detail was not preserved: %#v", detail)
+	}
+	if detail.Allocations.Available || detail.RecentAllocationsAvailable || detail.PlacementFailuresAvailable || detail.ChildJobs.Available {
+		t.Fatalf("failed reads were reported as available: %#v", detail)
+	}
+}
 
 func TestJobsRouteAPIStates(t *testing.T) {
 	tests := []struct {

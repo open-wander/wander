@@ -7,15 +7,83 @@ import (
 
 // JobDetail represents detailed information about a job
 type JobDetail struct {
-	ID          string
+	ID                         string
+	Name                       string
+	Status                     string
+	Type                       string
+	Priority                   int
+	Datacenters                []string
+	TaskGroups                 []TaskGroupSummary
+	Periodic                   bool
+	PeriodicDetails            *PeriodicDetails
+	Parameterized              *ParameterizedJob
+	NodePool                   string
+	AllAtOnce                  bool
+	ParentID                   string
+	Dispatched                 bool
+	Multiregion                []JobRegion
+	Metadata                   []JobMetadata
+	Volumes                    []JobVolume
+	LifecycleTasks             []JobLifecycleTask
+	Allocations                AllocationSummary
+	ChildJobs                  ChildJobSummary
+	RecentAllocations          []JobAllocation
+	RecentAllocationsAvailable bool
+	PlacementFailures          []PlacementFailure
+	PlacementFailuresAvailable bool
+}
+
+// JobMetadata is a deterministic key/value projection of live job metadata.
+type JobMetadata struct {
+	Key   string
+	Value string
+}
+
+// PeriodicDetails contains the live scheduling contract for a periodic job.
+type PeriodicDetails struct {
+	Enabled         bool
+	Specs           []string
+	TimeZone        string
+	ProhibitOverlap bool
+}
+
+// JobRegion is a configured multiregion target.
+type JobRegion struct {
 	Name        string
-	Status      string
-	Type        string
-	Priority    int
+	Count       int
 	Datacenters []string
-	TaskGroups  []TaskGroupSummary
-	Periodic    bool
-	Parameterized *ParameterizedJob
+	NodePool    string
+}
+
+// JobVolume is a task-group volume request from the live job definition.
+type JobVolume struct {
+	TaskGroup     string
+	Name          string
+	Type          string
+	Source        string
+	ReadOnly      bool
+	PerAllocation bool
+}
+
+// JobLifecycleTask is a task with an explicit lifecycle hook.
+type JobLifecycleTask struct {
+	TaskGroup string
+	Task      string
+	Hook      string
+	Sidecar   bool
+}
+
+// ChildJobSummary contains the scheduler's current child-job totals.
+type ChildJobSummary struct {
+	Applicable bool
+	Available  bool
+	Pending    int64
+	Running    int64
+	Dead       int64
+}
+
+func (summary ChildJobSummary) Total() int64 {
+	return summary.Pending + summary.Running + summary.Dead
 }
 
 // ParameterizedJob contains the dispatch inputs declared by a parent job.

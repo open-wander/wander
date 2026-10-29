@@ -1,6 +1,11 @@
 job "wander-ui-smoke" {
   datacenters = ["dc1"]
   type        = "service"
+  node_pool   = "default"
+
+  meta {
+    test-purpose = "job-overview"
+  }
 
   group "web" {
     scaling {

@@ -199,6 +199,8 @@ test.describe('Wander release smoke', () => {
     }
 
     await page.goto('/ui/jobs/wander-ui-periodic');
+    await expect(page.locator('[data-overview-child-jobs]')).toBeVisible();
+    await expect(page.locator('[data-overview-scheduling]')).toContainText('Periodic Schedule');
     const forceDialog = await openDialog(page, 'Force Launch', 'Force Launch');
     const forceResponse = page.waitForResponse(response => response.url().includes('/api/jobs/wander-ui-periodic/periodic/force'));
     await forceDialog.getByRole('button', { name: 'Force Launch' }).click();
@@ -206,6 +208,8 @@ test.describe('Wander release smoke', () => {
 
     await page.goto('/ui/jobs/wander-ui-parameterized?namespace=dispatch-test&region=global');
     await expect(page.getByRole('button', { name: 'Dispatch', exact: true })).toBeVisible();
+    await expect(page.locator('[data-overview-child-jobs]')).toBeVisible();
+    await expect(page.locator('[data-overview-scheduling]')).toContainText('Dispatch Payload');
     expect(browserErrors).toEqual([]);
   });
 
@@ -381,6 +385,12 @@ test.describe('Wander release smoke', () => {
     await expect(page.getByText('v0.1.0-dev', { exact: true })).toHaveCount(1);
 
     await openResource(page, '/ui/jobs', '[data-job-id="wander-ui-smoke"]', 'a[href^="/ui/jobs/wander-ui-smoke"]', /\/ui\/jobs\/wander-ui-smoke/, 'wander-ui-smoke');
+    await expect(page.locator('[data-overview-allocation-summary]')).toContainText('1');
+    await expect(page.locator('[data-overview-recent-allocations]')).toContainText('web');
+    await expect(page.locator('[data-overview-placement-status]')).toContainText('no placement failures');
+    await expect(page.locator('[data-overview-scheduling]')).toContainText('default');
+    await expect(page.locator('body')).toContainText('test-purpose');
+    await expect(page.locator('body')).toContainText('job-overview');
     await openResource(page, '/ui/allocations', '[data-alloc-id]:has-text("wander-ui-smoke")', 'a[href^="/ui/allocations/"]', /\/ui\/allocations\/[0-9a-f-]+/, 'fixture');
     await page.goto('/ui/clients');
     const clientRow = page.locator('[data-client-id]').first();

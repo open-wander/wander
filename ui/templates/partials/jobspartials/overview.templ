@@ -3,11 +3,172 @@ package jobspartials
 import (
 	"fmt"
 	"strings"
+
+	"github.com/open-wander/wander/ui/templates/components"
 )
 
 // OverviewTab renders the overview tab content for a job
 templ OverviewTab(job JobDetail) {
 	<div class="p-6 space-y-6">
+		<!-- Allocation Summary -->
+		<section data-overview-allocation-summary>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Allocation Summary</h3>
+			if job.Allocations.Available {
+				<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+					@overviewMetric("Total", fmt.Sprintf("%d", job.Allocations.Total()), "text-neutral-900")
+					@overviewMetric("Running", fmt.Sprintf("%d", job.Allocations.Running), "text-success-700")
+					@overviewMetric("Pending", fmt.Sprintf("%d", job.Allocations.Pending()), "text-warning-700")
+					@overviewMetric("Complete", fmt.Sprintf("%d", job.Allocations.Complete), "text-primary-700")
+					@overviewMetric("Unhealthy", fmt.Sprintf("%d", job.Allocations.Unhealthy()), "text-danger-700")
+				</div>
+			} else {
+				<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">Allocation summary is temporarily unavailable.</div>
+			}
+		</section>
+		<!-- Current Placement Status -->
+		<section data-overview-placement-status>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Placement Status</h3>
+			if !job.PlacementFailuresAvailable {
+				<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">Placement status is temporarily unavailable.</div>
+			} else if len(job.PlacementFailures) == 0 {
+				<div class="rounded-lg border border-success-200 bg-success-50 p-4 text-sm text-success-800">The latest evaluation has no placement failures.</div>
+			} else {
+				<div class="rounded-lg border border-danger-200 bg-danger-50 p-4">
+					<h4 class="text-sm font-semibold text-danger-800">Placement Failures</h4>
+					<ul class="mt-2 space-y-1">
+						for _, failure := range job.PlacementFailures {
+							<li class="text-sm text-danger-700"><span class="font-medium">{ failure.TaskGroup }:</span> { failure.Reason }</li>
+						}
+					</ul>
+				</div>
+			}
+		</section>
+		if job.ChildJobs.Applicable {
+			<!-- Child Jobs -->
+			<section data-overview-child-jobs>
+				<h3 class="text-lg font-semibold text-neutral-900 mb-4">Child Jobs</h3>
+				if !job.ChildJobs.Available {
+					<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">Child-job totals are temporarily unavailable.</div>
+				} else {
+					<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+						@overviewMetric("Total", fmt.Sprintf("%d", job.ChildJobs.Total()), "text-neutral-900")
+						@overviewMetric("Pending", fmt.Sprintf("%d", job.ChildJobs.Pending), "text-warning-700")
+						@overviewMetric("Running", fmt.Sprintf("%d", job.ChildJobs.Running), "text-success-700")
+						@overviewMetric("Dead", fmt.Sprintf("%d", job.ChildJobs.Dead), "text-neutral-600")
+					</div>
+				}
+			</section>
+		}
+		<!-- Recent Allocations -->
+		<section data-overview-recent-allocations>
+			<div class="mb-4 flex items-center justify-between gap-4">
+				<h3 class="text-lg font-semibold text-neutral-900">Recent Allocations</h3>
+				<a href={ templ.SafeURL("/ui/jobs/" + job.ID + "/allocations") } hx-get={ "/ui/jobs/" + job.ID + "/allocations" } hx-target="#job-detail-panel" class="text-sm font-medium text-primary-600 hover:text-primary-800">View all</a>
+			</div>
+			if !job.RecentAllocationsAvailable {
+				<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">Recent allocations are temporarily unavailable.</div>
+			} else if len(job.RecentAllocations) == 0 {
+				<div class="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">This job has no allocations.</div>
+			} else {
+				<div class="overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+							<tr><th class="px-4 py-3">Allocation</th><th class="px-4 py-3">Task Group</th><th class="px-4 py-3">Client</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Created</th></tr>
+						</thead>
+						<tbody class="divide-y divide-neutral-200 bg-white">
+							for _, alloc := range job.RecentAllocations {
+								<tr>
+									<td class="px-4 py-3"><a href={ templ.SafeURL("/ui/allocations/" + alloc.ID) } hx-get={ "/ui/allocations/" + alloc.ID } hx-target="#main-content" hx-push-url="true" class="font-mono text-primary-600 hover:text-primary-800 hover:underline">{ alloc.ShortID }</a></td>
+									<td class="px-4 py-3 text-neutral-700">{ alloc.TaskGroup }</td>
+									<td class="px-4 py-3 text-neutral-700">{ alloc.NodeName }</td>
+									<td class="px-4 py-3">@components.Badge(components.BadgeProps{Variant: allocationStatusVariant(alloc.Status), Dot: true, Size: "sm"}) { { alloc.Status } }</td>
+									<td class="px-4 py-3 text-right text-neutral-500" title={ alloc.Created.Format("2006-01-02 15:04:05") }>{ formatRelativeTime(alloc.Created) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		if hasSchedulingDetails(job) {
+			<!-- Scheduling Configuration -->
+			<section data-overview-scheduling>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Scheduling</h3>
+			<dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				if job.NodePool != "" {
+					<div><dt class="text-sm font-medium text-neutral-500">Node Pool</dt><dd class="mt-1 text-sm text-neutral-900">{ job.NodePool }</dd></div>
+				}
+				if job.Type == "batch" || job.Type == "sysbatch" {
+					<div><dt class="text-sm font-medium text-neutral-500">All At Once</dt><dd class="mt-1 text-sm text-neutral-900">{ yesNo(job.AllAtOnce) }</dd></div>
+				}
+				if job.ParentID != "" {
+					<div><dt class="text-sm font-medium text-neutral-500">Parent Job</dt><dd class="mt-1 font-mono text-sm text-neutral-900">{ job.ParentID }</dd></div>
+				}
+				if job.Dispatched {
+					<div><dt class="text-sm font-medium text-neutral-500">Dispatched Job</dt><dd class="mt-1 text-sm text-neutral-900">Yes</dd></div>
+				}
+				if job.PeriodicDetails != nil {
+					<div><dt class="text-sm font-medium text-neutral-500">Periodic Enabled</dt><dd class="mt-1 text-sm text-neutral-900">{ yesNo(job.PeriodicDetails.Enabled) }</dd></div>
+					<div><dt class="text-sm font-medium text-neutral-500">Periodic Schedule</dt><dd class="mt-1 font-mono text-sm text-neutral-900">{ strings.Join(job.PeriodicDetails.Specs, ", ") }</dd></div>
+					<div><dt class="text-sm font-medium text-neutral-500">Time Zone</dt><dd class="mt-1 text-sm text-neutral-900">{ job.PeriodicDetails.TimeZone }</dd></div>
+					<div><dt class="text-sm font-medium text-neutral-500">Prohibit Overlap</dt><dd class="mt-1 text-sm text-neutral-900">{ yesNo(job.PeriodicDetails.ProhibitOverlap) }</dd></div>
+				}
+				if job.Parameterized != nil {
+					<div><dt class="text-sm font-medium text-neutral-500">Dispatch Payload</dt><dd class="mt-1 text-sm text-neutral-900">{ job.Parameterized.Payload }</dd></div>
+					if len(job.Parameterized.MetaRequired) > 0 {
+						<div><dt class="text-sm font-medium text-neutral-500">Required Dispatch Metadata</dt><dd class="mt-1 font-mono text-sm text-neutral-900">{ strings.Join(job.Parameterized.MetaRequired, ", ") }</dd></div>
+					}
+					if len(job.Parameterized.MetaOptional) > 0 {
+						<div><dt class="text-sm font-medium text-neutral-500">Optional Dispatch Metadata</dt><dd class="mt-1 font-mono text-sm text-neutral-900">{ strings.Join(job.Parameterized.MetaOptional, ", ") }</dd></div>
+					}
+				}
+			</dl>
+			if len(job.Multiregion) > 0 {
+				<div class="mt-4 overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500"><tr><th class="px-4 py-3">Region</th><th class="px-4 py-3">Count</th><th class="px-4 py-3">Datacenters</th><th class="px-4 py-3">Node Pool</th></tr></thead>
+						<tbody class="divide-y divide-neutral-200 bg-white">
+							for _, region := range job.Multiregion {
+								<tr><td class="px-4 py-3 font-medium text-neutral-900">{ region.Name }</td><td class="px-4 py-3 text-neutral-700">{ fmt.Sprintf("%d", region.Count) }</td><td class="px-4 py-3 text-neutral-700">{ strings.Join(region.Datacenters, ", ") }</td><td class="px-4 py-3 text-neutral-700">{ region.NodePool }</td></tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			</section>
+		}
+		if len(job.Volumes) > 0 {
+			<!-- Configured Volumes -->
+			<section data-overview-volumes>
+				<h3 class="text-lg font-semibold text-neutral-900 mb-4">Volumes</h3>
+				<div class="overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500"><tr><th class="px-4 py-3">Task Group</th><th class="px-4 py-3">Name</th><th class="px-4 py-3">Type</th><th class="px-4 py-3">Source</th><th class="px-4 py-3">Mode</th></tr></thead>
+						<tbody class="divide-y divide-neutral-200 bg-white">
+							for _, volume := range job.Volumes {
+								<tr><td class="px-4 py-3 text-neutral-700">{ volume.TaskGroup }</td><td class="px-4 py-3 font-medium text-neutral-900">{ volume.Name }</td><td class="px-4 py-3 text-neutral-700">{ volume.Type }</td><td class="px-4 py-3 font-mono text-neutral-700">{ volume.Source }</td><td class="px-4 py-3 text-neutral-700">{ volumeMode(volume) }</td></tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
+		if len(job.LifecycleTasks) > 0 {
+			<!-- Task Lifecycle -->
+			<section data-overview-lifecycle>
+				<h3 class="text-lg font-semibold text-neutral-900 mb-4">Task Lifecycle</h3>
+				<div class="overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500"><tr><th class="px-4 py-3">Task Group</th><th class="px-4 py-3">Task</th><th class="px-4 py-3">Hook</th><th class="px-4 py-3">Sidecar</th></tr></thead>
+						<tbody class="divide-y divide-neutral-200 bg-white">
+							for _, task := range job.LifecycleTasks {
+								<tr><td class="px-4 py-3 text-neutral-700">{ task.TaskGroup }</td><td class="px-4 py-3 font-medium text-neutral-900">{ task.Task }</td><td class="px-4 py-3 text-neutral-700">{ task.Hook }</td><td class="px-4 py-3 text-neutral-700">{ yesNo(task.Sidecar) }</td></tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		<!-- Task Groups Summary -->
 		<section>
 			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Task Groups</h3>
@@ -72,19 +233,47 @@ templ OverviewTab(job JobDetail) {
 				</dl>
 			</div>
 		</section>
-		<!-- Constraints -->
+		<!-- Job Metadata -->
 		<section>
-			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Constraints</h3>
-			<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-6">
-				<div class="text-sm text-neutral-600">
-					<p class="mb-2">This section will display job constraints when available.</p>
-					<ul class="list-disc list-inside space-y-1 text-neutral-500">
-						<li>Datacenter constraints</li>
-						<li>Node attribute constraints</li>
-						<li>Resource requirements</li>
-					</ul>
-				</div>
-			</div>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Metadata</h3>
+			if len(job.Metadata) == 0 {
+				<div class="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">No metadata configured.</div>
+			} else {
+				<dl class="divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-neutral-50">
+					for _, item := range job.Metadata {
+						<div class="grid gap-1 px-4 py-3 sm:grid-cols-3 sm:gap-4"><dt class="font-mono text-sm font-medium text-neutral-700">{ item.Key }</dt><dd class="break-words text-sm text-neutral-900 sm:col-span-2">{ item.Value }</dd></div>
+					}
+				</dl>
+			}
 		</section>
 	</div>
+}
+
+templ overviewMetric(label string, value string, valueClass string) {
+	<div class="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+		<div class={ "text-2xl font-semibold " + valueClass }>{ value }</div>
+		<div class="mt-1 text-xs font-medium uppercase tracking-wide text-neutral-500">{ label }</div>
+	</div>
+}
+
+func hasSchedulingDetails(job JobDetail) bool {
+	return job.NodePool != "" || job.Type == "batch" || job.Type == "sysbatch" || job.ParentID != "" || job.Dispatched || job.PeriodicDetails != nil || job.Parameterized != nil || len(job.Multiregion) > 0
+}
+
+func yesNo(value bool) string {
+	if value {
+		return "Yes"
+	}
+	return "No"
+}
+
+func volumeMode(volume JobVolume) string {
+	mode := "read/write"
+	if volume.ReadOnly {
+		mode = "read-only"
+	}
+	if volume.PerAllocation {
+		mode += ", per allocation"
+	}
+	return mode
 }
