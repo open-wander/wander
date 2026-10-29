@@ -1780,6 +1780,7 @@ func TestJobs_PrefixList(t *testing.T) {
 	// Check if we have the right list
 	must.Len(t, 1, results)
 	must.Eq(t, *job.ID, results[0].ID)
+	must.Eq(t, "default", results[0].NodePool)
 }
 
 func TestJobs_List(t *testing.T) {

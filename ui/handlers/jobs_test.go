@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -78,6 +79,88 @@ func TestJobsRouteAPIStates(t *testing.T) {
 
 			assertHTTPResponse(t, response, test.wantStatus, test.wantBody)
 		})
+	}
+}
+
+func TestJobsListRendersAndFiltersParityFieldsFromOneAPIRead(t *testing.T) {
+	apiCalls := 0
+	requestedMetadata := ""
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/jobs":
+			apiCalls++
+			requestedMetadata = r.URL.Query().Get("meta")
+			_, _ = w.Write([]byte(`[
+			{"ID":"web-api","Name":"Web API","Namespace":"default","Datacenters":["dc1"],"NodePool":"default","Status":"running","Type":"service","Priority":50,"Meta":{"pack.name":"web-pack","pack.version":"1.2.3"},"JobSummary":{"Summary":{"web":{"Running":2,"Starting":1,"Failed":1}}}},
+			{"ID":"web-batch","Name":"Web Batch","Namespace":"default","Datacenters":["dc1"],"NodePool":"default","Status":"pending","Type":"batch","Priority":40,"JobSummary":{"Summary":{"batch":{"Queued":1}}}},
+			{"ID":"other-job","Name":"Other Job","Namespace":"default","Datacenters":["dc2"],"NodePool":"gpu","Status":"dead","Type":"system","Priority":30}
+		]`))
+		case "/v1/namespaces":
+			_, _ = w.Write([]byte(`[{"Name":"default"}]`))
+		case "/v1/regions":
+			_, _ = w.Write([]byte(`["global"]`))
+		default:
+			t.Errorf("unexpected API path: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer backend.Close()
+
+	handler := newJobsTestHandler(t, backend.URL)
+	target := "/ui/jobs?prefix=web&status=running&status=pending&type=service&type=batch&datacenter=dc1&node_pool=default&sort=name&dir=asc"
+	request := httptest.NewRequest(http.MethodGet, target, nil)
+	response := httptest.NewRecorder()
+
+	NewJobsHandler(handler).ServeHTTP(response, request)
+
+	if apiCalls != 1 {
+		t.Fatalf("jobs list API calls = %d, want 1", apiCalls)
+	}
+	if requestedMetadata != "true" {
+		t.Fatalf("jobs list metadata field = %q, want true", requestedMetadata)
+	}
+	assertHTTPResponse(t, response, http.StatusOK, "Web API")
+	body := response.Body.String()
+	for _, value := range []string{
+		"Web Batch", "Namespace", "Datacenter", "Node Pool", "Task Groups",
+		"Allocations", "2 running / 4 total", "1 pending · 0 complete · 1 unhealthy",
+		"Pack · web-pack", "Nomad Pack: web-pack 1.2.3",
+		"status=running", "status=pending", "type=service", "type=batch",
+	} {
+		if !strings.Contains(body, value) {
+			t.Errorf("response does not contain %q", value)
+		}
+	}
+	if strings.Contains(body, "Other Job") {
+		t.Fatal("response includes job excluded by composed filters")
+	}
+	if strings.Count(body, "Pack ·") != 1 {
+		t.Fatalf("Pack markers = %d, want only the metadata-backed job", strings.Count(body, "Pack ·"))
+	}
+}
+
+func TestJobListFilterHelpers(t *testing.T) {
+	filters := parseJobListFilters(url.Values{
+		"status": {"running,pending", "running"},
+		"type":   {"service", "batch"},
+	})
+	if strings.Join(filters.Statuses, ",") != "running,pending" {
+		t.Fatalf("unexpected normalized statuses: %#v", filters.Statuses)
+	}
+	if strings.Join(filters.Types, ",") != "service,batch" {
+		t.Fatalf("unexpected normalized types: %#v", filters.Types)
+	}
+
+	summary := summarizeJobAllocations(&api.JobSummary{Summary: map[string]api.TaskGroupSummary{
+		"api":    {Running: 2, Starting: 1},
+		"worker": {Complete: 3, Lost: 1},
+	}})
+	if !summary.Available || summary.TaskGroups != 2 || summary.Total() != 7 || summary.Unhealthy() != 1 {
+		t.Fatalf("unexpected allocation summary: %#v", summary)
+	}
+	if summarizeJobAllocations(nil).Available {
+		t.Fatal("missing allocation summary reported as available")
 	}
 }
 

@@ -1164,6 +1164,7 @@ type JobListStub struct {
 	Name              string
 	Namespace         string `json:",omitempty"`
 	Datacenters       []string
+	NodePool          string
 	Type              string
 	Priority          int
 	Periodic          bool

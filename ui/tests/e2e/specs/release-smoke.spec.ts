@@ -41,6 +41,25 @@ async function openDesktopPage(page: Page, path: string) {
   await page.goto(path);
 }
 
+async function openCheckedDesktopPage(page: Page, path: string) {
+  const browserErrors = captureBrowserErrors(page);
+  await openDesktopPage(page, path);
+  return browserErrors;
+}
+
+async function expectColumnHeaders(page: Page, headings: string[]) {
+  for (const heading of headings) {
+    await expect(page.getByRole('columnheader', { name: heading })).toBeVisible();
+  }
+}
+
+async function expectURLParams(page: Page, expected: Record<string, string>) {
+  await expect.poll(() => {
+    const params = new URL(page.url()).searchParams;
+    return Object.fromEntries(Object.keys(expected).map(name => [name, params.get(name)]));
+  }).toEqual(expected);
+}
+
 async function openJobTab(page: Page, name: string, expectedText: string) {
   await page.getByRole('tab', { name }).click();
   await expect(page.locator('#job-detail-panel')).toContainText(expectedText);
@@ -370,6 +389,35 @@ test.describe('Wander release smoke', () => {
     expect(browserErrors).toEqual([]);
   });
 
+  test('renders and composes live job-list parity filters', async ({ page }) => {
+    const browserErrors = await openCheckedDesktopPage(page, '/ui/jobs');
+
+    await expectColumnHeaders(page, ['Namespace', 'Datacenter', 'Status', 'Type', 'Node Pool', 'Task Groups', 'Allocations']);
+
+    const row = page.locator('[data-job-id="wander-ui-smoke"]');
+    await expect(row).toContainText('default');
+    await expect(row).toContainText('dc1');
+    await expect(row).toContainText('service');
+    await expect(row).toContainText('running');
+    await expect(row).toContainText('1 running / 1 total');
+
+    await page.getByLabel('ID prefix').fill('missing');
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    await expect(page).toHaveURL(/prefix=missing/);
+    await expect(row).toHaveCount(0);
+
+    await page.getByLabel('ID prefix').fill('wander-ui');
+    await page.locator('input[name="status"][value="running"]').check();
+    await page.locator('input[name="type"][value="service"]').check();
+    await page.getByLabel('Datacenter').selectOption('dc1');
+    await page.getByLabel('Node pool').selectOption('default');
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+
+    await expectURLParams(page, { status: 'running', type: 'service', datacenter: 'dc1', node_pool: 'default' });
+    await expect(row).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
   test('streams client agent logs and persists the selected level', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/clients?region=global');
@@ -399,9 +447,7 @@ test.describe('Wander release smoke', () => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/servers?region=global');
 
-    for (const column of ['Name', 'Status', 'Leader', 'Address', 'Port', 'Datacenter', 'Version']) {
-      await expect(page.getByRole('columnheader', { name: column })).toBeVisible();
-    }
+	await expectColumnHeaders(page, ['Name', 'Status', 'Leader', 'Address', 'Port', 'Datacenter', 'Version']);
     await expect(page.locator('[data-server-port]').first()).not.toBeEmpty();
     await expect(page.locator('[data-server-version]').first()).not.toBeEmpty();
 

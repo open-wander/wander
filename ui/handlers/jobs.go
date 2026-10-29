@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"maps"
 	"math"
 	"net/http"
+	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -185,13 +188,9 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse search query from query string
-	searchQuery := strings.TrimSpace(queryParams.Get("search"))
-
-	// Filter jobs by search query if provided (client-side)
-	if searchQuery != "" {
-		jobsList = h.filterJobs(jobsList, searchQuery)
-	}
+	filters := parseJobListFilters(queryParams)
+	filterOptions := buildJobFilterOptions(jobsList)
+	jobsList = filterJobs(jobsList, filters)
 
 	// Parse sort parameters from query string
 	sortColumn := queryParams.Get("sort")
@@ -237,8 +236,14 @@ func (h *JobsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render the jobs list page
 	err = Render(w, r,
-		jobs.List(layoutProps, jobsList, sortColumn, sortDir, searchQuery, pagination),   // Full page with layout
-		jobspartials.ListContent(jobsList, sortColumn, sortDir, searchQuery, pagination), // Partial content for HTMX requests
+		jobs.List(layoutProps, jobspartials.ListProps{
+			Jobs: jobsList, Filters: filters, FilterOptions: filterOptions,
+			SortColumn: sortColumn, SortDir: sortDir, Pagination: pagination,
+		}),
+		jobspartials.ListContent(jobspartials.ListProps{
+			Jobs: jobsList, Filters: filters, FilterOptions: filterOptions,
+			SortColumn: sortColumn, SortDir: sortDir, Pagination: pagination,
+		}),
 	)
 
 	if err != nil {
@@ -412,22 +417,12 @@ func (h *JobsHandler) getJobsList(r *http.Request, namespace, token string) ([]j
 	// Parse additional filter parameters from query string
 	queryParams := r.URL.Query()
 	filterExpr := strings.TrimSpace(queryParams.Get("filter"))
-	statusFilter := strings.TrimSpace(queryParams.Get("status"))
-	typeFilter := strings.TrimSpace(queryParams.Get("type"))
 
-	// Build Nomad filter expression if filters are specified
-	var filters []string
-	if statusFilter != "" {
-		filters = append(filters, fmt.Sprintf("Status == %q", statusFilter))
-	}
-	if typeFilter != "" {
-		filters = append(filters, fmt.Sprintf("Type == %q", typeFilter))
-	}
+	// Preserve the raw API filter parameter for callers that use the Wander UI
+	// route as an HTMX endpoint. Visible list controls are applied locally so
+	// their option sets can be derived from the same single API response.
 	if filterExpr != "" {
-		filters = append(filters, filterExpr)
-	}
-	if len(filters) > 0 {
-		queryOpts.Filter = strings.Join(filters, " and ")
+		queryOpts.Filter = filterExpr
 	}
 
 	// Fetch jobs from the API
@@ -437,7 +432,9 @@ func (h *JobsHandler) getJobsList(r *http.Request, namespace, token string) ([]j
 		"hasToken", token != "",
 	)
 
-	jobs, _, err := client.Jobs().List(queryOpts)
+	jobs, _, err := client.Jobs().ListOptions(&api.JobListOptions{
+		Fields: &api.JobListFields{Meta: true},
+	}, queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch jobs from Nomad API", "error", err)
 		return nil, fmt.Errorf("failed to fetch jobs: %w", err)
@@ -454,37 +451,138 @@ func (h *JobsHandler) getJobsList(r *http.Request, namespace, token string) ([]j
 		}
 
 		result = append(result, jobspartials.JobSummary{
-			ID:        job.ID,
-			Name:      job.Name,
-			Status:    job.Status,
-			Type:      job.Type,
-			Priority:  job.Priority,
-			Submitted: submitted,
+			ID:          job.ID,
+			Name:        job.Name,
+			Namespace:   job.Namespace,
+			Datacenters: append([]string(nil), job.Datacenters...),
+			NodePool:    job.NodePool,
+			Status:      job.Status,
+			Type:        job.Type,
+			Priority:    job.Priority,
+			Submitted:   submitted,
+			PackName:    job.Meta["pack.name"],
+			PackVersion: job.Meta["pack.version"],
+			Allocations: summarizeJobAllocations(job.JobSummary),
 		})
 	}
 
 	return result, nil
 }
 
-// filterJobs filters the jobs list based on search query.
-// The search is case-insensitive and matches against job ID and name.
-func (h *JobsHandler) filterJobs(jobsList []jobspartials.JobSummary, query string) []jobspartials.JobSummary {
-	if query == "" {
-		return jobsList
-	}
-
-	query = strings.ToLower(query)
+func filterJobs(jobsList []jobspartials.JobSummary, filters jobspartials.JobListFilters) []jobspartials.JobSummary {
 	filtered := make([]jobspartials.JobSummary, 0, len(jobsList))
-
 	for _, job := range jobsList {
-		// Match against ID or Name (case-insensitive)
-		if strings.Contains(strings.ToLower(job.ID), query) ||
-			strings.Contains(strings.ToLower(job.Name), query) {
-			filtered = append(filtered, job)
+		search := strings.ToLower(filters.Search)
+		if search != "" && !strings.Contains(strings.ToLower(job.ID), search) &&
+			!strings.Contains(strings.ToLower(job.Name), search) {
+			continue
+		}
+		if filters.Prefix != "" && !strings.HasPrefix(job.ID, filters.Prefix) {
+			continue
+		}
+		if !matchesJobFilter(job.Status, filters.Statuses) || !matchesJobFilter(job.Type, filters.Types) {
+			continue
+		}
+		if filters.Datacenter != "" && !containsString(job.Datacenters, filters.Datacenter) {
+			continue
+		}
+		if filters.NodePool != "" && job.NodePool != filters.NodePool {
+			continue
+		}
+		filtered = append(filtered, job)
+	}
+	return filtered
+}
+
+func parseJobListFilters(values url.Values) jobspartials.JobListFilters {
+	return jobspartials.JobListFilters{
+		Search:     strings.TrimSpace(values.Get("search")),
+		Prefix:     strings.TrimSpace(values.Get("prefix")),
+		Statuses:   normalizedQueryValues(values["status"]),
+		Types:      normalizedQueryValues(values["type"]),
+		Datacenter: strings.TrimSpace(values.Get("datacenter")),
+		NodePool:   strings.TrimSpace(values.Get("node_pool")),
+	}
+}
+
+func normalizedQueryValues(raw []string) []string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0, len(raw))
+	for _, value := range raw {
+		for _, item := range strings.Split(value, ",") {
+			item = strings.TrimSpace(item)
+			if item == "" {
+				continue
+			}
+			if _, exists := seen[item]; exists {
+				continue
+			}
+			seen[item] = struct{}{}
+			result = append(result, item)
 		}
 	}
+	return result
+}
 
-	return filtered
+func matchesJobFilter(value string, selected []string) bool {
+	return len(selected) == 0 || containsString(selected, value)
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func summarizeJobAllocations(summary *api.JobSummary) jobspartials.AllocationSummary {
+	result := jobspartials.AllocationSummary{}
+	if summary == nil {
+		return result
+	}
+	result.Available = true
+	result.TaskGroups = len(summary.Summary)
+	for _, group := range summary.Summary {
+		result.Queued += group.Queued
+		result.Starting += group.Starting
+		result.Running += group.Running
+		result.Complete += group.Complete
+		result.Failed += group.Failed
+		result.Lost += group.Lost
+		result.Unknown += group.Unknown
+	}
+	return result
+}
+
+func buildJobFilterOptions(jobsList []jobspartials.JobSummary) jobspartials.JobFilterOptions {
+	statuses := make(map[string]struct{})
+	types := make(map[string]struct{})
+	datacenters := make(map[string]struct{})
+	nodePools := make(map[string]struct{})
+	for _, job := range jobsList {
+		addNonEmpty(statuses, job.Status)
+		addNonEmpty(types, job.Type)
+		addNonEmpty(nodePools, job.NodePool)
+		for _, datacenter := range job.Datacenters {
+			addNonEmpty(datacenters, datacenter)
+		}
+	}
+	return jobspartials.JobFilterOptions{
+		Statuses: sortedKeys(statuses), Types: sortedKeys(types),
+		Datacenters: sortedKeys(datacenters), NodePools: sortedKeys(nodePools),
+	}
+}
+
+func addNonEmpty(set map[string]struct{}, value string) {
+	if value != "" {
+		set[value] = struct{}{}
+	}
+}
+
+func sortedKeys(set map[string]struct{}) []string {
+	return slices.Sorted(maps.Keys(set))
 }
 
 // sortJobs sorts the jobs list based on the specified column and direction.
@@ -499,6 +597,16 @@ func (h *JobsHandler) sortJobs(jobsList []jobspartials.JobSummary, sortColumn, s
 			less = jobsList[i].Status < jobsList[j].Status
 		case "type":
 			less = jobsList[i].Type < jobsList[j].Type
+		case "namespace":
+			less = jobsList[i].Namespace < jobsList[j].Namespace
+		case "datacenter":
+			less = strings.Join(jobsList[i].Datacenters, ",") < strings.Join(jobsList[j].Datacenters, ",")
+		case "node_pool":
+			less = jobsList[i].NodePool < jobsList[j].NodePool
+		case "task_groups":
+			less = jobsList[i].Allocations.TaskGroups < jobsList[j].Allocations.TaskGroups
+		case "allocations":
+			less = jobsList[i].Allocations.Total() < jobsList[j].Allocations.Total()
 		case "priority":
 			less = jobsList[i].Priority < jobsList[j].Priority
 		case "submitted":
