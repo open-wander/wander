@@ -49,6 +49,23 @@ func TestForbiddenPayloadOmitsPayloadField(t *testing.T) {
 	}
 }
 
+func TestPeriodicJobRendersForceLaunchContract(t *testing.T) {
+	job := JobDetail{ID: "periodic", Name: "periodic", Status: "running", Periodic: true}
+	html := renderJobDetail(t, job)
+	for _, expected := range []string{
+		`>Force Launch<`,
+		`hx-post="/api/jobs/periodic/periodic/force"`,
+		`Launch <strong class="text-neutral-900">periodic</strong> immediately`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("rendered periodic detail does not contain %q: %s", expected, html)
+		}
+	}
+	if strings.Contains(html, ">Run<") || strings.Contains(html, ">Dispatch<") {
+		t.Fatalf("periodic parent should offer Force Launch instead of Run or Dispatch: %s", html)
+	}
+}
+
 func renderJobDetail(t *testing.T, job JobDetail) string {
 	t.Helper()
 	var output bytes.Buffer

@@ -84,6 +84,7 @@ func startTestCluster(t *testing.T) (string, func()) {
 		waitForCluster(t, address)
 		binary := os.Getenv("WANDER_UI_E2E_BINARY")
 		registerSmokeJob(t, binary, address, "", nil)
+		registerJobKindFixtures(t, binary, address)
 		registerNamespaceSmokeJob(t, binary, address)
 		registerParameterizedSmokeJob(t, binary, address)
 		return address, func() {}
@@ -102,11 +103,24 @@ func startTestCluster(t *testing.T) (string, func()) {
 	runCommand(t, join, "federate disposable Wander regions")
 	waitForRegion(t, address, regionSmokeName)
 	registerSmokeJob(t, binary, address, "", nil)
+	registerJobKindFixtures(t, binary, address)
 	registerNamespaceSmokeJob(t, binary, address)
 	registerParameterizedSmokeJob(t, binary, address)
 	registerFixtureJob(t, binary, regionAddress, "", nil, "", regionSmokeJobID, "fixtures/region-smoke.nomad.hcl")
 	t.Setenv("WANDER_UI_E2E_FEDERATED", "1")
 	return address, func() {}
+}
+
+func registerJobKindFixtures(t *testing.T, binary, address string) {
+	t.Helper()
+	for _, fixture := range []string{
+		"fixtures/batch.nomad.hcl",
+		"fixtures/system.nomad.hcl",
+		"fixtures/sysbatch.nomad.hcl",
+		"fixtures/periodic.nomad.hcl",
+	} {
+		runFixtureJob(t, binary, address, "", "", fixture)
+	}
 }
 
 func startFederatedRegion(t *testing.T, binary string) string {

@@ -108,6 +108,27 @@ func TestPurgeJobUsesPurgeFlagAndScopedRedirect(t *testing.T) {
 	}
 }
 
+func TestForcePeriodicJobUsesScopedLiveMutation(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.URL.Path != "/v1/job/periodic/periodic/force" {
+			t.Errorf("unexpected API request: %s %s", r.Method, r.URL.String())
+		}
+		if r.URL.Query().Get("namespace") != "team-a" {
+			t.Errorf("unexpected periodic force query: %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"EvalID":"eval-periodic"}`))
+	}))
+	defer backend.Close()
+
+	handler := newJobsTestHandler(t, backend.URL)
+	response := performJobAction(handler, "/api/jobs/periodic/periodic/force?namespace=team-a&region=region-a", "", "")
+
+	assertHTTPResponse(t, response, http.StatusOK, "")
+	if trigger := response.Header().Get("HX-Trigger"); !strings.Contains(trigger, "Periodic job forced successfully") {
+		t.Fatalf("unexpected periodic force trigger: %q", trigger)
+	}
+}
+
 func performJobAction(handler *Handler, target, contentType, body string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
 	if contentType != "" {

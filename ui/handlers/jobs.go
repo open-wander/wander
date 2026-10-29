@@ -669,6 +669,7 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 		Type:        safeString(job.Type),
 		Priority:    safeInt(job.Priority),
 		Datacenters: job.Datacenters,
+		Periodic:    job.IsPeriodic(),
 		TaskGroups:  make([]jobspartials.TaskGroupSummary, 0, len(job.TaskGroups)),
 	}
 	if job.IsParameterized() {

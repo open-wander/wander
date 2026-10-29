@@ -347,6 +347,9 @@
             dialog.hidden = true;
             doc.body.style.overflow = '';
             if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
+            if (dialog.contains(doc.activeElement) && typeof doc.activeElement.blur === 'function') {
+                doc.activeElement.blur();
+            }
         }
 
         function commitBinding(binding) {

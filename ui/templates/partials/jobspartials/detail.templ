@@ -14,6 +14,7 @@ type JobDetail struct {
 	Priority    int
 	Datacenters []string
 	TaskGroups  []TaskGroupSummary
+	Periodic    bool
 	Parameterized *ParameterizedJob
 }
 
@@ -33,7 +34,7 @@ type TaskGroupSummary struct {
 
 // DetailContent renders the job detail page content (without layout)
 templ DetailContent(job JobDetail) {
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false, dispatchModal: false, purgeModal: false }">
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false, dispatchModal: false, forcePeriodicModal: false, purgeModal: false }">
 		<!-- Job Header -->
 		<div class="bg-white shadow rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
@@ -69,7 +70,14 @@ templ DetailContent(job JobDetail) {
 								AlpineClick: "stopModal = true",
 							}, "Stop")
 						}
-						if job.Parameterized != nil {
+						if job.Periodic {
+							@components.Button(components.ButtonProps{
+								Variant:     "primary",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "forcePeriodicModal = true",
+							}, "Force Launch")
+						} else if job.Parameterized != nil {
 							@components.Button(components.ButtonProps{
 								Variant:     "primary",
 								Size:        "sm",
@@ -159,10 +167,37 @@ templ DetailContent(job JobDetail) {
 		@StartJobModal(job)
 		@StopJobModal(job)
 		@RunJobModal(job)
+		if job.Periodic {
+			@ForcePeriodicJobModal(job)
+		}
 		if job.Parameterized != nil {
 			@DispatchJobModal(job)
 		}
 		@PurgeJobModal(job)
+	</div>
+}
+
+// ForcePeriodicJobModal confirms an immediate launch of a periodic job.
+templ ForcePeriodicJobModal(job JobDetail) {
+	<div x-data="modalBridge('forcePeriodicModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "force-periodic-job-modal",
+			Title:    "Force Launch",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Launch <strong class="text-neutral-900">{ job.Name }</strong> immediately, outside its normal schedule?
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
+				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/periodic/force" } hx-swap="none" @click="close" class="btn btn-primary btn-sm">Force Launch</button>
+			}
+		}
 	</div>
 }
 

@@ -167,6 +167,48 @@ test.describe('Wander release smoke', () => {
     await expect(page.locator('[data-job-id^="wander-ui-parameterized/dispatch-"]')).toHaveCount(0);
   });
 
+  test('renders the live job-kind matrix and forces a periodic launch', async ({ page }) => {
+    const browserErrors = await openCheckedDesktopPage(page, '/ui/jobs?namespace=default&per_page=25');
+    const kinds = [
+      { id: 'wander-ui-smoke', type: 'service' },
+      { id: 'wander-ui-batch', type: 'batch' },
+      { id: 'wander-ui-system', type: 'system' },
+      { id: 'wander-ui-sysbatch', type: 'sysbatch' },
+      { id: 'wander-ui-periodic', type: 'batch' },
+    ];
+
+    for (const kind of kinds) {
+      const row = page.locator(`[data-job-id="${kind.id}"]`);
+      await expect(row).toBeVisible();
+      await expect(row).toContainText(kind.type);
+    }
+
+    for (const id of ['wander-ui-smoke', 'wander-ui-system']) {
+      await page.goto(`/ui/jobs/${id}`);
+      await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+    }
+
+    for (const id of ['wander-ui-batch', 'wander-ui-sysbatch']) {
+      await expect.poll(async () => {
+        const response = await page.request.get(`/v1/job/${id}`);
+        return (await response.json()).Status;
+      }).toBe('dead');
+      await page.goto(`/ui/jobs/${id}`);
+      await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Purge', exact: true })).toBeVisible();
+    }
+
+    await page.goto('/ui/jobs/wander-ui-periodic');
+    const forceDialog = await openDialog(page, 'Force Launch', 'Force Launch');
+    const forceResponse = page.waitForResponse(response => response.url().includes('/api/jobs/wander-ui-periodic/periodic/force'));
+    await forceDialog.getByRole('button', { name: 'Force Launch' }).click();
+    expect((await forceResponse).status()).toBe(200);
+
+    await page.goto('/ui/jobs/wander-ui-parameterized?namespace=dispatch-test&region=global');
+    await expect(page.getByRole('button', { name: 'Dispatch', exact: true })).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
   test('switches to and navigates within a federated region', async ({ page }) => {
     test.skip(process.env.WANDER_UI_E2E_FEDERATED !== '1', 'requires the disposable federated fixture');
     const browserErrors = captureBrowserErrors(page);
@@ -339,11 +381,11 @@ test.describe('Wander release smoke', () => {
     await expect(page.getByText('v0.1.0-dev', { exact: true })).toHaveCount(1);
 
     await openResource(page, '/ui/jobs', '[data-job-id="wander-ui-smoke"]', 'a[href^="/ui/jobs/wander-ui-smoke"]', /\/ui\/jobs\/wander-ui-smoke/, 'wander-ui-smoke');
-    await openResource(page, '/ui/allocations', '[data-alloc-id]', 'a[href^="/ui/allocations/"]', /\/ui\/allocations\/[0-9a-f-]+/, 'fixture');
+    await openResource(page, '/ui/allocations', '[data-alloc-id]:has-text("wander-ui-smoke")', 'a[href^="/ui/allocations/"]', /\/ui\/allocations\/[0-9a-f-]+/, 'fixture');
     await page.goto('/ui/clients');
     const clientRow = page.locator('[data-client-id]').first();
-    await expect(clientRow).toContainText('1');
-    await expect(clientRow).toContainText('50 /');
+    await expect(clientRow).toContainText('CPU allocated');
+    await expect(clientRow).toContainText('Memory allocated');
     await clientRow.locator('a[href^="/ui/clients/"]').first().click();
     await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+/);
 
@@ -368,8 +410,8 @@ test.describe('Wander release smoke', () => {
     await page.goto('/ui/topology');
     const topologyNode = page.locator('[data-topology-node-id]').first();
     await expect(topologyNode).toContainText('Allocations');
-    await expect(topologyNode).toContainText('1');
-    await expect(topologyNode).toContainText('50 /');
+    await expect(topologyNode).toContainText('CPU allocated');
+    await expect(topologyNode).toContainText('Memory allocated');
     await expect(page.locator('body')).toContainText('Region: global');
     await expect(page.locator('body')).not.toContainText('Last heartbeat: Unknown');
 
@@ -487,7 +529,8 @@ test.describe('Wander release smoke', () => {
   test('opens live allocation logs and exec views', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/allocations');
-    const href = await page.locator('[data-alloc-id] a[href^="/ui/allocations/"]').first().getAttribute('href');
+    const smokeAllocation = page.locator('[data-alloc-id]').filter({ hasText: 'wander-ui-smoke' }).first();
+    const href = await smokeAllocation.locator('a[href^="/ui/allocations/"]').getAttribute('href');
     expect(href).toBeTruthy();
 
     await openAllocationView(page, href!, 'logs', /stdout|logs/i);
