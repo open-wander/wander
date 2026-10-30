@@ -5,6 +5,23 @@ on:
     branches:
       - main
       - release/**
+  workflow_call:
+    inputs:
+      build-ref:
+        description: 'The git ref to build from'
+        type: string
+        default: ''
+        required: false
+      make-prerelease:
+        description: "Run prerelease to generate files"
+        type: boolean
+        required: false
+        default: true
+      publish-release:
+        description: "Publish build artifacts as a GitHub release"
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
     inputs:
       build-ref:
@@ -17,6 +34,11 @@ on:
         type: "boolean"
         required: false
         default: true
+      publish-release:
+        description: "Publish build artifacts as a GitHub release"
+        type: "boolean"
+        required: false
+        default: false
 
 env:
   PKG_NAME: "wander"
@@ -32,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.build-ref }}
+          ref: ${{ inputs.build-ref }}
       - name: Determine Go version
         id: get-go-version
         # We use .go-version as our source of truth for current Go
@@ -47,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.build-ref }}
+          ref: ${{ inputs.build-ref }}
       - name: get product version
         id: get-product-version
         run: |-
@@ -62,7 +84,7 @@ jobs:
       - name: "Checkout directory"
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.build-ref }}
+          ref: ${{ inputs.build-ref }}
       - name: Generate metadata file
         id: generate-metadata-file
         uses: hashicorp/actions-generate-metadata@v1.1.1
@@ -70,7 +92,7 @@ jobs:
           version: ${{ needs.get-product-version.outputs.product-version }}
           product: ${{ env.PKG_NAME }}
           repositoryOwner: "open-wander"
-          sha: ${{ github.event.inputs.build-ref }}
+          sha: ${{ inputs.build-ref || github.sha }}
       - uses: actions/upload-artifact@v4
         with:
           name: metadata.json
@@ -90,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.build-ref }}
+          ref: ${{ inputs.build-ref }}
       - name: Setup go
         uses: actions/setup-go@v5
         with:
@@ -111,7 +133,7 @@ jobs:
 
       - name: Build prerelease
         run: make prerelease
-        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.make-prerelease == 'true' }}
+        if: ${{ github.event_name == 'push' || inputs.make-prerelease == true }}
 
       - name: Build
         env:
@@ -144,7 +166,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.build-ref }}
+          ref: ${{ inputs.build-ref }}
       - name: Setup go
         uses: actions/setup-go@v5
         with:
@@ -165,7 +187,7 @@ jobs:
 
       - name: Build prerelease
         run: make prerelease
-        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.make-prerelease == 'true' }}
+        if: ${{ github.event_name == 'push' || inputs.make-prerelease == true }}
 
       - name: Install Linux build utilties
         run: |
@@ -271,7 +293,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.build-ref }}
+          ref: ${{ inputs.build-ref }}
 
       - name: Setup go
         uses: actions/setup-go@v5
@@ -293,7 +315,7 @@ jobs:
 
       - name: Build prerelease
         run: make prerelease
-        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.make-prerelease == 'true' }}
+        if: ${{ github.event_name == 'push' || inputs.make-prerelease == true }}
 
       - name: Build
         env:
@@ -328,10 +350,14 @@ jobs:
       revision: ${{github.sha}}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.build-ref }}
       - name: Set revision
-        if: "${{ github.event.inputs.build-ref != '' }}"
+        if: "${{ inputs.build-ref != '' }}"
+        env:
+          BUILD_REF: ${{ inputs.build-ref }}
         run: |
-          echo "revision=${{ github.event.inputs.build-ref }}" >> "$GITHUB_ENV"
+          echo "revision=${BUILD_REF}" >> "$GITHUB_ENV"
 
       - name: Download Linux amd64 artifact
         if: matrix.arch == 'amd64'
@@ -390,7 +416,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.build-ref }}
+          ref: ${{ inputs.build-ref }}
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
@@ -442,6 +468,98 @@ jobs:
           go tool nm ./wander | grep -i glibc | cut -d @ -f 2-3 | sort --version-sort | uniq
           echo "::group::Smoke test binary"
           docker run --rm -v "$PWD:/src" registry.access.redhat.com/ubi7/ubi-minimal:7.9-1057 /src/wander version
+
+  publish-release:
+    name: Publish GitHub release
+    if: inputs.publish-release == true
+    needs:
+      - get-product-version
+      - generate-metadata-file
+      - build-other
+      - build-linux
+      - build-darwin
+      - build-docker
+      - release-ui-smoke
+      - minimum-os
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.build-ref }}
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Prepare release assets and checksums
+        id: release
+        env:
+          VERSION: ${{ needs.get-product-version.outputs.product-version }}
+          BUILD_REF: ${{ inputs.build-ref }}
+        run: |
+          if [[ -z "$BUILD_REF" ]]; then
+            BUILD_REF=$(git rev-parse HEAD)
+          fi
+          if [[ "$VERSION" == *-dev ]]; then
+            echo "::error::Refusing to publish development version $VERSION"
+            exit 1
+          fi
+
+          checksum_file="wander_${VERSION}_SHA256SUMS"
+          (
+            cd dist
+            find . -type f ! -name "$checksum_file" -print0 |
+              sort -z |
+              xargs -0 sha256sum
+          ) >"dist/$checksum_file"
+
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            cat >release-notes.md <<'EOF'
+          This is a Wander preview release for compatibility and UI testing.
+          It is not yet the stable 0.1.0 drop-in release. Known remaining work
+          is tracked in `docs/plans/0.1.0-revival-checklist.md`.
+
+          EOF
+            awk '
+              /^## UNRELEASED$/ { in_release = 1; next }
+              in_release && /^## / { exit }
+              in_release { print }
+            ' CHANGELOG.md >>release-notes.md
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            awk -v version="$VERSION" '
+              $0 ~ "^## " version " " { in_release = 1; next }
+              in_release && /^## / { exit }
+              in_release { print }
+            ' CHANGELOG.md >release-notes.md
+            if [[ ! -s release-notes.md ]]; then
+              echo "::error::CHANGELOG.md has no section for $VERSION"
+              exit 1
+            fi
+          fi
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "target=$BUILD_REF" >> "$GITHUB_OUTPUT"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_TARGET: ${{ steps.release.outputs.target }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG already exists"
+            exit 1
+          fi
+
+          mapfile -d '' assets < <(find dist -type f -print0 | sort -z)
+          flags=(--target "$RELEASE_TARGET" --title "Wander ${RELEASE_TAG}" --notes-file release-notes.md)
+          if [[ "$PRERELEASE" == true ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "${assets[@]}" "${flags[@]}"
 
 permissions:
   contents: read
