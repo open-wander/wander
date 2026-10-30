@@ -347,6 +347,42 @@ test.describe('Wander release smoke', () => {
     }
   });
 
+  test('creates, selects, updates, and deletes a stored job template', async ({ page }) => {
+    const browserErrors = await openCheckedDesktopPage(page, '/ui/jobs/run/templates?namespace=default');
+    const templateName = `browser-template-${Date.now()}`;
+    const initialSource = `job "${templateName}" {\n  datacenters = ["dc1"]\n}`;
+    const updatedSource = `${initialSource.slice(0, -1)}\n  type = "service"\n}`;
+
+    try {
+      await page.getByRole('link', { name: 'Create Template' }).first().click();
+      await page.getByRole('textbox', { name: 'Name', exact: true }).fill(templateName);
+      await page.getByLabel('HCL job definition').fill(initialSource);
+      await page.getByRole('button', { name: 'Create Template' }).click();
+
+      await expect(page).toHaveURL(new RegExp(`/ui/jobs/run\\?.*template=${templateName}`));
+      await expect(page.locator('textarea[x-ref="initialSource"]')).toHaveValue(initialSource);
+
+      await page.goto('/ui/jobs/run/templates/manage?namespace=default');
+      let card = page.locator('div[x-data="{ editing: false }"]').filter({ hasText: templateName });
+      await card.getByRole('button', { name: 'Edit' }).click();
+      await card.getByLabel('HCL job definition').fill(updatedSource);
+      await card.getByRole('button', { name: 'Save Template' }).click();
+      await expect(page).toHaveURL(/\/ui\/jobs\/run\/templates\/manage\?namespace=default/);
+
+      await page.goto(`/ui/jobs/run?namespace=default&template=${templateName}`);
+      await expect(page.locator('textarea[x-ref="initialSource"]')).toHaveValue(updatedSource);
+
+      await page.goto('/ui/jobs/run/templates/manage?namespace=default');
+      card = page.locator('div[x-data="{ editing: false }"]').filter({ hasText: templateName });
+      page.once('dialog', dialog => dialog.accept());
+      await card.getByRole('button', { name: 'Delete' }).click();
+      await expect(page.getByRole('heading', { name: templateName, exact: true })).toHaveCount(0);
+      expect(browserErrors).toEqual([]);
+    } finally {
+      await page.request.delete(`/ui/jobs/run/templates/manage/${templateName}?namespace=default`);
+    }
+  });
+
   test('renders live cluster navigation and resources', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     await page.goto('/ui/');

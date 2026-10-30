@@ -110,6 +110,12 @@ func (h *JobsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle the Nomad 1.6.5-compatible variable-backed template workflow.
+	if strings.HasPrefix(path, "/ui/jobs/run/templates") {
+		NewJobTemplatesHandler(h.handler).ServeHTTP(w, r)
+		return
+	}
+
 	// Handle /ui/jobs/{id}/plan (plan job)
 	if strings.HasSuffix(path, "/plan") {
 		if r.Method != http.MethodPost {
@@ -277,6 +283,21 @@ func (h *JobsHandler) RunPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	initialDefinition := ""
+	selectedTemplate := strings.TrimSpace(r.URL.Query().Get("template"))
+	if selectedTemplate != "" {
+		definition, err := NewJobTemplatesHandler(h.handler).readTemplate(r, namespace, selectedTemplate)
+		if err != nil {
+			if h.handler.CheckClusterError(w, r, err) {
+				return
+			}
+			h.handler.logger.Warn("failed to load job template", "error", err, "template", selectedTemplate, "namespace", namespace)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		initialDefinition = definition
+	}
+
 	// Build layout props with app context
 	layoutProps := h.handler.BaseLayoutProps(r,
 		"Run Job - Wander",
@@ -291,8 +312,8 @@ func (h *JobsHandler) RunPage(w http.ResponseWriter, r *http.Request) {
 
 	// Render the job submission page
 	err := Render(w, r,
-		jobs.Run(layoutProps, namespace),   // Full page with layout
-		jobspartials.RunContent(namespace), // Partial content for HTMX requests
+		jobs.Run(layoutProps, namespace, initialDefinition),   // Full page with layout
+		jobspartials.RunContent(namespace, initialDefinition), // Partial content for HTMX requests
 	)
 
 	if err != nil {

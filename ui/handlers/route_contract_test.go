@@ -10,6 +10,9 @@ import (
 var topLevelPageContracts = []string{
 	"/ui/jobs",
 	"/ui/jobs/run",
+	"/ui/jobs/run/templates",
+	"/ui/jobs/run/templates/new",
+	"/ui/jobs/run/templates/manage",
 	"/ui/allocations",
 	"/ui/clients",
 	"/ui/servers",

@@ -6,6 +6,6 @@ import (
 )
 
 // Run renders the job submission page with full page layout
-templ Run(layoutProps layouts.PageLayoutProps, namespace string) {
-	@layouts.PageLayout(layoutProps, jobspartials.RunContent(namespace))
+templ Run(layoutProps layouts.PageLayoutProps, namespace string, initialDefinition string) {
+	@layouts.PageLayout(layoutProps, jobspartials.RunContent(namespace, initialDefinition))
 }
