@@ -484,6 +484,51 @@ test.describe('Wander release smoke', () => {
     expect(browserErrors).toEqual([]);
   });
 
+  test('reviews and submits an existing job edit with retained variables', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    const jobID = `wander-ui-edit-${Date.now()}`;
+    const initialSource = `variable "marker" {\n  type = string\n}\n\njob "${jobID}" {\n  datacenters = ["dc1"]\n  type = "batch"\n\n  meta {\n    edit-marker = var.marker\n  }\n\n  group "work" {\n    task "complete" {\n      driver = "raw_exec"\n      config {\n        command = "/usr/bin/true"\n      }\n    }\n  }\n}`;
+    const updatedSource = initialSource.replace('type = "batch"', 'type = "batch"\n  priority = 60');
+
+    try {
+      const create = await page.request.post('/ui/jobs/_new/run?namespace=default&region=global', {
+        data: {
+          definition: initialSource,
+          format: 'hcl',
+          variables: 'marker = "initial"',
+        },
+      });
+      expect(create.ok(), await create.text()).toBeTruthy();
+
+      await openDesktopPage(page, `/ui/jobs/${jobID}?namespace=default&region=global`);
+      await openJobTab(page, 'Definition', 'Job Definition');
+      await expect(page.getByRole('button', { name: 'Job Spec', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Full Definition', exact: true })).toBeVisible();
+      await expect(page.getByLabel('HCL Variables')).toHaveValue('marker = "initial"');
+      await expect(page.getByText('Version:').locator('..')).toContainText('0');
+
+      await page.getByRole('button', { name: 'Edit', exact: true }).click();
+      await page.locator('.wander-textarea').fill(updatedSource);
+      await page.getByLabel('HCL Variables').fill('marker = "reviewed"');
+      await page.getByRole('button', { name: 'Review changes', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'Plan Result' })).toBeVisible();
+      await expect(page.getByText('Changes', { exact: true })).toBeVisible();
+
+      await page.getByRole('button', { name: 'Run Job', exact: true }).first().click();
+      await expect(page.getByText('Are you sure you want to run this job?')).toBeVisible();
+      await page.getByRole('button', { name: 'Run Job', exact: true }).click();
+
+      await expect(page).toHaveURL(new RegExp(`/ui/jobs/${jobID}/definition`));
+      await expectURLParams(page, { namespace: 'default', region: 'global' });
+      await expect(page.getByText('Version:').locator('..')).toContainText('1');
+      await expect(page.getByLabel('HCL Variables')).toHaveValue('marker = "reviewed"');
+      await expect(page.locator('.wander-editor-wrapper')).toContainText('priority = 60');
+      expect(browserErrors).toEqual([]);
+    } finally {
+      await page.request.post(`/api/jobs/${jobID}/purge?namespace=default&region=global`);
+    }
+  });
+
   test('renders and composes live job-list parity filters', async ({ page }) => {
     const browserErrors = await openCheckedDesktopPage(page, '/ui/jobs');
 
@@ -676,7 +721,7 @@ test.describe('Wander release smoke', () => {
     const editor = page.locator('.wander-editor-wrapper');
     await expect(editor).toBeVisible();
     await expect(editor).toContainText('job "wander-ui-smoke"');
-    await page.getByRole('button', { name: 'JSON', exact: true }).click();
+    await page.getByRole('button', { name: 'Full Definition', exact: true }).click();
     await expect(editor).toContainText('"ID": "wander-ui-smoke"');
     const editorContrast = await editor.locator('.wander-highlighted-code').evaluate(element => {
       const style = window.getComputedStyle(element);

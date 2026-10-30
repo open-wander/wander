@@ -367,9 +367,9 @@ func TestGetLiveJobDefinitionProvidesHCLAndJSON(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/v1/job/example":
-			_, _ = w.Write([]byte(`{"ID":"example","Name":"example","Version":3}`))
+			_, _ = w.Write([]byte(`{"ID":"example","Name":"example","Version":3,"JobModifyIndex":42}`))
 		case "/v1/job/example/submission":
-			_, _ = w.Write([]byte(`{"Source":"job \"example\" {}","Format":"hcl2"}`))
+			_, _ = w.Write([]byte(`{"Source":"job \"example\" {}","Format":"hcl2","Variables":"image = \"busybox:stable\""}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -387,9 +387,65 @@ func TestGetLiveJobDefinitionProvidesHCLAndJSON(t *testing.T) {
 	if definition.Format != "hcl" || definition.HCLContent != `job "example" {}` {
 		t.Fatalf("unexpected HCL definition: %#v", definition)
 	}
+	if definition.Variables != `image = "busybox:stable"` || definition.ModifyIndex != 42 || !definition.CanEdit {
+		t.Fatalf("definition edit metadata was not retained: %#v", definition)
+	}
 	if !strings.Contains(definition.JSONContent, `"ID": "example"`) {
 		t.Fatalf("JSON definition does not contain the live job: %s", definition.JSONContent)
 	}
+}
+
+func TestExistingJobRunEnforcesIdentityAndModifyIndex(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.URL.Path != "/v1/jobs" {
+			t.Fatalf("unexpected API request: %s %s", r.Method, r.URL.String())
+		}
+		assertMonitorQueryValue(t, r, "namespace", "team-a")
+		var request api.JobRegisterRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode registration request: %v", err)
+		}
+		if !request.EnforceIndex || request.JobModifyIndex != 42 {
+			t.Fatalf("registration did not enforce modify index: %#v", request)
+		}
+		writeJSON(t, w, json.RawMessage(`{"EvalID":"eval-edit"}`))
+	}))
+	defer backend.Close()
+
+	body := `{"definition":"{\"ID\":\"example\"}","format":"json","modifyIndex":42}`
+	request := httptest.NewRequest(http.MethodPost, "/ui/jobs/example/run?namespace=team-a", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	NewJobsHandler(newJobsTestHandler(t, backend.URL)).ServeHTTP(response, request)
+
+	assertHTTPResponse(t, response, http.StatusOK, `"jobId":"example"`)
+}
+
+func TestExistingJobPlanAndRunRejectWrongIdentity(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("mismatched job reached the API: %s %s", r.Method, r.URL.String())
+	}))
+	defer backend.Close()
+
+	body := `{"definition":"{\"ID\":\"other\"}","format":"json","modifyIndex":42}`
+	for _, action := range []string{"plan", "run"} {
+		request := httptest.NewRequest(http.MethodPost, "/ui/jobs/example/"+action, strings.NewReader(body))
+		response := httptest.NewRecorder()
+		NewJobsHandler(newJobsTestHandler(t, backend.URL)).ServeHTTP(response, request)
+		assertHTTPResponse(t, response, http.StatusBadRequest, `does not match the job being edited`)
+	}
+}
+
+func TestExistingJobRunRequiresModifyIndex(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unversioned edit reached the API: %s %s", r.Method, r.URL.String())
+	}))
+	defer backend.Close()
+
+	body := `{"definition":"{\"ID\":\"example\"}","format":"json"}`
+	request := httptest.NewRequest(http.MethodPost, "/ui/jobs/example/run", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	NewJobsHandler(newJobsTestHandler(t, backend.URL)).ServeHTTP(response, request)
+	assertHTTPResponse(t, response, http.StatusBadRequest, `modify index is required`)
 }
 
 func TestScaleTaskGroupOutcomes(t *testing.T) {

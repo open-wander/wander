@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui/templates/components"
 	"github.com/open-wander/wander/ui/templates/pages/jobs"
@@ -380,6 +381,15 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	if jobDetail == nil {
 		http.NotFound(w, r)
 		return
+	}
+	if tabName != "" {
+		content, contentErr := h.jobTabContent(r, actualJobID, tabName, jobDetail)
+		if contentErr != nil {
+			h.renderJobTabError(w, r, contentErr, tabName, actualJobID)
+			return
+		}
+		jobDetail.ActiveTab = tabName
+		jobDetail.ActiveTabContent = content
 	}
 
 	// Build layout props
@@ -915,55 +925,55 @@ func (h *JobsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, j
 		return
 	}
 
-	switch tabName {
-	case "overview":
-		err = RenderPartial(w, r, jobspartials.OverviewTab(*jobDetail))
-	case "definition":
-		jobDef, defErr := h.getLiveJobDefinition(r, jobID)
-		if defErr != nil {
-			h.handler.logger.Error("failed to fetch job definition", "error", defErr, "jobID", jobID)
-			http.Error(w, "Failed to fetch job definition", http.StatusBadGateway)
-			return
-		}
-		err = RenderPartial(w, r, jobspartials.DefinitionTab(jobDef))
-	case "versions":
-		versions := h.getJobVersions(r, jobID)
-		err = RenderPartial(w, r, jobspartials.VersionsTab(versions, jobID))
-	case "allocations":
-		// Parse pagination parameters for allocations
-		page := parsePage(r.URL.Query().Get("page"))
-		perPage := parsePerPage(r.URL.Query().Get("per_page"))
-		allocData := h.getJobAllocations(r, jobID, page, perPage)
-		allocData.LastUpdated = time.Now()
-		err = RenderPartial(w, r, jobspartials.AllocationsTabWithData(allocData))
-	case "clients":
-		clients, clientsErr := h.getJobClients(r, jobID)
-		if clientsErr != nil {
-			h.renderJobTabError(w, r, clientsErr, "clients", jobID)
-			return
-		}
-		err = RenderPartial(w, r, jobspartials.ClientsTab(clients))
-	case "services":
-		services, servicesErr := h.getJobServices(r, jobID)
-		if servicesErr != nil {
-			h.renderJobTabError(w, r, servicesErr, "services", jobID)
-			return
-		}
-		err = RenderPartial(w, r, jobspartials.ServicesTab(services))
-	case "deployments":
-		deployments := h.getJobDeployments(r, jobID)
-		err = RenderPartial(w, r, jobspartials.DeploymentsTab(deployments, jobID))
-	case "evaluations":
-		evaluations := h.getJobEvaluations(r, jobID)
-		err = RenderPartial(w, r, jobspartials.EvaluationsTab(evaluations, jobID))
-	default:
-		http.NotFound(w, r)
+	content, contentErr := h.jobTabContent(r, jobID, tabName, jobDetail)
+	if contentErr != nil {
+		h.renderJobTabError(w, r, contentErr, tabName, jobID)
 		return
 	}
+	err = RenderPartial(w, r, content)
 
 	if err != nil {
 		h.handler.logger.Error("failed to render tab content", "tab", tabName, "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+func (h *JobsHandler) jobTabContent(r *http.Request, jobID, tabName string, jobDetail *jobspartials.JobDetail) (templ.Component, error) {
+	switch tabName {
+	case "overview":
+		return jobspartials.OverviewTab(*jobDetail), nil
+	case "definition":
+		jobDef, err := h.getLiveJobDefinition(r, jobID)
+		if err != nil {
+			return nil, err
+		}
+		return jobspartials.DefinitionTab(jobDef), nil
+	case "versions":
+		return jobspartials.VersionsTab(h.getJobVersions(r, jobID), jobID), nil
+	case "allocations":
+		page := parsePage(r.URL.Query().Get("page"))
+		perPage := parsePerPage(r.URL.Query().Get("per_page"))
+		allocData := h.getJobAllocations(r, jobID, page, perPage)
+		allocData.LastUpdated = time.Now()
+		return jobspartials.AllocationsTabWithData(allocData), nil
+	case "clients":
+		clients, err := h.getJobClients(r, jobID)
+		if err != nil {
+			return nil, err
+		}
+		return jobspartials.ClientsTab(clients), nil
+	case "services":
+		services, err := h.getJobServices(r, jobID)
+		if err != nil {
+			return nil, err
+		}
+		return jobspartials.ServicesTab(services), nil
+	case "deployments":
+		return jobspartials.DeploymentsTab(h.getJobDeployments(r, jobID), jobID), nil
+	case "evaluations":
+		return jobspartials.EvaluationsTab(h.getJobEvaluations(r, jobID), jobID), nil
+	default:
+		return nil, fmt.Errorf("unknown job tab %q", tabName)
 	}
 }
 
@@ -1053,10 +1063,16 @@ func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobsp
 	if job.Version != nil {
 		version = *job.Version
 	}
+	permissions := GetPermissionsFromRequest(r)
+	canEdit := permissions == nil || permissions.CanSubmitJob(queryOpts.Namespace)
 	definition := jobspartials.JobDefinition{
 		JobID:   jobID,
 		Format:  "json",
 		Version: version,
+		CanEdit: canEdit,
+	}
+	if job.JobModifyIndex != nil {
+		definition.ModifyIndex = *job.JobModifyIndex
 	}
 
 	jobJSON, marshalErr := json.MarshalIndent(job, "", "  ")
@@ -1068,7 +1084,6 @@ func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobsp
 
 	submissionVersion, supported := checkedUint64ToInt(version)
 	if !supported {
-		definition.ReadOnly = true
 		return definition, nil
 	}
 	submission, _, err := client.Jobs().Submission(jobName, submissionVersion, queryOpts)
@@ -1077,6 +1092,7 @@ func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobsp
 		if strings.HasPrefix(definition.Format, "hcl") {
 			definition.Format = "hcl"
 			definition.HCLContent = submission.Source
+			definition.Variables = submission.Variables
 			definition.Content = definition.HCLContent
 		} else if definition.Format == "json" {
 			definition.JSONContent = submission.Source
@@ -1085,7 +1101,6 @@ func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobsp
 		return definition, nil
 	}
 
-	definition.ReadOnly = true
 	return definition, nil
 }
 
@@ -1772,12 +1787,17 @@ func (h *JobsHandler) AllocationsPoll(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// PlanJobRequest represents the request body for plan endpoint
-type PlanJobRequest struct {
-	Definition string `json:"definition"`
-	Format     string `json:"format"`
-	Variables  string `json:"variables"`
+// JobDefinitionRequest represents a definition submitted for planning or
+// registration. ModifyIndex is required when updating an existing job.
+type JobDefinitionRequest struct {
+	Definition  string `json:"definition"`
+	Format      string `json:"format"`
+	Variables   string `json:"variables"`
+	ModifyIndex uint64 `json:"modifyIndex,omitempty"`
 }
+
+// PlanJobRequest represents the request body for the plan endpoint.
+type PlanJobRequest = JobDefinitionRequest
 
 // PlanJobResponse represents the response from plan endpoint
 type PlanJobResponse struct {
@@ -1789,11 +1809,24 @@ type PlanJobResponse struct {
 	Error     string   `json:"error,omitempty"`
 }
 
-// RunJobRequest represents the request body for run endpoint
-type RunJobRequest struct {
-	Definition string `json:"definition"`
-	Format     string `json:"format"`
-	Variables  string `json:"variables"`
+// RunJobRequest represents the request body for the run endpoint.
+type RunJobRequest = JobDefinitionRequest
+
+func jobActionTarget(r *http.Request, action string) (string, string, string) {
+	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
+	routeID := strings.TrimSuffix(path, "/"+action)
+	jobName, namespace := splitJobReference(routeID, GetNamespaceFromRequest(r))
+	return routeID, jobName, namespace
+}
+
+func validateSubmittedJobTarget(job *api.Job, routeJobName string) error {
+	if job == nil || job.ID == nil || strings.TrimSpace(*job.ID) == "" {
+		return errors.New("job definition must include an ID")
+	}
+	if routeJobName != "_new" && *job.ID != routeJobName {
+		return fmt.Errorf("job definition ID %q does not match the job being edited %q", *job.ID, routeJobName)
+	}
+	return nil
 }
 
 func parseSubmittedJob(client *api.Client, definition, format, variables string) (*api.Job, *api.JobSubmission, error) {
@@ -1841,16 +1874,7 @@ type RunJobResponse struct {
 // PlanJob handles POST requests to plan a job (dry run).
 // Route: POST /ui/jobs/{id}/plan
 func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
-	// Extract job ID from path: /ui/jobs/{id}/plan
-	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
-	path = strings.TrimSuffix(path, "/plan")
-	jobID := path
-
-	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := GetNamespaceFromRequest(r)
-	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
-		namespace = jobID[idx+1:]
-	}
+	jobID, jobName, namespace := jobActionTarget(r, "plan")
 
 	// Check permissions - need submit-job capability to plan
 	perms := GetPermissionsFromRequest(r)
@@ -1895,12 +1919,11 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure job has required fields
-	if job.ID == nil {
-		h.handler.logger.Error("job definition missing ID")
+	if targetErr := validateSubmittedJobTarget(job, jobName); targetErr != nil {
+		h.handler.logger.Error("invalid job definition target", "error", targetErr, "routeJobID", jobID)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: "Job definition must include an ID"})
+		_ = json.NewEncoder(w).Encode(PlanJobResponse{Error: targetErr.Error()})
 		return
 	}
 
@@ -1948,16 +1971,7 @@ func (h *JobsHandler) PlanJob(w http.ResponseWriter, r *http.Request) {
 // RunJob handles POST requests to run/submit a job.
 // Route: POST /ui/jobs/{id}/run
 func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
-	// Extract job ID from path: /ui/jobs/{id}/run
-	path := strings.TrimPrefix(r.URL.Path, "/ui/jobs/")
-	path = strings.TrimSuffix(path, "/run")
-	jobID := path
-
-	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := GetNamespaceFromRequest(r)
-	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
-		namespace = jobID[idx+1:]
-	}
+	jobID, jobName, namespace := jobActionTarget(r, "run")
 
 	// Check permissions - need submit-job capability to run
 	perms := GetPermissionsFromRequest(r)
@@ -2001,6 +2015,19 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: parseErr.Error()})
 		return
 	}
+	if targetErr := validateSubmittedJobTarget(job, jobName); targetErr != nil {
+		h.handler.logger.Error("invalid job definition target", "error", targetErr, "routeJobID", jobID)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: targetErr.Error()})
+		return
+	}
+	if jobName != "_new" && req.ModifyIndex == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(RunJobResponse{Error: "Job modify index is required when updating an existing job"})
+		return
+	}
 
 	// Get ACL token for the request
 	token := GetTokenFromRequest(r)
@@ -2020,7 +2047,12 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 		"hasToken", token != "",
 	)
 
-	registerResp, _, err := client.Jobs().RegisterOpts(job, &api.RegisterOptions{Submission: submission}, writeOpts)
+	registerOptions := &api.RegisterOptions{Submission: submission}
+	if jobName != "_new" {
+		registerOptions.EnforceIndex = true
+		registerOptions.ModifyIndex = req.ModifyIndex
+	}
+	registerResp, _, err := client.Jobs().RegisterOpts(job, registerOptions, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to register job", "error", err, "jobID", safeString(job.ID))
 		w.Header().Set("Content-Type", "application/json")

@@ -15,7 +15,10 @@ func TestDefinitionTabKeepsContentOutOfAlpineExpression(t *testing.T) {
 		Content:     definition,
 		HCLContent:  definition,
 		JSONContent: `{"ID":"example"}`,
+		Variables:   `image = "busybox:stable"`,
 		Format:      "hcl",
+		ModifyIndex: 42,
+		CanEdit:     true,
 	}).Render(context.Background(), &output)
 	if err != nil {
 		t.Fatalf("render definition tab: %v", err)
@@ -27,6 +30,12 @@ func TestDefinitionTabKeepsContentOutOfAlpineExpression(t *testing.T) {
 		`x-ref="definitionSource"`,
 		`x-ref="hclSource"`,
 		`x-ref="jsonSource"`,
+		`x-ref="variablesSource"`,
+		`data-job-modify-index="42"`,
+		`Job Spec`,
+		`Full Definition`,
+		`Review changes`,
+		`image = &#34;busybox:stable&#34;`,
 		"${literal}",
 	} {
 		if !strings.Contains(html, expected) {
@@ -35,5 +44,24 @@ func TestDefinitionTabKeepsContentOutOfAlpineExpression(t *testing.T) {
 	}
 	if strings.Contains(html, "jobDefinitionEditor(") {
 		t.Fatalf("job content must not be embedded in the Alpine expression: %s", html)
+	}
+}
+
+func TestDefinitionTabHidesEditControlsWithoutSubmitPermission(t *testing.T) {
+	var output bytes.Buffer
+	err := DefinitionTab(JobDefinition{
+		JobID:       "example",
+		Content:     `{"ID":"example"}`,
+		JSONContent: `{"ID":"example"}`,
+		Format:      "json",
+		CanEdit:     false,
+	}).Render(context.Background(), &output)
+	if err != nil {
+		t.Fatalf("render definition tab: %v", err)
+	}
+
+	html := output.String()
+	if strings.Contains(html, `@click="toggleEdit"`) || strings.Contains(html, `@click="planJob"`) {
+		t.Fatalf("definition rendered edit controls without submit permission: %s", html)
 	}
 }

@@ -31,6 +31,8 @@ type JobDetail struct {
 	RecentAllocationsAvailable bool
 	PlacementFailures          []PlacementFailure
 	PlacementFailuresAvailable bool
+	ActiveTab                  string
+	ActiveTabContent           templ.Component
 }
 
 // JobMetadata is a deterministic key/value projection of live job metadata.
@@ -181,52 +183,66 @@ templ DetailContent(job JobDetail) {
 						Icon:    "home",
 						URL:     "/ui/jobs/" + job.ID + "/overview",
 						Content: OverviewTab(job),
-						Active:  true,
+						Active:  getActiveJobTab(job.ActiveTab) == "overview",
 					},
 					{
 						ID:      "definition",
 						Label:   "Definition",
 						Icon:    "document",
 						URL:     "/ui/jobs/" + job.ID + "/definition",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "definition",
 					},
 					{
 						ID:      "versions",
 						Label:   "Versions",
 						Icon:    "clock",
 						URL:     "/ui/jobs/" + job.ID + "/versions",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "versions",
 					},
 					{
 						ID:      "allocations",
 						Label:   "Allocations",
 						Icon:    "user",
 						URL:     "/ui/jobs/" + job.ID + "/allocations",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "allocations",
 					},
 					{
 						ID:      "clients",
 						Label:   "Clients",
 						Icon:    "user",
 						URL:     "/ui/jobs/" + job.ID + "/clients",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "clients",
 					},
 					{
 						ID:      "services",
 						Label:   "Services",
 						Icon:    "cube",
 						URL:     "/ui/jobs/" + job.ID + "/services",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "services",
 					},
 					{
 						ID:      "deployments",
 						Label:   "Deployments",
 						Icon:    "cube",
 						URL:     "/ui/jobs/" + job.ID + "/deployments",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "deployments",
 					},
 					{
 						ID:      "evaluations",
 						Label:   "Evaluations",
 						Icon:    "chart",
 						URL:     "/ui/jobs/" + job.ID + "/evaluations",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "evaluations",
 					},
 				},
-				ActiveTab: "overview",
+				ActiveTab: getActiveJobTab(job.ActiveTab),
 				Mode:      "htmx",
 				PanelID:   "job-detail-panel",
 			})
@@ -243,6 +259,13 @@ templ DetailContent(job JobDetail) {
 		}
 		@PurgeJobModal(job)
 	</div>
+}
+
+func getActiveJobTab(tab string) string {
+	if tab == "" {
+		return "overview"
+	}
+	return tab
 }
 
 // ForcePeriodicJobModal confirms an immediate launch of a periodic job.

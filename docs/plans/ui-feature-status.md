@@ -19,6 +19,10 @@ scope and parity work list is the
   successful mutation, ACL denial, and cluster rejection have regression
   coverage. The live Chromium smoke also verifies inclusive autoscaling
   minimum and maximum bounds and blocks out-of-range confirmation.
+  Existing-job definitions expose retained Job Spec variables and the live Full
+  Definition, support plan/review and modify-index-protected submission, reject
+  cross-job identity changes, and preserve the selected tab on full-page
+  reloads.
 - Allocations: live detail, files, logs, raw API data, restart/stop actions,
   and same-origin WebSocket exec.
 - Clients: live list and detail data, drain, cancel drain, active allocation
@@ -126,11 +130,10 @@ be used to defer baseline behavior without explicit approval:
 - Richer topology filtering and allocation overlays.
 - Additional job/client filters, columns, charts, eligibility analysis, and
   detail panels.
-- Structured job-version diffs and the complete existing-job edit/review
-  workflow. Client-side job file upload, HCL2 variables, and namespace-scoped
-  variable-backed job template management are restored. Remaining known
-  baseline behavior is required for 0.1.0 unless an explicit deviation is
-  approved.
+- Structured job-version diffs. Client-side job file upload, HCL2 variables,
+  namespace-scoped variable-backed job template management, and the complete
+  existing-job edit/review workflow are restored. Remaining known baseline
+  behavior is required for 0.1.0 unless an explicit deviation is approved.
 - Consistent copy controls and improved relative time display. The applicable
   Nomad 1.6.5 global keyboard shortcuts are restored and verified; their
   compatibility evidence is tracked in the revival checklist.

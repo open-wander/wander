@@ -833,13 +833,15 @@
       originalValue: initialValue || '',
       currentValue: initialValue || '',
       definitions: { hcl: '', json: '' },
+      originalVariables: '',
+      variables: '',
+      modifyIndex: 0,
       hasChanges: false,
-      isSaving: false,
       isPlanning: false,
       isRunning: false,
       showPlanModal: false,
       showRunModal: false,
-      planResult: {},
+      planResult: { warnings: [] },
       error: null,
 
       init() {
@@ -854,7 +856,10 @@
         };
         this.format = this.$el.dataset.format || this.format;
         this.jobId = this.$el.dataset.jobId || this.jobId;
-		this.definitions[this.format] ||= this.originalValue;
+        this.modifyIndex = Number.parseInt(this.$el.dataset.jobModifyIndex || '0', 10) || 0;
+        this.originalVariables = this.$refs.variablesSource?.value || '';
+        this.variables = this.originalVariables;
+        this.definitions[this.format] ||= this.originalValue;
 
         this.$nextTick(() => {
           const editorContainer = this.$refs?.editorContainer;
@@ -866,11 +871,11 @@
             lineNumbers: true,
             onChange: (value) => {
               this.currentValue = value;
-              this.hasChanges = value !== this.originalValue;
+              this.updateChangeState();
             },
             onSave: () => {
               if (this.isEditing && this.hasChanges) {
-                this.saveChanges();
+                this.planJob();
               }
             }
           });
@@ -879,6 +884,7 @@
 
       toggleEdit() {
         this.isEditing = !this.isEditing;
+        this.error = null;
         if (this.editor) {
           this.editor.setReadOnly(!this.isEditing);
           if (this.isEditing) {
@@ -890,11 +896,17 @@
       cancelEdit() {
         this.isEditing = false;
         this.currentValue = this.originalValue;
+        this.variables = this.originalVariables;
         this.hasChanges = false;
         if (this.editor) {
           this.editor.setValue(this.originalValue);
           this.editor.setReadOnly(true);
         }
+      },
+
+      updateChangeState() {
+        this.hasChanges = this.currentValue !== this.originalValue ||
+          (this.format === 'hcl' && this.variables !== this.originalVariables);
       },
 
       setFormat(newFormat) {
@@ -920,52 +932,32 @@
         }
       },
 
-      async saveChanges() {
-        if (!this.hasChanges || this.isSaving) return;
-
-        this.isSaving = true;
-        this.error = null;
-
-        try {
-          const response = await fetch(`/api/jobs/${this.jobId}/definition`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              definition: this.currentValue,
-              format: this.format
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to save job definition');
-          }
-
-          this.finishSave();
-
-        } catch (err) {
-          this.error = err.message;
-          window.dispatchEvent(new CustomEvent('wander:toast', {
-            detail: {
-              message: 'Failed to save job definition: ' + err.message,
-              type: 'error'
-            }
-          }));
-        } finally {
-          this.isSaving = false;
-        }
+      jobActionURL(action) {
+        const encodedJobId = this.jobId.split('/').map(encodeURIComponent).join('/');
+        const path = `/ui/jobs/${encodedJobId}/${action}`;
+        return typeof window.wanderScopeURL === 'function' ? window.wanderScopeURL(path) : path;
       },
 
-      finishSave() {
-        this.originalValue = this.currentValue;
-        this.definitions[this.format] = this.currentValue;
-        this.hasChanges = false;
-        this.isEditing = false;
-        this.editor?.setReadOnly(true);
-        window.dispatchEvent(new CustomEvent('wander:toast', {
-          detail: { message: 'Job definition saved successfully', type: 'success' }
-        }));
+      submissionPayload() {
+        return {
+          definition: this.currentValue,
+          format: this.format,
+          variables: this.format === 'hcl' ? this.variables : '',
+          modifyIndex: this.modifyIndex
+        };
+      },
+
+      async requestJobAction(action) {
+        const response = await fetch(this.jobActionURL(action), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.submissionPayload())
+        });
+        const result = await response.json();
+        if (!response.ok || result.error) {
+          throw new Error(result.error || `Failed to ${action} job`);
+        }
+        return result;
       },
 
       downloadDefinition() {
@@ -999,29 +991,14 @@
       },
 
       async planJob() {
-        if (this.isPlanning || this.isRunning) return;
+        if (this.isPlanning || this.isRunning || !this.hasChanges) return;
 
         this.isPlanning = true;
         this.error = null;
 
         try {
-          const response = await fetch(`/ui/jobs/${this.jobId}/plan`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              definition: this.currentValue,
-              format: this.format
-            })
-          });
-
-          const result = await response.json();
-
-          if (!response.ok || result.error) {
-            throw new Error(result.error || 'Failed to plan job');
-          }
-
+          const result = await this.requestJobAction('plan');
+          result.warnings = Array.isArray(result.warnings) ? result.warnings : [];
           this.planResult = result;
           this.showPlanModal = true;
 
@@ -1040,10 +1017,11 @@
 
       closePlanModal() {
         this.showPlanModal = false;
-        this.planResult = {};
       },
 
       showRunConfirm() {
+        if (!this.hasChanges) return;
+        this.showPlanModal = false;
         this.showRunModal = true;
       },
 
@@ -1052,37 +1030,17 @@
       },
 
       async runJob() {
-        if (this.isRunning) return;
+        if (this.isRunning || !this.hasChanges) return;
 
         this.isRunning = true;
         this.error = null;
 
         try {
-          const response = await fetch(`/ui/jobs/${this.jobId}/run`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              definition: this.currentValue,
-              format: this.format
-            })
-          });
-
-          const result = await response.json();
-
-          if (!response.ok || result.error) {
-            throw new Error(result.error || 'Failed to run job');
-          }
+          const result = await this.requestJobAction('run');
 
           // Close the modal
           this.closeRunModal();
 
-          // Update original value since job was submitted
-          this.originalValue = this.currentValue;
-          this.hasChanges = false;
-
-          // Show success message
           window.dispatchEvent(new CustomEvent('wander:toast', {
             detail: {
               message: `Job submitted successfully. Evaluation ID: ${result.evalId}`,
@@ -1090,11 +1048,7 @@
             }
           }));
 
-          // Optionally exit edit mode
-          this.isEditing = false;
-          if (this.editor) {
-            this.editor.setReadOnly(true);
-          }
+          window.location.assign(this.jobActionURL('definition'));
 
         } catch (err) {
           this.error = err.message;
