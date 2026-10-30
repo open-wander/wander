@@ -6,7 +6,6 @@ package nomad
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -549,20 +548,19 @@ func getTLSConf(enableRPC bool, tlsConf *tlsutil.Config, region string) (*tls.Co
 
 	if tlsConf.VerifyServerHostname {
 		incomingTLS = itls.Clone()
-		incomingTLS.VerifyPeerCertificate = rpcNameAndRegionValidator(region)
+		incomingTLS.VerifyConnection = rpcNameAndRegionValidator(region)
 	} else {
 		incomingTLS = itls
 	}
 	return incomingTLS, tlsWrap, nil
 }
 
-// implements signature of tls.Config.VerifyPeerCertificate which is called
-// after the certs have been verified. We'll ignore the raw certs and only
-// check the verified certs.
-func rpcNameAndRegionValidator(region string) func([][]byte, [][]*x509.Certificate) error {
-	return func(_ [][]byte, certificates [][]*x509.Certificate) error {
-		if len(certificates) > 0 && len(certificates[0]) > 0 {
-			cert := certificates[0][0]
+// rpcNameAndRegionValidator is called after the peer certificate chain has
+// been verified. VerifyConnection runs for full and resumed TLS handshakes.
+func rpcNameAndRegionValidator(region string) func(tls.ConnectionState) error {
+	return func(state tls.ConnectionState) error {
+		if len(state.VerifiedChains) > 0 && len(state.VerifiedChains[0]) > 0 {
+			cert := state.VerifiedChains[0][0]
 			for _, dnsName := range cert.DNSNames {
 				if validateRPCRegionPeer(dnsName, region) {
 					return nil

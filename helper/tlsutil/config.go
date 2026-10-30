@@ -238,7 +238,7 @@ func (c *Config) OutgoingTLSConfig() (*tls.Config, error) {
 	// Create the tlsConfig
 	tlsConfig := &tls.Config{
 		RootCAs:                  x509.NewCertPool(),
-		InsecureSkipVerify:       true,
+		InsecureSkipVerify:       true, // #nosec G402 -- WrapTLSClient performs explicit CA-chain verification without DNS-name verification.
 		CipherSuites:             c.CipherSuites,
 		MinVersion:               c.MinVersion,
 		PreferServerCipherSuites: c.PreferServerCipherSuites,
