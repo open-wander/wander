@@ -661,10 +661,12 @@ templ revertConfirmModal(jobID string) {
 type JobDeployment struct {
 	ID                string
 	ShortID           string
+	DetailURL         string
 	Status            string
 	StatusDescription string
 	JobVersion        uint64
-	TaskGroups        map[string]DeploymentTaskGroupState
+	CreateIndex       uint64
+	TaskGroups        []DeploymentTaskGroupState
 	Created           time.Time
 }
 
@@ -708,7 +710,7 @@ templ DeploymentsTab(deployments []JobDeployment, jobID string) {
 
 // deploymentCard renders a single deployment card
 templ deploymentCard(deployment JobDeployment, jobID string) {
-	<div class="bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+	<a href={ templ.SafeURL(deployment.DetailURL) } class="block bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
 		<div class="flex items-start justify-between mb-3">
 			<div class="flex items-center gap-3">
 				<div>
@@ -734,19 +736,19 @@ templ deploymentCard(deployment JobDeployment, jobID string) {
 		if len(deployment.TaskGroups) > 0 {
 			<div class="mt-3 space-y-2">
 				<h4 class="text-xs font-medium text-neutral-700 uppercase tracking-wide">Task Groups</h4>
-				for tgName, tgState := range deployment.TaskGroups {
-					@deploymentTaskGroupRow(tgName, tgState)
+				for _, tgState := range deployment.TaskGroups {
+					@deploymentTaskGroupRow(tgState)
 				}
 			</div>
 		}
-	</div>
+	</a>
 }
 
 // deploymentTaskGroupRow renders the status for a single task group in a deployment
-templ deploymentTaskGroupRow(name string, state DeploymentTaskGroupState) {
+templ deploymentTaskGroupRow(state DeploymentTaskGroupState) {
 	<div class="bg-neutral-50 rounded p-3">
 		<div class="flex items-center justify-between mb-2">
-			<span class="text-sm font-medium text-neutral-900">{ name }</span>
+			<span class="text-sm font-medium text-neutral-900">{ state.Name }</span>
 			<div class="flex items-center gap-2 text-xs">
 				if state.Promoted {
 					@components.Badge(components.BadgeProps{
@@ -849,9 +851,12 @@ func formatDeploymentTime(t time.Time) string {
 type JobEvaluation struct {
 	ID                   string
 	ShortID              string
+	DetailURL            string
 	Status               string
 	StatusDescription    string
 	TriggeredBy          string
+	Priority             int
+	CreateIndex          uint64
 	Created              time.Time
 	HasPlacementFailures bool
 	PlacementFailures    []PlacementFailure
@@ -890,7 +895,7 @@ templ EvaluationsTab(evaluations []JobEvaluation, jobID string) {
 
 // evaluationCard renders a single evaluation card
 templ evaluationCard(evaluation JobEvaluation, jobID string) {
-	<div class="bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+	<a href={ templ.SafeURL(evaluation.DetailURL) } class="block bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
 		<div class="flex items-start justify-between mb-3">
 			<div class="flex items-center gap-3">
 				<div>
@@ -905,7 +910,7 @@ templ evaluationCard(evaluation JobEvaluation, jobID string) {
 						}
 					</div>
 					<div class="mt-1 text-xs text-neutral-500">
-						Triggered by: <span class="font-medium">{ formatTriggeredBy(evaluation.TriggeredBy) }</span> • { formatEvaluationTime(evaluation.Created) }
+						Triggered by: <span class="font-medium">{ formatTriggeredBy(evaluation.TriggeredBy) }</span> • Priority: { fmt.Sprintf("%d", evaluation.Priority) } • { formatEvaluationTime(evaluation.Created) }
 					</div>
 				</div>
 			</div>
@@ -932,7 +937,7 @@ templ evaluationCard(evaluation JobEvaluation, jobID string) {
 				</div>
 			</div>
 		}
-	</div>
+	</a>
 }
 
 // evaluationStatusToBadgeVariant maps evaluation status to badge variant

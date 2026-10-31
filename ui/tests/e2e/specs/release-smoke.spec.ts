@@ -452,6 +452,10 @@ test.describe('Wander release smoke', () => {
     await openJobTab(page, 'Services', 'wander-ui-http');
     await openJobTab(page, 'Clients', 'Clients observed in this job');
     await expect(page.locator('#job-detail-panel tbody tr')).toHaveCount(1);
+    await openJobTab(page, 'Deployments', 'Time unavailable');
+    await expect(page.locator('#job-detail-panel a[href^="/ui/deployments/"]').first()).toBeVisible();
+    await openJobTab(page, 'Evaluations', 'Priority: 50');
+    await expect(page.locator('#job-detail-panel a[href^="/ui/evaluations/"]').first()).toBeVisible();
 
     await page.goto('/ui/topology');
     const topologyNode = page.locator('[data-topology-node-id]').first();

@@ -8,6 +8,13 @@ job "wander-ui-smoke" {
   }
 
   group "web" {
+    update {
+      max_parallel      = 1
+      min_healthy_time  = "1s"
+      healthy_deadline  = "1m"
+      progress_deadline = "2m"
+    }
+
     scaling {
       enabled = true
       min     = 1

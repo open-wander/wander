@@ -47,9 +47,13 @@ scope and parity work list is the
   namespaces, and the create form uses only namespaces visible from the live
   cluster.
 - Deployments, evaluations, servers, CSI volumes/plugins, and topology: live
-  read paths backed by the inherited cluster API. Topology shows active
-  allocation reservations against schedulable node capacity and identifies
-  the selected region without inventing heartbeat data.
+  read paths backed by the inherited cluster API. Job deployment/evaluation
+  histories retain namespace, region, and ACL scope; use deterministic
+  scheduler-index ordering; expose evaluation priority and placement failures;
+  and link to their detail routes without masking API failures as empty data.
+  Topology shows active allocation reservations against schedulable node
+  capacity and identifies the selected region without inventing heartbeat
+  data.
 - CSI volumes: live controller/node health, complete capability constraints,
   separate read and read/write allocation claim tables, and truthful denied,
   missing, and unavailable responses. CSI mutations remain inherited API/CLI

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -973,9 +974,17 @@ func (h *JobsHandler) jobTabContent(r *http.Request, jobID, tabName string, jobD
 		}
 		return jobspartials.ServicesTab(services), nil
 	case "deployments":
-		return jobspartials.DeploymentsTab(h.getJobDeployments(r, jobID), jobID), nil
+		deployments, err := h.getJobDeployments(r, jobID)
+		if err != nil {
+			return nil, err
+		}
+		return jobspartials.DeploymentsTab(deployments, jobID), nil
 	case "evaluations":
-		return jobspartials.EvaluationsTab(h.getJobEvaluations(r, jobID), jobID), nil
+		evaluations, err := h.getJobEvaluations(r, jobID)
+		if err != nil {
+			return nil, err
+		}
+		return jobspartials.EvaluationsTab(evaluations, jobID), nil
 	default:
 		return nil, fmt.Errorf("unknown job tab %q", tabName)
 	}
@@ -2153,19 +2162,12 @@ func (h *JobsHandler) RevertToVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 // getJobDeployments fetches deployments for a specific job from the Nomad API.
-func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspartials.JobDeployment {
-	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := GetNamespaceFromRequest(r)
-	jobName := jobID
-	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
-		jobName = jobID[:idx]
-		namespace = jobID[idx+1:]
-	}
-
+func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) ([]jobspartials.JobDeployment, error) {
+	jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
+	region := GetRegionFromRequest(r)
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty deployments list")
-		return []jobspartials.JobDeployment{}
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Get ACL token from request context
@@ -2174,6 +2176,7 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 	// Build query options with namespace
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
+		Region:    region,
 	}
 
 	// Set ACL token if available
@@ -2189,8 +2192,7 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 
 	deployments, _, err := client.Jobs().Deployments(jobName, true, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch job deployments from Nomad API", "error", err)
-		return []jobspartials.JobDeployment{}
+		return nil, fmt.Errorf("fetch job deployments: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched job deployments from API", "count", len(deployments))
@@ -2202,14 +2204,13 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 			continue
 		}
 
-		// Create task group states map
-		taskGroups := make(map[string]jobspartials.DeploymentTaskGroupState)
+		taskGroups := make([]jobspartials.DeploymentTaskGroupState, 0, len(d.TaskGroups))
 		for tgName, tgState := range d.TaskGroups {
 			if tgState == nil {
 				continue
 			}
 
-			taskGroups[tgName] = jobspartials.DeploymentTaskGroupState{
+			taskGroups = append(taskGroups, jobspartials.DeploymentTaskGroupState{
 				Name:            tgName,
 				DesiredCanaries: tgState.DesiredCanaries,
 				DesiredTotal:    tgState.DesiredTotal,
@@ -2218,15 +2219,18 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 				UnhealthyAllocs: tgState.UnhealthyAllocs,
 				Promoted:        tgState.Promoted,
 				AutoRevert:      tgState.AutoRevert,
-			}
+			})
 		}
+		sort.Slice(taskGroups, func(i, j int) bool { return taskGroups[i].Name < taskGroups[j].Name })
 
 		deployment := jobspartials.JobDeployment{
 			ID:                d.ID,
 			ShortID:           shortIdentifier(d.ID),
+			DetailURL:         scopedUIURL("/ui/deployments/"+url.PathEscape(d.ID), namespace, region),
 			Status:            d.Status,
 			StatusDescription: d.StatusDescription,
 			JobVersion:        d.JobVersion,
+			CreateIndex:       d.CreateIndex,
 			TaskGroups:        taskGroups,
 			Created:           time.Time{},
 		}
@@ -2234,24 +2238,25 @@ func (h *JobsHandler) getJobDeployments(r *http.Request, jobID string) []jobspar
 		result = append(result, deployment)
 	}
 
-	return result
+	sort.SliceStable(result, func(i, j int) bool {
+		return cmp.Or(
+			cmp.Compare(result[j].CreateIndex, result[i].CreateIndex),
+			cmp.Compare(result[j].JobVersion, result[i].JobVersion),
+			cmp.Compare(result[i].ID, result[j].ID),
+		) < 0
+	})
+
+	return result, nil
 }
 
 // getJobEvaluations fetches evaluations for a specific job from the Nomad API.
-func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) []jobspartials.JobEvaluation {
-	// Parse namespace from job ID if provided (format: jobID@namespace)
-	namespace := GetNamespaceFromRequest(r)
-	jobName := jobID
-	if idx := strings.LastIndex(jobID, "@"); idx != -1 {
-		jobName = jobID[:idx]
-		namespace = jobID[idx+1:]
-	}
+func (h *JobsHandler) getJobEvaluations(r *http.Request, jobID string) ([]jobspartials.JobEvaluation, error) {
+	jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
 	evaluations, err := h.fetchJobEvaluations(r, jobName, namespace, GetTokenFromRequest(r))
 	if err != nil {
-		h.handler.logger.Error("failed to fetch job evaluations from Nomad API", "error", err)
-		return []jobspartials.JobEvaluation{}
+		return nil, fmt.Errorf("fetch job evaluations: %w", err)
 	}
-	return evaluations
+	return evaluations, nil
 }
 
 func (h *JobsHandler) fetchJobEvaluations(r *http.Request, jobName, namespace, token string) ([]jobspartials.JobEvaluation, error) {
@@ -2260,9 +2265,11 @@ func (h *JobsHandler) fetchJobEvaluations(r *http.Request, jobName, namespace, t
 		return nil, fmt.Errorf("no Nomad client available")
 	}
 
+	region := GetRegionFromRequest(r)
 	// Build query options with namespace
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
+		Region:    region,
 		AuthToken: token,
 	}
 
@@ -2349,9 +2356,12 @@ func (h *JobsHandler) fetchJobEvaluations(r *http.Request, jobName, namespace, t
 		jobEval := jobspartials.JobEvaluation{
 			ID:                   eval.ID,
 			ShortID:              shortIdentifier(eval.ID),
+			DetailURL:            scopedUIURL("/ui/evaluations/"+url.PathEscape(eval.ID), namespace, region),
 			Status:               eval.Status,
 			StatusDescription:    eval.StatusDescription,
 			TriggeredBy:          eval.TriggeredBy,
+			Priority:             eval.Priority,
+			CreateIndex:          eval.CreateIndex,
 			Created:              created,
 			HasPlacementFailures: hasPlacementFailures,
 			PlacementFailures:    placementFailures,
@@ -2360,9 +2370,13 @@ func (h *JobsHandler) fetchJobEvaluations(r *http.Request, jobName, namespace, t
 		result = append(result, jobEval)
 	}
 
-	// Sort by creation time (newest first)
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Created.After(result[j].Created)
+	sort.SliceStable(result, func(i, j int) bool {
+		return cmp.Or(
+			cmp.Compare(result[j].CreateIndex, result[i].CreateIndex),
+			result[j].Created.Compare(result[i].Created),
+			cmp.Compare(result[j].Priority, result[i].Priority),
+			cmp.Compare(result[i].ID, result[j].ID),
+		) < 0
 	})
 
 	return result, nil
