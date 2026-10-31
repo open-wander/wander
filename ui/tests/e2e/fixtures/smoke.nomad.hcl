@@ -32,6 +32,25 @@ job "wander-ui-smoke" {
       port "http" {}
     }
 
+    task "prepare" {
+      driver = "raw_exec"
+
+      lifecycle {
+        hook    = "prestart"
+        sidecar = false
+      }
+
+      config {
+        command = "/bin/sh"
+        args    = ["-c", "echo prepared > local/prepared.txt"]
+      }
+
+      resources {
+        cpu    = 10
+        memory = 10
+      }
+    }
+
     task "fixture" {
       driver = "raw_exec"
 

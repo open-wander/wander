@@ -11,15 +11,29 @@ type TaskGroupDetail struct {
 	Name              string
 	Count             int
 	Tasks             []TaskDetail
+	Volumes           []VolumeDetail
 	Scaling           *ScalingConfig
 	PlacementFailures []PlacementFailure
 }
 
 // TaskDetail represents a task within a task group
 type TaskDetail struct {
-	Name      string
-	Driver    string
-	Resources ResourceConfig
+	Name             string
+	Driver           string
+	LifecycleHook    string
+	LifecycleSidecar bool
+	Resources        ResourceConfig
+}
+
+// VolumeDetail represents a task-group volume request from the live job.
+type VolumeDetail struct {
+	Name           string
+	Type           string
+	Source         string
+	ReadOnly       bool
+	PerAllocation  bool
+	AttachmentMode string
+	AccessMode     string
 }
 
 // ResourceConfig represents resource requirements for a task
@@ -114,6 +128,33 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 				</div>
 			</div>
 		}
+		<!-- Configured Volumes -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6" data-task-group-volumes>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Configured Volumes</h3>
+			if len(tg.Volumes) == 0 {
+				<p class="text-sm text-neutral-500">No configured volumes</p>
+			} else {
+				<div class="overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+							<tr><th class="px-4 py-3">Name</th><th class="px-4 py-3">Type</th><th class="px-4 py-3">Source</th><th class="px-4 py-3">Mode</th><th class="px-4 py-3">Attachment</th><th class="px-4 py-3">Access</th></tr>
+						</thead>
+						<tbody class="divide-y divide-neutral-200 bg-white">
+							for _, volume := range tg.Volumes {
+								<tr>
+									<td class="px-4 py-3 font-medium text-neutral-900">{ volume.Name }</td>
+									<td class="px-4 py-3 text-neutral-700">{ displayConfigValue(volume.Type) }</td>
+									<td class="px-4 py-3 font-mono text-neutral-700">{ displayConfigValue(volume.Source) }</td>
+									<td class="px-4 py-3 text-neutral-700">{ volumeMode(volume) }</td>
+									<td class="px-4 py-3 text-neutral-700">{ displayConfigValue(volume.AttachmentMode) }</td>
+									<td class="px-4 py-3 text-neutral-700">{ displayConfigValue(volume.AccessMode) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
 		<!-- Tasks List -->
 		<div class="bg-white shadow rounded-lg p-6">
 			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Tasks</h3>
@@ -130,6 +171,10 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 									{ task.Driver }
 								}
 							</div>
+						</div>
+						<div class="mb-4 flex flex-wrap gap-x-6 gap-y-2 text-sm" data-task-lifecycle={ task.Name }>
+							<div><span class="text-neutral-500">Lifecycle:</span> <span class="font-medium text-neutral-900">{ lifecycleLabel(task) }</span></div>
+							<div><span class="text-neutral-500">Sidecar:</span> <span class="font-medium text-neutral-900">{ yesNo(task.LifecycleSidecar) }</span></div>
 						</div>
 						<!-- Resource Requirements -->
 						<div>
@@ -160,6 +205,38 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 			</div>
 		</div>
 	</div>
+}
+
+func lifecycleLabel(task TaskDetail) string {
+	if task.LifecycleHook == "" {
+		return "Normal"
+	}
+	return task.LifecycleHook
+}
+
+func yesNo(value bool) string {
+	if value {
+		return "Yes"
+	}
+	return "No"
+}
+
+func displayConfigValue(value string) string {
+	if value == "" {
+		return "—"
+	}
+	return value
+}
+
+func volumeMode(volume VolumeDetail) string {
+	mode := "Read/write"
+	if volume.ReadOnly {
+		mode = "Read-only"
+	}
+	if volume.PerAllocation {
+		mode += ", per allocation"
+	}
+	return mode
 }
 
 // formatTime formats a time.Time for display

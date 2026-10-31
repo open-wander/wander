@@ -28,6 +28,10 @@ scope and parity work list is the
   annotations.
 - Allocations: live detail, files, logs, raw API data, restart/stop actions,
   and same-origin WebSocket exec.
+- Task groups: live scaling controls and task resources plus deterministically
+  ordered volume requests and explicit normal/prestart/poststart/poststop and
+  sidecar lifecycle states. Allocation tables, scaling events, filtering, and
+  sorting remain release-parity work.
 - Clients: live list and detail data, drain, cancel drain, active allocation
   counts, and allocation reservations against schedulable node capacity.
 - Services: live namespace-scoped list and registration detail routes, with
@@ -131,7 +135,7 @@ be used to defer baseline behavior without explicit approval:
 
 - Allocation ports, services, reschedule/preemption history, and task lifecycle
   visualization.
-- Task-group allocation tables, filters, volumes, and lifecycle visualization.
+- Task-group allocation tables, scaling events, filters, and sorting.
 - Richer job allocation filtering, sorting, task expansion, and live resource
   statistics.
 - Variable validation, conflict detection, JSON/tree views, copy controls, and

@@ -756,6 +756,11 @@ test.describe('Wander release smoke', () => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/jobs/wander-ui-smoke/taskgroups/web');
 
+    await expect(page.locator('[data-task-lifecycle="prepare"]')).toContainText('prestart');
+    await expect(page.locator('[data-task-lifecycle="prepare"]')).toContainText('Sidecar: No');
+    await expect(page.locator('[data-task-lifecycle="fixture"]')).toContainText('Lifecycle: Normal');
+    await expect(page.locator('[data-task-group-volumes]')).toContainText('No configured volumes');
+
     const count = page.getByLabel('Instance count');
     const decrement = page.getByRole('button', { name: 'Decrease count' });
     const increment = page.getByRole('button', { name: 'Increase count' });

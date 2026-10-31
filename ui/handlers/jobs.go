@@ -1549,9 +1549,30 @@ func (h *JobsHandler) getLiveTaskGroupDetail(r *http.Request, jobID, taskGroupNa
 		}
 
 		detail := taskgrouppartials.TaskGroupDetail{
-			Name:  taskGroupName,
-			Count: safeInt(group.Count),
-			Tasks: make([]taskgrouppartials.TaskDetail, 0, len(group.Tasks)),
+			Name:    taskGroupName,
+			Count:   safeInt(group.Count),
+			Tasks:   make([]taskgrouppartials.TaskDetail, 0, len(group.Tasks)),
+			Volumes: make([]taskgrouppartials.VolumeDetail, 0, len(group.Volumes)),
+		}
+		volumeNames := make([]string, 0, len(group.Volumes))
+		for name := range group.Volumes {
+			volumeNames = append(volumeNames, name)
+		}
+		sort.Strings(volumeNames)
+		for _, name := range volumeNames {
+			volume := group.Volumes[name]
+			if volume == nil {
+				continue
+			}
+			detail.Volumes = append(detail.Volumes, taskgrouppartials.VolumeDetail{
+				Name:           name,
+				Type:           volume.Type,
+				Source:         volume.Source,
+				ReadOnly:       volume.ReadOnly,
+				PerAllocation:  volume.PerAlloc,
+				AttachmentMode: volume.AttachmentMode,
+				AccessMode:     volume.AccessMode,
+			})
 		}
 		for _, task := range group.Tasks {
 			if task == nil {
@@ -1568,11 +1589,16 @@ func (h *JobsHandler) getLiveTaskGroupDetail(r *http.Request, jobID, taskGroupNa
 					}
 				}
 			}
-			detail.Tasks = append(detail.Tasks, taskgrouppartials.TaskDetail{
+			taskDetail := taskgrouppartials.TaskDetail{
 				Name:      task.Name,
 				Driver:    task.Driver,
 				Resources: resources,
-			})
+			}
+			if task.Lifecycle != nil {
+				taskDetail.LifecycleHook = task.Lifecycle.Hook
+				taskDetail.LifecycleSidecar = task.Lifecycle.Sidecar
+			}
+			detail.Tasks = append(detail.Tasks, taskDetail)
 		}
 		if group.Scaling != nil {
 			detail.Scaling = &taskgrouppartials.ScalingConfig{
