@@ -2,6 +2,7 @@ package jobspartials
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui/templates/components"
@@ -17,6 +18,18 @@ type JobClient struct {
 	ActiveAllocations int
 	LatestStatus      string
 	LatestModified    uint64
+}
+
+// JobVariable is metadata for a variable stored at the inherited
+// nomad/jobs/{jobID} path or one of its descendants. Values stay behind the
+// existing variable detail route and its path-specific read capability.
+type JobVariable struct {
+	Path         string
+	RelativePath string
+	DetailURL    string
+	CreateIndex  uint64
+	ModifyIndex  uint64
+	Modified     time.Time
 }
 
 templ ServicesTab(registrations []*api.ServiceRegistration) {
@@ -71,6 +84,58 @@ templ ClientsTab(clientList []JobClient) {
 			}
 		</div>
 	</div>
+}
+
+templ VariablesTab(variableList []JobVariable) {
+	<div class="p-6">
+		<div class="mb-4">
+			<h3 class="text-lg font-medium text-neutral-900">Variables</h3>
+			<p class="mt-1 text-sm text-neutral-500">Variables linked to this job through the inherited nomad/jobs path</p>
+		</div>
+		<div class="border border-neutral-200 rounded-lg overflow-hidden">
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "path", Label: "Path", Align: "left"},
+					{Key: "created", Label: "Create index", Align: "right", Width: "w-32"},
+					{Key: "modified", Label: "Modify index", Align: "right", Width: "w-32"},
+					{Key: "updated", Label: "Last modified", Align: "right", Width: "w-48"},
+				},
+				Hover: true,
+			}) {
+				@components.TableBody() {
+					if len(variableList) == 0 {
+						@components.TableEmptyState("No linked variables", "This job has no variables under its nomad/jobs path")
+					} else {
+						for _, variable := range variableList {
+							<tr class="hover:bg-neutral-50">
+								@components.TableCell("left", "") {
+									<a href={ templ.SafeURL(variable.DetailURL) } class="font-mono text-sm text-primary-600 hover:underline">{ jobVariableLabel(variable) }</a>
+									<div class="mt-1 font-mono text-xs text-neutral-500">{ variable.Path }</div>
+								}
+								@components.TableCell("right", "w-32") { { fmt.Sprintf("%d", variable.CreateIndex) } }
+								@components.TableCell("right", "w-32") { { fmt.Sprintf("%d", variable.ModifyIndex) } }
+								@components.TableCell("right", "w-48") { { formatJobVariableTime(variable.Modified) } }
+							</tr>
+						}
+					}
+				}
+			}
+		</div>
+	</div>
+}
+
+func jobVariableLabel(variable JobVariable) string {
+	if variable.RelativePath == "" {
+		return "Job root"
+	}
+	return variable.RelativePath
+}
+
+func formatJobVariableTime(modified time.Time) string {
+	if modified.IsZero() {
+		return "Time unavailable"
+	}
+	return modified.Format("Jan 2, 2006 15:04:05")
 }
 
 func jobClientName(client JobClient) string {

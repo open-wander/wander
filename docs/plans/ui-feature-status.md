@@ -45,7 +45,9 @@ scope and parity work list is the
   failures do not fall back to fabricated records or secrets. A live browser
   test covers the complete create/read/update/delete workflow across isolated
   namespaces, and the create form uses only namespaces visible from the live
-  cluster.
+  cluster. Job detail also exposes metadata for variables linked beneath the
+  inherited `nomad/jobs/{jobID}` path, with strict path boundaries and no
+  variable-value disclosure in the list.
 - Deployments, evaluations, servers, CSI volumes/plugins, and topology: live
   read paths backed by the inherited cluster API. Job deployment/evaluation
   histories retain namespace, region, and ACL scope; use deterministic

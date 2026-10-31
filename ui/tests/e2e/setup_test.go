@@ -286,6 +286,21 @@ func requireReleaseE2E(t *testing.T, suite string) {
 func registerSmokeJob(t *testing.T, binary, address, token string, requestClient *http.Client) {
 	t.Helper()
 	registerFixtureJob(t, binary, address, token, requestClient, "", smokeJobID, "fixtures/smoke.nomad.hcl")
+	config := api.DefaultConfig()
+	config.Address = address
+	config.SecretID = token
+	client, err := api.NewClient(config)
+	if err != nil {
+		t.Fatalf("create smoke variable API client: %v", err)
+	}
+	_, _, err = client.Variables().Create(&api.Variable{
+		Namespace: "default",
+		Path:      "nomad/jobs/" + smokeJobID + "/browser-smoke",
+		Items:     api.VariableItems{"marker": "job-linked-variable"},
+	}, &api.WriteOptions{Namespace: "default", AuthToken: token})
+	if err != nil {
+		t.Fatalf("create job-linked smoke variable: %v", err)
+	}
 }
 
 func registerFixtureJob(t *testing.T, binary, address, token string, requestClient *http.Client, namespace, jobID, fixture string) {

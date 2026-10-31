@@ -153,3 +153,17 @@ func assertMonitorQueryValue(t *testing.T, request *http.Request, key, want stri
 		t.Fatalf("upstream %s = %q, want %q", key, got, want)
 	}
 }
+
+func assertRequestHeaderValue(t *testing.T, request *http.Request, key, want string) {
+	t.Helper()
+	if got := request.Header.Get(key); got != want {
+		t.Errorf("header %q = %q, want %q", key, got, want)
+	}
+}
+
+func assertScopedBrowserRequest(t *testing.T, request *http.Request) {
+	t.Helper()
+	assertRequestHeaderValue(t, request, "X-Nomad-Token", "browser-token")
+	assertMonitorQueryValue(t, request, "namespace", "team-a")
+	assertMonitorQueryValue(t, request, "region", "west")
+}

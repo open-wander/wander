@@ -456,6 +456,9 @@ test.describe('Wander release smoke', () => {
     await expect(page.locator('#job-detail-panel a[href^="/ui/deployments/"]').first()).toBeVisible();
     await openJobTab(page, 'Evaluations', 'Priority: 50');
     await expect(page.locator('#job-detail-panel a[href^="/ui/evaluations/"]').first()).toBeVisible();
+    await openJobTab(page, 'Variables', 'browser-smoke');
+    await expect(page.locator('#job-detail-panel a[href^="/ui/variables/"]').first()).toBeVisible();
+    await expect(page.locator('#job-detail-panel')).not.toContainText('job-linked-variable');
 
     await page.goto('/ui/topology');
     const topologyNode = page.locator('[data-topology-node-id]').first();

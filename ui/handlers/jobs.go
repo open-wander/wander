@@ -419,7 +419,7 @@ func (h *JobsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 }
 
 func splitJobDetailPath(path string) (string, string) {
-	for _, tab := range []string{"overview", "definition", "versions", "allocations", "clients", "services", "deployments", "evaluations"} {
+	for _, tab := range []string{"overview", "definition", "versions", "allocations", "clients", "services", "deployments", "evaluations", "variables"} {
 		suffix := "/" + tab
 		if strings.HasSuffix(path, suffix) {
 			return strings.TrimSuffix(path, suffix), tab
@@ -985,6 +985,12 @@ func (h *JobsHandler) jobTabContent(r *http.Request, jobID, tabName string, jobD
 			return nil, err
 		}
 		return jobspartials.EvaluationsTab(evaluations, jobID), nil
+	case "variables":
+		variables, err := h.getJobVariables(r, jobID)
+		if err != nil {
+			return nil, err
+		}
+		return jobspartials.VariablesTab(variables), nil
 	default:
 		return nil, fmt.Errorf("unknown job tab %q", tabName)
 	}
@@ -1061,8 +1067,68 @@ func (h *JobsHandler) renderJobTabError(w http.ResponseWriter, r *http.Request, 
 	if h.handler.CheckClusterError(w, r, err) {
 		return
 	}
+	if apiResponseHasStatus(err, http.StatusServiceUnavailable) {
+		h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+			Message: "Wander could not fetch job " + tab + " from the cluster.",
+		})
+		return
+	}
+	if apiResponseHasStatus(err, http.StatusForbidden) {
+		capability := "read-job"
+		message := "You do not have permission to view this job tab"
+		if tab == "variables" {
+			capability = "variables: list"
+			message = "You do not have permission to list variables linked to this job"
+		}
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message:    message,
+			Capability: capability,
+			Namespace:  GetNamespaceFromRequest(r),
+		})
+		return
+	}
 	h.handler.logger.Error("failed to fetch job tab", "error", err, "tab", tab, "jobID", jobID)
 	http.Error(w, "Failed to fetch job "+tab+" from Wander API", http.StatusBadGateway)
+}
+
+func (h *JobsHandler) getJobVariables(r *http.Request, jobID string) ([]jobspartials.JobVariable, error) {
+	jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		return nil, fmt.Errorf("Wander API client is unavailable")
+	}
+
+	region := GetRegionFromRequest(r)
+	prefix := "nomad/jobs/" + jobName
+	metadata, _, err := client.Variables().PrefixList(prefix, &api.QueryOptions{
+		Namespace: namespace,
+		Region:    region,
+		AuthToken: GetTokenFromRequest(r),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fetch job variables: %w", err)
+	}
+
+	result := make([]jobspartials.JobVariable, 0, len(metadata))
+	for _, variable := range metadata {
+		if variable == nil || (variable.Path != prefix && !strings.HasPrefix(variable.Path, prefix+"/")) {
+			continue
+		}
+		result = append(result, jobspartials.JobVariable{
+			Path:         variable.Path,
+			RelativePath: strings.TrimPrefix(strings.TrimPrefix(variable.Path, prefix), "/"),
+			DetailURL: scopedUIURL(
+				"/ui/variables/"+url.PathEscape(variable.Path),
+				namespace,
+				region,
+			),
+			CreateIndex: variable.CreateIndex,
+			ModifyIndex: variable.ModifyIndex,
+			Modified:    unixNanoTime(variable.ModifyTime),
+		})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Path < result[j].Path })
+	return result, nil
 }
 
 func (h *JobsHandler) getLiveJobDefinition(r *http.Request, jobID string) (jobspartials.JobDefinition, error) {

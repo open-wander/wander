@@ -13,11 +13,7 @@ import (
 
 func TestJobHistoryTabsPreserveScopeOrderAndSchedulerState(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Nomad-Token") != "browser-token" {
-			t.Errorf("token header = %q, want browser-token", r.Header.Get("X-Nomad-Token"))
-		}
-		assertMonitorQueryValue(t, r, "namespace", "team-a")
-		assertMonitorQueryValue(t, r, "region", "west")
+		assertScopedBrowserRequest(t, r)
 
 		switch r.URL.Path {
 		case "/v1/job/example/deployments":

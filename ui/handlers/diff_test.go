@@ -76,9 +76,7 @@ func TestJobVersionsUseStructuredAPIDifferences(t *testing.T) {
 		if r.URL.Query().Get("diffs") != "true" || r.URL.Query().Get("namespace") != "team-a" {
 			t.Errorf("unexpected versions query: %s", r.URL.RawQuery)
 		}
-		if r.Header.Get("X-Nomad-Token") != "browser-token" {
-			t.Errorf("token header = %q", r.Header.Get("X-Nomad-Token"))
-		}
+		assertRequestHeaderValue(t, r, "X-Nomad-Token", "browser-token")
 		writeJSON(t, w, map[string]any{
 			"Versions": []map[string]any{
 				{"ID": "example", "Version": 5, "Stable": true, "SubmitTime": 500},

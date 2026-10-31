@@ -15,9 +15,7 @@ import (
 func TestGetJobOverviewProjectsLiveSummaryAllocationsAndMetadata(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertMonitorQueryValue(t, r, "namespace", "team-a")
-		if r.Header.Get("X-Nomad-Token") != "browser-token" {
-			t.Errorf("token header = %q, want browser-token", r.Header.Get("X-Nomad-Token"))
-		}
+		assertRequestHeaderValue(t, r, "X-Nomad-Token", "browser-token")
 		switch r.URL.Path {
 		case "/v1/job/example":
 			writeJSON(t, w, json.RawMessage(`{
