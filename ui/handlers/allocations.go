@@ -7,6 +7,7 @@ import (
 	"math"
 	"mime"
 	"net/http"
+	"net/url"
 	pathpkg "path"
 	"sort"
 	"strconv"
@@ -653,8 +654,11 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 		return allocationspartials.AllocationDetail{}, fmt.Errorf("Wander API client is unavailable")
 	}
 
-	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
+	// Scope all allocation reads to the browser's selected cluster context.
+	queryOpts := &api.QueryOptions{
+		Namespace: GetNamespaceFromRequest(r),
+		Region:    GetRegionFromRequest(r),
+	}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
@@ -666,6 +670,62 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 	}
 
 	h.handler.logger.Debug("fetched allocation from API", "allocID", allocID, "status", alloc.ClientStatus)
+
+	servicesReady := true
+	servicesError := ""
+	serviceModels := make([]allocationspartials.AllocationService, 0)
+	registrations, _, servicesErr := client.Allocations().Services(allocID, queryOpts)
+	if servicesErr != nil {
+		servicesReady = false
+		servicesError = "Live service registrations are unavailable."
+		h.handler.logger.Warn("failed to fetch allocation services", "allocID", allocID, "error", servicesErr)
+	} else {
+		for _, registration := range registrations {
+			if registration == nil {
+				continue
+			}
+			serviceModels = append(serviceModels, allocationspartials.AllocationService{
+				Name:      registration.ServiceName,
+				Address:   registration.Address,
+				Port:      registration.Port,
+				Tags:      strings.Join(registration.Tags, ", "),
+				DetailURL: scopedUIURL("/ui/services/"+url.PathEscape(registration.ServiceName), queryOpts.Namespace, queryOpts.Region),
+			})
+		}
+		sort.Slice(serviceModels, func(i, j int) bool {
+			left, right := serviceModels[i], serviceModels[j]
+			if left.Name != right.Name {
+				return left.Name < right.Name
+			}
+			if left.Address != right.Address {
+				return left.Address < right.Address
+			}
+			return left.Port < right.Port
+		})
+	}
+
+	ports := make([]allocationspartials.AllocationPort, 0)
+	if alloc.AllocatedResources != nil {
+		for _, port := range alloc.AllocatedResources.Shared.Ports {
+			ports = append(ports, allocationspartials.AllocationPort{
+				Label:    port.Label,
+				HostIP:   port.HostIP,
+				HostPort: port.Value,
+				To:       port.To,
+			})
+		}
+		sort.Slice(ports, func(i, j int) bool {
+			if ports[i].Label != ports[j].Label {
+				return ports[i].Label < ports[j].Label
+			}
+			if ports[i].HostIP != ports[j].HostIP {
+				return ports[i].HostIP < ports[j].HostIP
+			}
+			return ports[i].HostPort < ports[j].HostPort
+		})
+	}
+
+	lifecycles := allocationTaskLifecycles(alloc)
 
 	// Convert timestamps
 	created := time.Time{}
@@ -730,15 +790,18 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 		// Note: CPU and memory usage percentages are not available from Info() call
 		// These would require metrics/stats endpoint, so we leave them at 0 for now
 
+		lifecycle := lifecycles[taskName]
 		tasks = append(tasks, allocationspartials.TaskStatus{
-			Name:       taskName,
-			State:      taskState.State,
-			Failed:     taskState.Failed,
-			StartedAt:  taskState.StartedAt,
-			FinishedAt: taskState.FinishedAt,
-			Restarts:   taskState.Restarts,
-			Resources:  taskResources,
-			Events:     events,
+			Name:             taskName,
+			State:            taskState.State,
+			Failed:           taskState.Failed,
+			StartedAt:        taskState.StartedAt,
+			FinishedAt:       taskState.FinishedAt,
+			Restarts:         taskState.Restarts,
+			Resources:        taskResources,
+			Events:           events,
+			LifecycleHook:    lifecycle.Hook,
+			LifecycleSidecar: lifecycle.Sidecar,
 		})
 	}
 
@@ -792,18 +855,41 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 	})
 
 	return allocationspartials.AllocationDetail{
-		ID:        alloc.ID,
-		JobID:     alloc.JobID,
-		TaskGroup: alloc.TaskGroup,
-		NodeID:    alloc.NodeID,
-		NodeName:  alloc.NodeName,
-		Status:    alloc.ClientStatus,
-		Created:   created,
-		Modified:  modified,
-		Tasks:     tasks,
-		Resources: resources,
-		Events:    allocEvents,
+		ID:            alloc.ID,
+		JobID:         alloc.JobID,
+		TaskGroup:     alloc.TaskGroup,
+		NodeID:        alloc.NodeID,
+		NodeName:      alloc.NodeName,
+		Status:        alloc.ClientStatus,
+		Created:       created,
+		Modified:      modified,
+		Tasks:         tasks,
+		Ports:         ports,
+		Services:      serviceModels,
+		ServicesReady: servicesReady,
+		ServicesError: servicesError,
+		Resources:     resources,
+		Events:        allocEvents,
 	}, nil
+}
+
+func allocationTaskLifecycles(alloc *api.Allocation) map[string]api.TaskLifecycle {
+	lifecycles := make(map[string]api.TaskLifecycle)
+	if alloc == nil || alloc.Job == nil {
+		return lifecycles
+	}
+	for _, group := range alloc.Job.TaskGroups {
+		if group == nil || group.Name == nil || *group.Name != alloc.TaskGroup {
+			continue
+		}
+		for _, task := range group.Tasks {
+			if task != nil && task.Lifecycle != nil && !task.Lifecycle.Empty() {
+				lifecycles[task.Name] = *task.Lifecycle
+			}
+		}
+		break
+	}
+	return lifecycles
 }
 
 func (h *AllocationsHandler) renderAllocationFetchError(w http.ResponseWriter, r *http.Request, allocID string, err error) {

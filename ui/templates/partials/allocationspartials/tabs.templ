@@ -10,6 +10,84 @@ import (
 // including status, resource usage, events timeline, and links to logs
 templ TasksTab(alloc AllocationDetail) {
 	<div class="p-6">
+		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+			<section data-testid="allocation-ports">
+				<h3 class="text-lg font-medium text-neutral-900 mb-3">Network Ports</h3>
+				<div class="border border-neutral-200 rounded-lg overflow-hidden">
+					if len(alloc.Ports) == 0 {
+						<p class="p-4 text-sm text-neutral-500">No allocated ports.</p>
+					} else {
+						<div class="overflow-x-auto">
+							<table class="min-w-full divide-y divide-neutral-200 text-sm">
+								<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+									<tr>
+										<th class="px-4 py-3 font-medium">Label</th>
+										<th class="px-4 py-3 font-medium">Host address</th>
+										<th class="px-4 py-3 font-medium">To</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-neutral-200 bg-white">
+									for _, port := range alloc.Ports {
+										<tr>
+											<td class="px-4 py-3 font-medium text-neutral-900">{ port.Label }</td>
+											<td class="px-4 py-3 font-mono text-neutral-700">
+												if port.HostIP != "" {
+													{ fmt.Sprintf("%s:%d", port.HostIP, port.HostPort) }
+												} else {
+													{ fmt.Sprintf("port %d", port.HostPort) }
+												}
+											</td>
+											<td class="px-4 py-3 font-mono text-neutral-700">
+												if port.To > 0 {
+													{ fmt.Sprintf("%d", port.To) }
+												} else {
+													<span class="text-neutral-400">—</span>
+												}
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+				</div>
+			</section>
+			<section data-testid="allocation-services">
+				<h3 class="text-lg font-medium text-neutral-900 mb-3">Live Services</h3>
+				<div class="border border-neutral-200 rounded-lg overflow-hidden">
+					if !alloc.ServicesReady {
+						<div class="p-4 bg-warning-50 text-sm text-warning-800">
+							<p class="font-medium">Services unavailable</p>
+							<p class="mt-1">{ alloc.ServicesError }</p>
+						</div>
+					} else if len(alloc.Services) == 0 {
+						<p class="p-4 text-sm text-neutral-500">No live service registrations.</p>
+					} else {
+						<ul class="divide-y divide-neutral-200 bg-white">
+							for _, service := range alloc.Services {
+								<li class="p-4">
+									<div class="flex items-start justify-between gap-4">
+										<div>
+											<a href={ templ.URL(service.DetailURL) } class="font-medium text-primary-600 hover:underline">{ service.Name }</a>
+											if service.Tags != "" {
+												<p class="mt-1 text-xs text-neutral-500">{ service.Tags }</p>
+											}
+										</div>
+										<span class="font-mono text-sm text-neutral-700">
+											if service.Address != "" {
+												{ fmt.Sprintf("%s:%d", service.Address, service.Port) }
+											} else {
+												{ fmt.Sprintf("port %d", service.Port) }
+											}
+										</span>
+									</div>
+								</li>
+							}
+						</ul>
+					}
+				</div>
+			</section>
+		</div>
 		<div class="flex items-center justify-between mb-6">
 			<h3 class="text-lg font-medium text-neutral-900">Tasks ({ fmt.Sprintf("%d", len(alloc.Tasks)) })</h3>
 		</div>
@@ -49,6 +127,19 @@ templ TasksTab(alloc AllocationDetail) {
 													s
 												}
 											}
+										}
+										if task.LifecycleHook != "" {
+											<span data-task-lifecycle={ task.Name }>
+												@components.Badge(components.BadgeProps{
+													Variant: "info",
+													Size:    "sm",
+												}) {
+													{ task.LifecycleHook }
+													if task.LifecycleSidecar {
+														 sidecar
+													}
+												}
+											</span>
 										}
 									</div>
 								</div>

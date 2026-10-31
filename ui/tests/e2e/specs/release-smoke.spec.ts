@@ -650,6 +650,11 @@ test.describe('Wander release smoke', () => {
     const href = await smokeAllocation.locator('a[href^="/ui/allocations/"]').getAttribute('href');
     expect(href).toBeTruthy();
 
+	await page.goto(href!);
+	await expect(page.locator('[data-testid="allocation-ports"]')).toContainText('http');
+	await expect(page.locator('[data-testid="allocation-services"]')).toContainText('wander-ui-http');
+	await expect(page.locator('[data-task-lifecycle="prepare"]')).toContainText('prestart');
+
     await openAllocationView(page, href!, 'logs', /stdout|logs/i);
     const logViewer = page.locator('[data-log-viewer]');
     const logOutput = page.locator('[data-log-output]');

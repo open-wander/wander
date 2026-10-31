@@ -7,16 +7,20 @@ import (
 
 // AllocationDetail represents detailed information about an allocation
 type AllocationDetail struct {
-	ID        string
-	JobID     string
-	TaskGroup string
-	NodeID    string
-	NodeName  string
-	Status    string
-	Created   time.Time
-	Modified  time.Time
-	Tasks     []TaskStatus
-	Resources ResourceUsage
+	ID               string
+	JobID            string
+	TaskGroup        string
+	NodeID           string
+	NodeName         string
+	Status           string
+	Created          time.Time
+	Modified         time.Time
+	Tasks            []TaskStatus
+	Ports            []AllocationPort
+	Services         []AllocationService
+	ServicesReady    bool
+	ServicesError    string
+	Resources        ResourceUsage
 	Events           []AllocationEvent
 	ActiveTab        string // Which tab to show as active (default: "tasks")
 	ActiveTabContent templ.Component
@@ -24,14 +28,33 @@ type AllocationDetail struct {
 
 // TaskStatus represents the status of a task within an allocation
 type TaskStatus struct {
-	Name       string
-	State      string
-	Failed     bool
-	StartedAt  time.Time
-	FinishedAt time.Time
-	Restarts   uint64
-	Resources  TaskResources
-	Events     []TaskEvent
+	Name             string
+	State            string
+	Failed           bool
+	StartedAt        time.Time
+	FinishedAt       time.Time
+	Restarts         uint64
+	Resources        TaskResources
+	Events           []TaskEvent
+	LifecycleHook    string
+	LifecycleSidecar bool
+}
+
+// AllocationPort describes a host port assigned to an allocation.
+type AllocationPort struct {
+	Label    string
+	HostIP   string
+	HostPort int
+	To       int
+}
+
+// AllocationService describes a live service registration for an allocation.
+type AllocationService struct {
+	Name      string
+	Address   string
+	Port      int
+	Tags      string
+	DetailURL string
 }
 
 // TaskResources represents resource allocation for a task
@@ -298,26 +321,26 @@ templ DetailContent(alloc AllocationDetail) {
 						Active:  getActiveTab(alloc.ActiveTab) == "logs",
 					},
 					{
-						ID:    "exec",
-						Label: "Exec",
-						Icon:  "terminal",
-						URL:   "/ui/allocations/" + alloc.ID + "/exec",
+						ID:      "exec",
+						Label:   "Exec",
+						Icon:    "terminal",
+						URL:     "/ui/allocations/" + alloc.ID + "/exec",
 						Content: alloc.ActiveTabContent,
 						Active:  getActiveTab(alloc.ActiveTab) == "exec",
 					},
 					{
-						ID:    "files",
-						Label: "Files",
-						Icon:  "folder",
-						URL:   "/ui/allocations/" + alloc.ID + "/files",
+						ID:      "files",
+						Label:   "Files",
+						Icon:    "folder",
+						URL:     "/ui/allocations/" + alloc.ID + "/files",
 						Content: alloc.ActiveTabContent,
 						Active:  getActiveTab(alloc.ActiveTab) == "files",
 					},
 					{
-						ID:    "raw",
-						Label: "Raw",
-						Icon:  "code",
-						URL:   "/ui/allocations/" + alloc.ID + "/raw",
+						ID:      "raw",
+						Label:   "Raw",
+						Icon:    "code",
+						URL:     "/ui/allocations/" + alloc.ID + "/raw",
 						Content: alloc.ActiveTabContent,
 						Active:  getActiveTab(alloc.ActiveTab) == "raw",
 					},

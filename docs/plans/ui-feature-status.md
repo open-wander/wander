@@ -134,8 +134,7 @@ These are unimplemented capabilities. The
 an inherited 0.1.0 requirement or a post-0.1 enhancement; this list must not
 be used to defer baseline behavior without explicit approval:
 
-- Allocation ports, services, reschedule/preemption history, and task lifecycle
-  visualization.
+- Allocation reschedule/preemption history and live resource statistics.
 - Richer job allocation filtering, sorting, task expansion, and live resource
   statistics.
 - Variable validation, conflict detection, JSON/tree views, copy controls, and
