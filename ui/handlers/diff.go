@@ -1,122 +1,159 @@
 package handlers
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/open-wander/wander/api"
 	"github.com/open-wander/wander/ui/templates/partials/jobspartials"
 )
 
-// computeDiff computes a line-by-line diff between two text strings.
-// It uses a simple longest common subsequence (LCS) based approach.
-func computeDiff(oldText, newText string) []jobspartials.DiffLine {
-	oldLines := splitLines(oldText)
-	newLines := splitLines(newText)
+const (
+	changeAdded   = "Added"
+	changeEdited  = "Edited"
+	changeDeleted = "Deleted"
+	changeNone    = "None"
+)
 
-	// Use Myers diff algorithm simplified - LCS-based approach
-	return computeLCSDiff(oldLines, newLines)
-}
-
-// splitLines splits text into lines, preserving empty lines
-func splitLines(text string) []string {
-	if text == "" {
-		return []string{}
+func projectVersionDiff(jobID string, newer, older uint64, diff *api.JobDiff) jobspartials.VersionDiff {
+	result := jobspartials.VersionDiff{
+		JobID:      jobID,
+		OldVersion: older,
+		NewVersion: newer,
 	}
-	// Normalize line endings
-	text = strings.ReplaceAll(text, "\r\n", "\n")
-	text = strings.ReplaceAll(text, "\r", "\n")
-	return strings.Split(text, "\n")
-}
-
-// computeLCSDiff computes a diff using a simplified LCS approach
-func computeLCSDiff(oldLines, newLines []string) []jobspartials.DiffLine {
-	// Build LCS table
-	m, n := len(oldLines), len(newLines)
-
-	// dp[i][j] = length of LCS of oldLines[0..i-1] and newLines[0..j-1]
-	dp := make([][]int, m+1)
-	for i := range dp {
-		dp[i] = make([]int, n+1)
+	if diff == nil {
+		return result
 	}
 
-	for i := 1; i <= m; i++ {
-		for j := 1; j <= n; j++ {
-			if oldLines[i-1] == newLines[j-1] {
-				dp[i][j] = dp[i-1][j-1] + 1
-			} else {
-				dp[i][j] = max(dp[i-1][j], dp[i][j-1])
-			}
-		}
+	if diff.Type == changeAdded || diff.Type == changeDeleted {
+		addVersionChange(&result, jobspartials.VersionChange{Type: diff.Type, Scope: "Job", Name: diff.ID})
+		return result
 	}
 
-	// Backtrack to build the diff
-	var result []jobspartials.DiffLine
-	i, j := m, n
-	oldLineNum, newLineNum := m, n
-
-	// Build result in reverse order
-	var reversed []jobspartials.DiffLine
-
-	for i > 0 || j > 0 {
-		if i > 0 && j > 0 && oldLines[i-1] == newLines[j-1] {
-			// Lines are the same - unchanged
-			reversed = append(reversed, jobspartials.DiffLine{
-				Type:       "unchanged",
-				Content:    oldLines[i-1],
-				OldLineNum: i,
-				NewLineNum: j,
-			})
-			i--
-			j--
-			oldLineNum--
-			newLineNum--
-		} else if j > 0 && (i == 0 || dp[i][j-1] >= dp[i-1][j]) {
-			// Line was added in new version
-			reversed = append(reversed, jobspartials.DiffLine{
-				Type:       "added",
-				Content:    newLines[j-1],
-				OldLineNum: 0,
-				NewLineNum: j,
-			})
-			j--
-			newLineNum--
-		} else if i > 0 {
-			// Line was removed from old version
-			reversed = append(reversed, jobspartials.DiffLine{
-				Type:       "removed",
-				Content:    oldLines[i-1],
-				OldLineNum: i,
-				NewLineNum: 0,
-			})
-			i--
-			oldLineNum--
-		}
+	appendFieldChanges(&result, "Job", diff.Fields)
+	appendObjectChanges(&result, "Job", diff.Objects)
+	for _, group := range diff.TaskGroups {
+		appendTaskGroupChanges(&result, group)
 	}
-
-	// Reverse to get correct order
-	for k := len(reversed) - 1; k >= 0; k-- {
-		result = append(result, reversed[k])
-	}
-
 	return result
 }
 
-// countDiffStats counts the number of additions and deletions in a diff
-func countDiffStats(lines []jobspartials.DiffLine) (added, removed int) {
-	for _, line := range lines {
-		switch line.Type {
-		case "added":
-			added++
-		case "removed":
-			removed++
-		}
+func addVersionChange(diff *jobspartials.VersionDiff, change jobspartials.VersionChange) {
+	change.Type = normalizedChangeType(change.Type)
+	if change.Type == "" {
+		return
 	}
-	return added, removed
+	diff.Changes = append(diff.Changes, change)
+	switch change.Type {
+	case changeAdded:
+		diff.Counts.Added++
+	case changeDeleted:
+		diff.Counts.Deleted++
+	default:
+		diff.Counts.Edited++
+	}
 }
 
-// max returns the larger of two integers
-func max(a, b int) int {
-	if a > b {
-		return a
+func normalizedChangeType(changeType string) string {
+	switch changeType {
+	case "", changeNone:
+		return ""
+	case changeAdded, changeEdited, changeDeleted:
+		return changeType
+	default:
+		return changeEdited
 	}
-	return b
+}
+
+func appendFieldChanges(diff *jobspartials.VersionDiff, scope string, fields []*api.FieldDiff) {
+	for _, field := range fields {
+		if field == nil || normalizedChangeType(field.Type) == "" {
+			continue
+		}
+		addVersionChange(diff, jobspartials.VersionChange{
+			Type:        field.Type,
+			Scope:       scope,
+			Name:        field.Name,
+			Old:         field.Old,
+			New:         field.New,
+			Annotations: field.Annotations,
+		})
+	}
+}
+
+func appendObjectChanges(diff *jobspartials.VersionDiff, scope string, objects []*api.ObjectDiff) {
+	for _, object := range objects {
+		if object == nil {
+			continue
+		}
+		typeName := normalizedChangeType(object.Type)
+		if typeName == changeAdded || typeName == changeDeleted {
+			addVersionChange(diff, jobspartials.VersionChange{Type: typeName, Scope: scope, Name: object.Name})
+			continue
+		}
+
+		before := len(diff.Changes)
+		objectScope := joinChangeScope(scope, object.Name)
+		appendFieldChanges(diff, objectScope, object.Fields)
+		appendObjectChanges(diff, objectScope, object.Objects)
+		if typeName == changeEdited && len(diff.Changes) == before {
+			addVersionChange(diff, jobspartials.VersionChange{Type: typeName, Scope: scope, Name: object.Name})
+		}
+	}
+}
+
+func appendTaskGroupChanges(diff *jobspartials.VersionDiff, group *api.TaskGroupDiff) {
+	if group == nil {
+		return
+	}
+	groupName := fmt.Sprintf("Task group %q", group.Name)
+	typeName := normalizedChangeType(group.Type)
+	if typeName == changeAdded || typeName == changeDeleted {
+		addVersionChange(diff, jobspartials.VersionChange{Type: typeName, Scope: "Job", Name: groupName})
+		return
+	}
+
+	before := len(diff.Changes)
+	appendFieldChanges(diff, groupName, group.Fields)
+	appendObjectChanges(diff, groupName, group.Objects)
+	for _, task := range group.Tasks {
+		appendTaskChanges(diff, groupName, task)
+	}
+	if typeName == changeEdited && len(diff.Changes) == before {
+		addVersionChange(diff, jobspartials.VersionChange{Type: typeName, Scope: "Job", Name: groupName})
+	}
+}
+
+func appendTaskChanges(diff *jobspartials.VersionDiff, groupScope string, task *api.TaskDiff) {
+	if task == nil {
+		return
+	}
+	taskName := fmt.Sprintf("Task %q", task.Name)
+	typeName := normalizedChangeType(task.Type)
+	if typeName == changeAdded || typeName == changeDeleted {
+		addVersionChange(diff, jobspartials.VersionChange{
+			Type: typeName, Scope: groupScope, Name: taskName, Annotations: task.Annotations,
+		})
+		return
+	}
+
+	before := len(diff.Changes)
+	taskScope := joinChangeScope(groupScope, taskName)
+	appendFieldChanges(diff, taskScope, task.Fields)
+	appendObjectChanges(diff, taskScope, task.Objects)
+	if typeName == changeEdited && len(diff.Changes) == before {
+		addVersionChange(diff, jobspartials.VersionChange{
+			Type: typeName, Scope: groupScope, Name: taskName, Annotations: task.Annotations,
+		})
+	}
+}
+
+func joinChangeScope(parts ...string) string {
+	nonEmpty := parts[:0]
+	for _, part := range parts {
+		if part != "" {
+			nonEmpty = append(nonEmpty, part)
+		}
+	}
+	return strings.Join(nonEmpty, " / ")
 }

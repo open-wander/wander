@@ -949,7 +949,11 @@ func (h *JobsHandler) jobTabContent(r *http.Request, jobID, tabName string, jobD
 		}
 		return jobspartials.DefinitionTab(jobDef), nil
 	case "versions":
-		return jobspartials.VersionsTab(h.getJobVersions(r, jobID), jobID), nil
+		versions, err := h.getJobVersions(r, jobID)
+		if err != nil {
+			return nil, err
+		}
+		return jobspartials.VersionsTab(versions, jobID), nil
 	case "allocations":
 		page := parsePage(r.URL.Query().Get("page"))
 		perPage := parsePerPage(r.URL.Query().Get("per_page"))
@@ -1121,7 +1125,7 @@ func (h *JobsHandler) fetchLiveJob(r *http.Request, jobID string) (*api.Client, 
 
 // getJobVersions fetches job version history from the Nomad API.
 // It returns a list of job versions sorted from newest to oldest.
-func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartials.JobVersion {
+func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) ([]jobspartials.JobVersion, error) {
 	// Parse namespace from job ID if provided (format: jobID@namespace)
 	namespace := GetNamespaceFromRequest(r)
 	jobName := jobID
@@ -1132,8 +1136,7 @@ func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartia
 
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty versions list")
-		return []jobspartials.JobVersion{}
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Get ACL token from request context
@@ -1149,46 +1152,41 @@ func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartia
 		queryOpts.AuthToken = token
 	}
 
-	// Note: For now we're not requesting diffs from the API (diffs=false)
-	// because we compute diffs on-demand when the user clicks "Diff"
 	h.handler.logger.Debug("fetching job versions from API",
 		"jobID", jobName,
 		"namespace", namespace,
 		"hasToken", token != "",
 	)
 
-	versions, _, _, err := client.Jobs().Versions(jobName, false, queryOpts)
+	versions, diffs, _, err := client.Jobs().Versions(jobName, true, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch job versions", "error", err, "jobID", jobName, "namespace", namespace)
-		return []jobspartials.JobVersion{}
+		return nil, fmt.Errorf("fetch job versions: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched job versions from API", "count", len(versions))
 
 	if len(versions) == 0 {
-		return []jobspartials.JobVersion{}
+		return []jobspartials.JobVersion{}, nil
+	}
+	if len(diffs) != len(versions)-1 {
+		return nil, fmt.Errorf("job versions response contains %d versions and %d differences", len(versions), len(diffs))
 	}
 
 	// Find the current/active version (highest version number)
 	var maxVersion uint64
 	for _, v := range versions {
-		if v.Version != nil && *v.Version > maxVersion {
+		if v == nil || v.Version == nil {
+			return nil, fmt.Errorf("job versions response contains a version without an identifier")
+		}
+		if *v.Version > maxVersion {
 			maxVersion = *v.Version
 		}
 	}
 
 	// Convert API response to our JobVersion type
 	result := make([]jobspartials.JobVersion, 0, len(versions))
-	for _, v := range versions {
-		if v == nil {
-			continue
-		}
-
-		// Extract version number (default to 0 if nil)
-		version := uint64(0)
-		if v.Version != nil {
-			version = *v.Version
-		}
+	for i, v := range versions {
+		version := *v.Version
 
 		// Extract stable flag (default to false if nil)
 		stable := false
@@ -1205,10 +1203,14 @@ func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartia
 		// Determine if this is the active version
 		active := (version == maxVersion)
 
-		// Set diff URL only if this is not version 0 (no previous version to compare)
-		diffURL := ""
-		if version > 0 {
-			diffURL = fmt.Sprintf("/ui/jobs/%s/versions/%d/diff/%d", jobID, version, version-1)
+		var versionDiff *jobspartials.VersionDiff
+		if i < len(diffs) {
+			older := versions[i+1]
+			if older == nil || older.Version == nil {
+				return nil, fmt.Errorf("job versions response contains a version without an identifier")
+			}
+			projected := projectVersionDiff(jobID, version, *older.Version, diffs[i])
+			versionDiff = &projected
 		}
 
 		result = append(result, jobspartials.JobVersion{
@@ -1216,7 +1218,7 @@ func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartia
 			Stable:     stable,
 			SubmitTime: submitTime,
 			Active:     active,
-			Diff:       diffURL,
+			Diff:       versionDiff,
 		})
 	}
 
@@ -1225,7 +1227,7 @@ func (h *JobsHandler) getJobVersions(r *http.Request, jobID string) []jobspartia
 		return result[i].Version > result[j].Version
 	})
 
-	return result
+	return result, nil
 }
 
 // VersionDiff handles requests for version diff view
@@ -1283,98 +1285,34 @@ func (h *JobsHandler) VersionDiff(w http.ResponseWriter, r *http.Request) {
 		"htmx", IsHTMXFromRequest(r),
 	)
 
-	// Get job definitions from Nomad API
-	oldDef, err := h.getJobVersionDefinition(r, jobName, namespace, oldVersion)
+	versions, err := h.getJobVersions(r, jobID)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch old version", "error", err, "version", oldVersion)
-		http.Error(w, "Failed to fetch old version from Wander API", http.StatusInternalServerError)
+		if h.handler.CheckClusterError(w, r, err) {
+			return
+		}
+		h.handler.logger.Error("failed to fetch structured version differences", "error", err, "jobID", jobName)
+		http.Error(w, "Failed to fetch job version differences from Wander API", http.StatusBadGateway)
 		return
 	}
 
-	newDef, err := h.getJobVersionDefinition(r, jobName, namespace, newVersion)
-	if err != nil {
-		h.handler.logger.Error("failed to fetch new version", "error", err, "version", newVersion)
-		http.Error(w, "Failed to fetch new version from Wander API", http.StatusInternalServerError)
-		return
+	var diff *jobspartials.VersionDiff
+	for _, version := range versions {
+		if version.Version == newVersion && version.Diff != nil && version.Diff.OldVersion == oldVersion {
+			diff = version.Diff
+			break
+		}
 	}
-
-	// Compute the diff
-	diffLines := computeDiff(oldDef, newDef)
-	added, removed := countDiffStats(diffLines)
-
-	diff := jobspartials.VersionDiff{
-		JobID:        jobID,
-		OldVersion:   oldVersion,
-		NewVersion:   newVersion,
-		Lines:        diffLines,
-		TotalAdded:   added,
-		TotalRemoved: removed,
+	if diff == nil {
+		http.NotFound(w, r)
+		return
 	}
 
 	// Render the diff modal
-	err = RenderPartial(w, r, jobspartials.VersionDiffModal(diff))
+	err = RenderPartial(w, r, jobspartials.VersionDiffModal(*diff))
 	if err != nil {
 		h.handler.logger.Error("failed to render version diff", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
-}
-
-// getJobVersionDefinition fetches a specific job version from the Nomad API
-// and returns it as an HCL string for diff comparison.
-func (h *JobsHandler) getJobVersionDefinition(r *http.Request, jobName, namespace string, version uint64) (string, error) {
-	client := h.handler.NomadClientForRequest(r)
-	if client == nil {
-		return "", fmt.Errorf("no Wander client available")
-	}
-
-	// Get ACL token from request context
-	token := GetTokenFromRequest(r)
-
-	// Build query options
-	queryOpts := &api.QueryOptions{
-		Namespace: namespace,
-	}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
-
-	// Fetch all versions with diffs=false (we don't need the built-in diffs)
-	h.handler.logger.Debug("fetching job versions for diff",
-		"jobID", jobName,
-		"namespace", namespace,
-		"targetVersion", version,
-	)
-
-	versions, _, _, err := client.Jobs().Versions(jobName, false, queryOpts)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch job versions: %w", err)
-	}
-
-	// Find the specific version we need
-	var targetJob *api.Job
-	for _, v := range versions {
-		if v == nil || v.Version == nil {
-			continue
-		}
-		if *v.Version == version {
-			targetJob = v
-			break
-		}
-	}
-
-	if targetJob == nil {
-		return "", fmt.Errorf("version %d not found", version)
-	}
-
-	// Convert the Job struct to JSON, then to HCL using Nomad's parser
-	// For now, we'll convert to JSON as a string representation
-	// In a future enhancement, we could use the Nomad HCL formatter
-	jobJSON, err := json.MarshalIndent(targetJob, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal job to JSON: %w", err)
-	}
-
-	return string(jobJSON), nil
 }
 
 // ScaleTaskGroup handles the scale task group action

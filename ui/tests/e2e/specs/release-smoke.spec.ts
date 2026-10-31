@@ -523,6 +523,18 @@ test.describe('Wander release smoke', () => {
       await expect(page.getByText('Version:').locator('..')).toContainText('1');
       await expect(page.getByLabel('HCL Variables')).toHaveValue('marker = "reviewed"');
       await expect(page.locator('.wander-editor-wrapper')).toContainText('priority = 60');
+
+      await openJobTab(page, 'Versions', 'Version History');
+      await expect(page.getByRole('columnheader', { name: 'Changes' })).toBeVisible();
+      await expect(page.getByText(/\d+ changes/).first()).toBeVisible();
+      await page.getByRole('button', { name: 'Diff', exact: true }).first().click();
+      const diffDialog = page.getByRole('dialog', { name: 'Version 1 vs Version 0' });
+      await expect(diffDialog).toBeVisible();
+      await expect(diffDialog.getByText('Priority', { exact: true })).toBeVisible();
+      await expect(diffDialog.getByRole('columnheader', { name: 'Previous value' })).toBeVisible();
+      await expect(diffDialog.getByRole('columnheader', { name: 'New value' })).toBeVisible();
+      await diffDialog.locator('button').filter({ hasText: /^Close$/ }).click();
+      await expect(diffDialog).toBeHidden();
       expect(browserErrors).toEqual([]);
     } finally {
       await page.request.post(`/api/jobs/${jobID}/purge?namespace=default&region=global`);

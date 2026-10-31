@@ -2,32 +2,46 @@ package jobspartials
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/open-wander/wander/ui/templates/components"
 )
 
-// DiffLine represents a single line in a diff
-type DiffLine struct {
-	Type       string // "added", "removed", "unchanged", "context"
-	Content    string // The actual line content
-	OldLineNum int    // Line number in the old version (0 if added)
-	NewLineNum int    // Line number in the new version (0 if removed)
+type VersionChangeCounts struct {
+	Added   int
+	Edited  int
+	Deleted int
 }
 
-// VersionDiff represents the diff between two versions
+func (counts VersionChangeCounts) Total() int {
+	return counts.Added + counts.Edited + counts.Deleted
+}
+
+func (counts VersionChangeCounts) AriaLabel() string {
+	return fmt.Sprintf("%d changes: %d added, %d edited, %d deleted", counts.Total(), counts.Added, counts.Edited, counts.Deleted)
+}
+
+// VersionChange is one semantic change reported by the Wander job versions API.
+type VersionChange struct {
+	Type        string
+	Scope       string
+	Name        string
+	Old         string
+	New         string
+	Annotations []string
+}
+
+// VersionDiff represents the structured difference between two job versions.
 type VersionDiff struct {
-	JobID       string     // Job ID
-	OldVersion  uint64     // Previous version number
-	NewVersion  uint64     // New version number
-	Lines       []DiffLine // Diff lines
-	TotalAdded  int        // Total lines added
-	TotalRemoved int       // Total lines removed
+	JobID      string
+	OldVersion uint64
+	NewVersion uint64
+	Counts     VersionChangeCounts
+	Changes    []VersionChange
 }
 
-// VersionDiffModal renders a modal with the diff between two versions
 templ VersionDiffModal(diff VersionDiff) {
-	<div
-		x-data="versionDiffModal()"
-	>
+	<div x-data="versionDiffModal()">
 		@components.Modal(components.ModalProps{
 			ID:       fmt.Sprintf("version-diff-%d-%d", diff.OldVersion, diff.NewVersion),
 			Title:    fmt.Sprintf("Version %d vs Version %d", diff.NewVersion, diff.OldVersion),
@@ -50,43 +64,36 @@ templ VersionDiffModal(diff VersionDiff) {
 	</div>
 }
 
-// VersionDiffContent renders the diff content (can be used inside modal or inline)
 templ VersionDiffContent(diff VersionDiff) {
-	<!-- Summary stats -->
-	<div class="mb-4 flex items-center gap-4 text-sm">
+	<div class="mb-4 flex flex-wrap items-center gap-4 text-sm">
 		<span class="text-neutral-600">
 			Comparing version <span class="font-mono font-medium">{ fmt.Sprintf("%d", diff.NewVersion) }</span>
 			to version <span class="font-mono font-medium">{ fmt.Sprintf("%d", diff.OldVersion) }</span>
 		</span>
-		<span class="flex items-center gap-1 text-green-600">
-			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-			</svg>
-			{ fmt.Sprintf("%d additions", diff.TotalAdded) }
-		</span>
-		<span class="flex items-center gap-1 text-red-600">
-			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
-			</svg>
-			{ fmt.Sprintf("%d deletions", diff.TotalRemoved) }
-		</span>
+		@versionChangeSummary(diff.Counts)
 	</div>
 
-	<!-- Diff view -->
-	<div class="border border-neutral-200 rounded-lg overflow-hidden">
-		<!-- Unified diff view -->
+	<div class="border border-neutral-200 rounded-lg overflow-hidden max-h-[65vh] overflow-y-auto">
 		<div class="overflow-x-auto">
-			<table class="w-full text-sm font-mono">
+			<table class="w-full text-sm">
+				<thead class="sticky top-0 bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+					<tr>
+						<th class="px-3 py-2">Change</th>
+						<th class="px-3 py-2">Location</th>
+						<th class="px-3 py-2">Previous value</th>
+						<th class="px-3 py-2">New value</th>
+					</tr>
+				</thead>
 				<tbody>
-					if len(diff.Lines) == 0 {
+					if len(diff.Changes) == 0 {
 						<tr>
-							<td colspan="3" class="px-4 py-8 text-center text-neutral-500">
+							<td colspan="4" class="px-4 py-8 text-center text-neutral-500">
 								No differences found between versions
 							</td>
 						</tr>
 					} else {
-						for _, line := range diff.Lines {
-							@diffLineRow(line)
+						for _, change := range diff.Changes {
+							@versionChangeRow(change)
 						}
 					}
 				</tbody>
@@ -95,89 +102,63 @@ templ VersionDiffContent(diff VersionDiff) {
 	</div>
 }
 
-// diffLineRow renders a single line in the diff view
-templ diffLineRow(line DiffLine) {
-	<tr class={ diffLineClasses(line.Type) }>
-		<!-- Old line number -->
-		<td class="px-2 py-0.5 text-right text-neutral-400 select-none border-r border-neutral-200 w-12 bg-neutral-50">
-			if line.OldLineNum > 0 {
-				{ fmt.Sprintf("%d", line.OldLineNum) }
+templ versionChangeRow(change VersionChange) {
+	<tr class="border-t border-neutral-200 align-top">
+		<td class="px-3 py-2">
+			<span class={ versionChangeBadgeClasses(change.Type) }>{ change.Type }</span>
+		</td>
+		<td class="px-3 py-2 min-w-64">
+			<div class="text-xs text-neutral-500">{ change.Scope }</div>
+			<div class="font-mono text-neutral-900">{ change.Name }</div>
+			if len(change.Annotations) > 0 {
+				<div class="mt-1 text-xs text-neutral-500">{ strings.Join(change.Annotations, ", ") }</div>
 			}
 		</td>
-		<!-- New line number -->
-		<td class="px-2 py-0.5 text-right text-neutral-400 select-none border-r border-neutral-200 w-12 bg-neutral-50">
-			if line.NewLineNum > 0 {
-				{ fmt.Sprintf("%d", line.NewLineNum) }
+		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap break-words text-red-800">
+			if change.Old == "" {
+				<span class="text-neutral-400">—</span>
+			} else {
+				{ change.Old }
 			}
 		</td>
-		<!-- Line content with prefix -->
-		<td class="px-3 py-0.5 whitespace-pre">
-			<span class={ diffPrefixClasses(line.Type) }>{ diffPrefix(line.Type) }</span>
-			{ line.Content }
+		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap break-words text-green-800">
+			if change.New == "" {
+				<span class="text-neutral-400">—</span>
+			} else {
+				{ change.New }
+			}
 		</td>
 	</tr>
 }
 
-// diffLineClasses returns CSS classes for diff line rows based on type
-func diffLineClasses(lineType string) string {
-	switch lineType {
-	case "added":
-		return "bg-green-50"
-	case "removed":
-		return "bg-red-50"
-	case "context":
-		return "bg-neutral-50"
+func versionChangeBadgeClasses(changeType string) string {
+	base := "inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+	switch changeType {
+	case "Added":
+		return base + " bg-green-100 text-green-800"
+	case "Deleted":
+		return base + " bg-red-100 text-red-800"
 	default:
-		return ""
+		return base + " bg-amber-100 text-amber-800"
 	}
 }
 
-// diffPrefixClasses returns CSS classes for the diff prefix character
-func diffPrefixClasses(lineType string) string {
-	base := "mr-2 select-none font-bold"
-	switch lineType {
-	case "added":
-		return base + " text-green-600"
-	case "removed":
-		return base + " text-red-600"
-	default:
-		return base + " text-neutral-400"
-	}
-}
-
-// diffPrefix returns the prefix character for diff lines
-func diffPrefix(lineType string) string {
-	switch lineType {
-	case "added":
-		return "+"
-	case "removed":
-		return "-"
-	default:
-		return " "
-	}
-}
-
-// VersionDiffInline renders an inline expandable diff section
 templ VersionDiffInline(diff VersionDiff, expanded bool) {
 	<div
 		x-data={ fmt.Sprintf("{ expanded: %t }", expanded) }
 		class="border border-neutral-200 rounded-lg overflow-hidden mt-2"
 	>
-		<!-- Collapsible header -->
 		<button
 			type="button"
 			@click="expanded = !expanded"
 			class="w-full px-4 py-3 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors"
 		>
-			<span class="flex items-center gap-3">
+			<div class="flex items-center gap-3">
 				<span class="text-sm font-medium text-neutral-700">
 					Changes from version { fmt.Sprintf("%d", diff.OldVersion) }
 				</span>
-				<span class="flex items-center gap-2 text-xs">
-					<span class="text-green-600">+{ fmt.Sprintf("%d", diff.TotalAdded) }</span>
-					<span class="text-red-600">-{ fmt.Sprintf("%d", diff.TotalRemoved) }</span>
-				</span>
-			</span>
+				@versionChangeSummary(diff.Counts)
+			</div>
 			<svg
 				:class="expanded ? 'rotate-180' : ''"
 				class="w-5 h-5 text-neutral-400 transition-transform duration-200"
@@ -189,7 +170,6 @@ templ VersionDiffInline(diff VersionDiff, expanded bool) {
 			</svg>
 		</button>
 
-		<!-- Expandable content -->
 		<div
 			x-show="expanded"
 			x-transition:enter="transition ease-out duration-200"

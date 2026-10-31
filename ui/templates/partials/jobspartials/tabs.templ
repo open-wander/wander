@@ -12,7 +12,7 @@ type JobVersion struct {
 	Stable     bool      // Whether this version is marked as stable
 	SubmitTime time.Time // When this version was submitted
 	Active     bool      // Whether this is the currently active version
-	Diff       string    // URL for diff view (for future use)
+	Diff       *VersionDiff
 }
 
 // JobDefinition contains the job definition content and metadata
@@ -387,6 +387,7 @@ templ VersionsTab(versions []JobVersion, jobID string) {
 				{Key: "version", Label: "Version", Sortable: false, Align: "left", Width: "w-24"},
 				{Key: "stable", Label: "Stable", Sortable: false, Align: "center", Width: "w-24"},
 				{Key: "submitted", Label: "Submitted", Sortable: false, Align: "left"},
+				{Key: "changes", Label: "Changes", Sortable: false, Align: "left"},
 				{Key: "actions", Label: "Actions", Sortable: false, Align: "right", Width: "w-48"},
 			},
 			Striped: true,
@@ -440,14 +441,21 @@ templ versionRow(version JobVersion, jobID string) {
 		@components.TableCell("left", "") {
 			<span class="text-neutral-700">{ formatSubmitTime(version.SubmitTime) }</span>
 		}
+		@components.TableCell("left", "") {
+			if version.Diff != nil {
+				@versionChangeSummary(version.Diff.Counts)
+			} else {
+				<span class="text-sm text-neutral-500">Initial version</span>
+			}
+		}
 		@components.TableCell("right", "w-48") {
 			<div class="flex items-center justify-end gap-2">
-				if version.Version > 0 {
+				if version.Diff != nil {
 					<button
 						type="button"
 						class="text-sm text-primary-600 hover:text-primary-800 font-medium"
-						title="View diff between this version and the previous"
-						hx-get={ fmt.Sprintf("/ui/jobs/%s/versions/%d/diff/%d", jobID, version.Version, version.Version-1) }
+						title={ fmt.Sprintf("View %d structured changes from version %d", version.Diff.Counts.Total(), version.Diff.OldVersion) }
+						hx-get={ fmt.Sprintf("/ui/jobs/%s/versions/%d/diff/%d", jobID, version.Version, version.Diff.OldVersion) }
 						hx-target="body"
 						hx-swap="beforeend"
 					>
@@ -476,6 +484,21 @@ templ versionRow(version JobVersion, jobID string) {
 			</div>
 		}
 	</tr>
+}
+
+templ versionChangeSummary(counts VersionChangeCounts) {
+	<div class="flex flex-wrap items-center gap-2 text-xs" aria-label={ counts.AriaLabel() }>
+		<span class="font-medium text-neutral-700">{ fmt.Sprintf("%d changes", counts.Total()) }</span>
+		if counts.Added > 0 {
+			<span class="text-green-700">+{ fmt.Sprintf("%d", counts.Added) }</span>
+		}
+		if counts.Edited > 0 {
+			<span class="text-amber-700">~{ fmt.Sprintf("%d", counts.Edited) }</span>
+		}
+		if counts.Deleted > 0 {
+			<span class="text-red-700">-{ fmt.Sprintf("%d", counts.Deleted) }</span>
+		}
+	</div>
 }
 
 // versionRowClasses returns CSS classes for version rows, highlighting the active version
