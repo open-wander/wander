@@ -1538,7 +1538,7 @@ func (h *JobsHandler) TaskGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *JobsHandler) getLiveTaskGroupDetail(r *http.Request, jobID, taskGroupName string) (taskgrouppartials.TaskGroupDetail, error) {
-	_, job, _, err := h.fetchLiveJob(r, jobID)
+	client, job, queryOpts, err := h.fetchLiveJob(r, jobID)
 	if err != nil {
 		return taskgrouppartials.TaskGroupDetail{}, err
 	}
@@ -1607,6 +1607,10 @@ func (h *JobsHandler) getLiveTaskGroupDetail(r *http.Request, jobID, taskGroupNa
 				Max:     intValue64(group.Scaling.Max),
 			}
 		}
+		jobName, namespace := splitJobReference(jobID, GetNamespaceFromRequest(r))
+		detail.Namespace = namespace
+		detail.Region = GetRegionFromRequest(r)
+		h.enrichTaskGroupRuntime(r, client, queryOpts, jobName, taskGroupName, &detail)
 		return detail, nil
 	}
 

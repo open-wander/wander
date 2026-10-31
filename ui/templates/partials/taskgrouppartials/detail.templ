@@ -14,6 +14,47 @@ type TaskGroupDetail struct {
 	Volumes           []VolumeDetail
 	Scaling           *ScalingConfig
 	PlacementFailures []PlacementFailure
+	Namespace         string
+	Region            string
+	AllocationStatus  string
+	AllocationSort    string
+	AllocationOrder   string
+	Allocations       []RuntimeAllocation
+	AllocationsReady  bool
+	AllocationsError  string
+	ScaleStatus       *RuntimeScaleStatus
+	ScaleStatusReady  bool
+	ScaleStatusError  string
+}
+
+type RuntimeAllocation struct {
+	ID         string
+	ShortID    string
+	Name       string
+	NodeName   string
+	Status     string
+	JobVersion uint64
+	Created    time.Time
+	DetailURL  string
+}
+
+type RuntimeScaleStatus struct {
+	Desired   int
+	Placed    int
+	Running   int
+	Healthy   int
+	Unhealthy int
+	Events    []RuntimeScalingEvent
+}
+
+type RuntimeScalingEvent struct {
+	Target        string
+	PreviousCount int64
+	Message       string
+	Error         bool
+	Evaluation    string
+	Time          time.Time
+	CreateIndex   uint64
 }
 
 // TaskDetail represents a task within a task group
@@ -88,6 +129,100 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 		</div>
 		<!-- Scaling Controls -->
 		@ScalingControls(jobID, tg)
+		<!-- Runtime Status -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6" data-task-group-runtime>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Runtime Status</h3>
+			if tg.ScaleStatusError != "" {
+				<p class="text-sm text-danger-700">Scale status unavailable: { tg.ScaleStatusError }</p>
+			}
+			if tg.ScaleStatusError == "" && (!tg.ScaleStatusReady || tg.ScaleStatus == nil) {
+				<p class="text-sm text-neutral-500">No scale status is available for this task group</p>
+			}
+			if tg.ScaleStatusError == "" && tg.ScaleStatusReady && tg.ScaleStatus != nil {
+				<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+					@runtimeMetric("Desired", tg.ScaleStatus.Desired)
+					@runtimeMetric("Placed", tg.ScaleStatus.Placed)
+					@runtimeMetric("Running", tg.ScaleStatus.Running)
+					@runtimeMetric("Healthy", tg.ScaleStatus.Healthy)
+					@runtimeMetric("Unhealthy", tg.ScaleStatus.Unhealthy)
+				</div>
+				<h4 class="text-sm font-semibold text-neutral-900 mb-3">Scaling Events</h4>
+				if len(tg.ScaleStatus.Events) == 0 {
+					<p class="text-sm text-neutral-500">No scaling events</p>
+				} else {
+					<div class="space-y-3">
+						for _, event := range tg.ScaleStatus.Events {
+							<div class="rounded-lg border border-neutral-200 p-4" data-scaling-event>
+								<div class="flex flex-wrap items-center justify-between gap-2">
+									<div class="font-medium text-neutral-900">{ fmt.Sprintf("%d", event.PreviousCount) } → { event.Target }</div>
+									<span class={ scalingEventClass(event.Error) }>{ scalingEventState(event.Error) }</span>
+								</div>
+								if event.Message != "" {
+									<p class="mt-2 text-sm text-neutral-700">{ event.Message }</p>
+								}
+								<div class="mt-2 flex flex-wrap gap-4 text-xs text-neutral-500">
+									if event.Evaluation != "" {
+										<span>Evaluation: <span class="font-mono">{ event.Evaluation }</span></span>
+									}
+									<span>{ displayRuntimeTime(event.Time) }</span>
+								</div>
+							</div>
+						}
+					</div>
+				}
+			}
+		</div>
+		<!-- Task-group Allocations -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6" data-task-group-allocations>
+			<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+				<h3 class="text-lg font-semibold text-neutral-900">Allocations</h3>
+				<form method="get" action={ templ.SafeURL("/ui/jobs/" + jobID + "/taskgroups/" + tg.Name) } class="flex flex-wrap items-end gap-3">
+					if tg.Namespace != "" {
+						<input type="hidden" name="namespace" value={ tg.Namespace }/>
+					}
+					if tg.Region != "" {
+						<input type="hidden" name="region" value={ tg.Region }/>
+					}
+					<label class="text-xs text-neutral-600">Status
+						<select name="status" class="mt-1 block rounded border-neutral-300 text-sm">
+							for _, option := range []string{"all", "pending", "running", "complete", "failed", "lost"} {
+								<option value={ option } selected?={ option == tg.AllocationStatus }>{ option }</option>
+							}
+						</select>
+					</label>
+					<label class="text-xs text-neutral-600">Sort
+						<select name="sort" class="mt-1 block rounded border-neutral-300 text-sm">
+							for _, option := range []string{"created", "status", "node"} {
+								<option value={ option } selected?={ option == tg.AllocationSort }>{ option }</option>
+							}
+						</select>
+					</label>
+					<label class="text-xs text-neutral-600">Order
+						<select name="order" class="mt-1 block rounded border-neutral-300 text-sm">
+							<option value="desc" selected?={ tg.AllocationOrder == "desc" }>descending</option>
+							<option value="asc" selected?={ tg.AllocationOrder == "asc" }>ascending</option>
+						</select>
+					</label>
+					<button type="submit" class="rounded bg-primary-600 px-3 py-2 text-sm font-medium text-white">Apply</button>
+				</form>
+			</div>
+			if tg.AllocationsError != "" {
+				<p class="text-sm text-danger-700">Allocations unavailable: { tg.AllocationsError }</p>
+			} else if tg.AllocationsReady && len(tg.Allocations) == 0 {
+				<p class="text-sm text-neutral-500">No allocations match this task group and filter</p>
+			} else {
+				<div class="overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500"><tr><th class="px-4 py-3">ID</th><th class="px-4 py-3">Name</th><th class="px-4 py-3">Node</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Version</th><th class="px-4 py-3">Created</th></tr></thead>
+						<tbody class="divide-y divide-neutral-200">
+							for _, allocation := range tg.Allocations {
+								<tr data-task-group-allocation={ allocation.ID }><td class="px-4 py-3"><a class="font-mono text-primary-600 hover:underline" href={ templ.SafeURL(allocation.DetailURL) }>{ allocation.ShortID }</a></td><td class="px-4 py-3">{ allocation.Name }</td><td class="px-4 py-3">{ displayConfigValue(allocation.NodeName) }</td><td class="px-4 py-3">{ allocation.Status }</td><td class="px-4 py-3">{ fmt.Sprintf("%d", allocation.JobVersion) }</td><td class="px-4 py-3">{ displayRuntimeTime(allocation.Created) }</td></tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
 		<!-- Placement Failures -->
 		if len(tg.PlacementFailures) > 0 {
 			<div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
@@ -205,6 +340,31 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 			</div>
 		</div>
 	</div>
+}
+
+templ runtimeMetric(label string, value int) {
+	<div class="rounded-lg border border-neutral-200 bg-neutral-50 p-3"><div class="text-xs text-neutral-500">{ label }</div><div class="text-xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", value) }</div></div>
+}
+
+func scalingEventState(failed bool) string {
+	if failed {
+		return "Error"
+	}
+	return "Applied"
+}
+
+func scalingEventClass(failed bool) string {
+	if failed {
+		return "text-sm font-medium text-danger-700"
+	}
+	return "text-sm font-medium text-success-700"
+}
+
+func displayRuntimeTime(value time.Time) string {
+	if value.IsZero() {
+		return "Time unavailable"
+	}
+	return value.Format("Jan 2, 2006 15:04:05")
 }
 
 func lifecycleLabel(task TaskDetail) string {

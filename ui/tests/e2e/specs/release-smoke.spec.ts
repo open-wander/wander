@@ -760,6 +760,19 @@ test.describe('Wander release smoke', () => {
     await expect(page.locator('[data-task-lifecycle="prepare"]')).toContainText('Sidecar: No');
     await expect(page.locator('[data-task-lifecycle="fixture"]')).toContainText('Lifecycle: Normal');
     await expect(page.locator('[data-task-group-volumes]')).toContainText('No configured volumes');
+    await expect(page.locator('[data-task-group-runtime]')).toContainText('Desired');
+    await expect(page.locator('[data-task-group-runtime]')).toContainText('Running');
+    await expect(page.locator('[data-task-group-allocations] [data-task-group-allocation]')).toHaveCount(1);
+    const allocationFilters = page.locator('[data-task-group-allocations] form');
+    await allocationFilters.locator('select[name="status"]').selectOption('running');
+    await allocationFilters.locator('select[name="sort"]').selectOption('node');
+    await allocationFilters.locator('select[name="order"]').selectOption('asc');
+    await page.goto('/ui/jobs/wander-ui-smoke/taskgroups/web?status=running&sort=node&order=asc');
+    await expect(page).toHaveURL(/status=running.*sort=node.*order=asc/);
+    await expect(page.locator('[data-task-group-allocations] select[name="status"]')).toHaveValue('running');
+    await expect(page.locator('[data-task-group-allocations] select[name="sort"]')).toHaveValue('node');
+    await expect(page.locator('[data-task-group-allocations] select[name="order"]')).toHaveValue('asc');
+    await expect(page.locator('[data-task-group-allocations] [data-task-group-allocation]')).toHaveCount(1);
 
     const count = page.getByLabel('Instance count');
     const decrement = page.getByRole('button', { name: 'Decrease count' });

@@ -30,8 +30,9 @@ scope and parity work list is the
   and same-origin WebSocket exec.
 - Task groups: live scaling controls and task resources plus deterministically
   ordered volume requests and explicit normal/prestart/poststart/poststop and
-  sidecar lifecycle states. Allocation tables, scaling events, filtering, and
-  sorting remain release-parity work.
+  sidecar lifecycle states. Exact-group allocation history, validated status
+  filters and sorting, scheduler health counts, and deterministic scaling-event
+  history preserve namespace, region, and ACL scope and expose partial failures.
 - Clients: live list and detail data, drain, cancel drain, active allocation
   counts, and allocation reservations against schedulable node capacity.
 - Services: live namespace-scoped list and registration detail routes, with
@@ -135,7 +136,6 @@ be used to defer baseline behavior without explicit approval:
 
 - Allocation ports, services, reschedule/preemption history, and task lifecycle
   visualization.
-- Task-group allocation tables, scaling events, filters, and sorting.
 - Richer job allocation filtering, sorting, task expansion, and live resource
   statistics.
 - Variable validation, conflict detection, JSON/tree views, copy controls, and
