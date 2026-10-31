@@ -1,0 +1,11 @@
+package servers
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/serverspartials"
+)
+
+// List renders the full servers list page with layout.
+templ List(layoutProps layouts.PageLayoutProps, serversList []serverspartials.ServerSummary, sortColumn string, sortDir string, pagination serverspartials.PaginationMeta, listURL string) {
+	@layouts.PageLayout(layoutProps, serverspartials.ListContent(serversList, sortColumn, sortDir, pagination, listURL))
+}

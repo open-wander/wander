@@ -249,6 +249,7 @@ func TestLogmon_Start_restart(t *testing.T) {
 	}, func(err error) {
 		require.NoError(err)
 	})
+	require.NoError(stdout.Close())
 
 	// Start logmon again and assert that it can receive logs again
 	require.NoError(lm.Start(cfg))

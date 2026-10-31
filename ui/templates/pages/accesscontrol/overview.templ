@@ -1,0 +1,10 @@
+package accesscontrol
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/accesscontrolpartials"
+)
+
+templ Overview(props layouts.PageLayoutProps, counts accesscontrolpartials.Counts) {
+	@layouts.PageLayout(props, accesscontrolpartials.Overview(counts))
+}

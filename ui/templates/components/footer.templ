@@ -1,0 +1,16 @@
+package components
+
+// FooterProps contains the application metadata shown at the bottom of the shell.
+type FooterProps struct {
+	Version string
+}
+
+// Footer provides a consistent lower boundary without covering scrollable content.
+templ Footer(props FooterProps) {
+	<footer class="flex w-full flex-shrink-0 items-center justify-between border-t border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-500 lg:px-6">
+		<span class="font-medium text-neutral-600">Wander</span>
+		if props.Version != "" {
+			<span>{ props.Version }</span>
+		}
+	</footer>
+}

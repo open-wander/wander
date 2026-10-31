@@ -22,13 +22,13 @@ func (c *OperatorRaftStateCommand) Help() string {
 Usage: nomad operator raft state <path to nomad data dir>
 
   Display the server state obtained by replaying raft log entries persisted in
-  the Nomad data directory in JSON format.
+  the Wander data directory in JSON format.
 
   This command requires file system permissions to access the data directory on
-  disk. The Nomad server locks access to the data directory, so this command
-  cannot be run on a data directory that is being used by a running Nomad server.
+  disk. The Wander server locks access to the data directory, so this command
+  cannot be run on a data directory that is being used by a running Wander server.
 
-  This is a low-level debugging tool and not subject to Nomad's usual backward
+  This is a low-level debugging tool and not subject to Wander's usual backward
   compatibility guarantees.
 
 Options:

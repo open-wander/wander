@@ -1,0 +1,222 @@
+package components
+
+// ModalProps contains parameters for the Modal component
+type ModalProps struct {
+	ID       string // Unique identifier for the modal
+	Title    string // Modal title text
+	Size     string // "sm", "md", "lg", "xl", "full" - controls modal width
+	Closable bool   // Whether to show close button and allow backdrop/escape close
+	Class    string // Additional CSS classes for customization
+}
+
+// Modal renders a complete modal dialog with backdrop.
+//
+// Features:
+//   - Alpine.js state management for open/close
+//   - Escape key to close (if closable)
+//   - Click backdrop to close (if closable)
+//   - Body scroll lock when open
+//   - Focus trap for accessibility
+//   - Smooth fade/scale animations
+//   - Multiple size options
+//   - HTMX compatible for dynamic content loading
+//
+// Size Options:
+//   - "sm": 384px max-width (24rem)
+//   - "md": 512px max-width (32rem) - default
+//   - "lg": 640px max-width (40rem)
+//   - "xl": 768px max-width (48rem)
+//   - "full": 90% viewport width
+//
+// Example Static Usage:
+//   <div x-data="modal()">
+//     <button @click="open">Open Modal</button>
+//     @Modal(ModalProps{
+//         ID: "example-modal",
+//         Title: "Example Modal",
+//         Size: "md",
+//         Closable: true,
+//     }) {
+//         @ModalBody() {
+//             <p>Modal content here</p>
+//         }
+//         @ModalFooter() {
+//             <button @click="close">Cancel</button>
+//             <button>Confirm</button>
+//         }
+//     }
+//   </div>
+//
+// Example HTMX Usage (lazy-load content):
+//   <div x-data="modal()">
+//     <button @click="open" hx-get="/modal-content" hx-target="#modal-body-content">
+//       Open Modal
+//     </button>
+//     @Modal(ModalProps{ID: "htmx-modal", Title: "Dynamic", Size: "lg"}) {
+//         @ModalBody() {
+//             <div id="modal-body-content">Loading...</div>
+//         }
+//     }
+//   </div>
+templ Modal(props ModalProps) {
+	<!-- Modal Backdrop and Container -->
+	<div
+		x-show="isOpen"
+		x-cloak
+		if props.Closable {
+			@keydown.escape.window="close"
+		}
+		class="fixed inset-0 z-50 overflow-y-auto"
+		x-transition:enter="transition ease-out duration-300"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-200"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby={ "modal-title-" + props.ID }
+	>
+		<!-- Backdrop -->
+		<div
+			if props.Closable {
+				@click="close"
+			}
+			class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+			aria-hidden="true"
+		></div>
+		<!-- Modal positioning container -->
+		<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+			<!-- Modal content -->
+			<div
+				@click.stop
+				@keydown.tab="trapFocus($event)"
+				class={ "relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full " + modalSizeClass(props.Size) + " " + props.Class }
+				x-transition:enter="transition ease-out duration-300"
+				x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+				x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave="transition ease-in duration-200"
+				x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+			>
+				<!-- Modal Header -->
+				@ModalHeader(ModalHeaderProps{
+					ID:       props.ID,
+					Title:    props.Title,
+					Closable: props.Closable,
+				})
+				<!-- Modal Body/Footer Content (from children) -->
+				{ children... }
+			</div>
+		</div>
+	</div>
+}
+
+// ModalHeaderProps contains parameters for the ModalHeader component
+type ModalHeaderProps struct {
+	ID       string // Modal ID for ARIA labelledby
+	Title    string // Header title text
+	Closable bool   // Whether to show close button
+}
+
+// ModalHeader renders the modal header with title and optional close button.
+//
+// Features:
+//   - Sticky header (remains visible when scrolling)
+//   - Close button with X icon (Heroicon)
+//   - ARIA labels for accessibility
+//   - Consistent padding and typography
+//
+// This component is automatically included in Modal but can be used standalone
+// for custom modal implementations.
+templ ModalHeader(props ModalHeaderProps) {
+	<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+		<div class="flex items-center justify-between">
+			<h3
+				id={ "modal-title-" + props.ID }
+				class="text-lg font-semibold leading-6 text-neutral-900"
+			>
+				{ props.Title }
+			</h3>
+			if props.Closable {
+				<button
+					type="button"
+					@click="close"
+					class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					aria-label="Close"
+				>
+					<span class="sr-only">Close</span>
+					<svg
+						class="h-6 w-6"
+						xmlns="http://www.w3.org/2000/svg"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						aria-hidden="true"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+					</svg>
+				</button>
+			}
+		</div>
+	</div>
+}
+
+// ModalBody renders the scrollable content area of the modal.
+//
+// Features:
+//   - Scrollable overflow handling
+//   - Consistent padding
+//   - Flexible content area
+//   - Compatible with HTMX content swaps
+//
+// Example:
+//   @ModalBody() {
+//       <p>Your content here</p>
+//       <form>...</form>
+//   }
+templ ModalBody() {
+	<div class="px-6 py-4 overflow-y-auto max-h-[calc(100vh-16rem)]">
+		{ children... }
+	</div>
+}
+
+// ModalFooter renders the action buttons area at the bottom of the modal.
+//
+// Features:
+//   - Sticky footer (remains visible when scrolling)
+//   - Right-aligned button layout (standard pattern)
+//   - Consistent padding and spacing
+//   - Border separator from body content
+//
+// Example:
+//   @ModalFooter() {
+//       <button @click="close" type="button" class="btn-secondary">Cancel</button>
+//       <button type="submit" class="btn-primary">Save</button>
+//   }
+templ ModalFooter() {
+	<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+		<div class="flex justify-end space-x-3">
+			{ children... }
+		</div>
+	</div>
+}
+
+// modalSizeClass returns the Tailwind max-width class for the given size
+func modalSizeClass(size string) string {
+	switch size {
+	case "sm":
+		return "sm:max-w-sm"
+	case "md":
+		return "sm:max-w-md"
+	case "lg":
+		return "sm:max-w-lg"
+	case "xl":
+		return "sm:max-w-xl"
+	case "full":
+		return "sm:max-w-[90vw]"
+	default:
+		// Default to medium if not specified
+		return "sm:max-w-md"
+	}
+}

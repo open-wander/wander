@@ -1,0 +1,217 @@
+package variablespartials
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// VariableDetail represents detailed information about a variable
+type VariableDetail struct {
+	Path        string
+	Namespace   string
+	CreateIndex uint64
+	ModifyIndex uint64
+	Modified    time.Time
+	Items       map[string]string
+}
+
+// DetailContent renders the variable detail page content (without layout)
+templ DetailContent(variable VariableDetail) {
+	<div
+		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+		x-data="variableEditor()"
+		data-variable-items={ variableItemsJSON(variable.Items) }
+	>
+		<!-- Variable Header -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center space-x-4">
+					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ variable.Path }</h1>
+					@components.Badge(components.BadgeProps{
+						Variant: namespaceVariant(variable.Namespace),
+						Size:    "md",
+					}) {
+						{ variable.Namespace }
+					}
+				</div>
+				<div class="flex items-center space-x-2">
+					@components.Button(components.ButtonProps{
+						Variant:     "danger",
+						Outline:     true,
+						Size:        "sm",
+						Icon:        "trash",
+						AlpineClick: "deleteModal = true",
+					}, "Delete")
+				</div>
+			</div>
+			<!-- Metadata -->
+			<div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+				<div>
+					<span class="text-neutral-500 dark:text-neutral-400">Create Index:</span>
+					<span class="ml-2 font-medium text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", variable.CreateIndex) }</span>
+				</div>
+				<div>
+					<span class="text-neutral-500 dark:text-neutral-400">Modify Index:</span>
+					<span class="ml-2 font-medium text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", variable.ModifyIndex) }</span>
+				</div>
+				<div>
+					<span class="text-neutral-500 dark:text-neutral-400">Last Modified:</span>
+					<span class="ml-2 font-medium text-neutral-900 dark:text-neutral-100">{ formatTimeAgo(variable.Modified) }</span>
+				</div>
+			</div>
+		</div>
+		<!-- Key-Value Editor -->
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<div class="mb-4 flex items-center justify-between">
+				<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Items</h2>
+				<button
+					type="button"
+					@click="addItem()"
+					class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+				>
+					<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+					</svg>
+					Add Item
+				</button>
+			</div>
+			<!-- Save/Cancel Feedback Area -->
+			<div id="save-feedback" class="mb-4"></div>
+			<!-- Key-Value Pairs -->
+			<form
+				hx-post={ "/ui/variables/" + variable.Path }
+				hx-target="#save-feedback"
+				hx-swap="innerHTML"
+			>
+				<div class="space-y-3">
+					<template x-for="(item, index) in items" :key="item.id">
+						<div class="flex items-start space-x-3">
+							<!-- Key Input -->
+							<div class="flex-1">
+								<input
+									type="text"
+									x-model="item.key"
+									:name="'key_' + index"
+									placeholder="Key"
+									class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+								/>
+							</div>
+							<!-- Value Input -->
+							<div class="flex-1">
+								<input
+									type="text"
+									x-model="item.value"
+									:name="'value_' + index"
+									placeholder="Value"
+									class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+								/>
+							</div>
+							<!-- Remove Button -->
+							<button
+								type="button"
+								@click="removeItem(index)"
+								class="inline-flex items-center p-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-sm text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+							>
+								<svg class="h-5 w-5 text-error-600 dark:text-error-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"></path>
+								</svg>
+							</button>
+						</div>
+					</template>
+					<!-- Empty State -->
+					<template x-if="items.length === 0">
+						<div class="text-center py-12">
+							<svg class="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"></path>
+							</svg>
+							<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No items</h3>
+							<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Get started by adding a new key-value pair.</p>
+							<div class="mt-6">
+								<button
+									type="button"
+									@click="addItem()"
+									class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+								>
+									<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+									</svg>
+									Add Item
+								</button>
+							</div>
+						</div>
+					</template>
+				</div>
+				<!-- Action Buttons -->
+				<template x-if="items.length > 0">
+					<div class="mt-6 flex items-center justify-end space-x-3">
+						<button
+							type="button"
+							@click="resetItems()"
+							class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-sm text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+						>
+							Reset
+						</button>
+						<button
+							type="submit"
+							class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+						>
+							<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+							Save Variable
+						</button>
+					</div>
+				</template>
+			</form>
+		</div>
+		<!-- Delete Confirmation Modal -->
+		@DeleteVariableModal(variable)
+	</div>
+}
+
+// DeleteVariableModal renders the confirmation modal for deleting a variable
+templ DeleteVariableModal(variable VariableDetail) {
+	<div x-data="modalBridge('deleteModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "delete-variable-modal",
+			Title:    "Delete Variable",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						Are you sure you want to delete variable <strong class="text-neutral-900 dark:text-neutral-100">{ variable.Path }</strong>?
+					</p>
+					<p class="text-sm text-error-600 dark:text-error-400 font-medium">
+						This action cannot be undone.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					hx-delete={ "/ui/variables/" + variable.Path }
+					@click="close"
+					class="btn btn-danger btn-sm"
+				>
+					Delete Variable
+				</button>
+			}
+		}
+	</div>
+}
+
+func variableItemsJSON(items map[string]string) string {
+	itemsJSON, _ := json.Marshal(items)
+	return string(itemsJSON)
+}

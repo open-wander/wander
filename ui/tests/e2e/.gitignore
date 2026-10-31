@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+test-results.json
+
+# Traces and videos
+*.trace.zip
+*.webm
+
+# Test result screenshots (exclude)
+test-results/**/*.png
+
+# But allow baseline screenshots (include)
+!__screenshots__/**/*.png
+
+# OS files
+.DS_Store

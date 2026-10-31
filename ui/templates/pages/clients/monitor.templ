@@ -1,0 +1,10 @@
+package clients
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/clientspartials"
+)
+
+templ Monitor(layoutProps layouts.PageLayoutProps, props clientspartials.ClientMonitorProps) {
+	@layouts.PageLayout(layoutProps, clientspartials.ClientMonitorContent(props))
+}

@@ -1,0 +1,179 @@
+package components
+
+import "strconv"
+
+// GaugeChartProps contains parameters for the GaugeChart component
+type GaugeChartProps struct {
+	ID    string  // Required: Unique ID for the chart
+	Value float64 // Required: Current value (0-100)
+	Label string  // Optional: Label text below the gauge
+	Width string  // Optional: Tailwind width class - defaults to "full"
+	Height string // Optional: Tailwind height class - defaults to "64"
+	Class string  // Optional: Additional CSS classes
+
+	// Chart Options
+	MinValue      float64 // Minimum value (default: 0)
+	MaxValue      float64 // Maximum value (default: 100)
+	ShowValue     bool    // Show numeric value in center (default: true)
+	AnimateOnLoad bool    // Animate gauge on load (default: true)
+	Style         string  // Gauge style: "semicircle" or "circle" (default: "semicircle")
+
+	// Thresholds (optional custom thresholds)
+	// If not provided, defaults: <50 green, 50-75 yellow, 75-90 orange, >=90 red
+	GoodThreshold    float64 // Below this is green (default: 50)
+	WarningThreshold float64 // Below this is yellow (default: 75)
+	DangerThreshold  float64 // Below this is orange (default: 90)
+	// Above DangerThreshold is red
+}
+
+// GaugeChart renders a gauge chart for displaying resource utilization or progress.
+//
+// Features:
+//   - Semi-circular or circular gauge visualization
+//   - Auto color-coding based on value thresholds:
+//     * Green: < 50% (good)
+//     * Yellow: 50-75% (warning)
+//     * Orange: 75-90% (danger)
+//     * Red: >= 90% (critical)
+//   - Animated transitions on value changes
+//   - Numeric percentage display in center
+//   - Responsive resizing
+//   - Dark mode support
+//   - Custom threshold support
+//
+// Example Basic Usage:
+//   @GaugeChart(GaugeChartProps{
+//       ID: "cpu-gauge",
+//       Value: 65.5,
+//       Label: "CPU Usage",
+//   })
+//
+// Example with Custom Thresholds:
+//   @GaugeChart(GaugeChartProps{
+//       ID: "memory-gauge",
+//       Value: 82.0,
+//       Label: "Memory Usage",
+//       GoodThreshold: 60,
+//       WarningThreshold: 80,
+//       DangerThreshold: 95,
+//   })
+//
+// Example Circular Style:
+//   @GaugeChart(GaugeChartProps{
+//       ID: "progress-gauge",
+//       Value: 45.0,
+//       Label: "Progress",
+//       Style: "circle",
+//       Height: "80",
+//   })
+//
+// Example with HTMX Updates:
+//   <div hx-get="/api/metrics/cpu"
+//        hx-trigger="every 5s"
+//        hx-target="#cpu-container"
+//        hx-swap="outerHTML">
+//       <div id="cpu-container">
+//           @GaugeChart(GaugeChartProps{
+//               ID: "cpu-gauge",
+//               Value: 0,
+//               Label: "CPU",
+//           })
+//       </div>
+//   </div>
+templ GaugeChart(props GaugeChartProps) {
+	<div
+		x-data={ gaugeChartData(props) }
+		x-init="init()"
+	>
+		@ChartContainer(ChartContainerProps{
+			ID:     props.ID,
+			Width:  props.Width,
+			Height: props.Height,
+			Class:  props.Class,
+		})
+	</div>
+}
+
+// gaugeChartData generates Alpine.js data object for the gauge chart
+func gaugeChartData(props GaugeChartProps) string {
+	// Set defaults
+	minValue := props.MinValue
+	maxValue := props.MaxValue
+	if maxValue == 0 {
+		maxValue = 100
+	}
+
+	showValue := "true"
+	if !props.ShowValue {
+		showValue = "false"
+	}
+
+	animateOnLoad := "true"
+	if !props.AnimateOnLoad {
+		animateOnLoad = "false"
+	}
+
+	style := props.Style
+	if style == "" {
+		style = "semicircle"
+	}
+
+	// Default thresholds
+	goodThreshold := props.GoodThreshold
+	if goodThreshold == 0 {
+		goodThreshold = 50
+	}
+
+	warningThreshold := props.WarningThreshold
+	if warningThreshold == 0 {
+		warningThreshold = 75
+	}
+
+	dangerThreshold := props.DangerThreshold
+	if dangerThreshold == 0 {
+		dangerThreshold = 90
+	}
+
+	// Build Alpine.js data object
+	return `{
+		chart: null,
+		init() {
+			this.loadChart();
+		},
+		async loadChart() {
+			try {
+				const { renderGaugeChart } = await import('/static/js/gauge-chart.js');
+
+				this.chart = renderGaugeChart(
+					'` + props.ID + `',
+					{
+						value: ` + floatToString(props.Value) + `,
+						minValue: ` + floatToString(minValue) + `,
+						maxValue: ` + floatToString(maxValue) + `,
+						label: '` + props.Label + `',
+						showValue: ` + showValue + `,
+						animateOnLoad: ` + animateOnLoad + `,
+						style: '` + style + `',
+						thresholds: {
+							good: ` + floatToString(goodThreshold) + `,
+							warning: ` + floatToString(warningThreshold) + `,
+							danger: ` + floatToString(dangerThreshold) + `,
+						}
+					}
+				);
+			} catch (err) {
+				console.error('Failed to load gauge chart:', err);
+			}
+		},
+		destroy() {
+			if (this.chart) {
+				this.chart.destroy();
+			}
+		}
+	}`
+}
+
+// floatToString converts float64 to string for JavaScript
+func floatToString(f float64) string {
+	return strconv.FormatFloat(f, 'f', -1, 64)
+}

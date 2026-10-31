@@ -1,0 +1,522 @@
+package jobspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// JobDetail represents detailed information about a job
+type JobDetail struct {
+	ID                         string
+	Name                       string
+	Status                     string
+	Type                       string
+	Priority                   int
+	Datacenters                []string
+	TaskGroups                 []TaskGroupSummary
+	Periodic                   bool
+	PeriodicDetails            *PeriodicDetails
+	Parameterized              *ParameterizedJob
+	NodePool                   string
+	AllAtOnce                  bool
+	ParentID                   string
+	Dispatched                 bool
+	Multiregion                []JobRegion
+	Metadata                   []JobMetadata
+	Volumes                    []JobVolume
+	LifecycleTasks             []JobLifecycleTask
+	Allocations                AllocationSummary
+	ChildJobs                  ChildJobSummary
+	RecentAllocations          []JobAllocation
+	RecentAllocationsAvailable bool
+	PlacementFailures          []PlacementFailure
+	PlacementFailuresAvailable bool
+	ActiveTab                  string
+	ActiveTabContent           templ.Component
+}
+
+// JobMetadata is a deterministic key/value projection of live job metadata.
+type JobMetadata struct {
+	Key   string
+	Value string
+}
+
+// PeriodicDetails contains the live scheduling contract for a periodic job.
+type PeriodicDetails struct {
+	Enabled         bool
+	Specs           []string
+	TimeZone        string
+	ProhibitOverlap bool
+}
+
+// JobRegion is a configured multiregion target.
+type JobRegion struct {
+	Name        string
+	Count       int
+	Datacenters []string
+	NodePool    string
+}
+
+// JobVolume is a task-group volume request from the live job definition.
+type JobVolume struct {
+	TaskGroup     string
+	Name          string
+	Type          string
+	Source        string
+	ReadOnly      bool
+	PerAllocation bool
+}
+
+// JobLifecycleTask is a task with an explicit lifecycle hook.
+type JobLifecycleTask struct {
+	TaskGroup string
+	Task      string
+	Hook      string
+	Sidecar   bool
+}
+
+// ChildJobSummary contains the scheduler's current child-job totals.
+type ChildJobSummary struct {
+	Applicable bool
+	Available  bool
+	Pending    int64
+	Running    int64
+	Dead       int64
+}
+
+func (summary ChildJobSummary) Total() int64 {
+	return summary.Pending + summary.Running + summary.Dead
+}
+
+// ParameterizedJob contains the dispatch inputs declared by a parent job.
+type ParameterizedJob struct {
+	Payload      string
+	MetaRequired []string
+	MetaOptional []string
+}
+
+// TaskGroupSummary represents a summary of a task group
+type TaskGroupSummary struct {
+	Name  string
+	Count int
+	Tasks []string
+}
+
+// DetailContent renders the job detail page content (without layout)
+templ DetailContent(job JobDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false, dispatchModal: false, forcePeriodicModal: false, purgeModal: false }">
+		<!-- Job Header -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center space-x-4">
+					<h1 class="text-3xl font-bold text-neutral-900">{ job.Name }</h1>
+					@components.Badge(components.BadgeProps{
+						Variant: statusToBadgeVariant(job.Status),
+						Dot:     true,
+						Size:    "md",
+					}) {
+						{ job.Status }
+					}
+				</div>
+				<div class="flex items-center space-x-4">
+					<span class="text-sm text-neutral-600">Type: <span class="font-medium">{ job.Type }</span></span>
+					<span class="text-sm text-neutral-600">Priority: <span class="font-medium">{ fmt.Sprintf("%d", job.Priority) }</span></span>
+					<!-- Action Buttons -->
+					<div class="flex items-center space-x-2">
+						if job.Status == "dead" || job.Status == "pending" {
+							@components.Button(components.ButtonProps{
+								Variant:     "success",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "startModal = true",
+							}, "Start")
+						}
+						if job.Status == "running" {
+							@components.Button(components.ButtonProps{
+								Variant:     "danger",
+								Outline:     true,
+								Size:        "sm",
+								Icon:        "stop",
+								AlpineClick: "stopModal = true",
+							}, "Stop")
+						}
+						if job.Periodic {
+							@components.Button(components.ButtonProps{
+								Variant:     "primary",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "forcePeriodicModal = true",
+							}, "Force Launch")
+						} else if job.Parameterized != nil {
+							@components.Button(components.ButtonProps{
+								Variant:     "primary",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "dispatchModal = true",
+							}, "Dispatch")
+						} else {
+							@components.Button(components.ButtonProps{
+								Variant:     "primary",
+								Size:        "sm",
+								Icon:        "play",
+								AlpineClick: "runModal = true",
+							}, "Run")
+						}
+						@components.Button(components.ButtonProps{
+							Variant:     "danger",
+							Outline:     true,
+							Size:        "sm",
+							Icon:        "trash",
+							AlpineClick: "purgeModal = true",
+						}, "Purge")
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- Tabs -->
+		<div class="bg-white shadow rounded-lg p-6">
+			@components.Tabs(components.TabsProps{
+				Tabs: []components.Tab{
+					{
+						ID:      "overview",
+						Label:   "Overview",
+						Icon:    "home",
+						URL:     "/ui/jobs/" + job.ID + "/overview",
+						Content: OverviewTab(job),
+						Active:  getActiveJobTab(job.ActiveTab) == "overview",
+					},
+					{
+						ID:      "definition",
+						Label:   "Definition",
+						Icon:    "document",
+						URL:     "/ui/jobs/" + job.ID + "/definition",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "definition",
+					},
+					{
+						ID:      "versions",
+						Label:   "Versions",
+						Icon:    "clock",
+						URL:     "/ui/jobs/" + job.ID + "/versions",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "versions",
+					},
+					{
+						ID:      "allocations",
+						Label:   "Allocations",
+						Icon:    "user",
+						URL:     "/ui/jobs/" + job.ID + "/allocations",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "allocations",
+					},
+					{
+						ID:      "clients",
+						Label:   "Clients",
+						Icon:    "user",
+						URL:     "/ui/jobs/" + job.ID + "/clients",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "clients",
+					},
+					{
+						ID:      "services",
+						Label:   "Services",
+						Icon:    "cube",
+						URL:     "/ui/jobs/" + job.ID + "/services",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "services",
+					},
+					{
+						ID:      "deployments",
+						Label:   "Deployments",
+						Icon:    "cube",
+						URL:     "/ui/jobs/" + job.ID + "/deployments",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "deployments",
+					},
+					{
+						ID:      "evaluations",
+						Label:   "Evaluations",
+						Icon:    "chart",
+						URL:     "/ui/jobs/" + job.ID + "/evaluations",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "evaluations",
+					},
+					{
+						ID:      "variables",
+						Label:   "Variables",
+						Icon:    "folder",
+						URL:     "/ui/jobs/" + job.ID + "/variables",
+						Content: job.ActiveTabContent,
+						Active:  getActiveJobTab(job.ActiveTab) == "variables",
+					},
+				},
+				ActiveTab: getActiveJobTab(job.ActiveTab),
+				Mode:      "htmx",
+				PanelID:   "job-detail-panel",
+			})
+		</div>
+		<!-- Confirmation Modals -->
+		@StartJobModal(job)
+		@StopJobModal(job)
+		@RunJobModal(job)
+		if job.Periodic {
+			@ForcePeriodicJobModal(job)
+		}
+		if job.Parameterized != nil {
+			@DispatchJobModal(job)
+		}
+		@PurgeJobModal(job)
+	</div>
+}
+
+func getActiveJobTab(tab string) string {
+	if tab == "" {
+		return "overview"
+	}
+	return tab
+}
+
+// ForcePeriodicJobModal confirms an immediate launch of a periodic job.
+templ ForcePeriodicJobModal(job JobDetail) {
+	<div x-data="modalBridge('forcePeriodicModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "force-periodic-job-modal",
+			Title:    "Force Launch",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Launch <strong class="text-neutral-900">{ job.Name }</strong> immediately, outside its normal schedule?
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
+				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/periodic/force" } hx-swap="none" @click="close" class="btn btn-primary btn-sm">Force Launch</button>
+			}
+		}
+	</div>
+}
+
+// statusToBadgeVariant maps job status to badge variant
+func statusToBadgeVariant(status string) string {
+	switch status {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "dead":
+		return "neutral"
+	default:
+		return "info"
+	}
+}
+
+// StartJobModal renders the confirmation modal for starting a job
+templ StartJobModal(job JobDetail) {
+	<div x-data="modalBridge('startModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "start-job-modal",
+			Title:    "Start Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Are you sure you want to start job <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500">
+						This will create new allocations and start running the job tasks.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					hx-post={ "/api/jobs/" + job.ID + "/start" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-success btn-sm"
+				>
+					Start Job
+				</button>
+			}
+		}
+	</div>
+}
+
+// StopJobModal renders the confirmation modal for stopping a job
+templ StopJobModal(job JobDetail) {
+	<div x-data="modalBridge('stopModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "stop-job-modal",
+			Title:    "Stop Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Are you sure you want to stop job <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500">
+						This will gracefully stop all running allocations for this job.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					hx-post={ "/api/jobs/" + job.ID + "/stop" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-danger btn-sm"
+				>
+					Stop Job
+				</button>
+			}
+		}
+	</div>
+}
+
+// RunJobModal renders the confirmation modal for running a new job version
+templ RunJobModal(job JobDetail) {
+	<div x-data="modalBridge('runModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "run-job-modal",
+			Title:    "Run Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-600">
+						Are you sure you want to submit a new version of job <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-neutral-500">
+						This will create a new job version and trigger a deployment with the current job specification.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="btn btn-secondary btn-sm"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					hx-post={ "/api/jobs/" + job.ID + "/run" }
+					hx-swap="none"
+					@click="close"
+					class="btn btn-primary btn-sm"
+				>
+					Run Job
+				</button>
+			}
+		}
+	</div>
+}
+
+// DispatchJobModal collects the inputs declared by a parameterized job.
+templ DispatchJobModal(job JobDetail) {
+	<div x-data="modalBridge('dispatchModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "dispatch-job-modal",
+			Title:    "Dispatch Job",
+			Size:     "lg",
+			Closable: true,
+		}) {
+			<form hx-post={ "/api/jobs/" + job.ID + "/dispatch" } hx-swap="none">
+				@components.ModalBody() {
+					<div class="space-y-4">
+						<p class="text-sm text-neutral-600">
+							Create a dispatched instance of <strong class="text-neutral-900">{ job.Name }</strong>.
+						</p>
+						for _, key := range job.Parameterized.MetaRequired {
+							<label class="block text-sm font-medium text-neutral-700">
+								{ key } <span class="text-danger-600">(required)</span>
+								<input class="form-input mt-1 w-full" type="text" name={ "meta." + key } required/>
+							</label>
+						}
+						for _, key := range job.Parameterized.MetaOptional {
+							<label class="block text-sm font-medium text-neutral-700">
+								{ key } <span class="text-neutral-500">(optional)</span>
+								<input class="form-input mt-1 w-full" type="text" name={ "meta." + key }/>
+							</label>
+						}
+						if job.Parameterized.Payload != "forbidden" {
+							<label class="block text-sm font-medium text-neutral-700">
+								Payload
+								if job.Parameterized.Payload == "required" {
+									<span class="text-danger-600">(required)</span>
+								} else {
+									<span class="text-neutral-500">(optional)</span>
+								}
+								<textarea
+									class="form-textarea mt-1 w-full font-mono"
+									name="payload"
+									rows="6"
+									maxlength="16384"
+									if job.Parameterized.Payload == "required" {
+										required
+									}
+								></textarea>
+							</label>
+						}
+					</div>
+				}
+				@components.ModalFooter() {
+					<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
+					<button type="submit" class="btn btn-primary btn-sm">Dispatch Job</button>
+				}
+			</form>
+		}
+	</div>
+}
+
+// PurgeJobModal confirms permanent removal separately from stopping a job.
+templ PurgeJobModal(job JobDetail) {
+	<div x-data="modalBridge('purgeModal')">
+		@components.Modal(components.ModalProps{
+			ID:       "purge-job-modal",
+			Title:    "Purge Job",
+			Size:     "md",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				<div class="space-y-4">
+					<p class="text-sm text-neutral-700">
+						Permanently purge <strong class="text-neutral-900">{ job.Name }</strong>?
+					</p>
+					<p class="text-sm text-danger-700">
+						This stops the job and immediately removes its job history. This action cannot be undone.
+					</p>
+				</div>
+			}
+			@components.ModalFooter() {
+				<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
+				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/purge" } hx-swap="none" class="btn btn-danger btn-sm">Purge Job</button>
+			}
+		}
+	</div>
+}

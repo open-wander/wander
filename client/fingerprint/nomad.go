@@ -7,6 +7,8 @@ import (
 	"strconv"
 
 	log "github.com/hashicorp/go-hclog"
+
+	"github.com/open-wander/wander/version"
 )
 
 // NomadFingerprint is used to fingerprint the Nomad version
@@ -23,7 +25,10 @@ func NewNomadFingerprint(logger log.Logger) Fingerprint {
 
 func (f *NomadFingerprint) Fingerprint(req *FingerprintRequest, resp *FingerprintResponse) error {
 	resp.AddAttribute("nomad.advertise.address", req.Node.HTTPAddr)
-	resp.AddAttribute("nomad.version", req.Config.Version.VersionNumber())
+	// nomad.version is a protocol compatibility attribute, not the Wander
+	// product version. Keeping those values separate lets Wander use its own
+	// release sequence without disabling legacy feature gates.
+	resp.AddAttribute("nomad.version", version.ClusterCompatibilityVersion)
 	resp.AddAttribute("nomad.revision", req.Config.Version.Revision)
 	resp.AddAttribute("nomad.service_discovery", strconv.FormatBool(req.Config.NomadServiceDiscovery))
 	resp.Detected = true

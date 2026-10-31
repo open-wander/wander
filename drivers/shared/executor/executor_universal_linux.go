@@ -17,6 +17,8 @@ import (
 	"github.com/open-wander/wander/client/taskenv"
 	"github.com/open-wander/wander/helper/users"
 	"github.com/open-wander/wander/plugins/drivers"
+	"github.com/opencontainers/cgroups"
+	_ "github.com/opencontainers/cgroups/devices"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/specconv"
 )
@@ -24,57 +26,70 @@ import (
 // setCmdUser takes a user id as a string and looks up the user, and sets the command
 // to execute as that user.
 func setCmdUser(cmd *exec.Cmd, userid string) error {
+	credential, err := lookupUserCredential(userid)
+	if err != nil {
+		return err
+	}
+
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Credential = credential
+
+	return nil
+}
+
+func lookupUserCredential(userid string) (*syscall.Credential, error) {
 	u, err := users.Lookup(userid)
 	if err != nil {
-		return fmt.Errorf("failed to identify user %v: %v", userid, err)
+		return nil, fmt.Errorf("failed to identify user %v: %v", userid, err)
 	}
 
 	// Get the groups the user is a part of
 	gidStrings, err := u.GroupIds()
 	if err != nil {
-		return fmt.Errorf("unable to lookup user's group membership: %v", err)
+		return nil, fmt.Errorf("unable to lookup user's group membership: %v", err)
 	}
 
-	gids := make([]uint32, len(gidStrings))
+	gids := make([]uint32, 0, len(gidStrings))
 	for _, gidString := range gidStrings {
-		u, err := strconv.ParseUint(gidString, 10, 32)
+		gid, err := parseUserID(gidString, "supplementary group")
 		if err != nil {
-			return fmt.Errorf("unable to convert user's group to uint32 %s: %v", gidString, err)
+			return nil, err
 		}
-
-		gids = append(gids, uint32(u))
+		gids = append(gids, gid)
 	}
 
-	// Convert the uid and gid
-	uid, err := strconv.ParseUint(u.Uid, 10, 32)
+	uid, err := parseUserID(u.Uid, "user ID")
 	if err != nil {
-		return fmt.Errorf("unable to convert userid to uint32: %s", err)
+		return nil, err
 	}
-	gid, err := strconv.ParseUint(u.Gid, 10, 32)
+	gid, err := parseUserID(u.Gid, "group ID")
 	if err != nil {
-		return fmt.Errorf("unable to convert groupid to uint32: %s", err)
+		return nil, err
 	}
 
-	// Set the command to run as that user and group.
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	if cmd.SysProcAttr.Credential == nil {
-		cmd.SysProcAttr.Credential = &syscall.Credential{}
-	}
-	cmd.SysProcAttr.Credential.Uid = uint32(uid)
-	cmd.SysProcAttr.Credential.Gid = uint32(gid)
-	cmd.SysProcAttr.Credential.Groups = gids
+	return &syscall.Credential{
+		Uid:    uid,
+		Gid:    gid,
+		Groups: gids,
+	}, nil
+}
 
-	return nil
+func parseUserID(value, label string) (uint32, error) {
+	id, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("unable to convert %s %q to uint32: %w", label, value, err)
+	}
+	return uint32(id), nil
 }
 
 // configureResourceContainer configured the cgroups to be used to track pids
 // created by the executor
 func (e *UniversalExecutor) configureResourceContainer(pid int) error {
 	cfg := &configs.Config{
-		Cgroups: &configs.Cgroup{
-			Resources: &configs.Resources{},
+		Cgroups: &cgroups.Cgroup{
+			Resources: &cgroups.Resources{},
 		},
 	}
 

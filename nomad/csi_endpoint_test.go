@@ -2234,7 +2234,7 @@ func TestCSI_SerializedControllerRPC(t *testing.T) {
 			return nil
 		})
 		elapsed := time.Since(now)
-		timeCh <- lang.Pair[string, time.Duration]{pluginID, elapsed}
+		timeCh <- lang.Pair[string, time.Duration]{First: pluginID, Second: elapsed}
 		must.NoError(t, err)
 	}
 

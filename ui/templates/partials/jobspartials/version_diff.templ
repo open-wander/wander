@@ -1,0 +1,185 @@
+package jobspartials
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+type VersionChangeCounts struct {
+	Added   int
+	Edited  int
+	Deleted int
+}
+
+func (counts VersionChangeCounts) Total() int {
+	return counts.Added + counts.Edited + counts.Deleted
+}
+
+func (counts VersionChangeCounts) AriaLabel() string {
+	return fmt.Sprintf("%d changes: %d added, %d edited, %d deleted", counts.Total(), counts.Added, counts.Edited, counts.Deleted)
+}
+
+// VersionChange is one semantic change reported by the Wander job versions API.
+type VersionChange struct {
+	Type        string
+	Scope       string
+	Name        string
+	Old         string
+	New         string
+	Annotations []string
+}
+
+// VersionDiff represents the structured difference between two job versions.
+type VersionDiff struct {
+	JobID      string
+	OldVersion uint64
+	NewVersion uint64
+	Counts     VersionChangeCounts
+	Changes    []VersionChange
+}
+
+templ VersionDiffModal(diff VersionDiff) {
+	<div x-data="versionDiffModal()">
+		@components.Modal(components.ModalProps{
+			ID:       fmt.Sprintf("version-diff-%d-%d", diff.OldVersion, diff.NewVersion),
+			Title:    fmt.Sprintf("Version %d vs Version %d", diff.NewVersion, diff.OldVersion),
+			Size:     "full",
+			Closable: true,
+		}) {
+			@components.ModalBody() {
+				@VersionDiffContent(diff)
+			}
+			@components.ModalFooter() {
+				<button
+					type="button"
+					@click="close"
+					class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+				>
+					Close
+				</button>
+			}
+		}
+	</div>
+}
+
+templ VersionDiffContent(diff VersionDiff) {
+	<div class="mb-4 flex flex-wrap items-center gap-4 text-sm">
+		<span class="text-neutral-600">
+			Comparing version <span class="font-mono font-medium">{ fmt.Sprintf("%d", diff.NewVersion) }</span>
+			to version <span class="font-mono font-medium">{ fmt.Sprintf("%d", diff.OldVersion) }</span>
+		</span>
+		@versionChangeSummary(diff.Counts)
+	</div>
+
+	<div class="border border-neutral-200 rounded-lg overflow-hidden max-h-[65vh] overflow-y-auto">
+		<div class="overflow-x-auto">
+			<table class="w-full text-sm">
+				<thead class="sticky top-0 bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+					<tr>
+						<th class="px-3 py-2">Change</th>
+						<th class="px-3 py-2">Location</th>
+						<th class="px-3 py-2">Previous value</th>
+						<th class="px-3 py-2">New value</th>
+					</tr>
+				</thead>
+				<tbody>
+					if len(diff.Changes) == 0 {
+						<tr>
+							<td colspan="4" class="px-4 py-8 text-center text-neutral-500">
+								No differences found between versions
+							</td>
+						</tr>
+					} else {
+						for _, change := range diff.Changes {
+							@versionChangeRow(change)
+						}
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+templ versionChangeRow(change VersionChange) {
+	<tr class="border-t border-neutral-200 align-top">
+		<td class="px-3 py-2">
+			<span class={ versionChangeBadgeClasses(change.Type) }>{ change.Type }</span>
+		</td>
+		<td class="px-3 py-2 min-w-64">
+			<div class="text-xs text-neutral-500">{ change.Scope }</div>
+			<div class="font-mono text-neutral-900">{ change.Name }</div>
+			if len(change.Annotations) > 0 {
+				<div class="mt-1 text-xs text-neutral-500">{ strings.Join(change.Annotations, ", ") }</div>
+			}
+		</td>
+		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap break-words text-red-800">
+			if change.Old == "" {
+				<span class="text-neutral-400">—</span>
+			} else {
+				{ change.Old }
+			}
+		</td>
+		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap break-words text-green-800">
+			if change.New == "" {
+				<span class="text-neutral-400">—</span>
+			} else {
+				{ change.New }
+			}
+		</td>
+	</tr>
+}
+
+func versionChangeBadgeClasses(changeType string) string {
+	base := "inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+	switch changeType {
+	case "Added":
+		return base + " bg-green-100 text-green-800"
+	case "Deleted":
+		return base + " bg-red-100 text-red-800"
+	default:
+		return base + " bg-amber-100 text-amber-800"
+	}
+}
+
+templ VersionDiffInline(diff VersionDiff, expanded bool) {
+	<div
+		x-data={ fmt.Sprintf("{ expanded: %t }", expanded) }
+		class="border border-neutral-200 rounded-lg overflow-hidden mt-2"
+	>
+		<button
+			type="button"
+			@click="expanded = !expanded"
+			class="w-full px-4 py-3 flex items-center justify-between bg-neutral-50 hover:bg-neutral-100 transition-colors"
+		>
+			<div class="flex items-center gap-3">
+				<span class="text-sm font-medium text-neutral-700">
+					Changes from version { fmt.Sprintf("%d", diff.OldVersion) }
+				</span>
+				@versionChangeSummary(diff.Counts)
+			</div>
+			<svg
+				:class="expanded ? 'rotate-180' : ''"
+				class="w-5 h-5 text-neutral-400 transition-transform duration-200"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+			</svg>
+		</button>
+
+		<div
+			x-show="expanded"
+			x-transition:enter="transition ease-out duration-200"
+			x-transition:enter-start="opacity-0 -translate-y-2"
+			x-transition:enter-end="opacity-100 translate-y-0"
+			x-transition:leave="transition ease-in duration-150"
+			x-transition:leave-start="opacity-100 translate-y-0"
+			x-transition:leave-end="opacity-0 -translate-y-2"
+		>
+			@VersionDiffContent(diff)
+		</div>
+	</div>
+}

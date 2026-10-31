@@ -1,0 +1,57 @@
+package clientspartials
+
+import (
+	"net/url"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+type ClientMonitorProps struct {
+	ClientID   string
+	ClientName string
+	Level      string
+}
+
+templ ClientSubnav(clientID, active string) {
+	<nav class="mb-6 border-b border-neutral-200 dark:border-neutral-700" aria-label="Client sections">
+		<div class="-mb-px flex gap-6">
+			<a
+				href={ templ.SafeURL("/ui/clients/" + url.PathEscape(clientID)) }
+				class={ clientSubnavClass(active == "overview") }
+				aria-current={ clientSubnavCurrent(active == "overview") }
+			>Overview</a>
+			<a
+				href={ templ.SafeURL("/ui/clients/" + url.PathEscape(clientID) + "/monitor") }
+				class={ clientSubnavClass(active == "monitor") }
+				aria-current={ clientSubnavCurrent(active == "monitor") }
+			>Monitor</a>
+		</div>
+	</nav>
+}
+
+templ ClientMonitorContent(props ClientMonitorProps) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		@ClientSubnav(props.ClientID, "monitor")
+		@components.AgentMonitor(components.AgentMonitorProps{
+			TargetType: "clients",
+			TargetID: props.ClientID,
+			TargetName: props.ClientName,
+			Level: props.Level,
+		})
+	</div>
+}
+
+func clientSubnavClass(active bool) string {
+	base := "border-b-2 px-1 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-500"
+	if active {
+		return base + " border-primary-500 text-primary-600 dark:text-primary-400"
+	}
+	return base + " border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+}
+
+func clientSubnavCurrent(active bool) string {
+	if active {
+		return "page"
+	}
+	return ""
+}

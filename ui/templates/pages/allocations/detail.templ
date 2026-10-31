@@ -1,0 +1,11 @@
+package allocations
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/allocationspartials"
+)
+
+// Detail renders the allocation detail page with full page layout
+templ Detail(layoutProps layouts.PageLayoutProps, alloc allocationspartials.AllocationDetail) {
+	@layouts.PageLayout(layoutProps, allocationspartials.DetailContent(alloc))
+}

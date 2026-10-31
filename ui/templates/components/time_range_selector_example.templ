@@ -1,0 +1,249 @@
+package components
+
+// TimeRangeSelectorExample demonstrates usage of the TimeRangeSelector component
+templ TimeRangeSelectorExample() {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Time Range Selector - Examples</title>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+			<script src="https://d3js.org/d3.v7.min.js"></script>
+			<script>
+				// Configure Tailwind for dark mode
+				tailwind.config = {
+					darkMode: 'class',
+				}
+
+				// Alpine.js setup for demo
+				document.addEventListener('alpine:init', () => {
+					Alpine.data('eventMonitor', () => ({
+						events: [],
+						init() {
+							document.addEventListener('timerange-change', (e) => {
+								this.events.unshift({
+									time: new Date().toLocaleTimeString(),
+									range: e.detail.range,
+									label: e.detail.label,
+									start: e.detail.startTime.toISOString(),
+									end: e.detail.endTime.toISOString()
+								});
+								// Keep only last 10 events
+								if (this.events.length > 10) {
+									this.events = this.events.slice(0, 10);
+								}
+							});
+						}
+					}));
+
+					Alpine.data('demoChart', (chartId, baseURL) => ({
+						chartId: chartId,
+						dataURL: baseURL + '?range=1h',
+						lastUpdate: new Date().toISOString(),
+
+						init() {
+							console.log('Demo chart initialized:', this.chartId);
+							document.addEventListener('timerange-change', (e) => {
+								this.updateChart(e.detail);
+							});
+						},
+
+						updateChart(detail) {
+							const url = new URL(this.dataURL.split('?')[0], window.location.origin);
+							url.searchParams.set('start', detail.startTime.toISOString());
+							url.searchParams.set('end', detail.endTime.toISOString());
+							this.dataURL = url.toString();
+							this.lastUpdate = new Date().toISOString();
+							console.log(this.chartId + ' updated:', this.dataURL);
+						}
+					}));
+				});
+			</script>
+			<style>
+				[x-cloak] { display: none !important; }
+			</style>
+		</head>
+		<body class="h-full bg-neutral-50 dark:bg-neutral-900">
+			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+				<!-- Header -->
+				<div class="mb-8">
+					<h1 class="text-3xl font-bold text-neutral-900 dark:text-white">
+						Time Range Selector Examples
+					</h1>
+					<p class="mt-2 text-neutral-600 dark:text-neutral-400">
+						Demonstrating various configurations and use cases
+					</p>
+				</div>
+				<!-- Example 1: Basic Usage -->
+				<section class="mb-12">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-4">
+						1. Basic Time Range Selector
+					</h2>
+					<div class="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
+						@TimeRangeSelector(TimeRangeSelectorProps{
+							ID:            "basic-selector",
+							Options:       DefaultTimeRangeOptions(),
+							DefaultOption: "1h",
+						})
+					</div>
+					<div class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+						<code>DefaultTimeRangeOptions()</code> with 1h default
+					</div>
+				</section>
+				<!-- Example 2: Compact Options -->
+				<section class="mb-12">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-4">
+						2. Compact Selector (Fewer Options)
+					</h2>
+					<div class="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
+						@TimeRangeSelector(TimeRangeSelectorProps{
+							ID: "compact-selector",
+							Options: []TimeRangeOption{
+								{ID: "5m", Label: "5 min", Duration: "5m"},
+								{ID: "1h", Label: "1 hour", Duration: "1h"},
+								{ID: "24h", Label: "24 hours", Duration: "24h"},
+							},
+							DefaultOption: "1h",
+							Class:         "flex justify-center",
+						})
+					</div>
+					<div class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+						Custom options with centered layout
+					</div>
+				</section>
+				<!-- Example 3: With Custom Range Picker -->
+				<section class="mb-12">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-4">
+						3. With Custom Date Range Picker
+					</h2>
+					<div class="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
+						@TimeRangeSelector(TimeRangeSelectorProps{
+							ID:              "custom-range-selector",
+							Options:         DefaultTimeRangeOptions(),
+							DefaultOption:   "1h",
+							ShowCustomRange: true,
+						})
+					</div>
+					<div class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+						Click "Custom" button to show date/time pickers
+					</div>
+				</section>
+				<!-- Example 4: Multiple Charts Demo -->
+				<section class="mb-12">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-4">
+						4. Multiple Charts with Shared Time Range
+					</h2>
+					<div class="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
+						<!-- Time Range Selector -->
+						@TimeRangeSelector(TimeRangeSelectorProps{
+							ID:              "multi-chart-selector",
+							Options:         DefaultTimeRangeOptions(),
+							DefaultOption:   "1h",
+							UpdateURLParams: true,
+						})
+						<!-- Demo Charts -->
+						<div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div x-data="demoChart('CPU Chart', '/api/cpu/metrics')" class="bg-neutral-100 dark:bg-neutral-700 rounded-lg p-4">
+								<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+									CPU Chart
+								</h3>
+								<div class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+									<strong>Data URL:</strong>
+									<div x-text="dataURL" class="font-mono text-xs break-all"></div>
+								</div>
+								<div class="text-sm text-neutral-600 dark:text-neutral-400">
+									<strong>Last Update:</strong> <span x-text="new Date(lastUpdate).toLocaleString()"></span>
+								</div>
+							</div>
+							<div x-data="demoChart('Memory Chart', '/api/memory/metrics')" class="bg-neutral-100 dark:bg-neutral-700 rounded-lg p-4">
+								<h3 class="text-lg font-medium text-neutral-900 dark:text-white mb-2">
+									Memory Chart
+								</h3>
+								<div class="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+									<strong>Data URL:</strong>
+									<div x-text="dataURL" class="font-mono text-xs break-all"></div>
+								</div>
+								<div class="text-sm text-neutral-600 dark:text-neutral-400">
+									<strong>Last Update:</strong> <span x-text="new Date(lastUpdate).toLocaleString()"></span>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+						Both charts update when time range changes
+					</div>
+				</section>
+				<!-- Event Monitor -->
+				<section class="mb-12">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-4">
+						Event Monitor
+					</h2>
+					<div x-data="eventMonitor()" class="bg-white dark:bg-neutral-800 rounded-lg shadow p-6">
+						<div class="mb-4">
+							<span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+								Listening for <code class="bg-neutral-100 dark:bg-neutral-700 px-2 py-1 rounded">timerange-change</code> events
+							</span>
+						</div>
+						<div class="space-y-2">
+							<template x-for="event in events" :key="event.time">
+								<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3 text-sm">
+									<div class="flex items-center justify-between mb-2">
+										<span class="font-medium text-neutral-900 dark:text-white" x-text="event.label"></span>
+										<span class="text-xs text-neutral-500" x-text="event.time"></span>
+									</div>
+									<div class="grid grid-cols-2 gap-2 text-xs text-neutral-600 dark:text-neutral-400 font-mono">
+										<div>
+											<strong>Start:</strong> <span x-text="event.start"></span>
+										</div>
+										<div>
+											<strong>End:</strong> <span x-text="event.end"></span>
+										</div>
+									</div>
+								</div>
+							</template>
+							<div x-show="events.length === 0" class="text-center text-neutral-500 py-8">
+								No events yet. Select a time range above to see events.
+							</div>
+						</div>
+					</div>
+				</section>
+				<!-- Code Example -->
+				<section class="mb-12">
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-white mb-4">
+						Usage Example
+					</h2>
+					<div class="bg-neutral-900 rounded-lg shadow p-6 overflow-x-auto">
+						<pre class="text-sm text-green-400">
+							<code>{ `// Go/Templ
+@TimeRangeSelector(TimeRangeSelectorProps{
+    ID:              "chart-time-range",
+    Options:         DefaultTimeRangeOptions(),
+    DefaultOption:   "1h",
+    UpdateURLParams: true,
+    ShowCustomRange: true,
+})
+
+// JavaScript - Listen for events
+document.addEventListener('timerange-change', (event) => {
+    const { startTime, endTime, range } = event.detail;
+    console.log('Range changed:', range);
+    updateChart(startTime, endTime);
+});
+
+// Alpine.js - In component
+@timerange-change.window="handleRangeChange($event)"` }</code>
+						</pre>
+					</div>
+				</section>
+				<!-- Footer -->
+				<footer class="mt-12 pt-8 border-t border-neutral-200 dark:border-neutral-700">
+					<p class="text-sm text-neutral-600 dark:text-neutral-400 text-center">
+						See <a href="/components/TIME_RANGE_SELECTOR_README.md" class="text-primary-600 hover:text-primary-700">documentation</a> { "for" } more details
+					</p>
+				</footer>
+			</div>
+		</body>
+	</html>
+}

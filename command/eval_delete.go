@@ -43,7 +43,7 @@ Usage: nomad eval delete [options] <evaluation>
 
   This command should be used cautiously and only in outage situations where
   there is a large backlog of evaluations not being processed. During most
-  normal and outage scenarios, Nomads reconciliation and state management will
+  normal and outage scenarios, Wander's reconciliation and state management will
   handle evaluations as needed.
 
   The eval broker is expected to be paused prior to running this command and

@@ -1,0 +1,127 @@
+package components
+
+// BreadcrumbItem represents a single breadcrumb item in the navigation trail
+// This is separate from the Breadcrumb type used in HeaderProps to add icon support
+type BreadcrumbItem struct {
+	Label string // Display text for the breadcrumb
+	Href  string // URL path for the breadcrumb link
+	Icon  string // Optional icon name (e.g., "home") - typically used for first item
+}
+
+// BreadcrumbsProps contains parameters for the Breadcrumbs component
+type BreadcrumbsProps struct {
+	Items []BreadcrumbItem // List of breadcrumb items in order
+	Class string           // Additional CSS classes to apply
+}
+
+// Breadcrumbs renders a navigation breadcrumb trail showing the user's location in the site hierarchy.
+//
+// Features:
+//   - Chevron separators between items using Heroicons
+//   - Last item is styled as current page (no link, emphasized)
+//   - Optional icon for first item (typically home icon)
+//   - HTMX navigation for internal links (SPA-like experience)
+//   - Fully accessible with proper ARIA landmarks and labels
+//   - Responsive design with text truncation support
+//
+// Accessibility:
+//   - Uses <nav> with aria-label="Breadcrumb"
+//   - <ol> list structure for semantic hierarchy
+//   - aria-current="page" on the last item
+//   - Screen reader friendly separators (aria-hidden)
+//
+// Example Usage:
+//
+//   Basic breadcrumb trail:
+//     @Breadcrumbs(BreadcrumbsProps{
+//         Items: []BreadcrumbItem{
+//             {Label: "Home", Href: "/", Icon: "home"},
+//             {Label: "Products", Href: "/products"},
+//             {Label: "Electronics", Href: "/products/electronics"},
+//             {Label: "Laptop", Href: "/products/electronics/laptop"},
+//         },
+//     })
+//
+//   With custom classes:
+//     @Breadcrumbs(BreadcrumbsProps{
+//         Items: []BreadcrumbItem{
+//             {Label: "Dashboard", Href: "/dashboard", Icon: "home"},
+//             {Label: "Settings", Href: "/settings"},
+//         },
+//         Class: "mb-4",
+//     })
+//
+templ Breadcrumbs(props BreadcrumbsProps) {
+	<nav aria-label="Breadcrumb" class={ breadcrumbsClasses(props) }>
+		<ol class="flex items-center space-x-2">
+			for i, item := range props.Items {
+				<li class="flex items-center">
+					if i == len(props.Items)-1 {
+						// Last item - current page (no link)
+						@breadcrumbCurrent(item)
+					} else {
+						// Link item
+						@breadcrumbLink(item, i)
+						// Separator (chevron)
+						@breadcrumbSeparator()
+					}
+				</li>
+			}
+		</ol>
+	</nav>
+}
+
+// breadcrumbLink renders a clickable breadcrumb item with optional icon and HTMX navigation
+templ breadcrumbLink(item BreadcrumbItem, index int) {
+	<a
+		href={ templ.SafeURL(item.Href) }
+		hx-get={ item.Href }
+		hx-target="#main-content"
+		hx-push-url="true"
+		class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors duration-150"
+	>
+		if item.Icon != "" {
+			@Icon(IconProps{Name: item.Icon, Size: "sm", Class: "flex-shrink-0"})
+		}
+		<span class="truncate">{ item.Label }</span>
+	</a>
+}
+
+// breadcrumbCurrent renders the current page breadcrumb (last item, not clickable)
+templ breadcrumbCurrent(item BreadcrumbItem) {
+	<span
+		class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-900"
+		aria-current="page"
+	>
+		if item.Icon != "" {
+			@Icon(IconProps{Name: item.Icon, Size: "sm", Class: "flex-shrink-0"})
+		}
+		<span class="truncate">{ item.Label }</span>
+	</span>
+}
+
+// breadcrumbSeparator renders a chevron separator between breadcrumb items
+templ breadcrumbSeparator() {
+	<svg
+		class="h-5 w-5 flex-shrink-0 text-neutral-400"
+		xmlns="http://www.w3.org/2000/svg"
+		fill="none"
+		viewBox="0 0 24 24"
+		stroke-width="1.5"
+		stroke="currentColor"
+		aria-hidden="true"
+	>
+		<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"></path>
+	</svg>
+}
+
+// breadcrumbsClasses generates the CSS classes for the breadcrumbs container
+func breadcrumbsClasses(props BreadcrumbsProps) string {
+	baseClasses := "flex py-3"
+
+	if props.Class != "" {
+		return baseClasses + " " + props.Class
+	}
+
+	return baseClasses
+}

@@ -4,6 +4,7 @@ THIS_OS := $(shell uname | cut -d- -f1)
 THIS_ARCH := $(shell uname -m)
 
 GO_MODULE = github.com/open-wander/wander
+TEMPL_VERSION = v0.3.977
 
 GIT_COMMIT := $(shell git rev-parse HEAD)
 GIT_DIRTY := $(if $(shell git status --porcelain),+CHANGES)
@@ -39,12 +40,13 @@ ifndef GOTEST_GROUP
 GOTEST_GROUP := nomad client command drivers quick
 endif
 
-# tag corresponding to latest release we maintain backward compatibility with
-PROTO_COMPARE_TAG ?= v1.0.3$(if $(findstring ent,$(GO_TAGS)),+ent,)
+# Wander's immutable Nomad 1.6.5 fork boundary. Keep protobuf compatibility
+# against this remote tag until a published Wander release becomes the baseline.
+PROTO_COMPARE_TAG ?= fork-point
 
 # LAST_RELEASE is the git sha of the latest release corresponding to this branch. main should have the latest
 # published release, and release branches should point to the latest published release in the X.Y release line.
-LAST_RELEASE ?= v1.6.4
+LAST_RELEASE ?= v1.6.5
 
 default: help
 
@@ -113,9 +115,19 @@ pkg/windows_%/wander: GO_TAGS += timetzdata
 # Define package targets for each of the build targets we actually have on this system
 define makePackageTarget
 
-pkg/$(1).zip: pkg/$(1)/wander
+pkg/$(1)/.release-notices/THIRD_PARTY_NOTICES.md: ci/prepare-release-notices.sh docs/licenses/RELEASE-NOTICES.md LICENSE $(wildcard docs/licenses/third-party/*.txt)
+	@echo "==> Preparing release notices for $(1)..."
+	@GOOS=$(firstword $(subst _, ,$(1))) \
+		GOARCH=$(lastword $(subst _, ,$(1))) \
+		CGO_ENABLED=$(CGO_ENABLED) \
+		GOFLAGS="-tags=$(GO_TAGS)" \
+		./ci/prepare-release-notices.sh pkg/$(1)
+
+pkg/$(1).zip: pkg/$(1)/wander pkg/$(1)/.release-notices/THIRD_PARTY_NOTICES.md
 	@echo "==> Packaging for $(1)..."
-	@zip -j pkg/$(1).zip pkg/$(1)/*
+	@rm -f pkg/$(1).zip
+	@cd pkg/$(1) && zip -q ../$(1).zip wander*
+	@cd pkg/$(1)/.release-notices && zip -qr ../../$(1).zip LICENSE.txt THIRD_PARTY_NOTICES.md licenses
 
 endef
 
@@ -126,7 +138,7 @@ $(foreach t,$(ALL_TARGETS),$(eval $(call makePackageTarget,$(t))))
 bootstrap: deps lint-deps git-hooks # Install all dependencies
 
 .PHONY: deps
-deps:  ## Install build and development dependencies
+deps: templ-deps ## Install build and development dependencies
 	@echo "==> Updating build dependencies..."
 	go install github.com/hashicorp/go-bindata/go-bindata@bf7910af899725e4938903fb32048c7c0b15f12e
 	go install github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs@234c15e7648ff35458026de92b34c637bae5e6f7
@@ -138,15 +150,19 @@ deps:  ## Install build and development dependencies
 	go install github.com/bufbuild/buf/cmd/buf@v0.36.0
 	go install github.com/hashicorp/go-changelog/cmd/changelog-build@latest
 	go install golang.org/x/tools/cmd/stringer@v0.1.12
-	go install github.com/hashicorp/hc-install/cmd/hc-install@v0.6.1
+	go install github.com/hashicorp/hc-install/cmd/hc-install@v0.9.5
 	go install github.com/shoenig/go-modtool@v0.1.1
+
+.PHONY: templ-deps
+templ-deps: ## Install the pinned Templ code generator
+	go install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
 
 .PHONY: lint-deps
 lint-deps: ## Install linter dependencies
 	@echo "==> Updating linter dependencies..."
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 	go install github.com/client9/misspell/cmd/misspell@v0.3.4
-	go install github.com/hashicorp/go-hclog/hclogvet@v0.1.6
+	go install github.com/hashicorp/go-hclog/hclogvet@v0.2.1-0.20261015061854-ac91e5d76395
 
 .PHONY: git-hooks
 git-dir = $(shell git rev-parse --git-dir)
@@ -209,7 +225,7 @@ checkproto: ## Lint protobuf files
 	@buf check breaking --config tools/buf/buf.yaml --against-config tools/buf/buf.yaml --against .git#tag=$(PROTO_COMPARE_TAG)
 
 .PHONY: generate-all
-generate-all: generate-structs proto ## Generate structs, protobufs
+generate-all: ui-generate generate-structs proto ## Generate UI, structs, and protobufs
 
 .PHONY: generate-structs
 generate-structs: LOCAL_PACKAGES = $(shell go list ./...)
@@ -236,7 +252,6 @@ hclfmt: ## Format HCL files with hclfmt
 	        -o -name '.git' -prune \
 	        -o -name 'node_modules' -prune \
 	        -o -name '.next' -prune \
-	        -o -path './ui/dist' -prune \
 	        -o -path './website/out' -prune \
 	        -o -path './command/testdata' -prune \
 	        -o \( -name '*.nomad' -o -name '*.hcl' -o -name '*.tf' \) \
@@ -270,7 +285,7 @@ dev: hclfmt ## Build for the current development platform
 
 .PHONY: prerelease
 prerelease: GO_TAGS=ui codegen_generated release
-prerelease: generate-all ember-dist static-assets ## Generate all the static assets for a Wander release
+prerelease: generate-all ## Generate all the static assets for a Wander release
 
 .PHONY: release
 release: GO_TAGS=ui codegen_generated release
@@ -285,6 +300,7 @@ test-wander: # dev ## Run Wander unit tests
 	@echo "==> with packages $(GOTEST_PKGS)"
 	gotestsum --format=testname --rerun-fails=3 --packages="$(GOTEST_PKGS)" -- \
 		-cover \
+		-p=1 \
 		-timeout=20m \
 		-count=1 \
 		-tags "$(GO_TAGS)" \
@@ -295,6 +311,7 @@ test-wander-module: dev ## Run Wander unit tests on sub-module
 	@echo "==> Running Wander unit tests on sub-module $(GOTEST_MOD)"
 	cd $(GOTEST_MOD); gotestsum --format=testname --rerun-fails=3 --packages=./... -- \
 		-cover \
+		-p=1 \
 		-timeout=20m \
 		-count=1 \
 		-race \
@@ -340,30 +357,8 @@ testcluster: ## Bring up a Linux test cluster using Vagrant. Set PROVIDER if nec
 		wander-client03 \
 		$(if $(PROVIDER),--provider $(PROVIDER))
 
-.PHONY: static-assets
-static-assets: ## Compile the static routes to serve alongside the API
-	@echo "==> Generating static assets"
-	@go-bindata-assetfs -pkg agent -prefix ui -modtime 1480000000 -tags ui -o bindata_assetfs.go ./ui/dist/...
-	@mv bindata_assetfs.go command/agent
-
-.PHONY: test-ui
-test-ui: ## Run Wander UI test suite
-	@echo "==> Installing JavaScript assets"
-	@cd ui && npm rebuild node-sass
-	@cd ui && yarn install
-	@echo "==> Running ember tests"
-	@cd ui && npm test
-
-.PHONY: ember-dist
-ember-dist: ## Build the static UI assets from source
-	@echo "==> Installing JavaScript assets"
-	@cd ui && yarn install --silent --network-timeout 300000
-	@cd ui && npm rebuild node-sass
-	@echo "==> Building Ember application"
-	@cd ui && npm run build
-
 .PHONY: dev-ui
-dev-ui: ember-dist static-assets ## Build a dev UI binary
+dev-ui: ## Build a dev UI binary (uses HTMX UI)
 	@$(MAKE) WANDER_UI_TAG="ui" dev ## Build a dev binary with the UI baked in
 
 HELP_FORMAT="    \033[36m%-25s\033[0m %s\n"
@@ -395,6 +390,46 @@ ui-screenshots-local: ## Collect UI screenshots (local)
 	@echo "==> Collecting UI screenshots (local)..."
 	@cd scripts/screenshots/src && SCREENSHOTS_DIR="../screenshots" node index.js
 
+.PHONY: ui-generate
+ui-generate: ## Generate Go code from templ templates
+	@echo "==> Generating templ templates..."
+	@cd ui && templ generate
+
+.PHONY: ui-watch
+ui-watch: ## Watch and regenerate templ templates on changes
+	@echo "==> Watching templ templates for changes..."
+	@cd ui && templ generate --watch
+
+.PHONY: ui-fmt
+ui-fmt: ## Format templ template files
+	@echo "==> Formatting templ templates..."
+	@cd ui && templ fmt .
+
+.PHONY: ui-css
+ui-css: ## Build Tailwind CSS for production (minified)
+	@echo "==> Building production CSS..."
+	@cd ui && $(MAKE) build-css
+
+.PHONY: ui-css-dev
+ui-css-dev: ## Build Tailwind CSS for development (not minified)
+	@echo "==> Building development CSS..."
+	@cd ui && $(MAKE) build-css-dev
+
+.PHONY: ui-css-watch
+ui-css-watch: ## Watch and rebuild Tailwind CSS on changes
+	@echo "==> Watching CSS files for changes..."
+	@cd ui && $(MAKE) watch-css
+
+.PHONY: ui-setup
+ui-setup: ## Setup UI dependencies (Tailwind CLI + npm packages)
+	@echo "==> Setting up UI dependencies..."
+	@cd ui && $(MAKE) setup
+
+.PHONY: ui-dev
+ui-dev: ## Run UI development server with hot-reload (air)
+	@echo "==> Starting UI development server with hot-reload..."
+	@cd ui && air
+
 .PHONY: version
 version: ## Lookup the current build version
 ifneq (,$(wildcard version/version_ent.go))
@@ -424,6 +459,7 @@ test: ## Use this target as a smoke test
 	@echo "==> with packages: $(GOTEST_PKGS)"
 	gotestsum --format=testname --packages="$(GOTEST_PKGS)" -- \
 		-cover \
+		-p=1 \
 		-timeout=20m \
 		-count=1 \
 		-tags "$(GO_TAGS)" \

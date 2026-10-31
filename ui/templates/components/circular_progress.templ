@@ -1,0 +1,138 @@
+package components
+
+import "fmt"
+
+// CircularProgressProps contains parameters for the CircularProgress component
+type CircularProgressProps struct {
+	Value int    // Current value (0-Max)
+	Max   int    // Maximum value (default: 100)
+	Size  string // Size variant: "sm", "md", "lg"
+	Color string // Color variant: "primary", "success", "warning", "error"
+	Class string // Additional CSS classes to apply
+}
+
+// CircularProgress renders a circular progress indicator using SVG.
+// Useful for showing resource utilization in a compact circular format.
+//
+// Color Variants:
+//   - "primary" - Blue for default/primary progress
+//   - "success" - Green for successful/completed states
+//   - "warning" - Amber for warning states
+//   - "error" - Red for error/failed states
+//
+// Size Variants:
+//   - "sm" - Small circle (32x32)
+//   - "md" - Medium circle (48x48, default)
+//   - "lg" - Large circle (64x64)
+//
+// Example Usage:
+//   @CircularProgress(CircularProgressProps{Value: 75, Max: 100, Color: "success", Size: "md"})
+templ CircularProgress(props CircularProgressProps) {
+	<div class={ circularProgressClasses(props) }>
+		<svg class="transform -rotate-90" viewBox="0 0 36 36">
+			<!-- Background circle -->
+			<path
+				class="text-neutral-200 dark:text-neutral-700"
+				stroke="currentColor"
+				stroke-width="3"
+				fill="none"
+				d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+			></path>
+			<!-- Progress circle -->
+			<path
+				class={ circularProgressColorClasses(props.Color) }
+				stroke="currentColor"
+				stroke-width="3"
+				stroke-linecap="round"
+				fill="none"
+				stroke-dasharray={ circularProgressDashArray(props.Value, props.Max) }
+				d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+			></path>
+		</svg>
+		<!-- Percentage text -->
+		<div class="absolute inset-0 flex items-center justify-center">
+			<span class={ circularProgressTextClasses(props.Size) }>
+				{ fmt.Sprintf("%d%%", circularProgressPercentage(props.Value, props.Max)) }
+			</span>
+		</div>
+	</div>
+}
+
+// circularProgressClasses builds the CSS classes for the circular progress container
+func circularProgressClasses(props CircularProgressProps) string {
+	classes := "relative inline-flex items-center justify-center "
+
+	// Size classes
+	switch props.Size {
+	case "sm":
+		classes += "w-8 h-8 "
+	case "lg":
+		classes += "w-16 h-16 "
+	default: // md or unspecified
+		classes += "w-12 h-12 "
+	}
+
+	// Additional custom classes
+	if props.Class != "" {
+		classes += props.Class
+	}
+
+	return classes
+}
+
+// circularProgressColorClasses returns the stroke color classes for each color variant
+func circularProgressColorClasses(color string) string {
+	switch color {
+	case "success":
+		return "text-success-500"
+	case "warning":
+		return "text-warning-500"
+	case "error":
+		return "text-error-500"
+	case "primary":
+		return "text-primary-500"
+	default:
+		return "text-primary-500"
+	}
+}
+
+// circularProgressTextClasses builds the CSS classes for the percentage text
+func circularProgressTextClasses(size string) string {
+	classes := "font-semibold text-neutral-700 dark:text-neutral-300 "
+
+	switch size {
+	case "sm":
+		classes += "text-[0.5rem]"
+	case "lg":
+		classes += "text-sm"
+	default: // md
+		classes += "text-xs"
+	}
+
+	return classes
+}
+
+// circularProgressPercentage calculates the percentage based on value and max
+func circularProgressPercentage(value, max int) int {
+	maxVal := max
+	if maxVal <= 0 {
+		maxVal = 100
+	}
+
+	if value > maxVal {
+		value = maxVal
+	}
+	if value < 0 {
+		value = 0
+	}
+
+	return (value * 100) / maxVal
+}
+
+// circularProgressDashArray calculates the SVG stroke-dasharray for the progress
+// The circumference of the circle is 100 (15.9155 * 2 * π ≈ 100)
+func circularProgressDashArray(value, max int) string {
+	percentage := circularProgressPercentage(value, max)
+	// Circumference is 100, so percentage directly maps to dash length
+	return fmt.Sprintf("%d, 100", percentage)
+}

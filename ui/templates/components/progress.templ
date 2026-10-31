@@ -1,0 +1,169 @@
+package components
+
+import "fmt"
+
+// ProgressProps contains parameters for the ProgressBar component
+type ProgressProps struct {
+	Value   int    // Current value (0-100)
+	Max     int    // Maximum value (default: 100)
+	Size    string // Size variant: "sm", "md", "lg"
+	Color   string // Color variant: "primary", "success", "warning", "error"
+	Label   bool   // Whether to show percentage label
+	Striped bool   // Whether to show striped/animated variant
+	Class   string // Additional CSS classes to apply
+}
+
+// ProgressBar renders a progress bar component with support for different colors,
+// sizes, and optional labels and striped animations.
+//
+// Color Variants:
+//   - "primary" - Blue for default/primary progress
+//   - "success" - Green for successful/completed states
+//   - "warning" - Amber for warning states
+//   - "error" - Red for error/failed states
+//
+// Size Variants:
+//   - "sm" - Small progress bar (h-2)
+//   - "md" - Medium progress bar (h-3, default)
+//   - "lg" - Large progress bar (h-4)
+//
+// Features:
+//   - Customizable value and max
+//   - Optional percentage label
+//   - Striped/animated variant for active progress
+//   - Color variants for different states
+//   - Accessible with proper ARIA attributes
+//
+// Use Cases:
+//   - Resource utilization (CPU, memory, disk)
+//   - Task completion progress
+//   - Upload/download progress
+//   - Job execution progress
+//
+// Example Usage:
+//   @ProgressBar(ProgressProps{Value: 75, Color: "success", Label: true})
+//   @ProgressBar(ProgressProps{Value: 50, Size: "lg", Striped: true})
+//   @ProgressBar(ProgressProps{Value: 90, Color: "warning", Max: 100})
+templ ProgressBar(props ProgressProps) {
+	<div class={ progressContainerClasses(props) }>
+		<div
+			class={ progressBarClasses(props) }
+			style={ progressBarStyle(props) }
+			role="progressbar"
+			aria-valuenow={ fmt.Sprintf("%d", props.Value) }
+			aria-valuemin="0"
+			aria-valuemax={ fmt.Sprintf("%d", maxValue(props.Max)) }
+		>
+			if props.Label {
+				<span class={ progressLabelClasses(props) }>
+					{ fmt.Sprintf("%d%%", calculatePercentage(props.Value, props.Max)) }
+				</span>
+			}
+		</div>
+	</div>
+}
+
+// progressContainerClasses builds the CSS classes for the progress container
+func progressContainerClasses(props ProgressProps) string {
+	classes := "relative w-full bg-neutral-200 rounded-full overflow-hidden "
+
+	// Size classes
+	switch props.Size {
+	case "sm":
+		classes += "h-2 "
+	case "lg":
+		classes += "h-4 "
+	default: // md or unspecified
+		classes += "h-3 "
+	}
+
+	// Additional custom classes
+	if props.Class != "" {
+		classes += props.Class
+	}
+
+	return classes
+}
+
+// progressBarClasses builds the CSS classes for the progress bar fill
+func progressBarClasses(props ProgressProps) string {
+	classes := "h-full transition-all duration-300 ease-in-out flex items-center justify-center "
+
+	// Color variant classes
+	classes += progressColorClasses(props.Color)
+
+	// Striped/animated variant
+	if props.Striped {
+		classes += "bg-stripes bg-stripes-animate "
+	}
+
+	return classes
+}
+
+// progressColorClasses returns the background color classes for each color variant
+func progressColorClasses(color string) string {
+	switch color {
+	case "success":
+		return "bg-success-500 "
+	case "warning":
+		return "bg-warning-500 "
+	case "error":
+		return "bg-error-500 "
+	case "primary":
+		return "bg-primary-500 "
+	default:
+		return "bg-primary-500 "
+	}
+}
+
+// progressBarStyle generates the inline style for width based on value
+func progressBarStyle(props ProgressProps) string {
+	percentage := calculatePercentage(props.Value, props.Max)
+	return fmt.Sprintf("width: %d%%", percentage)
+}
+
+// progressLabelClasses builds the CSS classes for the percentage label
+func progressLabelClasses(props ProgressProps) string {
+	classes := "text-white font-medium "
+
+	// Size-based text classes
+	switch props.Size {
+	case "sm":
+		classes += "text-[0.5rem] "
+	case "lg":
+		classes += "text-xs "
+	default: // md
+		classes += "text-[0.625rem] "
+	}
+
+	return classes
+}
+
+// calculatePercentage calculates the percentage based on value and max
+func calculatePercentage(value, max int) int {
+	maxVal := maxValue(max)
+	if maxVal == 0 {
+		return 0
+	}
+
+	// Ensure value doesn't exceed max
+	if value > maxVal {
+		value = maxVal
+	}
+
+	// Ensure value is not negative
+	if value < 0 {
+		value = 0
+	}
+
+	percentage := (value * 100) / maxVal
+	return percentage
+}
+
+// maxValue returns the max value, defaulting to 100 if not specified or invalid
+func maxValue(max int) int {
+	if max <= 0 {
+		return 100
+	}
+	return max
+}

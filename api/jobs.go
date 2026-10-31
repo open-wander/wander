@@ -535,7 +535,7 @@ func (j *Jobs) Stable(jobID string, version uint64, stable bool,
 // specified jobID.
 func (j *Jobs) Services(jobID string, q *QueryOptions) ([]*ServiceRegistration, *QueryMeta, error) {
 	var resp []*ServiceRegistration
-	qm, err := j.client.query("/v1/job/"+jobID+"/services", &resp, q)
+	qm, err := j.client.query("/v1/job/"+url.PathEscape(jobID)+"/services", &resp, q)
 	return resp, qm, err
 }
 
@@ -1164,6 +1164,7 @@ type JobListStub struct {
 	Name              string
 	Namespace         string `json:",omitempty"`
 	Datacenters       []string
+	NodePool          string
 	Type              string
 	Priority          int
 	Periodic          bool

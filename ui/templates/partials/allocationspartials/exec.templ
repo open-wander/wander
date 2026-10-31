@@ -1,0 +1,200 @@
+package allocationspartials
+
+import (
+	"fmt"
+)
+
+// ExecTabProps contains configuration for the exec terminal tab
+type ExecTabProps struct {
+	AllocID      string
+	Tasks        []string
+	SelectedTask string
+	Command      string // Default command to run, defaults to /bin/sh
+}
+
+// ExecTabContent renders the exec terminal tab with xterm.js
+// This component provides:
+// - Task selector dropdown (when multiple tasks exist)
+// - Command input field (defaults to /bin/sh)
+// - Connect/Disconnect button
+// - Full xterm.js terminal emulator
+// - Connection status indicator
+// - Terminal resize handling
+//
+// The page script opens the authenticated WebSocket connection after the form is submitted.
+// This template sets up the UI and initializes xterm.js
+templ ExecTabContent(props ExecTabProps) {
+	<div
+		x-data={ execTerminalData(props) }
+		x-on:beforeunload.window="disconnect()"
+		class="p-6"
+	>
+		<!-- Header with controls -->
+		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+			<div class="flex items-center gap-4">
+				<h3 class="text-lg font-medium text-neutral-900">Exec Terminal</h3>
+				<!-- Connection Status Indicator -->
+				<div class="flex items-center gap-2">
+					<span
+						:class="{
+							'bg-success-500': connectionState === 'connected',
+							'bg-warning-500': connectionState === 'connecting',
+							'bg-error-500': connectionState === 'error',
+							'bg-neutral-400': connectionState === 'disconnected'
+						}"
+						class="w-2 h-2 rounded-full"
+					></span>
+					<span
+						x-text="connectionState"
+						data-exec-connection-state
+						class="text-xs text-neutral-500 capitalize"
+					></span>
+				</div>
+			</div>
+
+			<!-- Controls -->
+			<div class="flex flex-wrap items-center gap-3">
+				<!-- Task Selector -->
+				if len(props.Tasks) > 1 {
+					<div class="relative">
+						<label for="exec-task-select" class="sr-only">Select Task</label>
+						<select
+							id="exec-task-select"
+							x-model="selectedTask"
+							:disabled="connectionState === 'connected' || connectionState === 'connecting'"
+							class="block w-full pl-3 pr-10 py-2 text-sm border border-neutral-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white disabled:bg-neutral-100 disabled:cursor-not-allowed"
+						>
+							for _, task := range props.Tasks {
+								<option value={ task }>{ task }</option>
+							}
+						</select>
+					</div>
+				}
+
+				<!-- Command Input -->
+				<div class="flex items-center gap-2">
+					<label for="exec-command" class="text-sm text-neutral-600 whitespace-nowrap">Command:</label>
+					<input
+						type="text"
+						id="exec-command"
+						x-model="command"
+						:disabled="connectionState === 'connected' || connectionState === 'connecting'"
+						placeholder="/bin/sh"
+						class="block w-40 px-3 py-2 text-sm border border-neutral-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white disabled:bg-neutral-100 disabled:cursor-not-allowed font-mono"
+					/>
+				</div>
+
+				<!-- Connect/Disconnect Button -->
+				<button
+					type="button"
+					@click="toggleConnection()"
+					:class="{
+						'bg-success-600 hover:bg-success-700 focus:ring-success-500': connectionState === 'disconnected' || connectionState === 'error',
+						'bg-error-600 hover:bg-error-700 focus:ring-error-500': connectionState === 'connected',
+						'bg-warning-500 cursor-wait': connectionState === 'connecting'
+					}"
+					:disabled="connectionState === 'connecting'"
+					class="inline-flex items-center px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50"
+				>
+					<template x-if="connectionState === 'disconnected' || connectionState === 'error'">
+						<span class="flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+							</svg>
+							Connect
+						</span>
+					</template>
+					<template x-if="connectionState === 'connecting'">
+						<span class="flex items-center">
+							<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							Connecting...
+						</span>
+					</template>
+					<template x-if="connectionState === 'connected'">
+						<span class="flex items-center">
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+							Disconnect
+						</span>
+					</template>
+				</button>
+			</div>
+		</div>
+
+		<!-- Terminal Container -->
+		<div class="relative">
+			<!-- Terminal -->
+			<div
+				x-ref="terminal"
+				data-exec-terminal
+				class="workspace-surface rounded-lg overflow-hidden border border-neutral-700 bg-neutral-900"
+			></div>
+
+			<!-- Overlay for disconnected state -->
+			<div
+				x-show="connectionState === 'disconnected' || connectionState === 'error'"
+				x-cloak
+				class="absolute inset-0 flex items-center justify-center bg-neutral-900/80 rounded-lg"
+			>
+				<div class="text-center">
+					<svg class="mx-auto h-16 w-16 text-neutral-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+					</svg>
+					<p class="text-neutral-400 mb-4" x-text="connectionState === 'error' ? 'Connection lost. Click Connect to reconnect.' : 'Click Connect to start an exec session'"></p>
+					<button
+						type="button"
+						@click="toggleConnection()"
+						class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+					>
+						<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+						</svg>
+						Connect
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Footer info -->
+		<div class="mt-3 flex items-center justify-between text-sm text-neutral-500">
+			<div class="flex items-center gap-4">
+				<span>Task: <span x-text="selectedTask" class="font-medium"></span></span>
+				<span>Command: <span x-text="command || '/bin/sh'" class="font-mono"></span></span>
+			</div>
+			<div x-show="connectionState === 'connected'" class="flex items-center gap-2">
+				<span class="text-success-600">Session active</span>
+				<span class="text-neutral-400">|</span>
+				<span>Press <kbd class="px-1.5 py-0.5 text-xs font-mono bg-neutral-200 rounded">Ctrl+D</kbd> to exit</span>
+			</div>
+		</div>
+
+		<!-- Help text -->
+		<div class="mt-4 p-4 bg-neutral-100 rounded-lg">
+			<h4 class="text-sm font-medium text-neutral-700 mb-2">Exec Terminal Help</h4>
+			<ul class="text-sm text-neutral-600 space-y-1">
+				<li>- Select a task and click <strong>Connect</strong> to start an interactive shell session</li>
+				<li>- The default command is <code class="px-1 py-0.5 bg-neutral-200 rounded font-mono text-xs">/bin/sh</code>, but you can change it to any executable</li>
+				<li>- Use <kbd class="px-1 py-0.5 text-xs font-mono bg-neutral-200 rounded">Ctrl+D</kbd> or type <code class="px-1 py-0.5 bg-neutral-200 rounded font-mono text-xs">exit</code> to end the session</li>
+				<li>- The terminal supports full ANSI colors and cursor positioning</li>
+			</ul>
+		</div>
+	</div>
+}
+
+// execTerminalData generates the Alpine.js x-data configuration for the exec terminal
+func execTerminalData(props ExecTabProps) string {
+	selectedTask := props.SelectedTask
+	if selectedTask == "" && len(props.Tasks) > 0 {
+		selectedTask = props.Tasks[0]
+	}
+	command := props.Command
+	if command == "" {
+		command = "/bin/sh"
+	}
+
+	return fmt.Sprintf(`execTerminal('%s', '%s', '%s')`, props.AllocID, selectedTask, command)
+}

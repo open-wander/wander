@@ -646,12 +646,6 @@ func TestTracker_ConsulChecks_HealthyToUnhealthy(t *testing.T) {
 	tracker := NewTracker(ctx, logger, alloc, b.Listen(), taskEnvBuilder, consul, checks, minHealthyTime, true)
 	tracker.checkLookupInterval = checkInterval
 
-	assertChecksHealth := func(exp bool) {
-		tracker.lock.Lock()
-		must.Eq(t, exp, tracker.checksHealthy, must.Sprint("tracker checks health in unexpected state"))
-		tracker.lock.Unlock()
-	}
-
 	// start the clock so we can degrade check status during minimum healthy time
 	startTime := time.Now()
 
@@ -663,7 +657,7 @@ func TestTracker_ConsulChecks_HealthyToUnhealthy(t *testing.T) {
 
 		// assert tracker is observing unhealthy - we never cross minimum health
 		// time with healthy checks in this test case
-		assertChecksHealth(false)
+		assertTrackerChecksHealth(t, tracker, false)
 		reg := &serviceregistration.AllocRegistration{Tasks: taskRegs}
 		return reg, nil
 	}
@@ -673,7 +667,7 @@ func TestTracker_ConsulChecks_HealthyToUnhealthy(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// tracker should be observing unhealthy check
-	assertChecksHealth(false)
+	assertTrackerChecksHealth(t, tracker, false)
 
 	select {
 	case <-tracker.HealthyCh():
@@ -737,12 +731,6 @@ func TestTracker_ConsulChecks_SlowCheckRegistration(t *testing.T) {
 	tracker := NewTracker(ctx, logger, alloc, b.Listen(), taskEnvBuilder, consul, checks, time.Millisecond, true)
 	tracker.checkLookupInterval = checkInterval
 
-	assertChecksHealth := func(exp bool) {
-		tracker.lock.Lock()
-		must.Eq(t, exp, tracker.checksHealthy, must.Sprint("tracker checks health in unexpected state"))
-		tracker.lock.Unlock()
-	}
-
 	var hits atomic.Int32
 	consul.AllocRegistrationsFn = func(string) (*serviceregistration.AllocRegistration, error) {
 		// after 10 queries, insert the check
@@ -751,7 +739,7 @@ func TestTracker_ConsulChecks_SlowCheckRegistration(t *testing.T) {
 			taskRegs[task.Name].Services[task.Services[0].Name].Checks = []*consulapi.AgentCheck{checkHealthy}
 		} else {
 			// assert tracker is observing unhealthy (missing) checks
-			assertChecksHealth(false)
+			assertTrackerChecksHealth(t, tracker, false)
 		}
 		reg := &serviceregistration.AllocRegistration{Tasks: taskRegs}
 		return reg, nil
@@ -760,13 +748,13 @@ func TestTracker_ConsulChecks_SlowCheckRegistration(t *testing.T) {
 	// start the tracker and wait for evaluations to happen
 	tracker.Start()
 	must.Wait(t, wait.InitialSuccess(
-		wait.BoolFunc(func() bool { return hits.Load() > 10 }),
+		wait.BoolFunc(func() bool { return hits.Load() > 10 && trackerChecksHealthy(tracker) }),
 		wait.Gap(10*time.Millisecond),
 		wait.Timeout(1*time.Second),
 	))
 
 	// tracker should be observing healthy check now
-	assertChecksHealth(true)
+	assertTrackerChecksHealth(t, tracker, true)
 
 	select {
 	case v := <-tracker.HealthyCh():
@@ -1181,14 +1169,22 @@ func TestTracker_NomadChecks_OnUpdate(t *testing.T) {
 			}
 
 			// For healthy checks, the tracker should stop watching
-			select {
-			case <-tracker.ctx.Done():
-				// Ok, tracker should exit after reporting healthy
-			default:
-				t.Fatal("expected tracker to exit after reporting healthy")
-			}
+			require.Eventually(t, func() bool {
+				return tracker.ctx.Err() != nil
+			}, time.Second, 10*time.Millisecond, "expected tracker to exit after reporting healthy")
 		})
 	}
+}
+
+func trackerChecksHealthy(tracker *Tracker) bool {
+	tracker.lock.Lock()
+	defer tracker.lock.Unlock()
+	return tracker.checksHealthy
+}
+
+func assertTrackerChecksHealth(t *testing.T, tracker *Tracker, expected bool) {
+	t.Helper()
+	must.Eq(t, expected, trackerChecksHealthy(tracker), must.Sprint("tracker checks health in unexpected state"))
 }
 
 func TestTracker_evaluateConsulChecks(t *testing.T) {

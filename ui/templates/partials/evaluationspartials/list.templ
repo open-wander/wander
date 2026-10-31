@@ -1,0 +1,156 @@
+package evaluationspartials
+
+import (
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// EvaluationSummary represents a summary view of an evaluation.
+type EvaluationSummary struct {
+	ID          string
+	ShortID     string
+	JobID       string
+	JobName     string
+	Status      string
+	Type        string
+	TriggeredBy string
+	Priority    int
+	TimeAgo     string
+}
+
+// ListContent renders the evaluations list content for the full page.
+templ ListContent(evalsList []EvaluationSummary) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Evaluations</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					View recent Wander evaluations
+				</p>
+			</div>
+		</div>
+		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+			<div class="p-4 space-y-3">
+				if len(evalsList) == 0 {
+					<div class="text-center py-12">
+						<svg
+							class="mx-auto h-12 w-12 text-neutral-400"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							aria-hidden="true"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+							></path>
+						</svg>
+						<h3 class="mt-2 text-sm font-medium text-neutral-900">No evaluations</h3>
+						<p class="mt-1 text-sm text-neutral-500">No recent evaluations to display.</p>
+					</div>
+				} else {
+					for _, eval := range evalsList {
+						@evaluationCard(eval)
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// List renders the evaluations list content for the panel (sidebar).
+templ List(evalsList []EvaluationSummary) {
+	<div class="p-4 space-y-3">
+		if len(evalsList) == 0 {
+			<div class="text-center py-12">
+				<svg
+					class="mx-auto h-12 w-12 text-neutral-400"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					aria-hidden="true"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+					></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900">No evaluations</h3>
+				<p class="mt-1 text-sm text-neutral-500">No recent evaluations to display.</p>
+			</div>
+		} else {
+			for _, eval := range evalsList {
+				@evaluationCard(eval)
+			}
+		}
+	</div>
+}
+
+// evaluationCard renders a single evaluation card
+templ evaluationCard(eval EvaluationSummary) {
+	<a
+		href={ templ.SafeURL("/ui/evaluations/" + eval.ID) }
+		class="block bg-white rounded-lg border border-neutral-200 p-4 hover:border-primary-500 hover:shadow-md transition-all duration-150 cursor-pointer"
+	>
+		<div class="flex items-start justify-between">
+			<div class="flex-1 min-w-0">
+				<!-- Job Name and Short ID -->
+				<div class="flex items-center gap-2 mb-2">
+					<h3 class="text-sm font-semibold text-neutral-900 truncate">
+						{ eval.JobName }
+					</h3>
+					<span class="text-xs font-mono text-neutral-500">
+						{ eval.ShortID }
+					</span>
+				</div>
+				<!-- Status Badge -->
+				<div class="flex items-center gap-2 mb-2">
+					@components.Badge(components.BadgeProps{
+						Variant: evalStatusVariant(eval.Status),
+						Dot:     true,
+						Size:    "sm",
+					}) {
+						{ eval.Status }
+					}
+					<span class="text-xs text-neutral-600">
+						{ eval.Type }
+					</span>
+				</div>
+				<!-- Triggered By -->
+				<div class="flex items-center gap-1 text-xs text-neutral-500">
+					<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+					</svg>
+					<span>{ eval.TriggeredBy }</span>
+				</div>
+			</div>
+			<!-- Time Ago -->
+			<div class="flex-shrink-0 ml-4">
+				<span class="text-xs text-neutral-500 whitespace-nowrap">
+					{ eval.TimeAgo }
+				</span>
+			</div>
+		</div>
+	</a>
+}
+
+// evalStatusVariant maps evaluation status to badge variant
+func evalStatusVariant(status string) string {
+	switch status {
+	case "complete":
+		return "success"
+	case "pending":
+		return "warning"
+	case "failed":
+		return "error"
+	case "blocked":
+		return "neutral"
+	case "canceled":
+		return "neutral"
+	default:
+		return "neutral"
+	}
+}

@@ -1,0 +1,146 @@
+package components
+
+// Example demonstrating various dropdown configurations
+
+// ExampleBasicDropdown shows a simple dropdown with standard items
+templ ExampleBasicDropdown() {
+	@Dropdown(DropdownProps{
+		ID:       "basic-dropdown",
+		Position: "right",
+		Width:    "md",
+	}) {
+		@DropdownTrigger() {
+			<button class="inline-flex items-center px-4 py-2 border border-neutral-300 rounded-md shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+				Options
+				<svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+				</svg>
+			</button>
+		}
+		@DropdownMenu(DropdownProps{Position: "right", Width: "md"}) {
+			@DropdownItemComponent(DropdownItem{Label: "Edit", Href: "/edit", Icon: "pencil"})
+			@DropdownItemComponent(DropdownItem{Label: "Duplicate", Href: "/duplicate", Icon: "duplicate"})
+			@DropdownDividerItem()
+			@DropdownItemComponent(DropdownItem{Label: "Archive", Href: "/archive"})
+			@DropdownItemComponent(DropdownItem{Label: "Move", Href: "/move"})
+			@DropdownDividerItem()
+			@DropdownItemComponent(DropdownItem{Label: "Delete", Href: "/delete", Icon: "trash", Danger: true})
+		}
+	}
+}
+
+// ExampleHTMXDropdown shows a dropdown with HTMX actions
+templ ExampleHTMXDropdown() {
+	@Dropdown(DropdownProps{
+		ID:       "htmx-dropdown",
+		Position: "right",
+		Width:    "md",
+	}) {
+		@DropdownTrigger() {
+			<button class="inline-flex items-center px-4 py-2 border border-neutral-300 rounded-md shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50">
+				Actions
+			</button>
+		}
+		@DropdownMenu(DropdownProps{Position: "right", Width: "md"}) {
+			@DropdownItemComponent(DropdownItem{
+				Label:    "Approve",
+				Icon:     "check",
+				HxPost:   "/api/items/123/approve",
+				HxTarget: "#item-123",
+			})
+			@DropdownItemComponent(DropdownItem{
+				Label:    "Reject",
+				Icon:     "x",
+				HxPost:   "/api/items/123/reject",
+				HxTarget: "#item-123",
+			})
+			@DropdownDividerItem()
+			@DropdownItemComponent(DropdownItem{
+				Label:    "Delete",
+				Icon:     "trash",
+				Danger:   true,
+				HxDelete: "/api/items/123",
+				HxTarget: "#item-123",
+				HxSwap:   "outerHTML",
+			})
+		}
+	}
+}
+
+// ExampleUserMenuDropdown shows a typical user menu dropdown
+templ ExampleUserMenuDropdown() {
+	@Dropdown(DropdownProps{
+		ID:       "user-menu",
+		Position: "right",
+		Width:    "sm",
+	}) {
+		@DropdownTrigger() {
+			<button class="flex items-center max-w-xs rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+				<span class="sr-only">Open user menu</span>
+				<img class="h-8 w-8 rounded-full" src="https://via.placeholder.com/150" alt="User avatar"/>
+			</button>
+		}
+		@DropdownMenu(DropdownProps{Position: "right", Width: "sm"}) {
+			@DropdownItemComponent(DropdownItem{Label: "Your Profile", Href: "/profile", Icon: "user"})
+			@DropdownItemComponent(DropdownItem{Label: "Settings", Href: "/settings", Icon: "cog"})
+			@DropdownDividerItem()
+			@DropdownItemComponent(DropdownItem{Label: "Sign out", Href: "/logout", Icon: "logout"})
+		}
+	}
+}
+
+// ExampleDotsMenuDropdown shows a compact "..." menu button
+templ ExampleDotsMenuDropdown() {
+	@Dropdown(DropdownProps{
+		ID:       "dots-menu",
+		Position: "left",
+		Width:    "auto",
+	}) {
+		@DropdownTrigger() {
+			<button class="p-2 rounded-full hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+				<span class="sr-only">Open options</span>
+				<svg class="h-5 w-5 text-neutral-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path>
+				</svg>
+			</button>
+		}
+		@DropdownMenu(DropdownProps{Position: "left", Width: "auto"}) {
+			@DropdownItemComponent(DropdownItem{Label: "View details", Href: "/view", Icon: "eye"})
+			@DropdownItemComponent(DropdownItem{Label: "Edit", Href: "/edit", Icon: "pencil"})
+			@DropdownItemComponent(DropdownItem{Label: "Share", Href: "/share", Icon: "share"})
+			@DropdownDividerItem()
+			@DropdownItemComponent(DropdownItem{Label: "Download", Href: "/download", Icon: "download"})
+			@DropdownDividerItem()
+			@DropdownItemComponent(DropdownItem{
+				Label:  "Delete",
+				Icon:   "trash",
+				Danger: true,
+				HxDelete: "/api/items/delete",
+				HxTarget: "#item-container",
+			})
+		}
+	}
+}
+
+// ExampleDisabledItemsDropdown shows a dropdown with some disabled items
+templ ExampleDisabledItemsDropdown() {
+	@Dropdown(DropdownProps{
+		ID:       "disabled-dropdown",
+		Position: "right",
+		Width:    "md",
+	}) {
+		@DropdownTrigger() {
+			<button class="inline-flex items-center px-4 py-2 border border-neutral-300 rounded-md shadow-sm text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50">
+				File Actions
+			</button>
+		}
+		@DropdownMenu(DropdownProps{Position: "right", Width: "md"}) {
+			@DropdownItemComponent(DropdownItem{Label: "Download", Href: "/download", Icon: "download"})
+			@DropdownItemComponent(DropdownItem{Label: "Print", Href: "/print", Disabled: true})
+			@DropdownItemComponent(DropdownItem{Label: "Share", Href: "/share", Icon: "share"})
+			@DropdownDividerItem()
+			@DropdownItemComponent(DropdownItem{Label: "Rename", Href: "/rename", Icon: "pencil"})
+			@DropdownItemComponent(DropdownItem{Label: "Move", Href: "/move", Disabled: true})
+		}
+	}
+}

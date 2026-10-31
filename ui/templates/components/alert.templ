@@ -1,0 +1,193 @@
+package components
+
+// AlertProps contains parameters for the Alert component
+type AlertProps struct {
+	Variant     string // Color variant: "info", "success", "warning", "error"
+	Title       string // Optional title text
+	Dismissible bool   // Whether to show close/dismiss button
+	Icon        bool   // Whether to show variant icon
+	Class       string // Additional CSS classes to apply
+}
+
+// Alert renders a colored alert/notification component with support for variants,
+// optional titles, dismissible functionality, and icons.
+//
+// Color Variants:
+//   - "info" - Cyan for informational messages
+//   - "success" - Green for successful operations
+//   - "warning" - Amber for warnings and cautions
+//   - "error" - Red for errors and failures
+//
+// Features:
+//   - Optional title for structured messages
+//   - Dismissible with Alpine.js (shows X button)
+//   - Appropriate icons for each variant
+//   - Children slot for message content
+//   - Accessible with proper ARIA attributes
+//
+// Example Usage:
+//   @Alert(AlertProps{Variant: "success", Icon: true}, "Operation completed successfully")
+//   @Alert(AlertProps{Variant: "warning", Title: "Warning", Dismissible: true}, "Please review your changes")
+//   @Alert(AlertProps{Variant: "error", Icon: true, Dismissible: true}, "An error occurred")
+//   @Alert(AlertProps{Variant: "info", Title: "Notice"}, "System maintenance scheduled")
+templ Alert(props AlertProps) {
+	<div
+		if props.Dismissible {
+			x-data="{ show: true }"
+			x-show="show"
+			x-transition:enter="transition ease-out duration-200"
+			x-transition:enter-start="opacity-0 transform scale-95"
+			x-transition:enter-end="opacity-100 transform scale-100"
+			x-transition:leave="transition ease-in duration-150"
+			x-transition:leave-start="opacity-100 transform scale-100"
+			x-transition:leave-end="opacity-0 transform scale-95"
+		}
+		class={ alertClasses(props) }
+		role="alert"
+	>
+		<div class="flex">
+			if props.Icon {
+				<div class="flex-shrink-0">
+					@alertIcon(props.Variant)
+				</div>
+			}
+			<div class={ contentClasses(props.Icon) }>
+				if props.Title != "" {
+					<h3 class={ titleClasses(props.Variant) }>{ props.Title }</h3>
+					<div class={ messageClasses(props.Variant, props.Title != "") }>
+						{ children... }
+					</div>
+				} else {
+					<div class={ messageClasses(props.Variant, false) }>
+						{ children... }
+					</div>
+				}
+			</div>
+			if props.Dismissible {
+				<div class="ml-auto pl-3">
+					<div class="-mx-1.5 -my-1.5">
+						<button
+							type="button"
+							@click="show = false"
+							class={ dismissButtonClasses(props.Variant) }
+							aria-label="Dismiss"
+						>
+							<span class="sr-only">Dismiss</span>
+							@Icon(IconProps{Name: "x", Size: "sm"})
+						</button>
+					</div>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// alertClasses builds the complete CSS class string for the alert container
+func alertClasses(props AlertProps) string {
+	classes := "rounded-md p-4 "
+
+	// Color variant classes
+	classes += variantContainerClasses(props.Variant)
+
+	// Additional custom classes
+	if props.Class != "" {
+		classes += props.Class
+	}
+
+	return classes
+}
+
+// variantContainerClasses returns the background and border classes for each variant
+func variantContainerClasses(variant string) string {
+	switch variant {
+	case "success":
+		return "bg-success-50 border border-success-200 "
+	case "warning":
+		return "bg-warning-50 border border-warning-200 "
+	case "error":
+		return "bg-error-50 border border-error-200 "
+	case "info":
+		return "bg-info-50 border border-info-200 "
+	default:
+		return "bg-info-50 border border-info-200 "
+	}
+}
+
+// contentClasses returns the classes for the content wrapper div
+func contentClasses(hasIcon bool) string {
+	if hasIcon {
+		return "ml-3 flex-1"
+	}
+	return "flex-1"
+}
+
+// titleClasses returns the CSS classes for the alert title
+func titleClasses(variant string) string {
+	baseClasses := "text-sm font-medium "
+
+	switch variant {
+	case "success":
+		return baseClasses + "text-success-800"
+	case "warning":
+		return baseClasses + "text-warning-800"
+	case "error":
+		return baseClasses + "text-error-800"
+	case "info":
+		return baseClasses + "text-info-800"
+	default:
+		return baseClasses + "text-info-800"
+	}
+}
+
+// messageClasses returns the CSS classes for the alert message content
+func messageClasses(variant string, hasTitle bool) string {
+	baseClasses := "text-sm "
+
+	if hasTitle {
+		baseClasses += "mt-2 "
+	}
+
+	switch variant {
+	case "success":
+		return baseClasses + "text-success-700"
+	case "warning":
+		return baseClasses + "text-warning-700"
+	case "error":
+		return baseClasses + "text-error-700"
+	case "info":
+		return baseClasses + "text-info-700"
+	default:
+		return baseClasses + "text-info-700"
+	}
+}
+
+// dismissButtonClasses returns the CSS classes for the dismiss button
+func dismissButtonClasses(variant string) string {
+	baseClasses := "inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 "
+
+	switch variant {
+	case "success":
+		return baseClasses + "bg-success-50 text-success-500 hover:bg-success-100 focus:ring-success-600 focus:ring-offset-success-50"
+	case "warning":
+		return baseClasses + "bg-warning-50 text-warning-500 hover:bg-warning-100 focus:ring-warning-600 focus:ring-offset-warning-50"
+	case "error":
+		return baseClasses + "bg-error-50 text-error-500 hover:bg-error-100 focus:ring-error-600 focus:ring-offset-error-50"
+	case "info":
+		return baseClasses + "bg-info-50 text-info-500 hover:bg-info-100 focus:ring-info-600 focus:ring-offset-info-50"
+	default:
+		return baseClasses + "bg-info-50 text-info-500 hover:bg-info-100 focus:ring-info-600 focus:ring-offset-info-50"
+	}
+}
+
+// alertIcon renders the appropriate icon for each variant
+templ alertIcon(variant string) {
+	if variant == "success" {
+		@Icon(IconProps{Name: "check-circle", Size: "md", Class: "text-success-400"})
+	} else if variant == "warning" {
+		@Icon(IconProps{Name: "exclamation-triangle", Size: "md", Class: "text-warning-400"})
+	} else if variant == "error" {
+		@Icon(IconProps{Name: "x-circle", Size: "md", Class: "text-error-400"})
+	} else {
+		@Icon(IconProps{Name: "information-circle", Size: "md", Class: "text-info-400"})
+	}
+}

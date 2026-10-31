@@ -359,7 +359,12 @@ func TestConsul_ShutdownOK(t *testing.T) {
 		},
 	}
 	require.NoError(ctx.ServiceClient.RegisterAgent("client", agentServices))
-	require.Eventually(ctx.ServiceClient.hasSeen, time.Second, 10*time.Millisecond)
+	require.Eventually(func() bool {
+		ctx.FakeConsul.mu.Lock()
+		defer ctx.FakeConsul.mu.Unlock()
+		return len(ctx.FakeConsul.services["default"]) == 1 &&
+			len(ctx.FakeConsul.checks["default"]) == 1
+	}, time.Second, 10*time.Millisecond)
 
 	// assert successful registration
 	require.Len(ctx.FakeConsul.services["default"], 1, "expected agent service to be registered")
@@ -403,7 +408,12 @@ func TestConsul_ShutdownBlocked(t *testing.T) {
 		},
 	}
 	require.NoError(ctx.ServiceClient.RegisterAgent("client", agentServices))
-	require.Eventually(ctx.ServiceClient.hasSeen, time.Second, 10*time.Millisecond)
+	require.Eventually(func() bool {
+		ctx.FakeConsul.mu.Lock()
+		defer ctx.FakeConsul.mu.Unlock()
+		return len(ctx.FakeConsul.services["default"]) == 1 &&
+			len(ctx.FakeConsul.checks["default"]) == 1
+	}, time.Second, 10*time.Millisecond)
 	require.Len(ctx.FakeConsul.services["default"], 1, "expected agent service to be registered")
 	require.Len(ctx.FakeConsul.checks["default"], 1, "expected agent check to be registered")
 

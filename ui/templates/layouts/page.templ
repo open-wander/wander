@@ -1,0 +1,58 @@
+package layouts
+
+import "github.com/open-wander/wander/ui/templates/components"
+
+// PageLayoutProps contains parameters for the page wrapper layout
+type PageLayoutProps struct {
+	Title               string
+	Description         string
+	CurrentPath         string // Current page path for active navigation highlighting
+	Breadcrumbs         []components.Breadcrumb
+	User                *components.UserInfo       // Optional user information
+	ExpandedSections    []string                   // Sidebar sections to expand by default
+	CurrentNamespace    string                     // Current selected namespace
+	AvailableNamespaces []components.NamespaceInfo // List of available namespaces
+	CurrentRegion       string                     // Current selected region
+	AvailableRegions    []components.RegionInfo    // List of available regions
+	Version             string                     // Application version to display
+}
+
+// PageLayout provides the full page structure with header, sidebar, and main content area.
+// This wraps BaseLayout and adds the application shell using component composition.
+templ PageLayout(props PageLayoutProps, content templ.Component) {
+	@BaseLayout(BaseLayoutProps{
+		Title:            props.Title,
+		Description:      props.Description,
+		CurrentNamespace: props.CurrentNamespace,
+		CurrentRegion:    props.CurrentRegion,
+	}, pageContent(props, content))
+}
+
+// pageContent is the inner content for PageLayout that gets passed to BaseLayout
+templ pageContent(props PageLayoutProps, content templ.Component) {
+	<div class="flex h-full flex-col">
+		<div class="flex min-h-0 flex-1">
+			<!-- Sidebar Component -->
+			@components.Sidebar(components.SidebarProps{
+				CurrentPath:      props.CurrentPath,
+				ExpandedSections: props.ExpandedSections,
+			})
+			<!-- Main Content Area -->
+			<div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+				<!-- Header Component -->
+				@components.Header(components.HeaderProps{
+					CurrentPath:         props.CurrentPath,
+					User:                props.User,
+					Breadcrumbs:         props.Breadcrumbs,
+					CurrentNamespace:    props.CurrentNamespace,
+					AvailableNamespaces: props.AvailableNamespaces,
+					CurrentRegion:       props.CurrentRegion,
+					AvailableRegions:    props.AvailableRegions,
+				})
+				<!-- Main Content Component -->
+				@components.Main(components.MainProps{}, content)
+			</div>
+		</div>
+		@components.Footer(components.FooterProps{Version: props.Version})
+	</div>
+}

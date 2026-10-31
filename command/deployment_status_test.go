@@ -5,6 +5,7 @@ package command
 
 import (
 	"testing"
+	"time"
 
 	"github.com/mitchellh/cli"
 	"github.com/open-wander/wander/ci"
@@ -13,6 +14,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDeploymentSpinnerFrame(t *testing.T) {
+	ci.Parallel(t)
+
+	testCases := []struct {
+		elapsed time.Duration
+		expect  string
+	}{
+		{elapsed: -time.Second, expect: "|"},
+		{elapsed: 0, expect: "|"},
+		{elapsed: deploymentSpinnerInterval, expect: "/"},
+		{elapsed: 2 * deploymentSpinnerInterval, expect: "-"},
+		{elapsed: 3 * deploymentSpinnerInterval, expect: "\\"},
+		{elapsed: 4 * deploymentSpinnerInterval, expect: "|"},
+	}
+
+	for _, testCase := range testCases {
+		require.Equal(t, testCase.expect, deploymentSpinnerFrame(testCase.elapsed))
+	}
+}
 
 func TestDeploymentStatusCommand_Implements(t *testing.T) {
 	ci.Parallel(t)

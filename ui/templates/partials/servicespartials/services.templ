@@ -1,0 +1,131 @@
+package servicespartials
+
+import (
+	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+type ServiceSummary struct {
+	Name      string
+	Namespace string
+	Tags      []string
+}
+
+type ServiceDetail struct {
+	Name          string
+	Registrations []*api.ServiceRegistration
+}
+
+templ ListContent(serviceList []ServiceSummary) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="mb-6">
+			<h1 class="text-2xl font-bold text-neutral-900">Services</h1>
+			<p class="mt-2 text-sm text-neutral-700">Nomad-native service registrations in the selected namespace</p>
+		</div>
+		<div class="bg-white shadow rounded-lg overflow-hidden">
+			@components.Table(components.TableProps{
+				Columns: []components.Column{
+					{Key: "name", Label: "Name", Align: "left"},
+					{Key: "namespace", Label: "Namespace", Align: "left", Width: "w-40"},
+					{Key: "tags", Label: "Tags", Align: "left"},
+				},
+				Hover: true,
+			}) {
+				@components.TableBody() {
+					if len(serviceList) == 0 {
+						@components.TableEmptyState("No services found", "No Nomad-native services are registered in this namespace")
+					} else {
+						for _, service := range serviceList {
+							<tr class="hover:bg-neutral-50">
+								@components.TableCell("left", "") {
+									<a
+										href={ templ.SafeURL("/ui/services/" + url.PathEscape(service.Name)) }
+										hx-get={ "/ui/services/" + url.PathEscape(service.Name) }
+										hx-target="#main-content"
+										hx-push-url="true"
+										class="font-medium text-primary-600 hover:text-primary-700 hover:underline"
+									>{ service.Name }</a>
+								}
+								@components.TableCell("left", "w-40") { { service.Namespace } }
+								@components.TableCell("left", "") { { displayTags(service.Tags) } }
+							</tr>
+						}
+					}
+				}
+			}
+		</div>
+	</div>
+}
+
+templ DetailContent(service ServiceDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="mb-6">
+			<h1 class="text-2xl font-bold text-neutral-900">{ service.Name }</h1>
+			<p class="mt-2 text-sm text-neutral-700">{ fmt.Sprintf("%d live registration(s)", len(service.Registrations)) }</p>
+		</div>
+		<div class="bg-white shadow rounded-lg overflow-hidden">
+			@RegistrationTable(service.Registrations)
+		</div>
+	</div>
+}
+
+templ RegistrationTable(registrations []*api.ServiceRegistration) {
+	@components.Table(components.TableProps{
+		Columns: []components.Column{
+			{Key: "service", Label: "Service", Align: "left"},
+			{Key: "address", Label: "Address", Align: "left"},
+			{Key: "job", Label: "Job", Align: "left"},
+			{Key: "allocation", Label: "Allocation", Align: "left"},
+			{Key: "client", Label: "Client", Align: "left"},
+			{Key: "datacenter", Label: "Datacenter", Align: "left", Width: "w-32"},
+			{Key: "tags", Label: "Tags", Align: "left"},
+		},
+		Hover: true,
+	}) {
+		@components.TableBody() {
+			if len(registrations) == 0 {
+				@components.TableEmptyState("No registrations found", "This service currently has no registrations")
+			} else {
+				for _, registration := range registrations {
+					if registration != nil {
+						<tr class="hover:bg-neutral-50">
+							@components.TableCell("left", "") { { registration.ServiceName } }
+							@components.TableCell("left", "") {
+								<span class="font-mono text-sm">{ fmt.Sprintf("%s:%d", registration.Address, registration.Port) }</span>
+							}
+							@components.TableCell("left", "") {
+								<a href={ templ.SafeURL("/ui/jobs/" + registration.JobID) } class="text-primary-600 hover:underline">{ registration.JobID }</a>
+							}
+							@components.TableCell("left", "") {
+								<a href={ templ.SafeURL("/ui/allocations/" + registration.AllocID) } class="font-mono text-primary-600 hover:underline">{ shortID(registration.AllocID) }</a>
+							}
+							@components.TableCell("left", "") {
+								<a href={ templ.SafeURL("/ui/clients/" + registration.NodeID) } class="font-mono text-primary-600 hover:underline">{ shortID(registration.NodeID) }</a>
+							}
+							@components.TableCell("left", "w-32") { { registration.Datacenter } }
+							@components.TableCell("left", "") { { displayTags(registration.Tags) } }
+						</tr>
+					}
+				}
+			}
+		}
+	}
+}
+
+func displayTags(tags []string) string {
+	if len(tags) == 0 {
+		return "—"
+	}
+	return strings.Join(tags, ", ")
+}
+
+func shortID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
+}

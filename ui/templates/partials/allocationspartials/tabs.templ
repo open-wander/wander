@@ -1,0 +1,460 @@
+package allocationspartials
+
+import (
+	"fmt"
+	"time"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// TasksTab renders the tasks tab content with detailed task information
+// including status, resource usage, events timeline, and links to logs
+templ TasksTab(alloc AllocationDetail) {
+	<div class="p-6">
+		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+			<section data-testid="allocation-ports">
+				<h3 class="text-lg font-medium text-neutral-900 mb-3">Network Ports</h3>
+				<div class="border border-neutral-200 rounded-lg overflow-hidden">
+					if len(alloc.Ports) == 0 {
+						<p class="p-4 text-sm text-neutral-500">No allocated ports.</p>
+					} else {
+						<div class="overflow-x-auto">
+							<table class="min-w-full divide-y divide-neutral-200 text-sm">
+								<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+									<tr>
+										<th class="px-4 py-3 font-medium">Label</th>
+										<th class="px-4 py-3 font-medium">Host address</th>
+										<th class="px-4 py-3 font-medium">To</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-neutral-200 bg-white">
+									for _, port := range alloc.Ports {
+										<tr>
+											<td class="px-4 py-3 font-medium text-neutral-900">{ port.Label }</td>
+											<td class="px-4 py-3 font-mono text-neutral-700">
+												if port.HostIP != "" {
+													{ fmt.Sprintf("%s:%d", port.HostIP, port.HostPort) }
+												} else {
+													{ fmt.Sprintf("port %d", port.HostPort) }
+												}
+											</td>
+											<td class="px-4 py-3 font-mono text-neutral-700">
+												if port.To > 0 {
+													{ fmt.Sprintf("%d", port.To) }
+												} else {
+													<span class="text-neutral-400">—</span>
+												}
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+				</div>
+			</section>
+			<section data-testid="allocation-services">
+				<h3 class="text-lg font-medium text-neutral-900 mb-3">Live Services</h3>
+				<div class="border border-neutral-200 rounded-lg overflow-hidden">
+					if !alloc.ServicesReady {
+						<div class="p-4 bg-warning-50 text-sm text-warning-800">
+							<p class="font-medium">Services unavailable</p>
+							<p class="mt-1">{ alloc.ServicesError }</p>
+						</div>
+					} else if len(alloc.Services) == 0 {
+						<p class="p-4 text-sm text-neutral-500">No live service registrations.</p>
+					} else {
+						<ul class="divide-y divide-neutral-200 bg-white">
+							for _, service := range alloc.Services {
+								<li class="p-4">
+									<div class="flex items-start justify-between gap-4">
+										<div>
+											<a href={ templ.URL(service.DetailURL) } class="font-medium text-primary-600 hover:underline">{ service.Name }</a>
+											if service.Tags != "" {
+												<p class="mt-1 text-xs text-neutral-500">{ service.Tags }</p>
+											}
+										</div>
+										<span class="font-mono text-sm text-neutral-700">
+											if service.Address != "" {
+												{ fmt.Sprintf("%s:%d", service.Address, service.Port) }
+											} else {
+												{ fmt.Sprintf("port %d", service.Port) }
+											}
+										</span>
+									</div>
+								</li>
+							}
+						</ul>
+					}
+				</div>
+			</section>
+		</div>
+		<div class="flex items-center justify-between mb-6">
+			<h3 class="text-lg font-medium text-neutral-900">Tasks ({ fmt.Sprintf("%d", len(alloc.Tasks)) })</h3>
+		</div>
+		<!-- Task Cards -->
+		<div class="space-y-4">
+			for _, task := range alloc.Tasks {
+				@components.Card(components.CardProps{
+					Border: true,
+					Shadow: false,
+					Class:  "overflow-hidden",
+				}) {
+					@components.CardBody() {
+						<!-- Task Header -->
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center space-x-3">
+								<!-- Task Icon -->
+								<div class={ taskIconClasses(task.State) }>
+									@taskStateIcon(task.State)
+								</div>
+								<div>
+									<h4 class="text-base font-semibold text-neutral-900">{ task.Name }</h4>
+									<div class="flex items-center space-x-2 mt-1">
+										@components.Badge(components.BadgeProps{
+											Variant: taskStateToBadgeVariant(task.State),
+											Dot:     true,
+											Size:    "sm",
+										}) {
+											{ task.State }
+										}
+										if task.Restarts > 0 {
+											@components.Badge(components.BadgeProps{
+												Variant: "warning",
+												Size:    "sm",
+											}) {
+												{ fmt.Sprintf("%d restart", task.Restarts) }
+												if task.Restarts > 1 {
+													s
+												}
+											}
+										}
+										if task.LifecycleHook != "" {
+											<span data-task-lifecycle={ task.Name }>
+												@components.Badge(components.BadgeProps{
+													Variant: "info",
+													Size:    "sm",
+												}) {
+													{ task.LifecycleHook }
+													if task.LifecycleSidecar {
+														 sidecar
+													}
+												}
+											</span>
+										}
+									</div>
+								</div>
+							</div>
+							<!-- Actions -->
+							<div class="flex items-center space-x-2">
+								<a
+									href={ templ.URL("/ui/allocations/" + alloc.ID + "/logs?task=" + task.Name) }
+									class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+								>
+									<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+									</svg>
+									Logs
+								</a>
+							</div>
+						</div>
+						<!-- Task Timing Info -->
+						<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-3 bg-neutral-50 rounded-lg">
+							<div>
+								<div class="text-xs text-neutral-500 uppercase tracking-wide">Started</div>
+								<div class="text-sm font-medium text-neutral-900 mt-1">
+									if !task.StartedAt.IsZero() {
+										{ task.StartedAt.Format("Jan 2, 15:04:05") }
+									} else {
+										<span class="text-neutral-400">--</span>
+									}
+								</div>
+							</div>
+							<div>
+								<div class="text-xs text-neutral-500 uppercase tracking-wide">Finished</div>
+								<div class="text-sm font-medium text-neutral-900 mt-1">
+									if !task.FinishedAt.IsZero() {
+										{ task.FinishedAt.Format("Jan 2, 15:04:05") }
+									} else {
+										if task.State == "running" {
+											<span class="text-success-600">Running</span>
+										} else {
+											<span class="text-neutral-400">--</span>
+										}
+									}
+								</div>
+							</div>
+							<div>
+								<div class="text-xs text-neutral-500 uppercase tracking-wide">Restarts</div>
+								<div class="text-sm font-medium text-neutral-900 mt-1">
+									{ fmt.Sprintf("%d", task.Restarts) }
+								</div>
+							</div>
+							<div>
+								<div class="text-xs text-neutral-500 uppercase tracking-wide">Duration</div>
+								<div class="text-sm font-medium text-neutral-900 mt-1">
+									if !task.StartedAt.IsZero() {
+										{ formatDuration(task.StartedAt, task.FinishedAt) }
+									} else {
+										<span class="text-neutral-400">--</span>
+									}
+								</div>
+							</div>
+						</div>
+						<!-- Task Resources -->
+						if task.Resources.CPU > 0 || task.Resources.Memory > 0 {
+							<div class="mb-4">
+								<h5 class="text-sm font-medium text-neutral-700 mb-2">Resource Usage</h5>
+								<div class="grid grid-cols-2 gap-4">
+									<!-- CPU -->
+									<div>
+										<div class="flex items-center justify-between text-xs mb-1">
+											<span class="text-neutral-600">CPU</span>
+											<span class="font-medium text-neutral-900">
+												{ fmt.Sprintf("%d%%", task.Resources.CPUUsage) } of { fmt.Sprintf("%d", task.Resources.CPU) } MHz
+											</span>
+										</div>
+										<div class="w-full bg-neutral-200 rounded-full h-2">
+											<div
+												class={ resourceBarClasses(task.Resources.CPUUsage) }
+												style={ fmt.Sprintf("width: %d%%", task.Resources.CPUUsage) }
+											></div>
+										</div>
+									</div>
+									<!-- Memory -->
+									<div>
+										<div class="flex items-center justify-between text-xs mb-1">
+											<span class="text-neutral-600">Memory</span>
+											<span class="font-medium text-neutral-900">
+												{ fmt.Sprintf("%d%%", task.Resources.MemUsage) } of { fmt.Sprintf("%d", task.Resources.Memory) } MB
+											</span>
+										</div>
+										<div class="w-full bg-neutral-200 rounded-full h-2">
+											<div
+												class={ resourceBarClasses(task.Resources.MemUsage) }
+												style={ fmt.Sprintf("width: %d%%", task.Resources.MemUsage) }
+											></div>
+										</div>
+									</div>
+								</div>
+							</div>
+						}
+						<!-- Events Timeline -->
+						if len(task.Events) > 0 {
+							<div>
+								<h5 class="text-sm font-medium text-neutral-700 mb-2">Recent Events</h5>
+								<div class="relative">
+									<!-- Timeline line -->
+									<div class="absolute left-2 top-2 bottom-2 w-0.5 bg-neutral-200"></div>
+									<div class="space-y-3">
+										for i, event := range task.Events {
+											<div class="relative flex items-start pl-6">
+												<!-- Timeline dot -->
+												<div class={ timelineDotClasses(event.FailsTask, i == 0) }></div>
+												<div class="flex-1 min-w-0">
+													<div class="flex items-center justify-between">
+														<span class={ eventTypeClasses(event.FailsTask) }>{ event.Type }</span>
+														<span class="text-xs text-neutral-500">{ event.Time.Format("Jan 2, 15:04:05") }</span>
+													</div>
+													if event.DisplayMsg != "" {
+														<p class="text-sm text-neutral-600 mt-0.5">{ event.DisplayMsg }</p>
+													}
+												</div>
+											</div>
+										}
+									</div>
+								</div>
+							</div>
+						}
+					}
+				}
+			}
+		</div>
+		if len(alloc.Tasks) == 0 {
+			<div class="text-center py-12 bg-neutral-50 rounded-lg">
+				<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900">No tasks</h3>
+				<p class="mt-1 text-sm text-neutral-500">This allocation has no tasks defined.</p>
+			</div>
+		}
+		<!-- Allocation Resources Summary -->
+		<div class="mt-6 border-t border-neutral-200 pt-6">
+			<h3 class="text-lg font-medium text-neutral-900 mb-4">Allocation Resources</h3>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<div class="bg-neutral-50 rounded-lg p-4">
+					<div class="text-sm text-neutral-600 mb-1">Total CPU</div>
+					<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%d", alloc.Resources.CPU) } <span class="text-sm font-normal text-neutral-600">MHz</span></div>
+				</div>
+				<div class="bg-neutral-50 rounded-lg p-4">
+					<div class="text-sm text-neutral-600 mb-1">Total Memory</div>
+					<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%d", alloc.Resources.Memory) } <span class="text-sm font-normal text-neutral-600">MB</span></div>
+				</div>
+				<div class="bg-neutral-50 rounded-lg p-4">
+					<div class="text-sm text-neutral-600 mb-1">Total Disk</div>
+					<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%d", alloc.Resources.Disk) } <span class="text-sm font-normal text-neutral-600">MB</span></div>
+				</div>
+			</div>
+		</div>
+		<!-- Allocation Events -->
+		if len(alloc.Events) > 0 {
+			<div class="mt-6 border-t border-neutral-200 pt-6">
+				<h3 class="text-lg font-medium text-neutral-900 mb-4">Allocation Events</h3>
+				<div class="space-y-2">
+					for _, event := range alloc.Events {
+						<div class="flex items-start space-x-4 text-sm border-l-2 border-primary-500 pl-4 py-2">
+							<div class="flex-shrink-0 w-32 text-neutral-500">
+								{ event.Time.Format("Jan 2, 15:04:05") }
+							</div>
+							<div class="flex-1">
+								<span class="font-medium text-neutral-900">{ event.Type }:</span>
+								<span class="text-neutral-600 ml-1">{ event.Message }</span>
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// FilesTab renders the files tab - delegates to FilesTabFull from files.templ
+// This is a compatibility wrapper that creates default props
+templ FilesTab(allocID string, tasks []string, selectedTask string, files []FileEntry) {
+	@FilesTabFull(FilesTabProps{
+		AllocID:      allocID,
+		Tasks:        tasks,
+		SelectedTask: selectedTask,
+		Files:        files,
+	})
+}
+
+// RawTab renders allocation data returned by the API.
+templ RawTab(raw string) {
+	<div class="p-6">
+		<h3 class="text-lg font-medium text-neutral-900 mb-4">Raw Allocation Data</h3>
+		<div class="bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm overflow-x-auto">
+			<pre>{ raw }</pre>
+		</div>
+	</div>
+}
+
+// taskStateToBadgeVariant maps task state to badge variant
+func taskStateToBadgeVariant(state string) string {
+	switch state {
+	case "running":
+		return "success"
+	case "pending":
+		return "warning"
+	case "dead":
+		return "neutral"
+	case "failed":
+		return "error"
+	default:
+		return "info"
+	}
+}
+
+// taskIconClasses returns CSS classes for task state icon container
+func taskIconClasses(state string) string {
+	base := "flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center "
+	switch state {
+	case "running":
+		return base + "bg-success-100 text-success-600"
+	case "pending":
+		return base + "bg-warning-100 text-warning-600"
+	case "dead":
+		return base + "bg-neutral-100 text-neutral-600"
+	case "failed":
+		return base + "bg-error-100 text-error-600"
+	default:
+		return base + "bg-info-100 text-info-600"
+	}
+}
+
+// taskStateIcon renders an icon based on task state
+templ taskStateIcon(state string) {
+	switch state {
+		case "running":
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+			</svg>
+		case "pending":
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+			</svg>
+		case "dead":
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z"></path>
+			</svg>
+		case "failed":
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+			</svg>
+		default:
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+			</svg>
+	}
+}
+
+// resourceBarClasses returns CSS classes for resource usage bar based on usage percentage
+func resourceBarClasses(usage int) string {
+	base := "h-2 rounded-full transition-all duration-300 "
+	if usage >= 90 {
+		return base + "bg-error-500"
+	} else if usage >= 70 {
+		return base + "bg-warning-500"
+	}
+	return base + "bg-success-500"
+}
+
+// timelineDotClasses returns CSS classes for timeline event dots
+func timelineDotClasses(failsTask bool, isFirst bool) string {
+	base := "absolute left-0 w-4 h-4 rounded-full border-2 border-white "
+	if failsTask {
+		return base + "bg-error-500"
+	}
+	if isFirst {
+		return base + "bg-primary-500"
+	}
+	return base + "bg-neutral-300"
+}
+
+// eventTypeClasses returns CSS classes for event type text
+func eventTypeClasses(failsTask bool) string {
+	if failsTask {
+		return "text-sm font-medium text-error-600"
+	}
+	return "text-sm font-medium text-neutral-900"
+}
+
+// formatDuration formats the duration between start and finish times
+func formatDuration(start, finish time.Time) string {
+	var end time.Time
+	if finish.IsZero() {
+		end = time.Now()
+	} else {
+		end = finish
+	}
+
+	duration := end.Sub(start)
+
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", int(duration.Seconds()))
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		seconds := int(duration.Seconds()) % 60
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		minutes := int(duration.Minutes()) % 60
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	}
+
+	days := int(duration.Hours() / 24)
+	hours := int(duration.Hours()) % 24
+	return fmt.Sprintf("%dd %dh", days, hours)
+}

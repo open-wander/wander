@@ -1,0 +1,23 @@
+```release-note:feature
+ui: add ACL policy creation and complete token and role management
+```
+
+```release-note:improvement
+ui: show tokens and roles that use an ACL policy
+```
+
+```release-note:feature
+ui: restore the client agent-log monitor with level selection and pause/resume
+```
+
+```release-note:feature
+ui: restore the server agent-log monitor with region-aware targeting
+```
+
+```release-note:feature
+ui: restore the inherited server list columns, pagination, RPC details, and copyable tags
+```
+
+```release-note:improvement
+ui: harden cookies, file downloads, numeric conversions, and development server defaults
+```

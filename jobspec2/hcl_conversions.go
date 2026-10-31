@@ -239,7 +239,11 @@ func decodeConstraint(body hcl.Body, ctx *hcl.EvalContext, val interface{}) hcl.
 	// so it can not use the `attr` func defined earlier
 	if d := v.GetAttr(api.ConstraintDistinctHosts); !d.IsNull() {
 		c.Operand = api.ConstraintDistinctHosts
-		c.RTarget = fmt.Sprint(d.True())
+		// An empty target is the canonical legacy representation of true.
+		// Preserve an explicit false value so the scheduler can disable it.
+		if !d.True() {
+			c.RTarget = "false"
+		}
 	}
 
 	if property := attr(api.ConstraintDistinctProperty); property != "" {

@@ -1,0 +1,367 @@
+package evaluationspartials
+
+import (
+	"fmt"
+	"time"
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// EvaluationDetail represents detailed information about an evaluation
+type EvaluationDetail struct {
+	ID                string
+	ShortID           string
+	JobID             string
+	Namespace         string
+	Status            string
+	StatusDescription string
+	Type              string
+	TriggeredBy       string
+	Priority          int
+	CreateTime        time.Time
+	CreateTimeAgo     string
+	ModifyTime        time.Time
+	ModifyTimeAgo     string
+	NodeID            string
+	DeploymentID      string
+	NextEval          string
+	PreviousEval      string
+	BlockedEval       string
+	FailedTGAllocs    map[string]AllocationMetric
+	QueuedAllocations map[string]int
+}
+
+// AllocationMetric represents placement failure metrics for a task group
+type AllocationMetric struct {
+	NodesEvaluated     int
+	NodesFiltered      int
+	NodesAvailable     map[string]int
+	NodesExhausted     int
+	ClassFiltered      map[string]int
+	ConstraintFiltered map[string]int
+	ClassExhausted     map[string]int
+	DimensionExhausted map[string]int
+	QuotaExhausted     []string
+	ResourcesExhausted map[string]*Resources
+	Scores             map[string]float64
+	ScoreMetaData      []*NodeScoreMeta
+}
+
+// Resources represents resource information
+type Resources struct {
+	CPU      int
+	MemoryMB int
+	DiskMB   int
+}
+
+// NodeScoreMeta represents node scoring metadata
+type NodeScoreMeta struct {
+	NodeID    string
+	Scores    map[string]float64
+	NormScore float64
+}
+
+// DetailContent renders the evaluation detail page content (without layout)
+templ DetailContent(eval EvaluationDetail) {
+	<div
+		id="evaluation-detail"
+		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+		if !isEvaluationTerminal(eval.Status) {
+			hx-get={ "/ui/evaluations/" + eval.ID }
+			hx-trigger="every 3s"
+			hx-swap="outerHTML"
+		}
+	>
+		<!-- Evaluation Header -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6">
+			<div class="flex items-center justify-between mb-4">
+				<div class="flex items-center space-x-4">
+					<h1 class="text-3xl font-bold text-neutral-900">Evaluation</h1>
+					<span class="text-xl font-mono text-neutral-600">{ eval.ShortID }</span>
+					@components.Badge(components.BadgeProps{
+						Variant: statusVariant(eval.Status),
+						Dot:     true,
+						Size:    "md",
+					}) {
+						{ eval.Status }
+					}
+				</div>
+			</div>
+
+			<!-- Basic Information Grid -->
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+				<!-- Job ID -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Job</label>
+					<a
+						href={ templ.SafeURL("/ui/jobs/" + eval.JobID) }
+						class="text-primary-600 hover:text-primary-700 font-medium"
+					>
+						{ eval.JobID }
+					</a>
+				</div>
+
+				<!-- Namespace -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Namespace</label>
+					<p class="text-neutral-900">{ eval.Namespace }</p>
+				</div>
+
+				<!-- Type -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Type</label>
+					<p class="text-neutral-900">{ eval.Type }</p>
+				</div>
+
+				<!-- Triggered By -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Triggered By</label>
+					<p class="text-neutral-900">{ eval.TriggeredBy }</p>
+				</div>
+
+				<!-- Priority -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Priority</label>
+					<p class="text-neutral-900">{ fmt.Sprintf("%d", eval.Priority) }</p>
+				</div>
+
+				<!-- Status Description -->
+				if eval.StatusDescription != "" {
+					<div>
+						<label class="block text-sm font-medium text-neutral-500 mb-1">Status Description</label>
+						<p class="text-neutral-900">{ eval.StatusDescription }</p>
+					</div>
+				}
+
+				<!-- Created -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Created</label>
+					<p class="text-neutral-900">{ eval.CreateTimeAgo }</p>
+					<p class="text-xs text-neutral-500">{ eval.CreateTime.Format("2006-01-02 15:04:05 MST") }</p>
+				</div>
+
+				<!-- Modified -->
+				<div>
+					<label class="block text-sm font-medium text-neutral-500 mb-1">Modified</label>
+					<p class="text-neutral-900">{ eval.ModifyTimeAgo }</p>
+					<p class="text-xs text-neutral-500">{ eval.ModifyTime.Format("2006-01-02 15:04:05 MST") }</p>
+				</div>
+
+				<!-- Node ID -->
+				if eval.NodeID != "" {
+					<div>
+						<label class="block text-sm font-medium text-neutral-500 mb-1">Node</label>
+						<a
+							href={ templ.SafeURL("/ui/clients/" + eval.NodeID) }
+							class="text-primary-600 hover:text-primary-700 font-mono text-sm"
+						>
+							{ evaluationShortID(eval.NodeID) }
+						</a>
+					</div>
+				}
+
+				<!-- Deployment ID -->
+				if eval.DeploymentID != "" {
+					<div>
+						<label class="block text-sm font-medium text-neutral-500 mb-1">Deployment</label>
+						<span class="font-mono text-sm text-neutral-900">{ evaluationShortID(eval.DeploymentID) }</span>
+					</div>
+				}
+			</div>
+		</div>
+
+		<!-- Related Evaluations -->
+		if eval.NextEval != "" || eval.PreviousEval != "" || eval.BlockedEval != "" {
+			<div class="bg-white shadow rounded-lg p-6 mb-6">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Related Evaluations</h2>
+				<div class="space-y-3">
+					if eval.PreviousEval != "" {
+						<div class="flex items-center space-x-3">
+							<span class="text-sm font-medium text-neutral-500 w-32">Previous</span>
+							<a
+								href={ templ.SafeURL("/ui/evaluations/" + eval.PreviousEval) }
+								class="text-primary-600 hover:text-primary-700 font-mono text-sm"
+							>
+								{ evaluationShortID(eval.PreviousEval) }
+							</a>
+						</div>
+					}
+					if eval.NextEval != "" {
+						<div class="flex items-center space-x-3">
+							<span class="text-sm font-medium text-neutral-500 w-32">Next</span>
+							<a
+								href={ templ.SafeURL("/ui/evaluations/" + eval.NextEval) }
+								class="text-primary-600 hover:text-primary-700 font-mono text-sm"
+							>
+								{ evaluationShortID(eval.NextEval) }
+							</a>
+						</div>
+					}
+					if eval.BlockedEval != "" {
+						<div class="flex items-center space-x-3">
+							<span class="text-sm font-medium text-neutral-500 w-32">Blocked</span>
+							<a
+								href={ templ.SafeURL("/ui/evaluations/" + eval.BlockedEval) }
+								class="text-primary-600 hover:text-primary-700 font-mono text-sm"
+							>
+								{ evaluationShortID(eval.BlockedEval) }
+							</a>
+						</div>
+					}
+				</div>
+			</div>
+		}
+
+		<!-- Queued Allocations -->
+		if len(eval.QueuedAllocations) > 0 {
+			<div class="bg-white shadow rounded-lg p-6 mb-6">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Queued Allocations</h2>
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-neutral-200">
+						<thead>
+							<tr>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Task Group</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Count</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-neutral-200">
+							for tgName, count := range eval.QueuedAllocations {
+								<tr>
+									<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{ tgName }</td>
+									<td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">{ fmt.Sprintf("%d", count) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		}
+
+		<!-- Placement Failures -->
+		if len(eval.FailedTGAllocs) > 0 {
+			<div class="bg-white shadow rounded-lg p-6 mb-6">
+				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Placement Failures</h2>
+				<div class="space-y-6">
+					for tgName, metrics := range eval.FailedTGAllocs {
+						<div class="border-l-4 border-error-500 pl-4">
+							<h3 class="text-base font-semibold text-neutral-900 mb-3">{ tgName }</h3>
+							<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+								<div>
+									<label class="block text-sm font-medium text-neutral-500 mb-1">Nodes Evaluated</label>
+									<p class="text-neutral-900">{ fmt.Sprintf("%d", metrics.NodesEvaluated) }</p>
+								</div>
+								<div>
+									<label class="block text-sm font-medium text-neutral-500 mb-1">Nodes Filtered</label>
+									<p class="text-neutral-900">{ fmt.Sprintf("%d", metrics.NodesFiltered) }</p>
+								</div>
+								<div>
+									<label class="block text-sm font-medium text-neutral-500 mb-1">Nodes Exhausted</label>
+									<p class="text-neutral-900">{ fmt.Sprintf("%d", metrics.NodesExhausted) }</p>
+								</div>
+							</div>
+
+							<!-- Constraint Filtered -->
+							if len(metrics.ConstraintFiltered) > 0 {
+								<div class="mt-4">
+									<label class="block text-sm font-medium text-neutral-500 mb-2">Constraint Filtered</label>
+									<div class="bg-neutral-50 rounded p-3 space-y-1">
+										for constraint, count := range metrics.ConstraintFiltered {
+											<div class="flex justify-between text-sm">
+												<span class="text-neutral-700">{ constraint }</span>
+												<span class="font-medium text-neutral-900">{ fmt.Sprintf("%d", count) }</span>
+											</div>
+										}
+									</div>
+								</div>
+							}
+
+							<!-- Class Filtered -->
+							if len(metrics.ClassFiltered) > 0 {
+								<div class="mt-4">
+									<label class="block text-sm font-medium text-neutral-500 mb-2">Class Filtered</label>
+									<div class="bg-neutral-50 rounded p-3 space-y-1">
+										for class, count := range metrics.ClassFiltered {
+											<div class="flex justify-between text-sm">
+												<span class="text-neutral-700">{ class }</span>
+												<span class="font-medium text-neutral-900">{ fmt.Sprintf("%d", count) }</span>
+											</div>
+										}
+									</div>
+								</div>
+							}
+
+							<!-- Dimension Exhausted -->
+							if len(metrics.DimensionExhausted) > 0 {
+								<div class="mt-4">
+									<label class="block text-sm font-medium text-neutral-500 mb-2">Dimension Exhausted</label>
+									<div class="bg-neutral-50 rounded p-3 space-y-1">
+										for dimension, count := range metrics.DimensionExhausted {
+											<div class="flex justify-between text-sm">
+												<span class="text-neutral-700">{ dimension }</span>
+												<span class="font-medium text-neutral-900">{ fmt.Sprintf("%d", count) }</span>
+											</div>
+										}
+									</div>
+								</div>
+							}
+
+							<!-- Quota Exhausted -->
+							if len(metrics.QuotaExhausted) > 0 {
+								<div class="mt-4">
+									<label class="block text-sm font-medium text-neutral-500 mb-2">Quota Exhausted</label>
+									<div class="bg-neutral-50 rounded p-3">
+										for _, quota := range metrics.QuotaExhausted {
+											<div class="text-sm text-neutral-700">{ quota }</div>
+										}
+									</div>
+								</div>
+							}
+						</div>
+					}
+				</div>
+			</div>
+		}
+
+		<!-- Full ID Section -->
+		<div class="bg-white shadow rounded-lg p-6">
+			<h2 class="text-lg font-semibold text-neutral-900 mb-4">Full ID</h2>
+			<div class="bg-neutral-50 rounded p-4">
+				<code class="text-sm font-mono text-neutral-900 break-all">{ eval.ID }</code>
+			</div>
+		</div>
+	</div>
+}
+
+// isEvaluationTerminal returns true if the evaluation is in a terminal state
+func isEvaluationTerminal(status string) bool {
+	switch status {
+	case "complete", "failed", "canceled":
+		return true
+	default:
+		return false
+	}
+}
+
+// statusVariant returns the badge variant for an evaluation status
+func statusVariant(status string) string {
+	switch status {
+	case "complete":
+		return "success"
+	case "failed":
+		return "error"
+	case "canceled":
+		return "neutral"
+	case "blocked":
+		return "warning"
+	case "pending":
+		return "info"
+	default:
+		return "neutral"
+	}
+}
+
+func evaluationShortID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
+}

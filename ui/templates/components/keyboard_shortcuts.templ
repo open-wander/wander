@@ -1,0 +1,72 @@
+package components
+
+type keyboardShortcutRow struct {
+	ID      string
+	Label   string
+	Binding string
+}
+
+var keyboardShortcutRows = []keyboardShortcutRow{
+	{ID: "jobs", Label: "Go to Jobs", Binding: "G then J"},
+	{ID: "storage", Label: "Go to Storage", Binding: "G then R"},
+	{ID: "servers", Label: "Go to Servers", Binding: "G then S"},
+	{ID: "clients", Label: "Go to Clients", Binding: "G then C"},
+	{ID: "topology", Label: "Go to Topology", Binding: "G then T"},
+	{ID: "evaluations", Label: "Go to Evaluations", Binding: "G then E"},
+	{ID: "accessControl", Label: "Go to ACL Tokens", Binding: "G then A"},
+	{ID: "nextTab", Label: "Next tab", Binding: "Shift+→"},
+	{ID: "previousTab", Label: "Previous tab", Binding: "Shift+←"},
+	{ID: "nextSection", Label: "Next main section", Binding: "Shift+↓"},
+	{ID: "previousSection", Label: "Previous main section", Binding: "Shift+↑"},
+	{ID: "showHelp", Label: "Show keyboard shortcuts", Binding: "?"},
+	{ID: "upLevel", Label: "Up one level", Binding: "U"},
+	{ID: "focusSearch", Label: "Focus search", Binding: "/"},
+}
+
+// KeyboardShortcutsDialog provides help, preference, and rebinding controls.
+templ KeyboardShortcutsDialog() {
+	<div
+		hidden
+		data-keyboard-shortcuts-dialog
+		class="fixed inset-0 z-[70]"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="keyboard-shortcuts-title"
+		aria-describedby="keyboard-shortcuts-description"
+	>
+		<div data-shortcuts-backdrop class="fixed inset-0 bg-neutral-900 bg-opacity-50"></div>
+		<div data-shortcuts-backdrop class="fixed inset-0 overflow-y-auto p-4 sm:p-6">
+			<div data-shortcuts-backdrop class="mx-auto flex min-h-full max-w-2xl items-center justify-center">
+				<div class="relative w-full overflow-hidden rounded-lg bg-white shadow-xl">
+					<div class="flex items-start justify-between border-b border-neutral-200 px-6 py-4">
+						<div>
+							<h2 id="keyboard-shortcuts-title" class="text-xl font-semibold text-neutral-900">Keyboard Shortcuts</h2>
+							<p id="keyboard-shortcuts-description" class="mt-1 text-sm text-neutral-600">Select a key pattern to rebind it. Preferences are saved in this browser.</p>
+						</div>
+						<button type="button" data-shortcuts-close class="ml-4 rounded-md p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500" aria-label="Close keyboard shortcuts">
+							<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+						</button>
+					</div>
+					<div class="max-h-[65vh] overflow-y-auto px-6 py-4">
+						<label class="mb-4 flex items-center justify-between rounded-md bg-neutral-50 px-4 py-3">
+							<span><span class="block text-sm font-medium text-neutral-900">Enable keyboard shortcuts</span><span class="block text-xs text-neutral-600">The help shortcut stays available when navigation is disabled.</span></span>
+							<input data-shortcuts-enabled type="checkbox" class="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"/>
+						</label>
+						<ul class="divide-y divide-neutral-200" aria-label="Shortcut bindings">
+							for _, shortcut := range keyboardShortcutRows {
+								<li class="flex items-center justify-between gap-4 py-2">
+									<span class="text-sm text-neutral-800">{ shortcut.Label }</span>
+									<button type="button" data-shortcut-id={ shortcut.ID } class="min-w-24 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-800 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500" aria-label={ "Change shortcut for " + shortcut.Label }>{ shortcut.Binding }</button>
+								</li>
+							}
+						</ul>
+					</div>
+					<div class="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200 px-6 py-4">
+						<p data-shortcuts-status class="text-sm text-neutral-600" role="status" aria-live="polite">Select a shortcut to change its keys.</p>
+						<button type="button" data-shortcuts-reset class="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500">Reset defaults</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}

@@ -1,0 +1,73 @@
+package layouts
+
+import "github.com/open-wander/wander/ui/templates/components"
+
+// BaseLayoutProps contains parameters for the base HTML layout
+type BaseLayoutProps struct {
+	Title            string
+	Description      string
+	CurrentNamespace string
+	CurrentRegion    string
+}
+
+// BaseLayout provides the fundamental HTML structure with head and body.
+// This is the root template that all pages should use.
+templ BaseLayout(props BaseLayoutProps, content templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+			if props.Description != "" {
+				<meta name="description" content={ props.Description }/>
+			}
+			<title>{ props.Title }</title>
+			<!-- Tailwind CSS -->
+			<link rel="stylesheet" href="/ui/static/css/output.css"/>
+			<!-- xterm.js CSS - Terminal emulator styles -->
+			<link rel="stylesheet" href="/ui/static/css/xterm.min.css"/>
+			<!-- HTMX - Dynamic interactions without full page reloads -->
+			<script src="/ui/static/js/htmx.min.js"></script>
+			<!-- Alpine.js - Client-side state management -->
+			<script src="/ui/static/js/alpine.min.js" defer></script>
+			<!-- Alpine patterns - Reusable Alpine.js components -->
+			<script src="/ui/static/js/selection-scope.js"></script>
+			<script src="/ui/static/js/codemirror-bundle.js"></script>
+			<script src="/ui/static/js/alpine-patterns.js"></script>
+			<script src="/ui/static/js/keyboard-shortcuts.js"></script>
+			<!-- SSE Client - Auto-reconnecting EventSource wrapper -->
+			<script src="/ui/static/js/sse-client.js"></script>
+			<!-- ANSI parser - Terminal color support for logs -->
+			<script src="/ui/static/js/ansi.js"></script>
+			<!-- xterm.js - Terminal emulator for exec sessions -->
+			<script src="/ui/static/js/xterm.min.js"></script>
+			<!-- xterm-addon-fit - Auto-resize terminal to container -->
+			<script src="/ui/static/js/xterm-addon-fit.min.js"></script>
+		</head>
+		<body
+			class="h-full bg-neutral-50 text-neutral-900 antialiased"
+			data-wander-namespace={ props.CurrentNamespace }
+			data-wander-region={ props.CurrentRegion }
+			hx-ext="head-support"
+		>
+			<!-- HTMX Configuration -->
+			<meta name="htmx-config" content='{"historyCacheSize":20,"defaultSwapStyle":"innerHTML","defaultSwapDelay":0,"timeout":30000,"allowEval":false,"allowScriptTags":false}'/>
+			<!-- Main Content Container -->
+			<div id="app" class="h-full">
+				@content
+			</div>
+			<!-- Toast Container -->
+			@components.ToastContainer(components.ToastContainerProps{
+				Position: "top-right",
+			})
+			<!-- Evaluations Panel -->
+			<div x-data="evaluationsPanel()" @toggle-evaluations.window="toggle()">
+				@components.EvaluationsPanel(components.EvaluationsPanelProps{
+					ID: "evaluations",
+				})
+			</div>
+			@components.KeyboardShortcutsDialog()
+		</body>
+	</html>
+}

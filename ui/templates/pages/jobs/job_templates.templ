@@ -1,0 +1,14 @@
+package jobs
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/jobspartials"
+)
+
+templ JobTemplates(layoutProps layouts.PageLayoutProps, props jobspartials.JobTemplatesProps) {
+	@layouts.PageLayout(layoutProps, jobspartials.JobTemplatesContent(props))
+}
+
+templ JobTemplateCreate(layoutProps layouts.PageLayoutProps, props jobspartials.JobTemplateCreateProps) {
+	@layouts.PageLayout(layoutProps, jobspartials.JobTemplateCreateContent(props))
+}

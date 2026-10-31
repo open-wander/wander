@@ -44,11 +44,12 @@ exit-code
 # Don't commit uncompressed state test files
 client/state/testdata/*.db
 
-ui/.sass-cache
-ui/static/base.css
+# HTMX UI build artifacts
+ui-htmx/static/css/output.css
 
-ui/static/application.min.js
-ui/dist/
+# Local Wander development binaries
+/tmp/wander
+/tmp/ui-htmx-dev
 
 *.swp
 *.iml
@@ -84,36 +85,8 @@ rkt-*
 *.iml
 .vscode
 
-# UI rules
-
-# compiled output
-/ui/dist
-/ui/tmp
-
-# dependencies
-/ui/node_modules
-/ui/bower_components
-
 # misc
-/ui/.sass-cache
-/ui/.eslintcache
-/ui/.storybook/preview-head.html
-/ui/connect.lock
-/ui/coverage/*
-/ui/libpeerconnection.log
-/ui/npm-debug.log*
-/ui/testem.log
-/ui/.env*
-/ui/.pnp*
 .ignore
-
-# ember-try
-/ui/.node_modules.ember-try/
-/ui/bower.json.ember-try
-/ui/package.json.ember-try
-
-# generated routes file
-command/agent/bindata_assetfs.go
 
 # auto-generated cert file for Terraform/Azure
 azure-hashistack.pem
@@ -137,3 +110,10 @@ e2e/remotetasks/input/ecs.vars
 tools/missing/missing
 consul
 vault
+
+# Deslop analysis caches
+.deslop/
+
+# UI-HTMX generated files
+ui-htmx/templates/**/*_templ.go
+ui-htmx/static/css/output.css

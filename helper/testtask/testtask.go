@@ -130,13 +130,14 @@ func execute() {
 
 			pidFile := popArg()
 
-			cmd := exec.Command(Path(), args...)
+			cmd := exec.Command(Path(), args...) // #nosec G702 -- this test helper intentionally re-executes itself with caller-controlled test arguments.
 			SetCmdEnv(cmd)
 			if err := cmd.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "failed to fork/exec: %v\n", err)
 				os.Exit(1)
 			}
 
+			// #nosec G703 -- pidFile is an explicit destination supplied by the test caller.
 			if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0777); err != nil {
 				fmt.Fprintf(os.Stderr, "failed to write pid file: %v\n", err)
 				os.Exit(1)

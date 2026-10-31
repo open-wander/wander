@@ -24,9 +24,9 @@ import (
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/plugins/drivers"
 	tu "github.com/open-wander/wander/testutil"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
+	"github.com/opencontainers/cgroups"
+	deviceconfig "github.com/opencontainers/cgroups/devices/config"
 	lconfigs "github.com/opencontainers/runc/libcontainer/configs"
-	"github.com/opencontainers/runc/libcontainer/devices"
 	"github.com/shoenig/test"
 	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
@@ -785,8 +785,8 @@ func TestExecutor_cmdDevices(t *testing.T) {
 		},
 	}
 
-	expected := &devices.Device{
-		Rule: devices.Rule{
+	expected := &deviceconfig.Device{
+		Rule: deviceconfig.Rule{
 			Type:        99,
 			Major:       1,
 			Minor:       3,

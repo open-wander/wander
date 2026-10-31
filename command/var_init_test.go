@@ -5,7 +5,6 @@ package command
 
 import (
 	"os"
-	"path"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -19,17 +18,10 @@ func TestVarInitCommand_Implements(t *testing.T) {
 }
 
 func TestVarInitCommand_Run(t *testing.T) {
-	ci.Parallel(t)
 	dir := t.TempDir()
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	err = os.Chdir(dir)
-	require.NoError(t, err)
-	t.Cleanup(func() { os.Chdir(origDir) })
+	t.Chdir(dir)
 
 	t.Run("hcl", func(t *testing.T) {
-		ci.Parallel(t)
-		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &VarInitCommand{Meta: Meta{Ui: ui}}
 
@@ -46,8 +38,6 @@ func TestVarInitCommand_Run(t *testing.T) {
 		require.Equal(t, "Example variable specification written to spec.nv.hcl\n", ui.OutputWriter.String())
 		require.Zero(t, ec)
 		reset(ui)
-		t.Cleanup(func() { os.Remove(path.Join(dir, "spec.nv.hcl")) })
-
 		content, err := os.ReadFile(DefaultHclVarInitName)
 		require.NoError(t, err)
 		require.Equal(t, defaultHclVarSpec, string(content))
@@ -66,14 +56,11 @@ func TestVarInitCommand_Run(t *testing.T) {
 		require.Zero(t, ec)
 		reset(ui)
 
-		t.Cleanup(func() { os.Remove(path.Join(dir, "myTest.hcl")) })
 		content, err = os.ReadFile("myTest.hcl")
 		require.NoError(t, err)
 		require.Equal(t, defaultHclVarSpec, string(content))
 	})
 	t.Run("json", func(t *testing.T) {
-		ci.Parallel(t)
-		dir := dir
 		ui := cli.NewMockUi()
 		cmd := &VarInitCommand{Meta: Meta{Ui: ui}}
 
@@ -91,7 +78,6 @@ func TestVarInitCommand_Run(t *testing.T) {
 		require.Zero(t, code)
 		reset(ui)
 
-		t.Cleanup(func() { os.Remove(path.Join(dir, "spec.nv.json")) })
 		content, err := os.ReadFile(DefaultJsonVarInitName)
 		require.NoError(t, err)
 		require.Equal(t, defaultJsonVarSpec, string(content))
@@ -110,7 +96,6 @@ func TestVarInitCommand_Run(t *testing.T) {
 		require.Zero(t, code)
 		reset(ui)
 
-		t.Cleanup(func() { os.Remove(path.Join(dir, "myTest.json")) })
 		content, err = os.ReadFile("myTest.json")
 		require.NoError(t, err)
 		require.Equal(t, defaultJsonVarSpec, string(content))

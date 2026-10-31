@@ -1,0 +1,41 @@
+package policiespartials
+
+import "github.com/open-wander/wander/ui/templates/partials/tokenspartials"
+
+type NewPolicyForm struct {
+	Name        string
+	Description string
+	Rules       string
+	Error       string
+}
+
+templ NewContent(form NewPolicyForm) {
+	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="mb-6">
+			<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">New ACL Policy</h1>
+			<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">Define permissions that can be attached to tokens and roles.</p>
+		</div>
+		@tokenspartials.ACLTabs("policies")
+		if form.Error != "" {
+			<div class="mb-6 rounded-md border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800" role="alert">{ form.Error }</div>
+		}
+		<form method="post" action="/ui/access-control/policies/new" hx-post="/ui/access-control/policies/new" hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-neutral-900">
+			<div>
+				<label for="policy-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Name</label>
+				<input id="policy-name" name="name" value={ form.Name } required class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"/>
+			</div>
+			<div>
+				<label for="policy-description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Description</label>
+				<textarea id="policy-description" name="description" rows="2" class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">{ form.Description }</textarea>
+			</div>
+			<div>
+				<label for="policy-rules" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Policy Rules (HCL)</label>
+				<textarea id="policy-rules" name="rules" rows="16" required spellcheck="false" class="mt-1 w-full rounded-md border border-neutral-300 bg-neutral-950 px-3 py-2 font-mono text-sm text-neutral-100">{ form.Rules }</textarea>
+			</div>
+			<div class="flex justify-end gap-3">
+				<a href="/ui/access-control/policies" hx-get="/ui/access-control/policies" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
+				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Create Policy</button>
+			</div>
+		</form>
+	</div>
+}

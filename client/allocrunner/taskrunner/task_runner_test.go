@@ -1378,7 +1378,14 @@ func TestTaskRunner_CheckWatcher_Restart(t *testing.T) {
 	// Wait until the task exits. Don't simply wait for it to run as it may
 	// get restarted and terminated before the test is able to observe it
 	// running.
-	testWaitForTaskToDie(t, tr)
+	testutil.WaitForResultUntil(
+		time.Duration(testutil.TestMultiplier()*15)*time.Second,
+		func() (bool, error) {
+			state := tr.TaskState().State
+			return state == structs.TaskStateDead, fmt.Errorf("expected task to be dead, got %v", state)
+		},
+		func(err error) { require.NoError(t, err) },
+	)
 
 	state := tr.TaskState()
 	actualEvents := make([]string, len(state.Events))
@@ -1735,6 +1742,7 @@ func TestTaskRunner_DeriveToken_Retry(t *testing.T) {
 	ci.Parallel(t)
 	alloc := mock.BatchAlloc()
 	task := alloc.Job.TaskGroups[0].Tasks[0]
+	task.Config["run_for"] = "0s"
 	task.Vault = &structs.Vault{Policies: []string{"default"}}
 
 	conf, cleanup := testTaskRunnerConfig(t, alloc, task.Name)

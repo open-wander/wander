@@ -1,0 +1,11 @@
+package variables
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/variablespartials"
+)
+
+// Detail renders the variable detail/edit page with full page layout
+templ Detail(layoutProps layouts.PageLayoutProps, variable variablespartials.VariableDetail) {
+	@layouts.PageLayout(layoutProps, variablespartials.DetailContent(variable))
+}

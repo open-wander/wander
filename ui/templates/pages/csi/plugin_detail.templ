@@ -1,0 +1,14 @@
+package csi
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/csipartials"
+)
+
+templ PluginDetail(layoutProps layouts.PageLayoutProps, plugin csipartials.PluginDetail) {
+	@layouts.PageLayout(layoutProps, csipartials.PluginDetailContent(plugin))
+}
+
+templ PluginAllocations(layoutProps layouts.PageLayoutProps, props csipartials.PluginAllocationsProps) {
+	@layouts.PageLayout(layoutProps, csipartials.PluginAllocationsContent(props))
+}

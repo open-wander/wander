@@ -65,10 +65,10 @@ func (ns *Namespace) String() string {
 	return ns.Name
 }
 
-func (n *Names) setClient() {
+func (g *Names) setClient() {
 	nomadClient, nomadErr := nomadapi.NewClient(nomadapi.DefaultConfig())
-	must.NoError(n.t, nomadErr, must.Sprint("failed to create nomad api client"))
-	n.nomadClient = nomadClient
+	must.NoError(g.t, nomadErr, must.Sprint("failed to create nomad api client"))
+	g.nomadClient = nomadClient
 }
 
 func configure(t *testing.T, opts ...Option) Cleanup {

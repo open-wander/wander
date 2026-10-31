@@ -1325,7 +1325,7 @@ General Options (clients and servers):
 
   -config=<path>
     The path to either a single config file or a directory of config
-    files to use for configuring the Nomad agent. This option may be
+    files to use for configuring the Wander agent. This option may be
     specified multiple times. If multiple config files are used, the
     values from each will be merged together. During merging, values
     from files found later in the list are merged over values from
@@ -1338,15 +1338,15 @@ General Options (clients and servers):
     dir is also used to store the replicated log.
 
   -plugin-dir=<path>
-    The plugin directory is used to discover Nomad plugins. If not specified,
+    The plugin directory is used to discover Wander plugins. If not specified,
     the plugin directory defaults to be that of <data-dir>/plugins/.
 
   -dc=<datacenter>
-    The name of the datacenter this Nomad agent is a member of. By
+    The name of the datacenter this Wander agent is a member of. By
     default this is set to "dc1".
 
   -log-level=<level>
-    Specify the verbosity level of Nomad's logs. Valid values include
+    Specify the verbosity level of Wander's logs. Valid values include
     DEBUG, INFO, and WARN, in decreasing order of verbosity. The
     default is INFO.
 
@@ -1362,13 +1362,13 @@ General Options (clients and servers):
     the current hostname of the machine.
 
   -region=<region>
-    Name of the region the Nomad agent will be a member of. By default
+    Name of the region the Wander agent will be a member of. By default
     this value is set to "global".
 
   -dev
     Start the agent in development mode. This enables a pre-configured
     dual-role agent (client + server) which is useful for developing
-    or testing Nomad. No other configuration is required to start the
+    or testing Wander. No other configuration is required to start the
     agent in this mode, but you may pass an optional comma-separated
     list of mode configurations:
 
@@ -1388,7 +1388,7 @@ Server Options:
   -bootstrap-expect=<num>
     Configures the expected number of servers nodes to wait for before
     bootstrapping the cluster. Once <num> servers have joined each other,
-    Nomad initiates the bootstrap process.
+    Wander initiates the bootstrap process.
 
   -encrypt=<key>
     Provides the gossip encryption key
@@ -1478,10 +1478,10 @@ Consul Options:
     Consul Agent, given in the format username:password.
 
   -consul-auto-advertise
-    Specifies if Nomad should advertise its services in Consul. The services
-    are named according to server_service_name and client_service_name. Nomad
+    Specifies if Wander should advertise its services in Consul. The services
+    are named according to server_service_name and client_service_name. Wander
     servers and clients advertise their respective services, each tagged
-    appropriately with either http or rpc tag. Nomad servers also advertise a
+    appropriately with either http or rpc tag. Wander servers also advertise a
     serf tagged service.
 
   -consul-ca-file=<path>
@@ -1497,35 +1497,35 @@ Consul Options:
     default, this is the bind address.
 
   -consul-client-auto-join
-    Specifies if the Nomad clients should automatically discover servers in the
+    Specifies if the Wander clients should automatically discover servers in the
     same region by searching for the Consul service name defined in the
     server_service_name option.
 
   -consul-client-service-name=<name>
-    Specifies the name of the service in Consul for the Nomad clients.
+    Specifies the name of the service in Consul for the Wander clients.
 
   -consul-client-http-check-name=<name>
-    Specifies the HTTP health check name in Consul for the Nomad clients.
+    Specifies the HTTP health check name in Consul for the Wander clients.
 
   -consul-key-file=<path>
     Specifies the path to the private key used for Consul communication. If this
     is set then you need to also set cert_file.
 
   -consul-server-service-name=<name>
-    Specifies the name of the service in Consul for the Nomad servers.
+    Specifies the name of the service in Consul for the Wander servers.
 
   -consul-server-http-check-name=<name>
-    Specifies the HTTP health check name in Consul for the Nomad servers.
+    Specifies the HTTP health check name in Consul for the Wander servers.
 
   -consul-server-serf-check-name=<name>
-    Specifies the Serf health check name in Consul for the Nomad servers.
+    Specifies the Serf health check name in Consul for the Wander servers.
 
   -consul-server-rpc-check-name=<name>
-    Specifies the RPC health check name in Consul for the Nomad servers.
+    Specifies the RPC health check name in Consul for the Wander servers.
 
   -consul-server-auto-join
-    Specifies if the Nomad servers should automatically discover and join other
-    Nomad servers by searching for the Consul service name defined in the
+    Specifies if the Wander servers should automatically discover and join other
+    Wander servers by searching for the Consul service name defined in the
     server_service_name option. This search only happens if the server does not
     have a leader.
 

@@ -115,7 +115,7 @@ func (c *UiCommand) Run(args []string) int {
 
 	url, err := url.Parse(client.Address())
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error parsing Nomad address %q: %s", client.Address(), err))
+		c.Ui.Error(fmt.Sprintf("Error parsing Wander address %q: %s", client.Address(), err))
 		return 1
 	}
 

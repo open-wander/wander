@@ -103,9 +103,9 @@ Plan Options:
   -vault-token
     Used to validate if the user submitting the job has permission to run the job
     according to its Vault policies. A Vault token must be supplied if the vault
-    block allow_unauthenticated is disabled in the Nomad server configuration.
+    block allow_unauthenticated is disabled in the Wander server configuration.
     If the -vault-token flag is set, the passed Vault token is added to the jobspec
-    before sending to the Nomad servers. This allows passing the Vault token
+    before sending to the Wander servers. This allows passing the Vault token
     without storing it in the job file. This overrides the token found in the
     $VAULT_TOKEN environment variable and the vault_token field in the job file.
     This token is cleared from the job after validating and cannot be used within
@@ -114,7 +114,7 @@ Plan Options:
 
   -vault-namespace
     If set, the passed Vault namespace is stored in the job before sending to the
-    Nomad servers.
+    Wander servers.
 
   -var 'key=value'
     Variable for template, can be used multiple times.

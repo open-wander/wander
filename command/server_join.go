@@ -18,7 +18,7 @@ func (c *ServerJoinCommand) Help() string {
 	helpText := `
 Usage: nomad server join [options] <addr> [<addr>...]
 
-  Joins the local server to one or more Nomad servers. Joining is
+  Joins the local server to one or more Wander servers. Joining is
   only required for server nodes, and only needs to succeed
   against one or more of the provided addresses. Once joined, the
   gossip layer will handle discovery of the other server nodes in

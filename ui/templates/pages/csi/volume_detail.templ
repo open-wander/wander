@@ -1,0 +1,11 @@
+package csi
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/csipartials"
+)
+
+// VolumeDetail renders the CSI volume detail page with full page layout
+templ VolumeDetail(layoutProps layouts.PageLayoutProps, volume csipartials.VolumeDetail) {
+	@layouts.PageLayout(layoutProps, csipartials.VolumeDetailContent(volume))
+}

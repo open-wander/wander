@@ -1,0 +1,1022 @@
+package jobspartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui/templates/components"
+	"time"
+)
+
+// JobVersion represents a version of a job
+type JobVersion struct {
+	Version    uint64    // Version number
+	Stable     bool      // Whether this version is marked as stable
+	SubmitTime time.Time // When this version was submitted
+	Active     bool      // Whether this is the currently active version
+	Diff       *VersionDiff
+}
+
+// JobDefinition contains the job definition content and metadata
+type JobDefinition struct {
+	JobID       string // Job ID for API calls
+	Content     string // The initially displayed job definition
+	HCLContent  string // Original submitted HCL, when available
+	JSONContent string // Live job encoded as JSON
+	Variables   string // Original submitted HCL2 variable-file content
+	Format      string // "hcl" or "json"
+	Version     uint64 // Current version number
+	ModifyIndex uint64 // Job modify index used for optimistic concurrency
+	CanEdit     bool   // Whether the request identity can submit this job
+}
+
+// DefinitionTab renders the job definition tab with CodeMirror editor
+templ DefinitionTab(def JobDefinition) {
+	<div
+		class="p-6"
+		x-data="jobDefinitionEditor"
+		data-format={ def.Format }
+		data-job-id={ def.JobID }
+		data-job-modify-index={ fmt.Sprintf("%d", def.ModifyIndex) }
+	>
+		<textarea x-ref="definitionSource" hidden>{ def.Content }</textarea>
+		<textarea x-ref="hclSource" hidden>{ def.HCLContent }</textarea>
+		<textarea x-ref="jsonSource" hidden>{ def.JSONContent }</textarea>
+		<textarea x-ref="variablesSource" hidden>{ def.Variables }</textarea>
+		<!-- Header with controls -->
+		<div class="flex items-center justify-between mb-4">
+			<div class="flex items-center gap-4">
+				<h3 class="text-lg font-medium text-neutral-900">Job Definition</h3>
+				<!-- Format Toggle -->
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-neutral-500">Format:</span>
+					<div class="inline-flex rounded-md shadow-sm" role="group">
+						<button
+							type="button"
+							@click="setFormat('hcl')"
+							:class="format === 'hcl' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+							class="px-3 py-1.5 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
+						>
+							Job Spec
+						</button>
+						<button
+							type="button"
+							@click="setFormat('json')"
+							:class="format === 'json' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+							class="px-3 py-1.5 text-sm font-medium border border-l-0 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
+						>
+							Full Definition
+						</button>
+					</div>
+				</div>
+			</div>
+			<!-- Action Buttons -->
+			<div class="flex items-center gap-2">
+				<!-- Copy button -->
+				<button
+					type="button"
+					@click="copyToClipboard"
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+					title="Copy to clipboard"
+				>
+					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+					</svg>
+					Copy
+				</button>
+				<!-- Download button -->
+				<button
+					type="button"
+					@click="downloadDefinition"
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+					title="Download definition file"
+				>
+					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+					</svg>
+					Download
+				</button>
+				if def.CanEdit {
+					<!-- Edit/Cancel button -->
+					<template x-if="!isEditing">
+						<button
+							type="button"
+							@click="toggleEdit"
+							class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+						>
+							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+							</svg>
+							Edit
+						</button>
+					</template>
+					<template x-if="isEditing">
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								@click="cancelEdit"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+							>
+								Cancel
+							</button>
+							<!-- Plan button - secondary variant -->
+							<button
+								type="button"
+								@click="planJob"
+								:disabled="isPlanning || isRunning || !hasChanges"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<svg x-show="isPlanning" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								<svg x-show="!isPlanning" class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+								</svg>
+								<span x-text="isPlanning ? 'Reviewing...' : 'Review changes'"></span>
+							</button>
+							<!-- Run button - primary variant -->
+							<button
+								type="button"
+								@click="showRunConfirm"
+								:disabled="isPlanning || isRunning || !hasChanges"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<svg x-show="isRunning" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								<svg x-show="!isRunning" class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+								</svg>
+								<span x-text="isRunning ? 'Running...' : 'Run'"></span>
+							</button>
+						</div>
+					</template>
+				}
+			</div>
+		</div>
+		<!-- Edit mode indicator -->
+		<template x-if="isEditing">
+			<div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+				<div class="flex items-center">
+					<svg class="w-5 h-5 text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+					</svg>
+					<span class="text-sm text-yellow-700">
+						<strong>Edit Mode:</strong> Changes will create a new job version. Press <kbd class="px-1.5 py-0.5 mx-1 text-xs bg-yellow-100 border border-yellow-300 rounded">Ctrl+S</kbd> to review them.
+					</span>
+				</div>
+			</div>
+		</template>
+		<!-- Version info -->
+		<div class="mb-4 text-sm text-neutral-500">
+			Version: <span class="font-mono">{ fmt.Sprintf("%d", def.Version) }</span>
+		</div>
+		<!-- Error message -->
+		<template x-if="error">
+			<div class="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-md">
+				<div class="flex items-center">
+					<svg class="w-5 h-5 text-danger-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+					</svg>
+					<span class="text-sm text-danger-700" x-text="error"></span>
+				</div>
+			</div>
+		</template>
+		<!-- Editor Container -->
+		<div
+			x-ref="editorContainer"
+			class="border border-neutral-300 rounded-lg overflow-hidden"
+			:class="isEditing ? 'ring-2 ring-primary-500 ring-offset-1' : ''"
+		>
+			<!-- Loading state while editor initializes -->
+		</div>
+		<div x-show="format === 'hcl'" x-cloak class="mt-6">
+			<label for="existing-job-variables" class="block text-sm font-medium text-neutral-900">
+				HCL Variables
+			</label>
+			<p class="mt-1 text-sm text-neutral-500">
+				Variable-file content retained with this job submission.
+			</p>
+			<textarea
+				id="existing-job-variables"
+				x-model="variables"
+				@input="updateChangeState"
+				:readonly="!isEditing"
+				rows="6"
+				spellcheck="false"
+				class="mt-3 block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-sm read-only:bg-neutral-50 focus:border-primary-500 focus:ring-primary-500"
+			></textarea>
+		</div>
+		<!-- Keyboard shortcuts help -->
+		<div class="mt-4 text-xs text-neutral-500">
+			<span class="font-medium">Keyboard shortcuts:</span>
+			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Tab</kbd> Insert spaces</span>
+			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Ctrl+S</kbd> Review changes</span>
+		</div>
+		<!-- Plan Result Modal -->
+		<template x-if="showPlanModal">
+			<div class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="closePlanModal">
+				<!-- Backdrop -->
+				<div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closePlanModal"></div>
+				<!-- Modal positioning container -->
+				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+					<!-- Modal content -->
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+						<!-- Modal Header -->
+						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+							<div class="flex items-center justify-between">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+									Plan Result
+								</h3>
+								<button
+									type="button"
+									@click="closePlanModal"
+									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+								>
+									<span class="sr-only">Close</span>
+									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<!-- Modal Body -->
+						<div class="px-6 py-4 overflow-y-auto max-h-[calc(100vh-16rem)]">
+							<!-- Summary Stats -->
+							<div class="mb-4 grid grid-cols-3 gap-4">
+								<div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+									<div class="text-2xl font-bold text-green-700" x-text="planResult.created || 0"></div>
+									<div class="text-sm text-green-600">Created</div>
+								</div>
+								<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+									<div class="text-2xl font-bold text-yellow-700" x-text="planResult.updated || 0"></div>
+									<div class="text-sm text-yellow-600">Updated</div>
+								</div>
+								<div class="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+									<div class="text-2xl font-bold text-red-700" x-text="planResult.destroyed || 0"></div>
+									<div class="text-sm text-red-600">Destroyed</div>
+								</div>
+							</div>
+							<!-- Diff Output -->
+							<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+								<h4 class="text-sm font-medium text-neutral-700 mb-2">Changes</h4>
+								<pre class="text-xs font-mono whitespace-pre-wrap text-neutral-800 max-h-64 overflow-y-auto" x-text="planResult.diff || 'No changes detected'"></pre>
+							</div>
+							<!-- Warnings if any -->
+							<template x-if="planResult.warnings.length > 0">
+								<div class="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+									<h4 class="text-sm font-medium text-yellow-800 mb-2">Warnings</h4>
+									<ul class="text-sm text-yellow-700 list-disc list-inside">
+										<template x-for="warning in planResult.warnings" :key="warning">
+											<li x-text="warning"></li>
+										</template>
+									</ul>
+								</div>
+							</template>
+						</div>
+						<!-- Modal Footer -->
+						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+							<div class="flex justify-end space-x-3">
+								<button
+									type="button"
+									@click="closePlanModal"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								>
+									Close
+								</button>
+								<button
+									type="button"
+									@click="showRunConfirm"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								>
+									Run Job
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</template>
+		<!-- Run Confirmation Modal -->
+		<template x-if="showRunModal">
+			<div class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="closeRunModal">
+				<!-- Backdrop -->
+				<div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closeRunModal"></div>
+				<!-- Modal positioning container -->
+				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+					<!-- Modal content -->
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+						<!-- Modal Header -->
+						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+							<div class="flex items-center justify-between">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+									Run Job
+								</h3>
+								<button
+									type="button"
+									@click="closeRunModal"
+									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+								>
+									<span class="sr-only">Close</span>
+									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<!-- Modal Body -->
+						<div class="px-6 py-4">
+							<div class="flex items-start">
+								<div class="flex-shrink-0">
+									<svg class="h-6 w-6 text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+									</svg>
+								</div>
+								<div class="ml-3">
+									<p class="text-sm text-neutral-700">
+										Are you sure you want to run this job? This will submit the current definition and may create or update allocations.
+									</p>
+									<p class="mt-2 text-sm text-neutral-500">
+										Job ID: <span class="font-mono font-medium" x-text="jobId"></span>
+									</p>
+								</div>
+							</div>
+						</div>
+						<!-- Modal Footer -->
+						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+							<div class="flex justify-end space-x-3">
+								<button
+									type="button"
+									@click="closeRunModal"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								>
+									Cancel
+								</button>
+								<button
+									type="button"
+									@click="runJob"
+									:disabled="isRunning"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									<svg x-show="isRunning" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									<span x-text="isRunning ? 'Running...' : 'Run Job'"></span>
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</template>
+	</div>
+	<!-- Load CodeMirror bundle -->
+}
+
+// VersionsTab renders the job versions tab with version history table
+templ VersionsTab(versions []JobVersion, jobID string) {
+	<div class="p-6" x-data="{ revertModalOpen: false, revertVersion: 0 }">
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-medium text-neutral-900">Version History</h3>
+			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d versions", len(versions)) }</span>
+		</div>
+		@components.Table(components.TableProps{
+			Columns: []components.Column{
+				{Key: "version", Label: "Version", Sortable: false, Align: "left", Width: "w-24"},
+				{Key: "stable", Label: "Stable", Sortable: false, Align: "center", Width: "w-24"},
+				{Key: "submitted", Label: "Submitted", Sortable: false, Align: "left"},
+				{Key: "changes", Label: "Changes", Sortable: false, Align: "left"},
+				{Key: "actions", Label: "Actions", Sortable: false, Align: "right", Width: "w-48"},
+			},
+			Striped: true,
+			Hover:   true,
+		}) {
+			@components.TableBody() {
+				if len(versions) == 0 {
+					@components.TableEmptyState("No versions found", "This job has no version history")
+				} else {
+					for _, version := range versions {
+						@versionRow(version, jobID)
+					}
+				}
+			}
+		}
+		<!-- Revert Confirmation Modal -->
+		@revertConfirmModal(jobID)
+	</div>
+}
+
+// versionRow renders a single version row in the table
+templ versionRow(version JobVersion, jobID string) {
+	<tr class={ versionRowClasses(version.Active) }>
+		@components.TableCell("left", "w-24") {
+			<div class="flex items-center gap-2">
+				<span class="font-mono font-medium text-neutral-900">{ fmt.Sprintf("%d", version.Version) }</span>
+				if version.Active {
+					@components.Badge(components.BadgeProps{
+						Variant: "primary",
+						Size:    "sm",
+						Pill:    true,
+					}) {
+						Active
+					}
+				}
+			</div>
+		}
+		@components.TableCell("center", "w-24") {
+			if version.Stable {
+				@components.Badge(components.BadgeProps{
+					Variant: "success",
+					Size:    "sm",
+					Dot:     true,
+				}) {
+					Stable
+				}
+			} else {
+				<span class="text-neutral-400">-</span>
+			}
+		}
+		@components.TableCell("left", "") {
+			<span class="text-neutral-700">{ formatSubmitTime(version.SubmitTime) }</span>
+		}
+		@components.TableCell("left", "") {
+			if version.Diff != nil {
+				@versionChangeSummary(version.Diff.Counts)
+			} else {
+				<span class="text-sm text-neutral-500">Initial version</span>
+			}
+		}
+		@components.TableCell("right", "w-48") {
+			<div class="flex items-center justify-end gap-2">
+				if version.Diff != nil {
+					<button
+						type="button"
+						class="text-sm text-primary-600 hover:text-primary-800 font-medium"
+						title={ fmt.Sprintf("View %d structured changes from version %d", version.Diff.Counts.Total(), version.Diff.OldVersion) }
+						hx-get={ fmt.Sprintf("/ui/jobs/%s/versions/%d/diff/%d", jobID, version.Version, version.Diff.OldVersion) }
+						hx-target="body"
+						hx-swap="beforeend"
+					>
+						Diff
+					</button>
+				} else {
+					<button
+						type="button"
+						class="text-sm text-primary-600 hover:text-primary-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+						title="No previous version to compare"
+						disabled
+					>
+						Diff
+					</button>
+				}
+				if !version.Active {
+					<button
+						type="button"
+						class="text-sm text-warning-600 hover:text-warning-800 font-medium"
+						title={ fmt.Sprintf("Revert to version %d", version.Version) }
+						@click={ fmt.Sprintf("revertVersion = %d; revertModalOpen = true", version.Version) }
+					>
+						Revert
+					</button>
+				}
+			</div>
+		}
+	</tr>
+}
+
+templ versionChangeSummary(counts VersionChangeCounts) {
+	<div class="flex flex-wrap items-center gap-2 text-xs" aria-label={ counts.AriaLabel() }>
+		<span class="font-medium text-neutral-700">{ fmt.Sprintf("%d changes", counts.Total()) }</span>
+		if counts.Added > 0 {
+			<span class="text-green-700">+{ fmt.Sprintf("%d", counts.Added) }</span>
+		}
+		if counts.Edited > 0 {
+			<span class="text-amber-700">~{ fmt.Sprintf("%d", counts.Edited) }</span>
+		}
+		if counts.Deleted > 0 {
+			<span class="text-red-700">-{ fmt.Sprintf("%d", counts.Deleted) }</span>
+		}
+	</div>
+}
+
+// versionRowClasses returns CSS classes for version rows, highlighting the active version
+func versionRowClasses(isActive bool) string {
+	base := "transition-colors duration-100"
+	if isActive {
+		return base + " bg-primary-50 hover:bg-primary-100"
+	}
+	return base + " hover:bg-neutral-50"
+}
+
+// formatSubmitTime formats the version submit time
+func formatSubmitTime(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else if duration < 7*24*time.Hour {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+	// For older versions, show the full date
+	return t.Format("Jan 2, 2006 at 3:04 PM")
+}
+
+// revertConfirmModal renders the confirmation modal for reverting to a previous version
+templ revertConfirmModal(jobID string) {
+	<div
+		x-show="revertModalOpen"
+		x-cloak
+		@keydown.escape.window="revertModalOpen = false"
+		class="fixed inset-0 z-50 overflow-y-auto"
+		x-transition:enter="transition ease-out duration-300"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-200"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="revert-modal-title"
+	>
+		<!-- Backdrop -->
+		<div
+			@click="revertModalOpen = false"
+			class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+			aria-hidden="true"
+		></div>
+		<!-- Modal positioning container -->
+		<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+			<!-- Modal content -->
+			<div
+				@click.stop
+				class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md"
+				x-transition:enter="transition ease-out duration-300"
+				x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+				x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave="transition ease-in duration-200"
+				x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+			>
+				<!-- Modal Header -->
+				<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+					<div class="flex items-center justify-between">
+						<h3
+							id="revert-modal-title"
+							class="text-lg font-semibold leading-6 text-neutral-900"
+						>
+							Revert Job Version
+						</h3>
+						<button
+							type="button"
+							@click="revertModalOpen = false"
+							class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+							aria-label="Close"
+						>
+							<span class="sr-only">Close</span>
+							<svg
+								class="h-6 w-6"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								aria-hidden="true"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+						</button>
+					</div>
+				</div>
+				<!-- Modal Body -->
+				<div class="px-6 py-4">
+					<div class="flex items-start">
+						<div class="flex-shrink-0">
+							<svg class="h-6 w-6 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+							</svg>
+						</div>
+						<div class="ml-3">
+							<p class="text-sm text-neutral-700">
+								Are you sure you want to revert this job to version <span class="font-mono font-semibold" x-text="revertVersion"></span>?
+							</p>
+							<p class="mt-2 text-sm text-neutral-500">
+								This will create a new job submission using the configuration from version <span class="font-mono" x-text="revertVersion"></span>.
+								The current version will remain in the history.
+							</p>
+							<p class="mt-2 text-sm text-neutral-500">
+								Job ID: <span class="font-mono font-medium">{ jobID }</span>
+							</p>
+						</div>
+					</div>
+				</div>
+				<!-- Modal Footer -->
+				<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+					<div class="flex justify-end space-x-3">
+						<button
+							type="button"
+							@click="revertModalOpen = false"
+							class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-warning-600 border border-transparent rounded-md hover:bg-warning-700 focus:outline-none focus:ring-2 focus:ring-warning-500 focus:ring-offset-2"
+							:hx-post={ `'/ui/jobs/${jobID}/versions/' + revertVersion + '/revert'` }
+							hx-target="body"
+							hx-swap="none"
+							@click="revertModalOpen = false"
+							@htmx:after-request="if(event.detail.successful) { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Job reverted to version ' + revertVersion, type: 'success' } })); setTimeout(() => window.location.reload(), 500); } else { window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Failed to revert job', type: 'error' } })); }"
+						>
+							<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+							</svg>
+							Revert to Version
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// JobDeployment represents a deployment for a job
+type JobDeployment struct {
+	ID                string
+	ShortID           string
+	DetailURL         string
+	Status            string
+	StatusDescription string
+	JobVersion        uint64
+	CreateIndex       uint64
+	TaskGroups        []DeploymentTaskGroupState
+	Created           time.Time
+}
+
+// DeploymentTaskGroupState represents the deployment state for a task group
+type DeploymentTaskGroupState struct {
+	Name             string
+	DesiredCanaries  int
+	DesiredTotal     int
+	PlacedAllocs     int
+	HealthyAllocs    int
+	UnhealthyAllocs  int
+	Promoted         bool
+	AutoRevert       bool
+}
+
+// DeploymentsTab renders the job deployments tab with deployment history
+templ DeploymentsTab(deployments []JobDeployment, jobID string) {
+	<div class="p-6">
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-medium text-neutral-900">Deployments</h3>
+			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d deployments", len(deployments)) }</span>
+		</div>
+		if len(deployments) == 0 {
+			<div class="text-center py-12">
+				<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900">No deployments</h3>
+				<p class="mt-1 text-sm text-neutral-500">This job has no deployment history.</p>
+				<p class="mt-1 text-xs text-neutral-400">Jobs require an update stanza to create deployments.</p>
+			</div>
+		} else {
+			<div class="space-y-4">
+				for _, deployment := range deployments {
+					@deploymentCard(deployment, jobID)
+				}
+			</div>
+		}
+	</div>
+}
+
+// deploymentCard renders a single deployment card
+templ deploymentCard(deployment JobDeployment, jobID string) {
+	<a href={ templ.SafeURL(deployment.DetailURL) } class="block bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+		<div class="flex items-start justify-between mb-3">
+			<div class="flex items-center gap-3">
+				<div>
+					<div class="flex items-center gap-2">
+						<span class="text-sm font-mono text-neutral-600">{ deployment.ShortID }</span>
+						@components.Badge(components.BadgeProps{
+							Variant: deploymentStatusToBadgeVariant(deployment.Status),
+							Size:    "sm",
+							Dot:     true,
+						}) {
+							{ deployment.Status }
+						}
+					</div>
+					<div class="mt-1 text-xs text-neutral-500">
+						Version { fmt.Sprintf("%d", deployment.JobVersion) } • { formatDeploymentTime(deployment.Created) }
+					</div>
+				</div>
+			</div>
+		</div>
+		if deployment.StatusDescription != "" {
+			<p class="text-sm text-neutral-600 mb-3">{ deployment.StatusDescription }</p>
+		}
+		if len(deployment.TaskGroups) > 0 {
+			<div class="mt-3 space-y-2">
+				<h4 class="text-xs font-medium text-neutral-700 uppercase tracking-wide">Task Groups</h4>
+				for _, tgState := range deployment.TaskGroups {
+					@deploymentTaskGroupRow(tgState)
+				}
+			</div>
+		}
+	</a>
+}
+
+// deploymentTaskGroupRow renders the status for a single task group in a deployment
+templ deploymentTaskGroupRow(state DeploymentTaskGroupState) {
+	<div class="bg-neutral-50 rounded p-3">
+		<div class="flex items-center justify-between mb-2">
+			<span class="text-sm font-medium text-neutral-900">{ state.Name }</span>
+			<div class="flex items-center gap-2 text-xs">
+				if state.Promoted {
+					@components.Badge(components.BadgeProps{
+						Variant: "success",
+						Size:    "xs",
+					}) {
+						Promoted
+					}
+				}
+				if state.AutoRevert {
+					@components.Badge(components.BadgeProps{
+						Variant: "warning",
+						Size:    "xs",
+					}) {
+						Auto-revert
+					}
+				}
+			</div>
+		</div>
+		<div class="grid grid-cols-4 gap-2 text-xs">
+			<div class="text-center">
+				<div class="font-semibold text-neutral-900">{ fmt.Sprintf("%d", state.DesiredTotal) }</div>
+				<div class="text-neutral-500">Desired</div>
+			</div>
+			<div class="text-center">
+				<div class="font-semibold text-neutral-900">{ fmt.Sprintf("%d", state.PlacedAllocs) }</div>
+				<div class="text-neutral-500">Placed</div>
+			</div>
+			<div class="text-center">
+				<div class="font-semibold text-success-600">{ fmt.Sprintf("%d", state.HealthyAllocs) }</div>
+				<div class="text-neutral-500">Healthy</div>
+			</div>
+			<div class="text-center">
+				<div class="font-semibold text-danger-600">{ fmt.Sprintf("%d", state.UnhealthyAllocs) }</div>
+				<div class="text-neutral-500">Unhealthy</div>
+			</div>
+		</div>
+		if state.DesiredCanaries > 0 {
+			<div class="mt-2 text-xs text-neutral-600">
+				<span class="font-medium">Canaries:</span> { fmt.Sprintf("%d", state.DesiredCanaries) }
+			</div>
+		}
+	</div>
+}
+
+// deploymentStatusToBadgeVariant maps deployment status to badge variant
+func deploymentStatusToBadgeVariant(status string) string {
+	switch status {
+	case "running":
+		return "info"
+	case "successful":
+		return "success"
+	case "failed":
+		return "danger"
+	case "cancelled":
+		return "neutral"
+	case "paused":
+		return "warning"
+	case "blocked":
+		return "warning"
+	default:
+		return "neutral"
+	}
+}
+
+// formatDeploymentTime formats the deployment creation time
+func formatDeploymentTime(t time.Time) string {
+	if t.IsZero() {
+		return "Time unavailable"
+	}
+
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else if duration < 7*24*time.Hour {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+	// For older deployments, show the full date
+	return t.Format("Jan 2, 2006 at 3:04 PM")
+}
+
+// JobEvaluation represents an evaluation for a job
+type JobEvaluation struct {
+	ID                   string
+	ShortID              string
+	DetailURL            string
+	Status               string
+	StatusDescription    string
+	TriggeredBy          string
+	Priority             int
+	CreateIndex          uint64
+	Created              time.Time
+	HasPlacementFailures bool
+	PlacementFailures    []PlacementFailure
+}
+
+// PlacementFailure represents a placement failure for a task group
+type PlacementFailure struct {
+	TaskGroup string
+	Reason    string
+}
+
+// EvaluationsTab renders the job evaluations tab with evaluation history
+templ EvaluationsTab(evaluations []JobEvaluation, jobID string) {
+	<div class="p-6">
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-medium text-neutral-900">Evaluations</h3>
+			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d evaluations", len(evaluations)) }</span>
+		</div>
+		if len(evaluations) == 0 {
+			<div class="text-center py-12">
+				<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900">No evaluations</h3>
+				<p class="mt-1 text-sm text-neutral-500">This job has no evaluation history.</p>
+			</div>
+		} else {
+			<div class="space-y-4">
+				for _, evaluation := range evaluations {
+					@evaluationCard(evaluation, jobID)
+				}
+			</div>
+		}
+	</div>
+}
+
+// evaluationCard renders a single evaluation card
+templ evaluationCard(evaluation JobEvaluation, jobID string) {
+	<a href={ templ.SafeURL(evaluation.DetailURL) } class="block bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+		<div class="flex items-start justify-between mb-3">
+			<div class="flex items-center gap-3">
+				<div>
+					<div class="flex items-center gap-2">
+						<span class="text-sm font-mono text-neutral-600">{ evaluation.ShortID }</span>
+						@components.Badge(components.BadgeProps{
+							Variant: evaluationStatusToBadgeVariant(evaluation.Status),
+							Size:    "sm",
+							Dot:     true,
+						}) {
+							{ evaluation.Status }
+						}
+					</div>
+					<div class="mt-1 text-xs text-neutral-500">
+						Triggered by: <span class="font-medium">{ formatTriggeredBy(evaluation.TriggeredBy) }</span> • Priority: { fmt.Sprintf("%d", evaluation.Priority) } • { formatEvaluationTime(evaluation.Created) }
+					</div>
+				</div>
+			</div>
+		</div>
+		if evaluation.StatusDescription != "" {
+			<p class="text-sm text-neutral-600 mb-3">{ evaluation.StatusDescription }</p>
+		}
+		if evaluation.HasPlacementFailures && len(evaluation.PlacementFailures) > 0 {
+			<div class="mt-3 bg-danger-50 border border-danger-200 rounded-lg p-3">
+				<div class="flex items-start">
+					<svg class="h-5 w-5 text-danger-400 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+					</svg>
+					<div class="flex-1">
+						<h4 class="text-sm font-medium text-danger-800 mb-2">Placement Failures</h4>
+						<ul class="space-y-1">
+							for _, failure := range evaluation.PlacementFailures {
+								<li class="text-sm text-danger-700">
+									<span class="font-medium">{ failure.TaskGroup }:</span> { failure.Reason }
+								</li>
+							}
+						</ul>
+					</div>
+				</div>
+			</div>
+		}
+	</a>
+}
+
+// evaluationStatusToBadgeVariant maps evaluation status to badge variant
+func evaluationStatusToBadgeVariant(status string) string {
+	switch status {
+	case "pending":
+		return "warning"
+	case "complete":
+		return "success"
+	case "failed":
+		return "danger"
+	case "blocked":
+		return "warning"
+	case "cancelled":
+		return "neutral"
+	default:
+		return "neutral"
+	}
+}
+
+// formatTriggeredBy formats the triggered by value to be more human-readable
+func formatTriggeredBy(triggeredBy string) string {
+	switch triggeredBy {
+	case "job-register":
+		return "Job Registration"
+	case "job-deregister":
+		return "Job Deregistration"
+	case "periodic-job":
+		return "Periodic Job"
+	case "node-update":
+		return "Node Update"
+	case "node-drain":
+		return "Node Drain"
+	case "alloc-stop":
+		return "Allocation Stop"
+	case "deployment-watcher":
+		return "Deployment Watcher"
+	case "failed-follow-up":
+		return "Failed Follow-up"
+	case "max-disconnect-timeout":
+		return "Max Disconnect Timeout"
+	case "scheduled":
+		return "Scheduled"
+	case "rolling-update":
+		return "Rolling Update"
+	case "queued-allocs":
+		return "Queued Allocations"
+	case "preemption":
+		return "Preemption"
+	default:
+		return triggeredBy
+	}
+}
+
+// formatEvaluationTime formats the evaluation creation time
+func formatEvaluationTime(t time.Time) string {
+	duration := time.Since(t)
+
+	if duration < time.Minute {
+		return "just now"
+	} else if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	} else if duration < 7*24*time.Hour {
+		days := int(duration.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+	// For older evaluations, show the full date
+	return t.Format("Jan 2, 2006 at 3:04 PM")
+}

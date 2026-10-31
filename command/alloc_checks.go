@@ -23,7 +23,7 @@ Usage: nomad alloc checks [options] <allocation>
 Alias: nomad checks
 
   Outputs the latest health check status information for services in the allocation
-  using the Nomad service discovery provider.
+  using the Wander service discovery provider.
 
 General Options:
 
@@ -154,7 +154,7 @@ func (c *AllocChecksCommand) Run(args []string) int {
 		return 0
 	}
 
-	c.Ui.Output(fmt.Sprintf("Status of %d Nomad Service Checks", len(checks)))
+	c.Ui.Output(fmt.Sprintf("Status of %d Wander Service Checks", len(checks)))
 	c.Ui.Output("")
 
 	pair := func(key, value string) string { return fmt.Sprintf("%s|=|%s", key, value) }

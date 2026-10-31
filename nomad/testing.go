@@ -56,7 +56,7 @@ func TestConfigForServer(t testing.T) *Config {
 	// Setup default enterprise-specific settings, including license
 	defaultEnterpriseTestConfig(config)
 
-	config.Build = version.Version + "+unittest"
+	config.Build = version.ClusterCompatibilityVersion + "+unittest"
 	config.DevMode = true
 	config.DataDir = t.TempDir()
 	config.EnableEventBroker = true

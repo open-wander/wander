@@ -1,0 +1,33 @@
+goos: darwin
+goarch: arm64
+cpu: Apple M3 Max
+BenchmarkMockJobsList               	 1218098	      2943 ns/op	   10336 B/op	      74 allocs/op
+BenchmarkMockJobsList-2             	 1697824	      2116 ns/op	   10337 B/op	      74 allocs/op
+BenchmarkMockJobsList-4             	 2051896	      1742 ns/op	   10338 B/op	      74 allocs/op
+BenchmarkMockJobsList-8             	 1411669	      2592 ns/op	   10342 B/op	      74 allocs/op
+BenchmarkMockJobsListWithSearch     	 1000000	      3078 ns/op	   10728 B/op	      76 allocs/op
+BenchmarkMockJobsListWithSearch-2   	 1608441	      2231 ns/op	   10729 B/op	      76 allocs/op
+BenchmarkMockJobsListWithSearch-4   	 2000776	      1802 ns/op	   10730 B/op	      76 allocs/op
+BenchmarkMockJobsListWithSearch-8   	 1339399	      2676 ns/op	   10734 B/op	      76 allocs/op
+BenchmarkMockAllocations            	  758696	      4737 ns/op	   14592 B/op	     124 allocs/op
+BenchmarkMockAllocations-2          	 1000000	      3263 ns/op	   14593 B/op	     124 allocs/op
+BenchmarkMockAllocations-4          	 1428450	      2541 ns/op	   14595 B/op	     124 allocs/op
+BenchmarkMockAllocations-8          	 1000000	      3671 ns/op	   14600 B/op	     124 allocs/op
+BenchmarkMockStaticCSS              	 2881339	      1237 ns/op	    6192 B/op	      19 allocs/op
+BenchmarkMockStaticCSS-2            	 3549948	      1010 ns/op	    6192 B/op	      19 allocs/op
+BenchmarkMockStaticCSS-4            	 3969436	       902.4 ns/op	    6193 B/op	      19 allocs/op
+BenchmarkMockStaticCSS-8            	 2771390	      1311 ns/op	    6195 B/op	      19 allocs/op
+BenchmarkMockStaticJS               	 2912346	      1240 ns/op	    6192 B/op	      19 allocs/op
+BenchmarkMockStaticJS-2             	 3470336	      1030 ns/op	    6192 B/op	      19 allocs/op
+BenchmarkMockStaticJS-4             	 3926920	       914.2 ns/op	    6193 B/op	      19 allocs/op
+BenchmarkMockStaticJS-8             	 2671908	      1317 ns/op	    6195 B/op	      19 allocs/op
+BenchmarkMockRouter                 	 1263358	      2852 ns/op	    9360 B/op	      60 allocs/op
+BenchmarkMockRouter-2               	 1768971	      2043 ns/op	    9361 B/op	      60 allocs/op
+BenchmarkMockRouter-4               	 2299929	      1571 ns/op	    9362 B/op	      60 allocs/op
+BenchmarkMockRouter-8               	 1491338	      2395 ns/op	    9366 B/op	      60 allocs/op
+BenchmarkMockMixedWorkload          	 1000000	      3152 ns/op	   10023 B/op	      68 allocs/op
+BenchmarkMockMixedWorkload-2        	 1664724	      2220 ns/op	   10024 B/op	      68 allocs/op
+BenchmarkMockMixedWorkload-4        	 2123342	      1667 ns/op	   10026 B/op	      68 allocs/op
+BenchmarkMockMixedWorkload-8        	 1416921	      2563 ns/op	   10029 B/op	      68 allocs/op
+PASS
+ok  	command-line-arguments	143.049s

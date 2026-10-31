@@ -48,7 +48,7 @@ Usage: wander operator api [options] <path>
     https://localhost:4646/v1/allocations <- Scheme will be https://
 
   Note that this command does not always match the popular curl program's
-  behavior. Instead Nomad's operator api command is optimized for common Nomad
+  behavior. Instead Wander's operator api command is optimized for common Wander
   HTTP API operations.
 
 General Options:

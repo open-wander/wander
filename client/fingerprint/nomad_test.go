@@ -19,13 +19,12 @@ func TestNomadFingerprint(t *testing.T) {
 
 	f := NewNomadFingerprint(testlog.HCLogger(t))
 
-	v := "foo"
 	r := "123"
 	h := "8.8.8.8:4646"
 	c := &config.Config{
 		Version: &version.VersionInfo{
 			Revision: r,
-			Version:  v,
+			Version:  "0.1.0",
 		},
 		NomadServiceDiscovery: true,
 	}
@@ -49,7 +48,7 @@ func TestNomadFingerprint(t *testing.T) {
 		t.Fatalf("should apply")
 	}
 
-	if response.Attributes["nomad.version"] != v {
+	if response.Attributes["nomad.version"] != version.ClusterCompatibilityVersion {
 		t.Fatalf("incorrect version")
 	}
 

@@ -1,0 +1,129 @@
+package components
+
+// BadgeProps contains parameters for the Badge component
+type BadgeProps struct {
+	Variant string // Color variant: "success", "warning", "error", "info", "neutral", "primary"
+	Size    string // Size variant: "sm", "md", "lg"
+	Dot     bool   // Whether to show a status dot indicator
+	Pill    bool   // Whether to use fully rounded (pill) shape
+	Class   string // Additional CSS classes to apply
+}
+
+// Badge renders a colored badge/label component with support for variants,
+// sizes, status dots, and pill shapes.
+//
+// Color Variants:
+//   - "success" - Green for successful/running states
+//   - "warning" - Amber for pending/warning states
+//   - "error" - Red for failed/error states
+//   - "info" - Cyan for informational states
+//   - "neutral" - Gray for inactive/dead states
+//   - "primary" - Blue for default/primary states
+//
+// Size Variants:
+//   - "sm" - Small badge (text-xs, compact padding)
+//   - "md" - Medium badge (text-sm, default)
+//   - "lg" - Large badge (text-base, generous padding)
+//
+// Features:
+//   - Optional dot indicator for status visualization
+//   - Pill shape option for fully rounded badges
+//   - Customizable with additional CSS classes
+//   - Semantic color mapping for job/allocation states
+//
+// Example Usage:
+//   @Badge(BadgeProps{Variant: "success", Dot: true}, "Running")
+//   @Badge(BadgeProps{Variant: "warning", Size: "sm"}, "Pending")
+//   @Badge(BadgeProps{Variant: "error", Pill: true}, "Failed")
+//   @Badge(BadgeProps{Variant: "neutral"}, "Dead")
+templ Badge(props BadgeProps) {
+	<span class={ badgeClasses(props) }>
+		if props.Dot {
+			<span class={ dotClasses(props.Variant) }></span>
+		}
+		{ children... }
+	</span>
+}
+
+// badgeClasses builds the complete CSS class string for the badge
+func badgeClasses(props BadgeProps) string {
+	classes := "inline-flex items-center font-medium "
+
+	// Size classes
+	switch props.Size {
+	case "sm":
+		classes += "text-xs px-2 py-0.5 "
+		if props.Dot {
+			classes += "gap-1 "
+		}
+	case "lg":
+		classes += "text-base px-3 py-1.5 "
+		if props.Dot {
+			classes += "gap-2 "
+		}
+	default: // md or unspecified
+		classes += "text-sm px-2.5 py-1 "
+		if props.Dot {
+			classes += "gap-1.5 "
+		}
+	}
+
+	// Border radius - pill vs default rounded
+	if props.Pill {
+		classes += "rounded-full "
+	} else {
+		classes += "rounded "
+	}
+
+	// Color variant classes
+	classes += variantClasses(props.Variant)
+
+	// Additional custom classes
+	if props.Class != "" {
+		classes += props.Class
+	}
+
+	return classes
+}
+
+// variantClasses returns the background and text color classes for each variant
+func variantClasses(variant string) string {
+	switch variant {
+	case "success":
+		return "bg-success-100 text-success-800 "
+	case "warning":
+		return "bg-warning-100 text-warning-800 "
+	case "error":
+		return "bg-error-100 text-error-800 "
+	case "info":
+		return "bg-info-100 text-info-800 "
+	case "neutral":
+		return "bg-neutral-100 text-neutral-800 "
+	case "primary":
+		return "bg-primary-100 text-primary-800 "
+	default:
+		return "bg-neutral-100 text-neutral-800 "
+	}
+}
+
+// dotClasses returns the CSS classes for the status dot indicator
+func dotClasses(variant string) string {
+	baseClasses := "h-1.5 w-1.5 rounded-full "
+
+	switch variant {
+	case "success":
+		return baseClasses + "bg-success-500"
+	case "warning":
+		return baseClasses + "bg-warning-500"
+	case "error":
+		return baseClasses + "bg-error-500"
+	case "info":
+		return baseClasses + "bg-info-500"
+	case "neutral":
+		return baseClasses + "bg-neutral-500"
+	case "primary":
+		return baseClasses + "bg-primary-500"
+	default:
+		return baseClasses + "bg-neutral-500"
+	}
+}

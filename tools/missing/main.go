@@ -48,7 +48,7 @@ func run(args []string) error {
 		return errors.New("usage: [filename] <group>")
 	}
 
-	f, err := os.Open(args[0])
+	f, err := os.Open(args[0]) // #nosec G703 -- the manifest path is an explicit CLI input from the build system.
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,244 @@
+package components
+
+// CPUChartProps contains parameters for the CPUChart component
+type CPUChartProps struct {
+	ID              string // Required: Unique ID for the chart
+	DataURL         string // Required: URL to fetch chart data from
+	RefreshInterval int    // Optional: Auto-refresh interval in seconds (0 = disabled)
+	Width           string // Optional: Tailwind width class - defaults to "full"
+	Height          string // Optional: Tailwind height class - defaults to "64"
+	Class           string // Optional: Additional CSS classes
+
+	// Chart Options
+	ShowGrid     bool   // Show grid lines (default: true)
+	CurveType    string // D3 curve type: curveLinear, curveMonotoneX, etc. (default: curveMonotoneX)
+	XAxisLabel   string // X axis label
+	YAxisLabel   string // Y axis label (default: "CPU %")
+	MarginLeft   int    // Left margin for Y axis labels (default: 50)
+	MarginBottom int    // Bottom margin for X axis labels (default: 40)
+}
+
+// CPUChart renders a CPU utilization area chart with D3.js.
+//
+// Features:
+//   - Time-series CPU percentage data (0-100%)
+//   - Area chart with gradient fill
+//   - Dynamic color thresholds:
+//     * Green: < 50%
+//     * Yellow: 50-75%
+//     * Orange: 75-90%
+//     * Red: >= 90%
+//   - Interactive tooltips on hover
+//   - Threshold indicator lines
+//   - Current value badge
+//   - Grid lines for readability
+//   - Smooth line interpolation
+//   - Responsive resizing
+//   - Auto-refresh support
+//   - Dark mode support
+//
+// Data Format (JSON from DataURL):
+//   {
+//     "data": [
+//       { "date": "2024-01-01T12:00:00Z", "value": 45.5 },
+//       { "date": "2024-01-01T12:01:00Z", "value": 62.3 },
+//       ...
+//     ]
+//   }
+//
+// Example Basic Usage:
+//   @CPUChart(CPUChartProps{
+//       ID: "client-cpu-chart",
+//       DataURL: "/api/client/abc-123/cpu",
+//   })
+//
+// Example with All Options:
+//   @CPUChart(CPUChartProps{
+//       ID: "node-cpu-chart",
+//       DataURL: "/api/node/node-1/cpu",
+//       RefreshInterval: 5,
+//       Height: "96",
+//       ShowGrid: true,
+//       CurveType: "curveMonotoneX",
+//       XAxisLabel: "Time",
+//       MarginLeft: 50,
+//   })
+//
+// Example with HTMX Lazy Loading:
+//   <div hx-get="/api/dashboard/cpu-section"
+//        hx-trigger="intersect once"
+//        hx-target="#cpu-container">
+//       <div id="cpu-container">
+//           @CPUChart(CPUChartProps{
+//               ID: "cpu-chart",
+//               DataURL: "/api/cpu/history",
+//               RefreshInterval: 10,
+//           })
+//       </div>
+//   </div>
+//
+// Curve Types:
+//   - curveLinear: Straight lines between points
+//   - curveMonotoneX: Smooth curves that preserve monotonicity (default)
+//   - curveCatmullRom: Smooth Catmull-Rom spline
+//   - curveNatural: Natural cubic spline
+//   - curveStep: Step function
+templ CPUChart(props CPUChartProps) {
+	<div
+		x-data={ cpuChartData(props) }
+		x-init="init()"
+	>
+		@ChartContainer(ChartContainerProps{
+			ID:     props.ID,
+			Width:  props.Width,
+			Height: props.Height,
+			Class:  props.Class,
+		}) {
+			<!-- Loading state -->
+			<div x-show="loading" class="w-full h-full">
+				@ChartLoading()
+			</div>
+			<!-- Error state -->
+			<div x-show="error" class="w-full h-full" x-cloak>
+				@ChartError("Failed to load CPU chart data")
+			</div>
+		}
+	</div>
+}
+
+// cpuChartData generates Alpine.js data object for the CPU chart
+func cpuChartData(props CPUChartProps) string {
+	// Set defaults
+	showGrid := "true"
+	if !props.ShowGrid {
+		showGrid = "false"
+	}
+
+	curveType := props.CurveType
+	if curveType == "" {
+		curveType = "curveMonotoneX"
+	}
+
+	yAxisLabel := props.YAxisLabel
+	if yAxisLabel == "" {
+		yAxisLabel = "CPU %"
+	}
+
+	marginLeft := props.MarginLeft
+	if marginLeft == 0 {
+		marginLeft = 50
+	}
+
+	marginBottom := props.MarginBottom
+	if marginBottom == 0 {
+		marginBottom = 40
+	}
+
+	refreshInterval := props.RefreshInterval * 1000 // Convert to milliseconds
+
+	// Build Alpine.js data object
+	return `{
+		loading: true,
+		error: false,
+		chart: null,
+		refreshTimer: null,
+		isTabVisible: true,
+		init() {
+			this.loadChart();
+			this.setupVisibilityHandling();
+			` + buildCPURefreshLogic(refreshInterval) + `
+		},
+		setupVisibilityHandling() {
+			// Page Visibility API to pause refresh when tab is hidden
+			this.isTabVisible = !document.hidden;
+
+			const handleVisibilityChange = () => {
+				this.isTabVisible = !document.hidden;
+
+				if (this.isTabVisible && this.refreshTimer) {
+					// Tab became visible - refresh immediately
+					this.refreshChart();
+				}
+			};
+
+			document.addEventListener('visibilitychange', handleVisibilityChange);
+
+			// Cleanup listener on destroy
+			this.$el.addEventListener('destroy', () => {
+				document.removeEventListener('visibilitychange', handleVisibilityChange);
+			});
+		},
+		async loadChart() {
+			this.loading = true;
+			this.error = false;
+
+			try {
+				const { renderCPUChartFromUrl } = await import('/static/js/cpu-chart.js');
+
+				this.chart = await renderCPUChartFromUrl(
+					'` + props.ID + `',
+					'` + props.DataURL + `',
+					{
+						showGrid: ` + showGrid + `,
+						curveType: '` + curveType + `',
+						marginLeft: ` + intToString(marginLeft) + `,
+						marginBottom: ` + intToString(marginBottom) + `,
+						xAxisLabel: '` + props.XAxisLabel + `',
+						yAxisLabel: '` + yAxisLabel + `',
+					}
+				);
+
+				this.loading = false;
+			} catch (err) {
+				console.error('Failed to load CPU chart:', err);
+				this.error = true;
+				this.loading = false;
+			}
+		},
+		async refreshChart() {
+			if (!this.chart) return;
+
+			// Skip refresh if tab is not visible
+			if (!this.isTabVisible) return;
+
+			try {
+				const response = await fetch('` + props.DataURL + `');
+				if (!response.ok) throw new Error('Failed to fetch data');
+
+				const data = await response.json();
+				this.chart.update(data);
+			} catch (err) {
+				console.error('Failed to refresh CPU chart:', err);
+			}
+		},
+		destroy() {
+			if (this.refreshTimer) {
+				clearInterval(this.refreshTimer);
+			}
+			if (this.chart) {
+				this.chart.destroy();
+			}
+		}
+	}`
+}
+
+// buildCPURefreshLogic creates the auto-refresh logic if interval is set
+func buildCPURefreshLogic(intervalMs int) string {
+	if intervalMs <= 0 {
+		return ""
+	}
+
+	return `
+			// Set up auto-refresh
+			this.refreshTimer = setInterval(() => {
+				this.refreshChart();
+			}, ` + intToString(intervalMs) + `);
+
+			// Cleanup on component destroy
+			this.$watch('$el', (el) => {
+				if (!document.contains(el)) {
+					this.destroy();
+				}
+			});
+	`
+}

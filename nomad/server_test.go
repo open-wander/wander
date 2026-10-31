@@ -5,6 +5,8 @@ package nomad
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"path"
 	"strings"
@@ -591,6 +593,43 @@ func TestServer_RPCNameAndRegionValidation(t *testing.T) {
 		assert.Equal(t, tc.expected, validateRPCRegionPeer(tc.name, tc.region),
 			"expected %q in region %q to validate as %v",
 			tc.name, tc.region, tc.expected)
+	}
+}
+
+func TestServer_RPCNameAndRegionValidatorConnection(t *testing.T) {
+	ci.Parallel(t)
+
+	validator := rpcNameAndRegionValidator("global")
+	for _, tc := range []struct {
+		name   string
+		chains [][]*x509.Certificate
+		valid  bool
+	}{
+		{
+			name: "verified server certificate",
+			chains: [][]*x509.Certificate{{{
+				DNSNames: []string{"server.global.nomad"},
+			}}},
+			valid: true,
+		},
+		{
+			name: "verified certificate for another client region",
+			chains: [][]*x509.Certificate{{{
+				DNSNames: []string{"client.other.nomad"},
+			}}},
+		},
+		{
+			name: "missing verified chain",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validator(tls.ConnectionState{VerifiedChains: tc.chains})
+			if tc.valid {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, "invalid role or region for certificate")
+			}
+		})
 	}
 }
 

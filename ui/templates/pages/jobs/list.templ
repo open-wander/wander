@@ -1,0 +1,14 @@
+package jobs
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/jobspartials"
+)
+
+// List renders the full jobs list page with layout.
+templ List(props layouts.PageLayoutProps, listProps jobspartials.ListProps) {
+	@layouts.PageLayout(
+		props,
+		jobspartials.ListContent(listProps),
+	)
+}

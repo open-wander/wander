@@ -1,0 +1,300 @@
+package components
+
+import (
+	"fmt"
+	"math"
+)
+
+// PaginationProps defines the properties for pagination component
+type PaginationProps struct {
+	Page      int    // Current page number (1-indexed)
+	PerPage   int    // Items per page
+	Total     int    // Total number of items
+	BaseURL   string // Base URL for pagination links
+	HxTarget  string // HTMX target selector (optional, defaults to "#main-content")
+	HxSwap    string // HTMX swap strategy (optional, defaults to "innerHTML")
+}
+
+// Pagination renders a pagination component with HTMX support
+templ Pagination(props PaginationProps) {
+	// Calculate total pages
+	@paginationContent(props, calculateTotalPages(props.Total, props.PerPage))
+}
+
+templ paginationContent(props PaginationProps, totalPages int) {
+	if props.Total > 0 {
+		<div class="flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-3 sm:px-6">
+			<!-- Mobile view -->
+			<div class="flex flex-1 justify-between sm:hidden">
+				@prevButton(props, totalPages, true)
+				@nextButton(props, totalPages, true)
+			</div>
+
+			<!-- Desktop view -->
+			<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+				<div>
+					<p class="text-sm text-neutral-700 dark:text-neutral-300">
+						Showing
+						<span class="font-medium">{ fmt.Sprintf("%d", calculateStart(props.Page, props.PerPage)) }</span>
+						to
+						<span class="font-medium">{ fmt.Sprintf("%d", calculateEnd(props.Page, props.PerPage, props.Total)) }</span>
+						of
+						<span class="font-medium">{ fmt.Sprintf("%d", props.Total) }</span>
+						results
+					</p>
+				</div>
+				<div>
+					<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+						@prevButton(props, totalPages, false)
+						@pageNumbers(props, totalPages)
+						@nextButton(props, totalPages, false)
+					</nav>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ prevButton(props PaginationProps, totalPages int, mobile bool) {
+	if props.Page > 1 {
+		<a
+			href={ templ.SafeURL(buildPageURL(props.BaseURL, props.Page-1, props.PerPage)) }
+			hx-get={ buildPageURL(props.BaseURL, props.Page-1, props.PerPage) }
+			hx-target={ getHxTarget(props.HxTarget) }
+			hx-swap={ getHxSwap(props.HxSwap) }
+			hx-push-url="true"
+			class={ prevButtonClass(mobile) }
+		>
+			if mobile {
+				Previous
+			} else {
+				<span class="sr-only">Previous</span>
+				<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"></path>
+				</svg>
+			}
+		</a>
+	} else {
+		<span class={ prevButtonDisabledClass(mobile) }>
+			if mobile {
+				Previous
+			} else {
+				<span class="sr-only">Previous</span>
+				<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"></path>
+				</svg>
+			}
+		</span>
+	}
+}
+
+templ nextButton(props PaginationProps, totalPages int, mobile bool) {
+	if props.Page < totalPages {
+		<a
+			href={ templ.SafeURL(buildPageURL(props.BaseURL, props.Page+1, props.PerPage)) }
+			hx-get={ buildPageURL(props.BaseURL, props.Page+1, props.PerPage) }
+			hx-target={ getHxTarget(props.HxTarget) }
+			hx-swap={ getHxSwap(props.HxSwap) }
+			hx-push-url="true"
+			class={ nextButtonClass(mobile) }
+		>
+			if mobile {
+				Next
+			} else {
+				<span class="sr-only">Next</span>
+				<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"></path>
+				</svg>
+			}
+		</a>
+	} else {
+		<span class={ nextButtonDisabledClass(mobile) }>
+			if mobile {
+				Next
+			} else {
+				<span class="sr-only">Next</span>
+				<svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"></path>
+				</svg>
+			}
+		</span>
+	}
+}
+
+templ pageNumbers(props PaginationProps, totalPages int) {
+	for _, pageNum := range getPageNumbers(props.Page, totalPages) {
+		if pageNum == -1 {
+			<!-- Ellipsis -->
+			<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300 ring-1 ring-inset ring-neutral-300 dark:ring-neutral-600 focus:outline-offset-0">
+				...
+			</span>
+		} else if pageNum == props.Page {
+			<!-- Current page -->
+			<span
+				aria-current="page"
+				class="relative z-10 inline-flex items-center bg-primary-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+			>
+				{ fmt.Sprintf("%d", pageNum) }
+			</span>
+		} else {
+			<!-- Other pages -->
+			<a
+				href={ templ.SafeURL(buildPageURL(props.BaseURL, pageNum, props.PerPage)) }
+				hx-get={ buildPageURL(props.BaseURL, pageNum, props.PerPage) }
+				hx-target={ getHxTarget(props.HxTarget) }
+				hx-swap={ getHxSwap(props.HxSwap) }
+				hx-push-url="true"
+				class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100 ring-1 ring-inset ring-neutral-300 dark:ring-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:z-20 focus:outline-offset-0 transition-colors duration-100"
+			>
+				{ fmt.Sprintf("%d", pageNum) }
+			</a>
+		}
+	}
+}
+
+// Helper functions
+
+func calculateTotalPages(total, perPage int) int {
+	if perPage == 0 {
+		return 0
+	}
+	return int(math.Ceil(float64(total) / float64(perPage)))
+}
+
+func calculateStart(page, perPage int) int {
+	if page < 1 {
+		page = 1
+	}
+	return (page-1)*perPage + 1
+}
+
+func calculateEnd(page, perPage, total int) int {
+	if page < 1 {
+		page = 1
+	}
+	end := page * perPage
+	if end > total {
+		return total
+	}
+	return end
+}
+
+func buildPageURL(baseURL string, page, perPage int) string {
+	if baseURL == "" {
+		baseURL = "?"
+	}
+	// Check if baseURL already has query params
+	separator := "?"
+	if len(baseURL) > 0 && (baseURL[len(baseURL)-1] == '?' || containsChar(baseURL, '?')) {
+		separator = "&"
+	}
+	return fmt.Sprintf("%s%spage=%d&per_page=%d", baseURL, separator, page, perPage)
+}
+
+func containsChar(s string, c rune) bool {
+	for _, char := range s {
+		if char == c {
+			return true
+		}
+	}
+	return false
+}
+
+func getHxTarget(target string) string {
+	if target == "" {
+		return "#main-content"
+	}
+	return target
+}
+
+func getHxSwap(swap string) string {
+	if swap == "" {
+		return "innerHTML"
+	}
+	return swap
+}
+
+func getPageNumbers(currentPage, totalPages int) []int {
+	if totalPages <= 7 {
+		// Show all pages if 7 or fewer
+		pages := make([]int, totalPages)
+		for i := 0; i < totalPages; i++ {
+			pages[i] = i + 1
+		}
+		return pages
+	}
+
+	// Show first page, last page, current page, and pages around current
+	pages := []int{}
+
+	// Always show first page
+	pages = append(pages, 1)
+
+	// Calculate range around current page
+	start := currentPage - 1
+	end := currentPage + 1
+
+	// Adjust if near beginning
+	if currentPage <= 3 {
+		start = 2
+		end = 4
+	}
+
+	// Adjust if near end
+	if currentPage >= totalPages-2 {
+		start = totalPages - 3
+		end = totalPages - 1
+	}
+
+	// Add ellipsis if gap
+	if start > 2 {
+		pages = append(pages, -1)
+	}
+
+	// Add middle pages
+	for i := start; i <= end && i < totalPages; i++ {
+		if i > 1 {
+			pages = append(pages, i)
+		}
+	}
+
+	// Add ellipsis if gap
+	if end < totalPages-1 {
+		pages = append(pages, -1)
+	}
+
+	// Always show last page
+	if totalPages > 1 {
+		pages = append(pages, totalPages)
+	}
+
+	return pages
+}
+
+func prevButtonClass(mobile bool) string {
+	if mobile {
+		return "relative inline-flex items-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors duration-100"
+	}
+	return "relative inline-flex items-center rounded-l-md px-2 py-2 text-neutral-400 ring-1 ring-inset ring-neutral-300 dark:ring-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:z-20 focus:outline-offset-0 transition-colors duration-100"
+}
+
+func prevButtonDisabledClass(mobile bool) string {
+	if mobile {
+		return "relative inline-flex items-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
+	}
+	return "relative inline-flex items-center rounded-l-md px-2 py-2 text-neutral-300 dark:text-neutral-600 ring-1 ring-inset ring-neutral-300 dark:ring-neutral-600 cursor-not-allowed"
+}
+
+func nextButtonClass(mobile bool) string {
+	if mobile {
+		return "relative ml-3 inline-flex items-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors duration-100"
+	}
+	return "relative inline-flex items-center rounded-r-md px-2 py-2 text-neutral-400 ring-1 ring-inset ring-neutral-300 dark:ring-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:z-20 focus:outline-offset-0 transition-colors duration-100"
+}
+
+func nextButtonDisabledClass(mobile bool) string {
+	if mobile {
+		return "relative ml-3 inline-flex items-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-400 dark:text-neutral-600 cursor-not-allowed"
+	}
+	return "relative inline-flex items-center rounded-r-md px-2 py-2 text-neutral-300 dark:text-neutral-600 ring-1 ring-inset ring-neutral-300 dark:ring-neutral-600 cursor-not-allowed"
+}

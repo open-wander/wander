@@ -1,0 +1,336 @@
+package policiespartials
+
+import (
+	"fmt"
+	"net/url"
+	"time"
+	"github.com/open-wander/wander/ui/templates/partials/tokenspartials"
+)
+
+// PolicyDetail represents a full ACL policy with rules for detail/edit display.
+type PolicyDetail struct {
+	Name        string
+	Description string
+	Rules       string    // HCL policy rules
+	CreateIndex uint64
+	ModifyIndex uint64
+	CreatedAt   time.Time
+	ModifiedAt  time.Time
+	RelatedTokens []PolicyTokenBinding
+	RelatedRoles  []PolicyRoleBinding
+}
+
+type PolicyTokenBinding struct {
+	AccessorID string
+	Name       string
+	Via        string
+}
+
+type PolicyRoleBinding struct {
+	ID   string
+	Name string
+}
+
+// DetailContent renders the policy detail page content with CodeMirror editor
+templ DetailContent(policy PolicyDetail) {
+	<div
+		class="p-6"
+		x-data="policyEditor"
+		data-policy-name={ policy.Name }
+	>
+		<textarea x-ref="rulesSource" hidden>{ policy.Rules }</textarea>
+		<textarea x-ref="descriptionSource" hidden>{ policy.Description }</textarea>
+		@tokenspartials.ACLTabs("policies")
+		<!-- Header Section -->
+		<div class="mb-6">
+			<div class="flex items-center justify-between mb-4">
+				<div>
+					<h2 class="text-2xl font-bold text-neutral-900">{ policy.Name }</h2>
+					<p class="text-neutral-600 mt-1">{ policy.Description }</p>
+				</div>
+				<!-- Action Buttons -->
+				<div class="flex items-center gap-2">
+					<template x-if="!isEditing">
+						<div class="flex items-center gap-2">
+							<!-- Copy Rules Button -->
+							<button
+								type="button"
+								@click="copyToClipboard"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								title="Copy rules to clipboard"
+							>
+								<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+								</svg>
+								Copy
+							</button>
+							<!-- Edit Button -->
+							<button
+								type="button"
+								@click="toggleEdit"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+							>
+								<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+								</svg>
+								Edit
+							</button>
+							<!-- Delete Button -->
+							<button
+								type="button"
+								@click="showDeleteConfirm"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-danger-600 border border-transparent rounded-md hover:bg-danger-700 focus:outline-none focus:ring-2 focus:ring-danger-500"
+							>
+								<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+								</svg>
+								Delete
+							</button>
+						</div>
+					</template>
+					<template x-if="isEditing">
+						<div class="flex items-center gap-2">
+							<!-- Cancel Button -->
+							<button
+								type="button"
+								@click="cancelEdit"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+							>
+								Cancel
+							</button>
+							<!-- Save Button -->
+							<button
+								type="button"
+								@click="saveChanges"
+								:disabled="isSaving || !hasChanges"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<svg x-show="isSaving" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								<svg x-show="!isSaving" class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+								</svg>
+								<span x-text="isSaving ? 'Saving...' : 'Save Changes'"></span>
+							</button>
+						</div>
+					</template>
+				</div>
+			</div>
+		</div>
+		<!-- Edit mode indicator -->
+		<template x-if="isEditing">
+			<div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+				<div class="flex items-center">
+					<svg class="w-5 h-5 text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+					</svg>
+					<span class="text-sm text-yellow-700">
+						<strong>Edit Mode:</strong> Changes will update the policy. Press <kbd class="px-1.5 py-0.5 mx-1 text-xs bg-yellow-100 border border-yellow-300 rounded">Ctrl+S</kbd> to save.
+					</span>
+				</div>
+			</div>
+		</template>
+		<!-- Error message -->
+		<template x-if="error">
+			<div class="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-md">
+				<div class="flex items-center">
+					<svg class="w-5 h-5 text-danger-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+					</svg>
+					<span class="text-sm text-danger-700" x-text="error"></span>
+				</div>
+			</div>
+		</template>
+		<!-- Metadata Section -->
+		<div class="mb-6 bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+			<h3 class="text-sm font-medium text-neutral-700 mb-3">Policy Metadata</h3>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+				<div>
+					<span class="text-neutral-500">Name:</span>
+					<span class="ml-2 font-mono font-medium text-neutral-900">{ policy.Name }</span>
+				</div>
+				<div>
+					<span class="text-neutral-500">Modified:</span>
+					<span class="ml-2 text-neutral-900">{ formatTime(policy.ModifiedAt) }</span>
+				</div>
+				<div>
+					<span class="text-neutral-500">Created:</span>
+					<span class="ml-2 text-neutral-900">{ formatTime(policy.CreatedAt) }</span>
+				</div>
+				<div>
+					<span class="text-neutral-500">Modify Index:</span>
+					<span class="ml-2 font-mono text-neutral-900">{ fmt.Sprintf("%d", policy.ModifyIndex) }</span>
+				</div>
+			</div>
+		</div>
+		<!-- Related ACL resources -->
+		<div class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+			<h3 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Used by</h3>
+			<div class="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">
+				<div>
+					<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Tokens</h4>
+					if len(policy.RelatedTokens) == 0 {
+						<p class="mt-2 text-sm text-neutral-500">No tokens use this policy.</p>
+					} else {
+						<ul class="mt-2 space-y-2">
+							for _, token := range policy.RelatedTokens {
+								<li class="text-sm">
+									<a href={ templ.SafeURL(policyTokenPath(token.AccessorID)) } class="font-medium text-primary-600 hover:text-primary-800">{ policyTokenLabel(token) }</a>
+									<span class="ml-2 text-xs text-neutral-500">{ token.Via }</span>
+								</li>
+							}
+						</ul>
+					}
+				</div>
+				<div>
+					<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Roles</h4>
+					if len(policy.RelatedRoles) == 0 {
+						<p class="mt-2 text-sm text-neutral-500">No roles use this policy.</p>
+					} else {
+						<ul class="mt-2 space-y-2">
+							for _, role := range policy.RelatedRoles {
+								<li class="text-sm"><a href={ templ.SafeURL(policyRolePath(role.ID)) } class="font-medium text-primary-600 hover:text-primary-800">{ role.Name }</a></li>
+							}
+						</ul>
+					}
+				</div>
+			</div>
+		</div>
+		<!-- Description Section (editable) -->
+		<div class="mb-6">
+			<label class="block text-sm font-medium text-neutral-700 mb-2">
+				Description
+			</label>
+			<template x-if="!isEditing">
+				<div class="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm text-neutral-900">
+					{ policy.Description }
+				</div>
+			</template>
+			<template x-if="isEditing">
+				<textarea
+					x-model="description"
+					rows="2"
+					class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+					placeholder="Enter policy description"
+				></textarea>
+			</template>
+		</div>
+		<!-- Rules Editor Section -->
+		<div class="mb-4">
+			<div class="flex items-center justify-between mb-2">
+				<label class="block text-sm font-medium text-neutral-700">
+					Policy Rules (HCL)
+				</label>
+				<span class="text-xs text-neutral-500">
+					<kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Ctrl+S</kbd> to save
+				</span>
+			</div>
+			<!-- Editor Container -->
+			<div
+				x-ref="editorContainer"
+				class="border border-neutral-300 rounded-lg overflow-hidden"
+				:class="isEditing ? 'ring-2 ring-primary-500 ring-offset-1' : ''"
+			>
+				<!-- Loading state while editor initializes -->
+			</div>
+		</div>
+		<!-- Delete Confirmation Modal -->
+		<template x-if="showDeleteModal">
+			<div class="fixed inset-0 z-50 overflow-y-auto" @keydown.escape.window="closeDeleteModal">
+				<!-- Backdrop -->
+				<div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closeDeleteModal"></div>
+				<!-- Modal positioning container -->
+				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+					<!-- Modal content -->
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+						<!-- Modal Header -->
+						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+							<div class="flex items-center justify-between">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+									Delete Policy
+								</h3>
+								<button
+									type="button"
+									@click="closeDeleteModal"
+									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+								>
+									<span class="sr-only">Close</span>
+									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<!-- Modal Body -->
+						<div class="px-6 py-4">
+							<div class="flex items-start">
+								<div class="flex-shrink-0">
+									<svg class="h-6 w-6 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+									</svg>
+								</div>
+								<div class="ml-3">
+									<p class="text-sm text-neutral-700">
+										Are you sure you want to delete the policy <span class="font-mono font-semibold">{ policy.Name }</span>?
+									</p>
+									<p class="mt-2 text-sm text-danger-600 font-medium">
+										This action cannot be undone. Any tokens using this policy will lose their access.
+									</p>
+								</div>
+							</div>
+						</div>
+						<!-- Modal Footer -->
+						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+							<div class="flex justify-end space-x-3">
+								<button
+									type="button"
+									@click="closeDeleteModal"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								>
+									Cancel
+								</button>
+								<button
+									type="button"
+									@click="deletePolicy"
+									:disabled="isDeleting"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-danger-600 border border-transparent rounded-md hover:bg-danger-700 focus:outline-none focus:ring-2 focus:ring-danger-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									<svg x-show="isDeleting" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									<span x-text="isDeleting ? 'Deleting...' : 'Delete Policy'"></span>
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</template>
+	</div>
+}
+
+// formatTime formats a time for display
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return "unknown"
+	}
+	return t.Format("Jan 2, 2006 at 3:04 PM")
+}
+
+func policyTokenLabel(token PolicyTokenBinding) string {
+	if token.Name != "" {
+		return token.Name
+	}
+	return token.AccessorID
+}
+
+func policyTokenPath(accessorID string) string {
+	return "/ui/access-control/tokens/" + url.PathEscape(accessorID)
+}
+
+func policyRolePath(roleID string) string {
+	return "/ui/access-control/roles/" + url.PathEscape(roleID)
+}

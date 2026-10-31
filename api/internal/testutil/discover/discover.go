@@ -37,6 +37,7 @@ func WanderExecutable() (string, error) {
 
 	// Check the $GOPATH.
 	bin = filepath.Join(os.Getenv("GOPATH"), "bin", wanderExe)
+	// #nosec G703 -- GOPATH is an explicit local developer environment boundary.
 	if _, err := os.Stat(bin); err == nil {
 		return bin, nil
 	}

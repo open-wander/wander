@@ -1,0 +1,203 @@
+package components
+
+// Example usage of the Table component showing all features.
+// This file serves as documentation and can be used for testing.
+
+// ExampleJobsTable demonstrates a complete table with all features:
+//   - Sortable columns
+//   - Mixed alignment (left, center, right)
+//   - Custom width columns
+//   - Striped rows
+//   - Hover effects
+//   - Clickable rows
+//   - Status badges
+templ ExampleJobsTable() {
+	<div class="p-6">
+		<h2 class="text-2xl font-bold mb-4">Jobs Table Example</h2>
+
+		@Table(TableProps{
+			Columns: []Column{
+				{Key: "name", Label: "Job Name", Sortable: true, Align: "left"},
+				{Key: "status", Label: "Status", Sortable: true, Align: "center", Width: "w-32"},
+				{Key: "type", Label: "Type", Sortable: true, Align: "center", Width: "w-24"},
+				{Key: "priority", Label: "Priority", Sortable: true, Align: "center", Width: "w-24"},
+				{Key: "submitted", Label: "Submitted", Sortable: true, Align: "right"},
+			},
+			SortColumn: "name",
+			SortDir:    "asc",
+			Striped:    true,
+			Hover:      true,
+			SortURL:    "/jobs",
+			Class:      "",
+		}) {
+			@TableBody() {
+				@TableRow(true) {
+					@TableCell("left", "") {
+						<span class="font-medium text-neutral-900 dark:text-neutral-100">web-server</span>
+					}
+					@TableCell("center", "w-32") {
+						<span class="badge badge-success">Running</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">service</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">50</span>
+					}
+					@TableCell("right", "") {
+						<span class="text-neutral-500 dark:text-neutral-400">2 hours ago</span>
+					}
+				}
+
+				@TableRow(true) {
+					@TableCell("left", "") {
+						<span class="font-medium text-neutral-900 dark:text-neutral-100">batch-processor</span>
+					}
+					@TableCell("center", "w-32") {
+						<span class="badge badge-warning">Pending</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">batch</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">30</span>
+					}
+					@TableCell("right", "") {
+						<span class="text-neutral-500 dark:text-neutral-400">5 minutes ago</span>
+					}
+				}
+
+				@TableRow(true) {
+					@TableCell("left", "") {
+						<span class="font-medium text-neutral-900 dark:text-neutral-100">api-gateway</span>
+					}
+					@TableCell("center", "w-32") {
+						<span class="badge badge-success">Running</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">service</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">75</span>
+					}
+					@TableCell("right", "") {
+						<span class="text-neutral-500 dark:text-neutral-400">1 day ago</span>
+					}
+				}
+
+				@TableRow(true) {
+					@TableCell("left", "") {
+						<span class="font-medium text-neutral-900 dark:text-neutral-100">cleanup-job</span>
+					}
+					@TableCell("center", "w-32") {
+						<span class="badge badge-neutral">Dead</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">batch</span>
+					}
+					@TableCell("center", "w-24") {
+						<span class="text-neutral-600 dark:text-neutral-400">10</span>
+					}
+					@TableCell("right", "") {
+						<span class="text-neutral-500 dark:text-neutral-400">3 days ago</span>
+					}
+				}
+			}
+		}
+
+		@TableLoadingIndicator()
+	</div>
+}
+
+// ExampleEmptyTable demonstrates the empty state message
+templ ExampleEmptyTable() {
+	<div class="p-6">
+		<h2 class="text-2xl font-bold mb-4">Empty Table Example</h2>
+
+		@Table(TableProps{
+			Columns: []Column{
+				{Key: "name", Label: "Name", Sortable: true, Align: "left"},
+				{Key: "status", Label: "Status", Sortable: true, Align: "center"},
+				{Key: "created", Label: "Created", Sortable: true, Align: "right"},
+			},
+			SortColumn: "name",
+			SortDir:    "asc",
+			Striped:    false,
+			Hover:      false,
+			SortURL:    "/items",
+		}) {
+			@TableBody() {
+				@TableEmptyState("No items found", "Try adjusting your search filters or create a new item")
+			}
+		}
+	</div>
+}
+
+// ExampleCompactTable demonstrates a compact table variant
+templ ExampleCompactTable() {
+	<div class="p-6">
+		<h2 class="text-2xl font-bold mb-4">Compact Table Example</h2>
+
+		@Table(TableProps{
+			Columns: []Column{
+				{Key: "id", Label: "ID", Sortable: true, Align: "left", Width: "w-20"},
+				{Key: "name", Label: "Name", Sortable: true, Align: "left"},
+				{Key: "value", Label: "Value", Sortable: true, Align: "right", Width: "w-24"},
+			},
+			SortColumn: "id",
+			SortDir:    "asc",
+			Compact:    true,
+			Hover:      true,
+			SortURL:    "/compact",
+		}) {
+			@TableBody() {
+				@TableRow(false) {
+					@TableCell("left", "w-20") { #001 }
+					@TableCell("left", "") { Item Alpha }
+					@TableCell("right", "w-24") { 42 }
+				}
+				@TableRow(false) {
+					@TableCell("left", "w-20") { #002 }
+					@TableCell("left", "") { Item Beta }
+					@TableCell("right", "w-24") { 128 }
+				}
+				@TableRow(false) {
+					@TableCell("left", "w-20") { #003 }
+					@TableCell("left", "") { Item Gamma }
+					@TableCell("right", "w-24") { 256 }
+				}
+			}
+		}
+	</div>
+}
+
+// ExampleNonSortableTable demonstrates a table with no sortable columns
+templ ExampleNonSortableTable() {
+	<div class="p-6">
+		<h2 class="text-2xl font-bold mb-4">Non-Sortable Table Example</h2>
+
+		@Table(TableProps{
+			Columns: []Column{
+				{Key: "label", Label: "Label", Sortable: false, Align: "left"},
+				{Key: "description", Label: "Description", Sortable: false, Align: "left"},
+			},
+			Striped: true,
+			SortURL: "",
+		}) {
+			@TableBody() {
+				@TableRow(false) {
+					@TableCell("left", "") { <strong>Version</strong> }
+					@TableCell("left", "") { 1.2.3 }
+				}
+				@TableRow(false) {
+					@TableCell("left", "") { <strong>Release Date</strong> }
+					@TableCell("left", "") { January 25, 2026 }
+				}
+				@TableRow(false) {
+					@TableCell("left", "") { <strong>Status</strong> }
+					@TableCell("left", "") { Active }
+				}
+			}
+		}
+	</div>
+}

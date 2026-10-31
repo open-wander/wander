@@ -43,6 +43,12 @@ func makeHTTPServer(t testing.TB, cb func(c *Config)) *TestAgent {
 	return NewTestAgent(t, t.Name(), cb)
 }
 
+func noProxyHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	return &http.Client{Transport: transport}
+}
+
 func BenchmarkHTTPRequests(b *testing.B) {
 	s := makeHTTPServer(b, func(c *Config) {
 		c.Client.Enabled = false
@@ -78,6 +84,11 @@ func TestMultipleInterfaces(t *testing.T) {
 	ci.Parallel(t)
 
 	httpIps := []string{"127.0.0.1", "127.0.0.2"}
+	probe, err := net.Listen("tcp", net.JoinHostPort(httpIps[1], "0"))
+	if err != nil {
+		t.Skipf("secondary loopback address is unavailable: %v", err)
+	}
+	probe.Close()
 
 	s := makeHTTPServer(t, func(c *Config) {
 		c.Addresses.HTTP = strings.Join(httpIps, " ")
@@ -86,11 +97,16 @@ func TestMultipleInterfaces(t *testing.T) {
 	defer s.Shutdown()
 
 	httpPort := s.ports[0]
+	client := noProxyHTTPClient()
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	for _, ip := range httpIps {
-		resp, err := http.Get(fmt.Sprintf("http://%s:%d/", ip, httpPort))
-
-		assert.Nil(t, err)
-		assert.Equal(t, resp.StatusCode, 200)
+		resp, err := client.Get(fmt.Sprintf("http://%s:%d/", ip, httpPort))
+		require.NoError(t, err)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		require.Equal(t, "/ui/", resp.Header.Get("Location"))
+		require.NoError(t, resp.Body.Close())
 	}
 }
 

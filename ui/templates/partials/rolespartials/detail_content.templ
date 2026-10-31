@@ -1,0 +1,105 @@
+package rolespartials
+
+import (
+	"fmt"
+	"net/url"
+
+	"github.com/open-wander/wander/ui/templates/partials/tokenspartials"
+)
+
+type PolicyOption = tokenspartials.Option
+
+type RoleView struct {
+	ID          string
+	Name        string
+	Description string
+	Policies    []string
+	CreateIndex uint64
+	ModifyIndex uint64
+}
+
+type RoleForm struct {
+	Role     RoleView
+	Policies []PolicyOption
+	IsNew    bool
+	Error    string
+}
+
+templ DetailContent(form RoleForm) {
+	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="mb-6 flex items-start justify-between gap-4">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+					if form.IsNew {
+						New ACL Role
+					} else {
+						{ form.Role.Name }
+					}
+				</h1>
+				if !form.IsNew {
+					<p class="mt-2 break-all font-mono text-sm text-neutral-500">{ form.Role.ID }</p>
+				}
+			</div>
+			if !form.IsNew {
+				<button type="button" hx-delete={ "/ui/access-control/roles/" + url.PathEscape(form.Role.ID) } hx-confirm="Delete this ACL role? Tokens linked to it will lose the role's permissions." class="rounded-md bg-danger-600 px-4 py-2 text-sm font-medium text-white hover:bg-danger-700">Delete Role</button>
+			}
+		</div>
+		@tokenspartials.ACLTabs("roles")
+		if form.Error != "" {
+			<div class="mb-6 rounded-md border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800" role="alert">{ form.Error }</div>
+		}
+		<form method="post" action={ templ.SafeURL(roleFormAction(form)) } hx-post={ roleFormAction(form) } hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-neutral-900">
+			<div>
+				<label for="role-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Name</label>
+				<input id="role-name" name="name" value={ form.Role.Name } required class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"/>
+			</div>
+			<div>
+				<label for="role-description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Description</label>
+				<textarea id="role-description" name="description" rows="3" class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">{ form.Role.Description }</textarea>
+			</div>
+			<fieldset>
+				<legend class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Policies</legend>
+				<div class="mt-2 grid grid-cols-1 gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700 sm:grid-cols-2">
+					if len(form.Policies) == 0 {
+						<p class="text-sm text-neutral-500">No policies are available. Create a policy before creating a role.</p>
+					} else {
+						for _, policy := range form.Policies {
+							<label class="flex items-start gap-2 rounded p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+								<input type="checkbox" name="policies" value={ policy.Value } checked?={ policy.Selected } class="mt-1 rounded border-neutral-300"/>
+								<span>
+									<span class="block text-sm font-medium text-neutral-900 dark:text-neutral-100">{ policy.Label }</span>
+									if policy.Description != "" {
+										<span class="block text-xs text-neutral-500">{ policy.Description }</span>
+									}
+								</span>
+							</label>
+						}
+					}
+				</div>
+			</fieldset>
+			if !form.IsNew {
+				<div class="grid grid-cols-1 gap-4 border-t border-neutral-200 pt-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400 sm:grid-cols-2">
+					<div><span class="font-medium">Create index:</span> { fmt.Sprintf("%d", form.Role.CreateIndex) }</div>
+					<div><span class="font-medium">Modify index:</span> { fmt.Sprintf("%d", form.Role.ModifyIndex) }</div>
+				</div>
+			}
+			<div class="flex justify-end gap-3">
+				<a href="/ui/access-control/roles" hx-get="/ui/access-control/roles" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
+				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
+					if form.IsNew {
+						Create Role
+					} else {
+						Save Role
+					}
+				</button>
+			</div>
+		</form>
+	</div>
+}
+
+func roleFormAction(form RoleForm) string {
+	if form.IsNew {
+	return "/ui/access-control/roles/new"
+	}
+	return "/ui/access-control/roles/" + url.PathEscape(form.Role.ID)
+}

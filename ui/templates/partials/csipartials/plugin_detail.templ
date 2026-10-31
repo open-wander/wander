@@ -1,0 +1,386 @@
+package csipartials
+
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+	"time"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+type PluginDetail struct {
+	ID                  string
+	Provider            string
+	Version             string
+	ControllerRequired  bool
+	ControllersHealthy  int
+	ControllersExpected int
+	NodesHealthy        int
+	NodesExpected       int
+	Controllers         []PluginAllocation
+	Nodes               []PluginAllocation
+}
+
+type PluginAllocation struct {
+	Type              string
+	AllocationID      string
+	AllocationKnown   bool
+	NodeID            string
+	NodeName          string
+	JobID             string
+	Namespace         string
+	TaskGroup         string
+	JobVersion        uint64
+	ClientStatus      string
+	Healthy           bool
+	HealthDescription string
+	Updated           time.Time
+	Created           time.Time
+	Modified          time.Time
+	CPU               int64
+	MemoryMB          int64
+	ResourcesKnown    bool
+}
+
+type PluginAllocationsProps struct {
+	Plugin      PluginDetail
+	Allocations []PluginAllocation
+	Type        string
+	Health      string
+	Sort        string
+	Direction   string
+	Page        int
+	PerPage     int
+	Total       int
+	TotalPages  int
+}
+
+templ PluginDetailContent(plugin PluginDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+		@pluginHeader(plugin, "overview")
+		<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Plugin Details</h2>
+			<dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+				@detailValue("Provider", plugin.Provider)
+				@detailValue("Version", displayValue(plugin.Version))
+				@detailValue("Controller plugin", yesNo(plugin.ControllerRequired))
+				@detailValue("Plugin ID", plugin.ID)
+			</dl>
+		</section>
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+			if plugin.ControllerRequired {
+				@healthCard("Controller Health", plugin.ControllersHealthy, plugin.ControllersExpected)
+			}
+			@healthCard("Node Health", plugin.NodesHealthy, plugin.NodesExpected)
+		</div>
+		if plugin.ControllerRequired {
+			@pluginAllocationSection(plugin, "Controller Allocations", "controller", plugin.Controllers)
+		}
+		@pluginAllocationSection(plugin, "Node Allocations", "node", plugin.Nodes)
+	</div>
+}
+
+templ PluginAllocationsContent(props PluginAllocationsProps) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+		@pluginHeader(props.Plugin, "allocations")
+		<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-6">
+				<div>
+					<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Plugin Allocations</h2>
+					<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("%d matching allocations", props.Total) }</p>
+				</div>
+				<form method="get" action={ templ.SafeURL(pluginAllocationsPath(props.Plugin.ID)) } class="flex flex-wrap items-end gap-3">
+					@filterSelect("type", "Type", props.Type, []selectOption{{"", "All types"}, {"controller", "Controller"}, {"node", "Node"}})
+					@filterSelect("healthy", "Health", props.Health, []selectOption{{"", "All health"}, {"true", "Healthy"}, {"false", "Unhealthy"}})
+					@filterSelect("sort", "Sort", props.Sort, []selectOption{{"modified", "Modified"}, {"health", "Health"}, {"id", "Allocation ID"}})
+					@filterSelect("dir", "Direction", props.Direction, []selectOption{{"desc", "Descending"}, {"asc", "Ascending"}})
+					<input type="hidden" name="per_page" value={ strconv.Itoa(props.PerPage) }/>
+					<button type="submit" class="inline-flex min-h-10 items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Apply</button>
+				</form>
+			</div>
+			@pluginAllocationsTable(props.Allocations, "No allocations match the selected filters.")
+			if props.TotalPages > 1 {
+				<nav class="mt-5 flex items-center justify-between" aria-label="Plugin allocation pages">
+					<span class="text-sm text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("Page %d of %d", props.Page, props.TotalPages) }</span>
+					<div class="flex gap-2">
+						if props.Page > 1 {
+							<a href={ templ.SafeURL(pluginAllocationsURL(props, props.Page-1)) } class="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200">Previous</a>
+						}
+						if props.Page < props.TotalPages {
+							<a href={ templ.SafeURL(pluginAllocationsURL(props, props.Page+1)) } class="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200">Next</a>
+						}
+					</div>
+				</nav>
+			}
+		</section>
+	</div>
+}
+
+templ pluginHeader(plugin PluginDetail, active string) {
+	<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+		<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+			<div>
+				<p class="text-sm font-medium text-neutral-500 dark:text-neutral-400">CSI Plugin</p>
+				<h1 class="mt-1 text-3xl font-bold text-neutral-900 dark:text-neutral-100 break-all">{ plugin.ID }</h1>
+			</div>
+			@overallPluginHealth(plugin)
+		</div>
+		<nav class="mt-6 flex gap-5 border-b border-neutral-200 dark:border-neutral-700" aria-label="CSI plugin sections">
+			@pluginTab(plugin.ID, "Overview", "overview", active, pluginPath(plugin.ID))
+			@pluginTab(plugin.ID, "Allocations", "allocations", active, pluginAllocationsPath(plugin.ID))
+		</nav>
+	</section>
+}
+
+templ pluginTab(pluginID, label, id, active, href string) {
+	<a
+		href={ templ.SafeURL(href) }
+		class={ templ.KV("border-primary-500 text-primary-600 dark:text-primary-400", id == active), templ.KV("border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200", id != active), "border-b-2 px-1 pb-3 text-sm font-medium" }
+		aria-current={ activePageValue(id == active) }
+	>
+		{ label }
+	</a>
+}
+
+templ overallPluginHealth(plugin PluginDetail) {
+	if pluginHealthy(plugin) {
+		@components.Badge(components.BadgeProps{Variant: "success", Dot: true, Size: "md"}) {
+			Healthy 
+		}
+	} else {
+		@components.Badge(components.BadgeProps{Variant: "error", Dot: true, Size: "md"}) {
+			Degraded 
+		}
+	}
+}
+
+templ healthCard(label string, healthy, expected int) {
+	<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+		<div class="flex items-center justify-between">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ label }</h2>
+			@healthStatus(healthy, expected)
+		</div>
+		<div class="mt-5">
+			<div class="flex justify-between text-sm text-neutral-600 dark:text-neutral-400">
+				<span>Available</span><span>{ fmt.Sprintf("%d of %d", healthy, expected) }</span>
+			</div>
+			<div class="mt-2 h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+				<div class={ healthBarClass(healthy, expected) } style={ fmt.Sprintf("width: %d%%", healthPercent(healthy, expected)) }></div>
+			</div>
+		</div>
+	</section>
+}
+
+templ detailValue(label, value string) {
+	<div>
+		<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">{ label }</dt>
+		<dd class="mt-1 break-all font-mono text-sm text-neutral-900 dark:text-neutral-100">{ value }</dd>
+	</div>
+}
+
+templ pluginAllocationSection(plugin PluginDetail, label, kind string, allocations []PluginAllocation) {
+	<section class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div class="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ label }</h2>
+			if len(allocations) > 0 {
+				<a href={ templ.SafeURL(pluginAllocationsPath(plugin.ID) + "?type=" + kind) } class="text-sm font-medium text-primary-600 dark:text-primary-400">View all { fmt.Sprintf("%d", len(allocations)) }</a>
+			}
+		</div>
+		<div class="p-6">
+			@pluginAllocationsTable(firstPluginAllocations(allocations, 10), "No allocations are providing this plugin service.")
+		</div>
+	</section>
+}
+
+templ pluginAllocationsTable(allocations []PluginAllocation, emptyMessage string) {
+	<div class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-700">
+		<table class="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+			<thead class="bg-neutral-50 dark:bg-neutral-800">
+				<tr>
+					@tableHeading("Allocation")
+					@tableHeading("Type")
+					@tableHeading("Health")
+					@tableHeading("Client")
+					@tableHeading("Job / Group")
+					@tableHeading("Version")
+					@tableHeading("Allocated")
+					@tableHeading("Created")
+					@tableHeading("Modified")
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-neutral-200 bg-white dark:divide-neutral-700 dark:bg-neutral-900">
+				if len(allocations) == 0 {
+					<tr><td colspan="9" class="px-6 py-10 text-center text-sm text-neutral-500 dark:text-neutral-400">{ emptyMessage }</td></tr>
+				} else {
+					for _, allocation := range allocations {
+						@pluginAllocationRow(allocation)
+					}
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ tableHeading(label string) {
+	<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{ label }</th>
+}
+
+templ pluginAllocationRow(allocation PluginAllocation) {
+	<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800">
+		<td class="px-4 py-3 text-sm">
+			if allocation.AllocationKnown && allocation.AllocationID != "" {
+				<a href={ templ.SafeURL("/ui/allocations/" + url.PathEscape(allocation.AllocationID)) } class="font-mono text-primary-600 dark:text-primary-400">{ pluginShortID(allocation.AllocationID) }</a>
+			} else {
+				<span class="font-mono text-neutral-500 dark:text-neutral-400">{ displayValue(allocation.AllocationID) }</span>
+			}
+		</td>
+		<td class="px-4 py-3 text-sm capitalize text-neutral-700 dark:text-neutral-300">{ allocation.Type }</td>
+		<td class="px-4 py-3 text-sm" title={ allocation.HealthDescription }>
+			if allocation.Healthy {
+				@components.Badge(components.BadgeProps{Variant: "success", Dot: true, Size: "sm"}) {
+					Healthy 
+				}
+			} else {
+				@components.Badge(components.BadgeProps{Variant: "error", Dot: true, Size: "sm"}) {
+					Unhealthy 
+				}
+			}
+		</td>
+		<td class="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+			<div>{ displayValue(allocation.NodeName) }</div>
+			<div class="font-mono text-xs text-neutral-500 dark:text-neutral-400">{ pluginShortID(allocation.NodeID) }</div>
+		</td>
+		<td class="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+			<div>{ displayValue(allocation.JobID) }</div>
+			<div class="text-xs text-neutral-500 dark:text-neutral-400">{ pluginAllocationScope(allocation) }</div>
+		</td>
+		<td class="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+			if allocation.AllocationKnown {
+				{ fmt.Sprintf("%d", allocation.JobVersion) }
+			} else {
+				Unavailable
+			}
+		</td>
+		<td class="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300">
+			if allocation.ResourcesKnown {
+				<div>{ fmt.Sprintf("%d MHz", allocation.CPU) }</div>
+				<div class="text-xs text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("%d MiB", allocation.MemoryMB) }</div>
+			} else {
+				Unavailable
+			}
+		</td>
+		<td class="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300" title={ formatPluginTime(allocation.Created) }>{ formatPluginTime(allocation.Created) }</td>
+		<td class="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300" title={ formatPluginTime(allocation.Modified) }>{ relativePluginTime(allocation.Modified, allocation.Updated) }</td>
+	</tr>
+}
+
+type selectOption struct{ Value, Label string }
+
+templ filterSelect(name, label, selected string, options []selectOption) {
+	<label class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+		<span class="mb-1 block">{ label }</span>
+		<select name={ name } class="min-h-10 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+			for _, option := range options {
+				<option value={ option.Value } selected?={ option.Value == selected }>{ option.Label }</option>
+			}
+		</select>
+	</label>
+}
+
+func pluginPath(id string) string            { return "/ui/csi/plugins/" + url.PathEscape(id) }
+func pluginAllocationsPath(id string) string { return pluginPath(id) + "/allocations" }
+func displayValue(value string) string {
+	if value == "" {
+		return "Unavailable"
+	}
+	return value
+}
+func yesNo(value bool) string {
+	if value {
+		return "Required"
+	}
+	return "Not required"
+}
+func pluginShortID(value string) string {
+	if value == "" {
+		return "Unavailable"
+	}
+	if len(value) > 8 {
+		return value[:8]
+	}
+	return value
+}
+func pluginAllocationScope(allocation PluginAllocation) string {
+	if allocation.Namespace == "" && allocation.TaskGroup == "" {
+		return "Unavailable"
+	}
+	if allocation.Namespace == "" {
+		return allocation.TaskGroup
+	}
+	if allocation.TaskGroup == "" {
+		return allocation.Namespace
+	}
+	return allocation.Namespace + " / " + allocation.TaskGroup
+}
+func pluginHealthy(plugin PluginDetail) bool {
+	return (!plugin.ControllerRequired || plugin.ControllersHealthy == plugin.ControllersExpected) && plugin.NodesHealthy == plugin.NodesExpected
+}
+func activePageValue(active bool) string {
+	if active {
+		return "page"
+	}
+	return "false"
+}
+func healthPercent(healthy, expected int) int {
+	if expected <= 0 {
+		return 0
+	}
+	percent := healthy * 100 / expected
+	if percent > 100 {
+		return 100
+	}
+	return percent
+}
+func healthBarClass(healthy, expected int) string {
+	if healthy == expected && expected > 0 {
+		return "h-full rounded-full bg-green-500"
+	}
+	if healthy > 0 {
+		return "h-full rounded-full bg-amber-500"
+	}
+	return "h-full rounded-full bg-red-500"
+}
+func firstPluginAllocations(items []PluginAllocation, count int) []PluginAllocation {
+	if len(items) <= count {
+		return items
+	}
+	return items[:count]
+}
+func formatPluginTime(value time.Time) string {
+	if value.IsZero() {
+		return "Unavailable"
+	}
+	return value.Format("Jan 02, 2006 15:04:05 MST")
+}
+func relativePluginTime(modified, updated time.Time) string {
+	if !modified.IsZero() {
+		return formatPluginTime(modified)
+	}
+	return formatPluginTime(updated)
+}
+
+func pluginAllocationsURL(props PluginAllocationsProps, page int) string {
+	query := url.Values{}
+	if props.Type != "" {
+		query.Set("type", props.Type)
+	}
+	if props.Health != "" {
+		query.Set("healthy", props.Health)
+	}
+	query.Set("sort", props.Sort)
+	query.Set("dir", props.Direction)
+	query.Set("page", strconv.Itoa(page))
+	query.Set("per_page", strconv.Itoa(props.PerPage))
+	return pluginAllocationsPath(props.Plugin.ID) + "?" + query.Encode()
+}

@@ -1,0 +1,22 @@
+package components
+
+import "strconv"
+
+templ CopyButton(value, label string) {
+	<button
+		type="button"
+		x-data={ copyButtonData(value) }
+		x-on:click="copy()"
+		x-bind:aria-label="copied ? 'Copied' : $el.dataset.label"
+		x-bind:title="copied ? 'Copied' : $el.dataset.label"
+		data-label={ label }
+		class="shrink-0 rounded p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+		data-copy-button
+	>
+		<span x-text="copied ? 'Copied' : 'Copy'" class="text-xs font-medium"></span>
+	</button>
+}
+
+func copyButtonData(value string) string {
+	return "copyText(" + strconv.Quote(value) + ")"
+}

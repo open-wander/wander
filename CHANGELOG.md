@@ -1,3 +1,50 @@
+## UNRELEASED
+
+BREAKING CHANGES:
+
+* distribution: Rename the executable, packages, and visible product identity to Wander. Inherited Nomad 1.6.5 APIs, configuration, state, and environment variables remain compatibility interfaces for the 0.1.0 release.
+* ui: Replace the inherited Ember application with the Wander server-rendered UI at the existing `/ui/` path.
+
+FEATURES:
+
+* ui: Add live cluster views for jobs, allocations, clients, servers, deployments, evaluations, CSI resources, namespaces, variables, policies, and topology.
+* ui: Add allocation file browsing, log streaming, and same-origin WebSocket exec.
+* ui: Add API-backed job, allocation, client, variable, policy, and namespace actions.
+
+SECURITY:
+
+* ui: Isolate namespace and region selection per request and browser so one user's selection cannot redirect another user's reads or mutations.
+* ui: Populate the variable creation namespace selector from the live cluster and preserve namespace scope after creation.
+* ui: Preserve explicit namespace and region scope through links, HTMX requests, mutations, fetches, log streams, and exec sessions.
+
+IMPROVEMENTS:
+
+* build: Embed the Wander UI in release binaries by default and verify the UI build tag in every release archive.
+* ui: Preserve the inherited default enablement, `ui { enabled = false }` configuration, root redirect, and content-security-policy behavior.
+* ui: Vendor CSP-compatible Alpine assets and prohibit evaluated HTMX expressions and inline scripts.
+* ui: Keep Node.js and npm as build/test dependencies only; production requires only the Wander binary.
+* ui: Let allocation logs grow from five visible lines to a viewport-sized maximum, and size terminal, file, and code-editor workspaces consistently from the available viewport.
+* ui: Place global search below the breadcrumb row so long allocation paths cannot overlap it.
+* ui: Add a persistent version footer that remains outside the scrollable page content.
+* ui: Make the footer span the viewport and show the application version in one place.
+
+BUG FIXES:
+
+* ui: Render live job definitions and ACL policy rules without CSP-restricted Alpine expressions, restore editor contrast, and report the header's API connection state accurately.
+* ui: Follow combined allocation stdout and stderr logs without reconnect loops, and keep the log viewer clear of the page edge.
+* ui: Switch job definitions between real HCL and JSON content, and restore allocation directory expansion and file previews.
+* ui: Restore task-group scale-dialog state and dismissal under the content security policy.
+* ui: Show active allocation reservations and schedulable capacity on client and topology views instead of reserved-system resources or fabricated host load.
+* ui: Keep deeply expanded allocation file trees scrollable within the workspace while preserving access to file previews and the page footer.
+* ui: Stop allocation-log SSE heartbeats cleanly without racing concurrent stream writes.
+* ui: Render namespace and region selection success toasts without Alpine expression errors.
+
+MIGRATION NOTES:
+
+* The UI remains at `/ui/` and is delivered from the same executable as the server.
+* Existing integrations that customize or automate the inherited Ember DOM must be updated for the Wander UI.
+* Historical entries below 0.1.0 describe the inherited Nomad codebase through v1.6.5; later Nomad code is not part of Wander.
+
 ## 1.6.5 (December 13, 2023)
 
 BUG FIXES:

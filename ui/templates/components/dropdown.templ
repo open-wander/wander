@@ -1,0 +1,309 @@
+package components
+
+import "strings"
+
+// DropdownItem represents a single item in a dropdown menu
+type DropdownItem struct {
+	Label    string // Display text for the item
+	Href     string // Standard link URL
+	Icon     string // Optional Heroicon name (e.g., "pencil", "trash")
+	Disabled bool   // Whether the item is disabled
+	Danger   bool   // Red styling for destructive actions (e.g., delete)
+	HxPost   string // HTMX POST endpoint
+	HxGet    string // HTMX GET endpoint
+	HxDelete string // HTMX DELETE endpoint
+	HxTarget string // HTMX target selector
+	HxSwap   string // HTMX swap strategy (default: "innerHTML")
+}
+
+// DropdownDivider represents a visual separator between menu items
+type DropdownDivider struct{}
+
+// DropdownProps contains parameters for the Dropdown component
+type DropdownProps struct {
+	ID       string // Unique identifier for the dropdown (required for ARIA)
+	Position string // "left" or "right" - menu alignment (default: "right")
+	Width    string // "auto", "sm", "md", "lg" - menu width (default: "auto")
+	Class    string // Additional CSS classes for the container
+}
+
+// Dropdown renders a complete dropdown menu with Alpine.js state management.
+//
+// Features:
+//   - Click outside to close
+//   - Keyboard navigation (arrows, enter, escape)
+//   - Icon support in items
+//   - Dividers for grouping
+//   - Danger styling for destructive actions
+//   - HTMX integration for server actions
+//   - Accessible ARIA attributes
+//
+// Example Usage:
+//   @Dropdown(DropdownProps{ID: "user-menu", Position: "right", Width: "md"}) {
+//       @DropdownTrigger() {
+//           <button>Options</button>
+//       }
+//       @DropdownMenu() {
+//           @DropdownItem(DropdownItem{Label: "Edit", Href: "/edit", Icon: "pencil"})
+//           @DropdownItem(DropdownItem{Label: "View", Href: "/view", Icon: "eye"})
+//           @DropdownDividerItem()
+//           @DropdownItem(DropdownItem{
+//               Label: "Delete",
+//               Icon: "trash",
+//               Danger: true,
+//               HxDelete: "/api/items/123",
+//               HxTarget: "#item-123",
+//           })
+//       }
+//   }
+templ Dropdown(props DropdownProps) {
+	<div
+		id={ props.ID }
+		x-data="dropdown()"
+		@keydown.escape.window="close"
+		class={ "relative inline-block text-left", props.Class }
+	>
+		{ children... }
+	</div>
+}
+
+// DropdownTrigger wraps the button or element that opens the dropdown menu.
+// Automatically handles click events and ARIA attributes.
+templ DropdownTrigger() {
+	<div @click="toggle" class="dropdown-trigger">
+		<div
+			role="button"
+			aria-haspopup="true"
+			:aria-expanded="open"
+			class="cursor-pointer"
+		>
+			{ children... }
+		</div>
+	</div>
+}
+
+// DropdownMenu renders the dropdown menu panel.
+// Handles positioning, transitions, and click-outside behavior.
+templ DropdownMenu(props DropdownProps) {
+	<div
+		x-show="open"
+		x-cloak
+		@click.away="close"
+		x-transition:enter="transition ease-out duration-100"
+		x-transition:enter-start="transform opacity-0 scale-95"
+		x-transition:enter-end="transform opacity-100 scale-100"
+		x-transition:leave="transition ease-in duration-75"
+		x-transition:leave-start="transform opacity-100 scale-100"
+		x-transition:leave-end="transform opacity-0 scale-95"
+		class={
+			"absolute z-50 mt-2 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none",
+			dropdownPositionClass(props.Position),
+			dropdownWidthClass(props.Width),
+		}
+		role="menu"
+		aria-orientation="vertical"
+		tabindex="-1"
+	>
+		<div class="py-1" role="none">
+			{ children... }
+		</div>
+	</div>
+}
+
+// DropdownItemComponent renders a single dropdown menu item.
+// Supports links, HTMX actions, icons, and danger styling.
+templ DropdownItemComponent(item DropdownItem) {
+	if item.Disabled {
+		@disabledDropdownItem(item)
+	} else if item.HxPost != "" || item.HxGet != "" || item.HxDelete != "" {
+		@htmxDropdownItem(item)
+	} else if item.Href != "" {
+		@linkDropdownItem(item)
+	} else {
+		@buttonDropdownItem(item)
+	}
+}
+
+// linkDropdownItem renders a standard link item
+templ linkDropdownItem(item DropdownItem) {
+	<a
+		href={ templ.SafeURL(item.Href) }
+		class={
+			"group flex items-center px-4 py-2 text-sm transition-colors",
+			dropdownItemColorClass(item.Danger),
+		}
+		role="menuitem"
+		tabindex="-1"
+		@click="close"
+	>
+		if item.Icon != "" {
+			@dropdownItemIcon(item.Icon, item.Danger)
+		}
+		<span>{ item.Label }</span>
+	</a>
+}
+
+// htmxDropdownItem renders an item with HTMX attributes
+templ htmxDropdownItem(item DropdownItem) {
+	<button
+		type="button"
+		if item.HxPost != "" {
+			hx-post={ item.HxPost }
+		}
+		if item.HxGet != "" {
+			hx-get={ item.HxGet }
+		}
+		if item.HxDelete != "" {
+			hx-delete={ item.HxDelete }
+		}
+		if item.HxTarget != "" {
+			hx-target={ item.HxTarget }
+		}
+		if item.HxSwap != "" {
+			hx-swap={ item.HxSwap }
+		} else {
+			hx-swap="innerHTML"
+		}
+		class={
+			"group flex items-center w-full px-4 py-2 text-sm text-left transition-colors",
+			dropdownItemColorClass(item.Danger),
+		}
+		role="menuitem"
+		tabindex="-1"
+		@click="close"
+	>
+		if item.Icon != "" {
+			@dropdownItemIcon(item.Icon, item.Danger)
+		}
+		<span>{ item.Label }</span>
+	</button>
+}
+
+// buttonDropdownItem renders a clickable button item (for Alpine.js handlers)
+templ buttonDropdownItem(item DropdownItem) {
+	<button
+		type="button"
+		class={
+			"group flex items-center w-full px-4 py-2 text-sm text-left transition-colors",
+			dropdownItemColorClass(item.Danger),
+		}
+		role="menuitem"
+		tabindex="-1"
+		@click="close"
+	>
+		if item.Icon != "" {
+			@dropdownItemIcon(item.Icon, item.Danger)
+		}
+		<span>{ item.Label }</span>
+	</button>
+}
+
+// disabledDropdownItem renders a disabled (non-interactive) item
+templ disabledDropdownItem(item DropdownItem) {
+	<div
+		class="flex items-center px-4 py-2 text-sm text-neutral-400 cursor-not-allowed opacity-50"
+		role="menuitem"
+		aria-disabled="true"
+	>
+		if item.Icon != "" {
+			@dropdownItemIcon(item.Icon, false)
+		}
+		<span>{ item.Label }</span>
+	</div>
+}
+
+// DropdownDividerItem renders a visual separator between menu items
+templ DropdownDividerItem() {
+	<div class="border-t border-neutral-100 my-1" role="separator"></div>
+}
+
+// dropdownItemIcon renders a Heroicon SVG for the dropdown item.
+// Icons are styled to match the item's normal/danger state.
+templ dropdownItemIcon(iconName string, isDanger bool) {
+	<svg
+		class={
+			"mr-3 h-5 w-5 flex-shrink-0",
+			templ.KV("text-neutral-400 group-hover:text-neutral-500", !isDanger),
+			templ.KV("text-red-400 group-hover:text-red-500", isDanger),
+		}
+		xmlns="http://www.w3.org/2000/svg"
+		fill="none"
+		viewBox="0 0 24 24"
+		stroke="currentColor"
+		aria-hidden="true"
+	>
+		@dropdownIconPath(iconName)
+	</svg>
+}
+
+// dropdownIconPath returns the SVG path for common Heroicons used in dropdowns
+templ dropdownIconPath(iconName string) {
+	if iconName == "pencil" || iconName == "edit" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+	} else if iconName == "trash" || iconName == "delete" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+	} else if iconName == "eye" || iconName == "view" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+	} else if iconName == "duplicate" || iconName == "copy" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+	} else if iconName == "download" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+	} else if iconName == "upload" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+	} else if iconName == "share" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+	} else if iconName == "cog" || iconName == "settings" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+	} else if iconName == "user" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+	} else if iconName == "document" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+	} else if iconName == "link" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+	} else if iconName == "logout" || iconName == "sign-out" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+	} else if iconName == "dots-vertical" || iconName == "menu" {
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+	} else {
+		// Default icon - information circle
+		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+	}
+}
+
+// dropdownPositionClass returns Tailwind classes for menu positioning
+func dropdownPositionClass(position string) string {
+	switch strings.ToLower(position) {
+	case "left":
+		return "left-0 origin-top-left"
+	case "right":
+		return "right-0 origin-top-right"
+	default:
+		return "right-0 origin-top-right" // Default to right
+	}
+}
+
+// dropdownWidthClass returns Tailwind classes for menu width
+func dropdownWidthClass(width string) string {
+	switch strings.ToLower(width) {
+	case "sm":
+		return "w-48"
+	case "md":
+		return "w-56"
+	case "lg":
+		return "w-64"
+	case "auto":
+		return "min-w-max"
+	default:
+		return "w-56" // Default to medium
+	}
+}
+
+// dropdownItemColorClass returns Tailwind classes for item colors
+func dropdownItemColorClass(isDanger bool) string {
+	if isDanger {
+		return "text-red-700 hover:bg-red-50 hover:text-red-900"
+	}
+	return "text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900"
+}

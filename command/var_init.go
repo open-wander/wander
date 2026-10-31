@@ -138,7 +138,7 @@ const (
 	msgOnlyItemsRequired = `
 	The items map is the only strictly required part of a variable
 	specification, since path and namespace can be set via other means. It
-	contains the sensitive material to encrypt and store as a Nomad variable.
+	contains the sensitive material to encrypt and store as a Wander variable.
 	The entire items map is encrypted and decrypted as a single unit.`
 )
 

@@ -1,0 +1,679 @@
+package taskgrouppartials
+
+import (
+	"fmt"
+	"github.com/open-wander/wander/ui/templates/components"
+	"time"
+)
+
+// TaskGroupDetail represents detailed information about a task group
+type TaskGroupDetail struct {
+	Name              string
+	Count             int
+	Tasks             []TaskDetail
+	Volumes           []VolumeDetail
+	Scaling           *ScalingConfig
+	PlacementFailures []PlacementFailure
+	Namespace         string
+	Region            string
+	AllocationStatus  string
+	AllocationSort    string
+	AllocationOrder   string
+	Allocations       []RuntimeAllocation
+	AllocationsReady  bool
+	AllocationsError  string
+	ScaleStatus       *RuntimeScaleStatus
+	ScaleStatusReady  bool
+	ScaleStatusError  string
+}
+
+type RuntimeAllocation struct {
+	ID         string
+	ShortID    string
+	Name       string
+	NodeName   string
+	Status     string
+	JobVersion uint64
+	Created    time.Time
+	DetailURL  string
+}
+
+type RuntimeScaleStatus struct {
+	Desired   int
+	Placed    int
+	Running   int
+	Healthy   int
+	Unhealthy int
+	Events    []RuntimeScalingEvent
+}
+
+type RuntimeScalingEvent struct {
+	Target        string
+	PreviousCount int64
+	Message       string
+	Error         bool
+	Evaluation    string
+	Time          time.Time
+	CreateIndex   uint64
+}
+
+// TaskDetail represents a task within a task group
+type TaskDetail struct {
+	Name             string
+	Driver           string
+	LifecycleHook    string
+	LifecycleSidecar bool
+	Resources        ResourceConfig
+}
+
+// VolumeDetail represents a task-group volume request from the live job.
+type VolumeDetail struct {
+	Name           string
+	Type           string
+	Source         string
+	ReadOnly       bool
+	PerAllocation  bool
+	AttachmentMode string
+	AccessMode     string
+}
+
+// ResourceConfig represents resource requirements for a task
+type ResourceConfig struct {
+	CPU      int
+	Memory   int
+	DiskMB   int
+	Networks []NetworkResource
+}
+
+// NetworkResource represents network requirements
+type NetworkResource struct {
+	MBits int
+}
+
+// ScalingConfig represents autoscaling configuration
+type ScalingConfig struct {
+	Enabled bool
+	Min     int
+	Max     int
+	Policy  ScalingPolicy
+}
+
+// ScalingPolicy represents scaling policy parameters
+type ScalingPolicy struct {
+	Cooldown            string
+	EvaluationInterval  string
+	TargetCPUPercent    int
+	TargetMemoryPercent int
+}
+
+// PlacementFailure represents a failed placement attempt
+type PlacementFailure struct {
+	Node      string
+	Reason    string
+	Timestamp time.Time
+}
+
+// DetailContent renders the task group detail page content (without layout)
+templ DetailContent(jobID string, tg TaskGroupDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<!-- Task Group Header -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center space-x-4">
+					<h1 class="text-3xl font-bold text-neutral-900">{ tg.Name }</h1>
+					<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
+						{ fmt.Sprintf("%d instances", tg.Count) }
+					</span>
+				</div>
+			</div>
+		</div>
+		<!-- Scaling Controls -->
+		@ScalingControls(jobID, tg)
+		<!-- Runtime Status -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6" data-task-group-runtime>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Runtime Status</h3>
+			if tg.ScaleStatusError != "" {
+				<p class="text-sm text-danger-700">Scale status unavailable: { tg.ScaleStatusError }</p>
+			}
+			if tg.ScaleStatusError == "" && (!tg.ScaleStatusReady || tg.ScaleStatus == nil) {
+				<p class="text-sm text-neutral-500">No scale status is available for this task group</p>
+			}
+			if tg.ScaleStatusError == "" && tg.ScaleStatusReady && tg.ScaleStatus != nil {
+				<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+					@runtimeMetric("Desired", tg.ScaleStatus.Desired)
+					@runtimeMetric("Placed", tg.ScaleStatus.Placed)
+					@runtimeMetric("Running", tg.ScaleStatus.Running)
+					@runtimeMetric("Healthy", tg.ScaleStatus.Healthy)
+					@runtimeMetric("Unhealthy", tg.ScaleStatus.Unhealthy)
+				</div>
+				<h4 class="text-sm font-semibold text-neutral-900 mb-3">Scaling Events</h4>
+				if len(tg.ScaleStatus.Events) == 0 {
+					<p class="text-sm text-neutral-500">No scaling events</p>
+				} else {
+					<div class="space-y-3">
+						for _, event := range tg.ScaleStatus.Events {
+							<div class="rounded-lg border border-neutral-200 p-4" data-scaling-event>
+								<div class="flex flex-wrap items-center justify-between gap-2">
+									<div class="font-medium text-neutral-900">{ fmt.Sprintf("%d", event.PreviousCount) } → { event.Target }</div>
+									<span class={ scalingEventClass(event.Error) }>{ scalingEventState(event.Error) }</span>
+								</div>
+								if event.Message != "" {
+									<p class="mt-2 text-sm text-neutral-700">{ event.Message }</p>
+								}
+								<div class="mt-2 flex flex-wrap gap-4 text-xs text-neutral-500">
+									if event.Evaluation != "" {
+										<span>Evaluation: <span class="font-mono">{ event.Evaluation }</span></span>
+									}
+									<span>{ displayRuntimeTime(event.Time) }</span>
+								</div>
+							</div>
+						}
+					</div>
+				}
+			}
+		</div>
+		<!-- Task-group Allocations -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6" data-task-group-allocations>
+			<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+				<h3 class="text-lg font-semibold text-neutral-900">Allocations</h3>
+				<form method="get" action={ templ.SafeURL("/ui/jobs/" + jobID + "/taskgroups/" + tg.Name) } class="flex flex-wrap items-end gap-3">
+					if tg.Namespace != "" {
+						<input type="hidden" name="namespace" value={ tg.Namespace }/>
+					}
+					if tg.Region != "" {
+						<input type="hidden" name="region" value={ tg.Region }/>
+					}
+					<label class="text-xs text-neutral-600">Status
+						<select name="status" class="mt-1 block rounded border-neutral-300 text-sm">
+							for _, option := range []string{"all", "pending", "running", "complete", "failed", "lost"} {
+								<option value={ option } selected?={ option == tg.AllocationStatus }>{ option }</option>
+							}
+						</select>
+					</label>
+					<label class="text-xs text-neutral-600">Sort
+						<select name="sort" class="mt-1 block rounded border-neutral-300 text-sm">
+							for _, option := range []string{"created", "status", "node"} {
+								<option value={ option } selected?={ option == tg.AllocationSort }>{ option }</option>
+							}
+						</select>
+					</label>
+					<label class="text-xs text-neutral-600">Order
+						<select name="order" class="mt-1 block rounded border-neutral-300 text-sm">
+							<option value="desc" selected?={ tg.AllocationOrder == "desc" }>descending</option>
+							<option value="asc" selected?={ tg.AllocationOrder == "asc" }>ascending</option>
+						</select>
+					</label>
+					<button type="submit" class="rounded bg-primary-600 px-3 py-2 text-sm font-medium text-white">Apply</button>
+				</form>
+			</div>
+			if tg.AllocationsError != "" {
+				<p class="text-sm text-danger-700">Allocations unavailable: { tg.AllocationsError }</p>
+			} else if tg.AllocationsReady && len(tg.Allocations) == 0 {
+				<p class="text-sm text-neutral-500">No allocations match this task group and filter</p>
+			} else {
+				<div class="overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500"><tr><th class="px-4 py-3">ID</th><th class="px-4 py-3">Name</th><th class="px-4 py-3">Node</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Version</th><th class="px-4 py-3">Created</th></tr></thead>
+						<tbody class="divide-y divide-neutral-200">
+							for _, allocation := range tg.Allocations {
+								<tr data-task-group-allocation={ allocation.ID }><td class="px-4 py-3"><a class="font-mono text-primary-600 hover:underline" href={ templ.SafeURL(allocation.DetailURL) }>{ allocation.ShortID }</a></td><td class="px-4 py-3">{ allocation.Name }</td><td class="px-4 py-3">{ displayConfigValue(allocation.NodeName) }</td><td class="px-4 py-3">{ allocation.Status }</td><td class="px-4 py-3">{ fmt.Sprintf("%d", allocation.JobVersion) }</td><td class="px-4 py-3">{ displayRuntimeTime(allocation.Created) }</td></tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+		<!-- Placement Failures -->
+		if len(tg.PlacementFailures) > 0 {
+			<div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+				<div class="flex items-start">
+					<div class="flex-shrink-0">
+						@components.Icon(components.IconProps{Name: "exclamation-triangle", Size: "md", Class: "text-red-600"})
+					</div>
+					<div class="ml-3 flex-1">
+						<h3 class="text-sm font-medium text-red-800 mb-2">Placement Failures</h3>
+						<div class="space-y-2">
+							for _, failure := range tg.PlacementFailures {
+								<div class="bg-white rounded p-3 border border-red-200">
+									<div class="flex items-start justify-between mb-1">
+										<span class="text-sm font-medium text-neutral-900">{ failure.Node }</span>
+										<span class="text-xs text-neutral-500">{ formatTime(failure.Timestamp) }</span>
+									</div>
+									<p class="text-sm text-neutral-700">{ failure.Reason }</p>
+								</div>
+							}
+						</div>
+					</div>
+				</div>
+			</div>
+		}
+		<!-- Scaling Configuration -->
+		if tg.Scaling != nil && tg.Scaling.Enabled {
+			<div class="bg-white shadow rounded-lg p-6 mb-6">
+				<h3 class="text-lg font-semibold text-neutral-900 mb-4">Autoscaling Configuration</h3>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">Min Instances</dt>
+						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Min) }</dd>
+					</div>
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+						<dt class="text-sm font-medium text-neutral-500">Max Instances</dt>
+						<dd class="mt-1 text-2xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Max) }</dd>
+					</div>
+				</div>
+			</div>
+		}
+		<!-- Configured Volumes -->
+		<div class="bg-white shadow rounded-lg p-6 mb-6" data-task-group-volumes>
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Configured Volumes</h3>
+			if len(tg.Volumes) == 0 {
+				<p class="text-sm text-neutral-500">No configured volumes</p>
+			} else {
+				<div class="overflow-x-auto rounded-lg border border-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm">
+						<thead class="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+							<tr><th class="px-4 py-3">Name</th><th class="px-4 py-3">Type</th><th class="px-4 py-3">Source</th><th class="px-4 py-3">Mode</th><th class="px-4 py-3">Attachment</th><th class="px-4 py-3">Access</th></tr>
+						</thead>
+						<tbody class="divide-y divide-neutral-200 bg-white">
+							for _, volume := range tg.Volumes {
+								<tr>
+									<td class="px-4 py-3 font-medium text-neutral-900">{ volume.Name }</td>
+									<td class="px-4 py-3 text-neutral-700">{ displayConfigValue(volume.Type) }</td>
+									<td class="px-4 py-3 font-mono text-neutral-700">{ displayConfigValue(volume.Source) }</td>
+									<td class="px-4 py-3 text-neutral-700">{ volumeMode(volume) }</td>
+									<td class="px-4 py-3 text-neutral-700">{ displayConfigValue(volume.AttachmentMode) }</td>
+									<td class="px-4 py-3 text-neutral-700">{ displayConfigValue(volume.AccessMode) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+		<!-- Tasks List -->
+		<div class="bg-white shadow rounded-lg p-6">
+			<h3 class="text-lg font-semibold text-neutral-900 mb-4">Tasks</h3>
+			<div class="space-y-4">
+				for _, task := range tg.Tasks {
+					<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-6">
+						<div class="flex items-center justify-between mb-4">
+							<div class="flex items-center space-x-3">
+								<h4 class="text-lg font-medium text-neutral-900">{ task.Name }</h4>
+								@components.Badge(components.BadgeProps{
+									Variant: "info",
+									Size:    "sm",
+								}) {
+									{ task.Driver }
+								}
+							</div>
+						</div>
+						<div class="mb-4 flex flex-wrap gap-x-6 gap-y-2 text-sm" data-task-lifecycle={ task.Name }>
+							<div><span class="text-neutral-500">Lifecycle:</span> <span class="font-medium text-neutral-900">{ lifecycleLabel(task) }</span></div>
+							<div><span class="text-neutral-500">Sidecar:</span> <span class="font-medium text-neutral-900">{ yesNo(task.LifecycleSidecar) }</span></div>
+						</div>
+						<!-- Resource Requirements -->
+						<div>
+							<h5 class="text-sm font-medium text-neutral-700 mb-3">Resource Requirements</h5>
+							<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+								<div class="bg-white border border-neutral-200 rounded p-3">
+									<dt class="text-xs font-medium text-neutral-500 uppercase">CPU</dt>
+									<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</dd>
+								</div>
+								<div class="bg-white border border-neutral-200 rounded p-3">
+									<dt class="text-xs font-medium text-neutral-500 uppercase">Memory</dt>
+									<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</dd>
+								</div>
+								<div class="bg-white border border-neutral-200 rounded p-3">
+									<dt class="text-xs font-medium text-neutral-500 uppercase">Disk</dt>
+									<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d MB", task.Resources.DiskMB) }</dd>
+								</div>
+								if len(task.Resources.Networks) > 0 {
+									<div class="bg-white border border-neutral-200 rounded p-3">
+										<dt class="text-xs font-medium text-neutral-500 uppercase">Network</dt>
+										<dd class="mt-1 text-lg font-semibold text-neutral-900">{ fmt.Sprintf("%d Mbps", task.Resources.Networks[0].MBits) }</dd>
+									</div>
+								}
+							</div>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ runtimeMetric(label string, value int) {
+	<div class="rounded-lg border border-neutral-200 bg-neutral-50 p-3"><div class="text-xs text-neutral-500">{ label }</div><div class="text-xl font-semibold text-neutral-900">{ fmt.Sprintf("%d", value) }</div></div>
+}
+
+func scalingEventState(failed bool) string {
+	if failed {
+		return "Error"
+	}
+	return "Applied"
+}
+
+func scalingEventClass(failed bool) string {
+	if failed {
+		return "text-sm font-medium text-danger-700"
+	}
+	return "text-sm font-medium text-success-700"
+}
+
+func displayRuntimeTime(value time.Time) string {
+	if value.IsZero() {
+		return "Time unavailable"
+	}
+	return value.Format("Jan 2, 2006 15:04:05")
+}
+
+func lifecycleLabel(task TaskDetail) string {
+	if task.LifecycleHook == "" {
+		return "Normal"
+	}
+	return task.LifecycleHook
+}
+
+func yesNo(value bool) string {
+	if value {
+		return "Yes"
+	}
+	return "No"
+}
+
+func displayConfigValue(value string) string {
+	if value == "" {
+		return "—"
+	}
+	return value
+}
+
+func volumeMode(volume VolumeDetail) string {
+	mode := "Read/write"
+	if volume.ReadOnly {
+		mode = "Read-only"
+	}
+	if volume.PerAllocation {
+		mode += ", per allocation"
+	}
+	return mode
+}
+
+// formatTime formats a time.Time for display
+func formatTime(t time.Time) string {
+	now := time.Now()
+	diff := now.Sub(t)
+
+	if diff < time.Minute {
+		return "just now"
+	} else if diff < time.Hour {
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	} else if diff < 24*time.Hour {
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	}
+
+	return t.Format("Jan 2, 2006 3:04 PM")
+}
+
+// ScalingControls renders the scaling controls section for a task group
+templ ScalingControls(jobID string, tg TaskGroupDetail) {
+	<div
+		class="bg-white shadow rounded-lg p-6 mb-6"
+		x-data="scaleControls"
+		data-count={ fmt.Sprintf("%d", tg.Count) }
+		data-min-count={ fmt.Sprintf("%d", getMinCount(tg.Scaling)) }
+		data-max-count={ fmt.Sprintf("%d", getMaxCount(tg.Scaling)) }
+		data-has-constraints={ fmt.Sprintf("%t", tg.Scaling != nil && tg.Scaling.Enabled) }
+	>
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-semibold text-neutral-900">Scale Task Group</h3>
+			if tg.Scaling != nil && tg.Scaling.Enabled {
+				<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+					Autoscaling Enabled
+				</span>
+			}
+		</div>
+		<!-- Scaling Constraints Info -->
+		if tg.Scaling != nil && tg.Scaling.Enabled {
+			<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-4">
+				<div class="flex items-center space-x-4 text-sm">
+					<div class="flex items-center space-x-2">
+						<span class="text-neutral-500">Min:</span>
+						<span class="font-medium text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Min) }</span>
+					</div>
+					<div class="flex items-center space-x-2">
+						<span class="text-neutral-500">Max:</span>
+						<span class="font-medium text-neutral-900">{ fmt.Sprintf("%d", tg.Scaling.Max) }</span>
+					</div>
+					<div class="text-neutral-400">|</div>
+					<div class="flex items-center space-x-2">
+						<span class="text-neutral-500">Current:</span>
+						<span class="font-medium text-neutral-900">{ fmt.Sprintf("%d", tg.Count) }</span>
+					</div>
+				</div>
+			</div>
+		}
+		<!-- Scaling Controls -->
+		<div class="flex items-center space-x-4">
+			<!-- Decrement Button -->
+			<button
+				type="button"
+				@click="decrement()"
+				:disabled="!canDecrement()"
+				class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+				aria-label="Decrease count"
+			>
+				@components.Icon(components.IconProps{Name: "minus", Size: "md"})
+			</button>
+			<!-- Count Input -->
+			<div class="relative">
+				<input
+					type="number"
+					x-model.number="count"
+					:min="hasConstraints ? minCount : 0"
+					:max="hasConstraints ? maxCount : undefined"
+					class="w-24 h-10 text-center text-lg font-semibold border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+					aria-label="Instance count"
+				/>
+			</div>
+			<!-- Increment Button -->
+			<button
+				type="button"
+				@click="increment()"
+				:disabled="!canIncrement()"
+				class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+				aria-label="Increase count"
+			>
+				@components.Icon(components.IconProps{Name: "plus", Size: "md"})
+			</button>
+			<!-- Spacer -->
+			<div class="flex-1"></div>
+			<!-- Reset Button -->
+			<button
+				type="button"
+				@click="resetCount()"
+				x-show="hasChanges()"
+				class="inline-flex items-center px-3 py-2 border border-neutral-300 rounded-lg text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+			>
+				Reset
+			</button>
+			<!-- Scale Button -->
+			@components.Button(components.ButtonProps{
+				Variant:        "primary",
+				Size:           "md",
+				AlpineClick:    "openConfirmModal()",
+				AlpineDisabled: "!hasChanges()",
+				Class:          "ml-2",
+			}, "Scale")
+		</div>
+		<!-- Change indicator -->
+		<div
+			x-show="hasChanges()"
+			x-cloak
+			class="mt-4 flex items-center text-sm"
+		>
+			<template x-if="count > originalCount">
+				<span class="flex items-center text-green-600">
+					@components.Icon(components.IconProps{Name: "arrow-up", Size: "sm", Class: "mr-1"})
+					<span>Scaling up by <span x-text="count - originalCount" class="font-medium"></span> instance(s)</span>
+				</span>
+			</template>
+			<template x-if="count < originalCount">
+				<span class="flex items-center text-amber-600">
+					@components.Icon(components.IconProps{Name: "arrow-down", Size: "sm", Class: "mr-1"})
+					<span>Scaling down by <span x-text="originalCount - count" class="font-medium"></span> instance(s)</span>
+				</span>
+			</template>
+		</div>
+		<!-- Scale Confirmation Modal -->
+		@ScaleConfirmModal(jobID, tg.Name)
+	</div>
+}
+
+// ScaleConfirmModal renders the confirmation modal for scaling operations
+templ ScaleConfirmModal(jobID string, taskGroupName string) {
+	<!-- Modal Backdrop and Container -->
+	<div
+		x-show="showConfirmModal"
+		x-cloak
+		@keydown.escape.window="closeConfirmModal()"
+		class="fixed inset-0 z-50 overflow-y-auto"
+		x-transition:enter="transition ease-out duration-300"
+		x-transition:enter-start="opacity-0"
+		x-transition:enter-end="opacity-100"
+		x-transition:leave="transition ease-in duration-200"
+		x-transition:leave-start="opacity-100"
+		x-transition:leave-end="opacity-0"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="scale-modal-title"
+	>
+		<!-- Backdrop -->
+		<div
+			@click="closeConfirmModal()"
+			class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+			aria-hidden="true"
+		></div>
+		<!-- Modal positioning container -->
+		<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+			<!-- Modal content -->
+			<div
+				@click.stop
+				class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md"
+				x-transition:enter="transition ease-out duration-300"
+				x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+				x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave="transition ease-in duration-200"
+				x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+				x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+			>
+				<!-- Modal Header -->
+				<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+					<div class="flex items-center justify-between">
+						<h3 id="scale-modal-title" class="text-lg font-semibold leading-6 text-neutral-900">
+							Confirm Scale Operation
+						</h3>
+						<button
+							type="button"
+							@click="closeConfirmModal()"
+							x-ref="scaleDialogClose"
+							class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+							aria-label="Close"
+						>
+							<span class="sr-only">Close</span>
+							@components.Icon(components.IconProps{Name: "x", Size: "lg"})
+						</button>
+					</div>
+				</div>
+				<!-- Modal Body -->
+				<div class="px-6 py-4">
+					<div class="flex items-start space-x-4">
+						<div class="flex-shrink-0">
+							<div class="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+								@components.Icon(components.IconProps{Name: "exclamation-triangle", Size: "md", Class: "text-amber-600"})
+							</div>
+						</div>
+						<div class="flex-1">
+							<p class="text-sm text-neutral-600 mb-4">
+								You are about to scale the task group <span class="font-semibold text-neutral-900">{ taskGroupName }</span>.
+							</p>
+							<div class="bg-neutral-50 rounded-lg p-4 space-y-2">
+								<div class="flex justify-between text-sm">
+									<span class="text-neutral-500">Current Count:</span>
+									<span class="font-medium text-neutral-900" x-text="originalCount"></span>
+								</div>
+								<div class="flex justify-between text-sm">
+									<span class="text-neutral-500">New Count:</span>
+									<span class="font-medium text-neutral-900" x-text="count"></span>
+								</div>
+								<div class="border-t border-neutral-200 pt-2 mt-2">
+									<div class="flex justify-between text-sm">
+										<span class="text-neutral-500">Change:</span>
+										<span
+											:class="count > originalCount ? 'text-green-600' : 'text-amber-600'"
+											class="font-medium"
+										>
+											<span x-text="count > originalCount ? '+' : ''"></span><span x-text="count - originalCount"></span> instance(s)
+										</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- Modal Footer -->
+				<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+					<div class="flex justify-end space-x-3">
+						<button
+							type="button"
+							@click="closeConfirmModal()"
+							class="inline-flex items-center px-4 py-2 border border-neutral-300 rounded-lg text-sm font-medium text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+						>
+							Cancel
+						</button>
+						<form
+							hx-post={ fmt.Sprintf("/ui/jobs/%s/taskgroups/%s/scale", jobID, taskGroupName) }
+							hx-target="#scale-result"
+							hx-swap="innerHTML"
+							@htmx:after-request="handleScaleResponse(event)"
+						>
+							<input type="hidden" name="count" :value="count"/>
+							<button
+								type="submit"
+								class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+							>
+								Confirm Scale
+							</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- Scale Result Notification Area -->
+	<div id="scale-result" class="mt-4"></div>
+}
+
+// getMinCount returns the minimum count from scaling config, or 0 if not configured
+func getMinCount(scaling *ScalingConfig) int {
+	if scaling != nil && scaling.Enabled {
+		return scaling.Min
+	}
+	return 0
+}
+
+// getMaxCount returns the maximum count from scaling config, or 999 if not configured
+func getMaxCount(scaling *ScalingConfig) int {
+	if scaling != nil && scaling.Enabled {
+		return scaling.Max
+	}
+	return 999
+}

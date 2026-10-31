@@ -29,13 +29,13 @@ func TestGenericNotifier(t *testing.T) {
 
 	// Test that the timeout works.
 	var timeoutWG sync.WaitGroup
+	timeoutWG.Add(6)
 
 	for i := 0; i < 6; i++ {
 		go func(wg *sync.WaitGroup) {
-			wg.Add(1)
+			defer wg.Done()
 			msg := notifier.WaitForChange(100 * time.Millisecond)
 			require.Equal(t, "wait timed out after 100ms", msg)
-			wg.Done()
 		}(&timeoutWG)
 	}
 	timeoutWG.Wait()
@@ -43,13 +43,13 @@ func TestGenericNotifier(t *testing.T) {
 	// Test that all subscribers receive an update when a single notification
 	// is sent.
 	var notifiedWG sync.WaitGroup
+	notifiedWG.Add(6)
 
 	for i := 0; i < 6; i++ {
 		go func(wg *sync.WaitGroup) {
-			wg.Add(1)
+			defer wg.Done()
 			msg := notifier.WaitForChange(3 * time.Second)
 			require.Equal(t, "we got an update and not a timeout", msg)
-			wg.Done()
 		}(&notifiedWG)
 	}
 
