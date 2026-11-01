@@ -342,8 +342,20 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 		case event, ok := <-events:
 			if !ok {
 				h.handler.logger.Debug("log streams closed", "allocID", allocID)
-				if !follow {
-					_ = sse.WriteJSON("complete", map[string]string{"mode": origin})
+				status := ""
+				if follow {
+					latest, _, statusErr := client.Allocations().Info(allocID, queryOpts)
+					if statusErr != nil {
+						h.handler.logger.Warn("failed to classify closed live log stream", "allocID", allocID, "error", statusErr)
+						return
+					}
+					status = latest.ClientStatus
+				}
+				switch allocationLogEndEvent(follow, status) {
+				case "complete":
+					_ = sse.WriteJSON("complete", map[string]string{"mode": origin, "status": status})
+				case "restart":
+					_ = sse.WriteJSON("restart", map[string]string{"reason": "task-stream-ended", "status": status})
 				}
 				return
 			}
@@ -366,6 +378,20 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 				return
 			}
 		}
+	}
+}
+
+func allocationLogEndEvent(follow bool, clientStatus string) string {
+	if !follow {
+		return "complete"
+	}
+	switch clientStatus {
+	case api.AllocClientStatusComplete, api.AllocClientStatusFailed, api.AllocClientStatusLost:
+		return "complete"
+	case api.AllocClientStatusPending, api.AllocClientStatusRunning:
+		return "restart"
+	default:
+		return ""
 	}
 }
 

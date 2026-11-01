@@ -67,6 +67,85 @@ test('a completed snapshot closes intentionally and does not remain in an error 
     assert.equal(viewer.connectionState, 'complete');
 });
 
+test('a task restart reconnects live mode without clearing displayed logs', () => {
+    const { viewer } = loadLogViewer();
+    const existing = { message: 'before restart' };
+    viewer.logs = [existing];
+    let reconnects = 0;
+    viewer.connect = () => { reconnects += 1; };
+
+    viewer.restartLiveStream();
+    assert.equal(reconnects, 1);
+    assert.deepEqual(viewer.logs, [existing]);
+
+    viewer.viewMode = 'head';
+    viewer.restartLiveStream();
+    assert.equal(reconnects, 1);
+});
+
+test('stream failures remain visible until manually reconnected', () => {
+    const { viewer } = loadLogViewer();
+    let disconnected = false;
+    viewer.sseClient = { disconnect: () => { disconnected = true; } };
+
+    viewer.handleStreamError({ message: 'upstream failed' });
+    assert.equal(disconnected, true);
+    assert.equal(viewer.connectionState, 'error');
+    assert.equal(viewer.connectionError, 'upstream failed');
+});
+
+test('pause buffers lines, resume flushes them, and clear resets both queues', () => {
+    const { viewer } = loadLogViewer();
+    viewer.$nextTick = callback => callback();
+    viewer.isAtBottom = false;
+    viewer.isPaused = true;
+
+    viewer.handleLogLine({ message: 'buffered one' });
+    viewer.handleLogLine({ message: 'buffered two' });
+    assert.equal(viewer.logs.length, 0);
+    assert.equal(viewer.bufferedCount, 2);
+
+    viewer.togglePause();
+    assert.deepEqual(viewer.logs.map(line => line.message), ['buffered one', 'buffered two']);
+    assert.equal(viewer.bufferedCount, 0);
+
+    viewer.isPaused = true;
+    viewer.handleLogLine({ message: 'discarded' });
+    viewer.clearLogs();
+    assert.equal(viewer.logs.length, 0);
+    assert.equal(viewer.bufferedCount, 0);
+});
+
+test('download uses plain selected log text and a scoped filename', async () => {
+    const { viewer } = loadLogViewer();
+    let downloaded;
+    let clicked = false;
+    let anchor;
+    global.document.createElement = () => {
+        anchor = { click: () => { clicked = true; } };
+        return anchor;
+    };
+    global.document.body = { appendChild: () => {}, removeChild: () => {} };
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = blob => { downloaded = blob; return 'blob:wander-log'; };
+    URL.revokeObjectURL = () => {};
+
+    try {
+        viewer.logs = [
+            { rawMessage: 'first line', timestamp: 'ignored' },
+            { rawMessage: 'second line', timestamp: 'ignored' },
+        ];
+        viewer.downloadLogs();
+        assert.equal(clicked, true);
+        assert.equal(anchor.download, 'alloc-1-web-stdout.log');
+        assert.equal(await downloaded.text(), 'first line\nsecond line');
+    } finally {
+        URL.createObjectURL = originalCreateObjectURL;
+        URL.revokeObjectURL = originalRevokeObjectURL;
+    }
+});
+
 test('file preview streaming decodes chunks and keeps only the latest 50 KB', () => {
     loadLogViewer();
     const preview = global.window.alpinePatterns.filePreviewStream();

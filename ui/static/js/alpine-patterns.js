@@ -871,14 +871,15 @@ function logViewer(allocId, initialTask, initialLogType) {
 
                 // Listen for error events
                 this.sseClient.on('error', (data) => {
-                    this.connectionError = data.message || 'The log stream stopped unexpectedly.';
-                    this.connectionState = 'error';
-                    this.sseClient.disconnect();
-                    this.connectionState = 'error';
+                    this.handleStreamError(data);
                 });
 
                 this.sseClient.on('complete', () => {
                     this.finishSnapshot();
+                });
+
+                this.sseClient.on('restart', () => {
+                    this.restartLiveStream();
                 });
 
                 // Listen for manual reconnection requests
@@ -914,12 +915,40 @@ function logViewer(allocId, initialTask, initialLogType) {
                 this.sseClient.addEventListener('complete', () => {
                     this.finishSnapshot();
                 });
+
+                this.sseClient.addEventListener('restart', () => {
+                    this.restartLiveStream();
+                });
+
+                this.sseClient.addEventListener('error', (event) => {
+                    if (!event.data) return;
+                    try {
+                        this.handleStreamError(JSON.parse(event.data));
+                    } catch (_) {
+                        this.handleStreamError({ message: event.data });
+                    }
+                });
             }
         },
 
         finishSnapshot() {
             this.disconnect();
             this.connectionState = 'complete';
+        },
+
+        restartLiveStream() {
+            if (this.viewMode !== 'live') return;
+            this.connectionError = '';
+            this.connect();
+        },
+
+        handleStreamError(data = {}) {
+            this.connectionError = data.message || 'The log stream stopped unexpectedly.';
+            if (this.sseClient) {
+                if (this.sseClient.disconnect) this.sseClient.disconnect();
+                else if (this.sseClient.close) this.sseClient.close();
+            }
+            this.connectionState = 'error';
         },
 
         // Disconnect from SSE stream

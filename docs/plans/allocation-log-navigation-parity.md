@@ -32,6 +32,8 @@ independent HTMX/Alpine implementation and does not reuse later Nomad UI code.
 
 ## Follow-on verification
 
-Rotated-log behavior, allocation completion, task restart, and forced network
-failure remain part of the broader log reconnection checklist. They should not
-be claimed complete solely from this navigation unit.
+Allocation completion, task restart, forced stream failure, transport retry,
+pause/resume, clear, and download behavior are covered by the lifecycle unit in
+`allocation-log-lifecycle-parity.md`. Rotated-log behavior remains a separate
+focused comparison because the browser/API resume contract has no stable
+cross-file cursor.

@@ -15,7 +15,7 @@ func TestLogsTabExposesInheritedNavigationAndWrappingControls(t *testing.T) {
 	}
 
 	html := output.String()
-	contract := regexp.MustCompile(`(?s)data-log-action="head".*data-log-action="live".*data-log-action="tail".*data-log-wrap-toggle.*data-log-line`)
+	contract := regexp.MustCompile(`(?s)data-log-action="head".*data-log-action="live".*data-log-action="tail".*data-log-wrap-toggle.*data-log-pause.*data-log-clear.*data-log-download.*data-log-buffered-count.*data-log-line`)
 	if !contract.MatchString(html) {
 		t.Fatalf("rendered logs tab is missing navigation or wrapping controls: %s", html)
 	}

@@ -2,8 +2,10 @@ package allocationspartials
 
 import (
 	"fmt"
-	"github.com/open-wander/wander/ui/templates/components"
+	"net/url"
 	"time"
+
+	"github.com/open-wander/wander/ui/templates/components"
 )
 
 // TasksTab renders the tasks tab content with detailed task information
@@ -179,6 +181,16 @@ templ TasksTab(alloc AllocationDetail) {
 							</div>
 							<!-- Actions -->
 							<div class="flex items-center space-x-2">
+								if task.State == "running" {
+									<button
+										type="button"
+										hx-post={ templ.SafeURL("/ui/allocations/" + alloc.ID + "/restart?task=" + url.QueryEscape(task.Name)) }
+										hx-swap="none"
+										hx-confirm={ "Restart task " + task.Name + " in place?" }
+										data-task-restart={ task.Name }
+										class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-warning-700 bg-warning-50 rounded-md hover:bg-warning-100 focus:outline-none focus:ring-2 focus:ring-warning-500 focus:ring-offset-2 transition-colors"
+									>Restart</button>
+								}
 								<a
 									href={ templ.URL("/ui/allocations/" + alloc.ID + "/logs?task=" + task.Name) }
 									class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"

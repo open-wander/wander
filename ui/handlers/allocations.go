@@ -1812,12 +1812,14 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 
 	// Get ACL token from request
 	token := GetTokenFromRequest(r)
-
-	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
-	if token != "" {
-		queryOpts.AuthToken = token
+	taskName := strings.TrimSpace(r.FormValue("task"))
+	restartAll := r.FormValue("all_tasks") == "true"
+	if taskName != "" && restartAll {
+		http.Error(w, "Choose either a task restart or all tasks, not both", http.StatusBadRequest)
+		return
 	}
+
+	queryOpts := allocationQueryOptions(r, token)
 
 	// Fetch allocation info to get the allocation object
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
@@ -1828,9 +1830,11 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Call the Nomad API to restart the allocation (all tasks)
-	// Empty taskName means restart all tasks
-	err = client.Allocations().Restart(alloc, "", queryOpts)
+	if restartAll {
+		err = client.Allocations().RestartAllTasks(alloc, queryOpts)
+	} else {
+		err = client.Allocations().Restart(alloc, taskName, queryOpts)
+	}
 	if err != nil {
 		h.handler.logger.Error("failed to restart allocation", "allocID", allocID, "error", err)
 		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Restart Failed", "message": "Failed to restart allocation.", "duration": 5000}}`)
@@ -1838,10 +1842,16 @@ func (h *AllocationsHandler) Restart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.handler.logger.Info("allocation restarted successfully", "allocID", allocID)
+	h.handler.logger.Info("allocation restarted successfully", "allocID", allocID, "task", taskName, "allTasks", restartAll)
 
 	// Send HX-Trigger header to show toast notification
-	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Allocation Restarted", "message": "The allocation `+shortIdentifier(allocID)+` has been restarted successfully.", "duration": 5000}}`)
+	restartTarget := "running tasks in allocation " + shortIdentifier(allocID)
+	if taskName != "" {
+		restartTarget = "task " + taskName
+	} else if restartAll {
+		restartTarget = "all tasks in allocation " + shortIdentifier(allocID)
+	}
+	w.Header().Set("HX-Trigger", `{"showToast": {"variant": "success", "title": "Restart Requested", "message": "Restarted `+restartTarget+`.", "duration": 5000}}`)
 	// Trigger a page refresh after a short delay to show updated status
 	w.Header().Set("HX-Refresh", "true")
 	w.WriteHeader(http.StatusOK)

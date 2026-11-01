@@ -207,12 +207,12 @@ templ DetailContent(alloc AllocationDetail) {
 												</svg>
 											</div>
 											<div class="ml-4">
-												<h3 id="restart-modal-title" class="text-lg font-semibold text-neutral-900">Restart Allocation</h3>
+												<h3 id="restart-modal-title" class="text-lg font-semibold text-neutral-900">Restart Running Tasks</h3>
 											</div>
 										</div>
 										<div class="mt-4">
 											<p class="text-sm text-neutral-600">
-												Are you sure you want to restart this allocation? This will:
+												Are you sure you want to restart the currently running tasks? This will:
 											</p>
 											<ul class="mt-2 text-sm text-neutral-600 list-disc list-inside space-y-1">
 												<li>Stop all running tasks in this allocation</li>
@@ -240,13 +240,21 @@ templ DetailContent(alloc AllocationDetail) {
 											@click="showRestartModal = false"
 											class="btn btn-warning btn-sm"
 										>
-											Restart Allocation
+											Restart Running Tasks
 										</button>
 									</div>
 								</div>
 							</div>
 						</div>
 					</div>
+					<button
+						type="button"
+						hx-post={ "/ui/allocations/" + alloc.ID + "/restart?all_tasks=true" }
+						hx-swap="none"
+						hx-confirm="Restart every task, including completed lifecycle tasks?"
+						data-all-tasks-restart
+						class="btn btn-warning btn-sm"
+					>Restart All Tasks</button>
 					<!-- Stop Button -->
 					<div x-data="{ showStopModal: false }">
 						@components.Button(components.ButtonProps{

@@ -654,6 +654,8 @@ test.describe('Wander release smoke', () => {
 	await expect(page.locator('[data-testid="allocation-ports"]')).toContainText('http');
 	await expect(page.locator('[data-testid="allocation-services"]')).toContainText('wander-ui-http');
 	await expect(page.locator('[data-task-lifecycle="prepare"]')).toContainText('prestart');
+	await expect(page.locator('[data-task-restart="fixture"]')).toBeVisible();
+	await expect(page.locator('[data-all-tasks-restart]')).toBeVisible();
 	const liveStats = page.locator('[data-testid="allocation-live-stats"]');
 	await expect(liveStats).toContainText('Sampled');
 	await expect(liveStats).not.toContainText('Statistics unavailable');
@@ -687,8 +689,16 @@ test.describe('Wander release smoke', () => {
     await page.locator('[data-log-action="live"]').click();
     await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('connected');
 
-    await page.getByRole('button', { name: 'Pause', exact: true }).click();
-    await page.getByRole('button', { name: 'Clear', exact: true }).click();
+    await logViewer.locator('[data-log-pause]').click();
+    await expect.poll(async () => Number(await logViewer.locator('[data-log-buffered-count]').textContent()), { timeout: 10_000 }).toBeGreaterThan(0);
+    await logViewer.locator('[data-log-pause]').click();
+    await expect(logViewer.locator('[data-log-buffered-count]')).toHaveText('0');
+    const downloadPromise = page.waitForEvent('download');
+    await logViewer.locator('[data-log-download]').click();
+    const logDownload = await downloadPromise;
+    expect(logDownload.suggestedFilename()).toMatch(/^[0-9a-f]{8}-fixture-both\.log$/);
+    await logViewer.locator('[data-log-clear]').click();
+    await expect(logViewer.getByText('Lines:').locator('span')).toHaveText('0');
     const layout = await logViewer.evaluate(element => {
       const output = element.querySelector<HTMLElement>('[data-log-output]')!;
       const style = window.getComputedStyle(output);

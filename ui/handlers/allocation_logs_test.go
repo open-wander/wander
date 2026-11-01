@@ -7,9 +7,11 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/open-wander/wander/api"
@@ -82,6 +84,89 @@ func TestParseAllocationLogPosition(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAllocationLogEndEvent(t *testing.T) {
+	tests := []struct {
+		name, status, want string
+		follow             bool
+	}{
+		{name: "finite read", status: api.AllocClientStatusRunning, want: "complete"},
+		{name: "completed allocation", status: api.AllocClientStatusComplete, follow: true, want: "complete"},
+		{name: "failed allocation", status: api.AllocClientStatusFailed, follow: true, want: "complete"},
+		{name: "lost allocation", status: api.AllocClientStatusLost, follow: true, want: "complete"},
+		{name: "running task restart", status: api.AllocClientStatusRunning, follow: true, want: "restart"},
+		{name: "pending task stream", status: api.AllocClientStatusPending, follow: true, want: "restart"},
+		{name: "unknown state", status: "unknown", follow: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := allocationLogEndEvent(test.follow, test.status); got != test.want {
+				t.Fatalf("allocationLogEndEvent(%t, %q)=%q, want %q", test.follow, test.status, got, test.want)
+			}
+		})
+	}
+}
+
+func TestStreamLogsEmitsLifecycleEvent(t *testing.T) {
+	tests := []struct {
+		name, query, status, wantEvent string
+	}{
+		{
+			name: "finite snapshot completes", query: "follow=false&origin=start&offset=0",
+			status: api.AllocClientStatusRunning, wantEvent: "complete",
+		},
+		{
+			name: "terminal allocation completes", query: "follow=true&origin=end&offset=0",
+			status: api.AllocClientStatusComplete, wantEvent: "complete",
+		},
+		{
+			name: "running allocation restarts stream", query: "follow=true&origin=end&offset=0",
+			status: api.AllocClientStatusRunning, wantEvent: "restart",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := newAllocationLogLifecycleBackend(t, test.status)
+			defer backend.Close()
+			handler := NewAllocationLogsHandler(newJobsTestHandler(t, backend.URL))
+			request := requestWithToken(http.MethodGet,
+				"/ui/allocations/alloc-1/logs/stream?namespace=team-a&region=west&task=web&type=stdout&"+test.query)
+			response := httptest.NewRecorder()
+
+			handler.StreamLogs(response, request, "alloc-1")
+
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "event: log") ||
+				!strings.Contains(response.Body.String(), "event: "+test.wantEvent) {
+				t.Fatalf("log lifecycle response status=%d body=%q, want %q event", response.Code, response.Body.String(), test.wantEvent)
+			}
+		})
+	}
+}
+
+func newAllocationLogLifecycleBackend(t *testing.T, finalStatus string) *httptest.Server {
+	t.Helper()
+	var allocationReads atomic.Int32
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertScopedBrowserRequest(t, r)
+		switch r.URL.Path {
+		case "/v1/allocation/alloc-1":
+			status := api.AllocClientStatusRunning
+			if allocationReads.Add(1) > 1 {
+				status = finalStatus
+			}
+			writeJSON(t, w, map[string]any{"ID": "alloc-1", "ClientStatus": status})
+		case "/v1/client/fs/logs/alloc-1":
+			if r.URL.Query().Get("task") != "web" || r.URL.Query().Get("type") != api.FSLogNameStdout {
+				t.Fatalf("unexpected log selection: %s", r.URL.RawQuery)
+			}
+			_, _ = fmt.Fprintln(w, `{"Data":"bGluZQo="}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
 }
 
 func TestAllocationQueryOptionsPreserveBrowserScope(t *testing.T) {
