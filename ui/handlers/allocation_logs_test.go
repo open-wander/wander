@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/open-wander/wander/api"
@@ -43,6 +44,51 @@ func TestNormalizeLogType(t *testing.T) {
 		if got != test.want || valid != test.valid {
 			t.Fatalf("normalizeLogType(%q) = (%q, %t), want (%q, %t)", test.input, got, valid, test.want, test.valid)
 		}
+	}
+}
+
+func TestParseAllocationLogPosition(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   string
+		want    allocationLogPosition
+		wantErr string
+	}{
+		{name: "live defaults", want: allocationLogPosition{follow: true, origin: "end"}},
+		{name: "head snapshot", query: "?follow=false&origin=start&offset=0", want: allocationLogPosition{origin: "start"}},
+		{name: "tail snapshot", query: "?follow=false&origin=end&offset=50000", want: allocationLogPosition{origin: "end", offset: 50000}},
+		{name: "invalid follow", query: "?follow=sometimes", wantErr: "invalid follow"},
+		{name: "non-canonical follow", query: "?follow=TRUE", wantErr: "invalid follow"},
+		{name: "invalid origin", query: "?origin=middle", wantErr: "invalid origin"},
+		{name: "invalid offset", query: "?offset=-1", wantErr: "invalid offset"},
+		{name: "non-numeric offset", query: "?offset=many", wantErr: "invalid offset"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/ui/allocations/alloc/logs/stream"+test.query, nil)
+			got, err := parseAllocationLogPosition(request)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("parse error = %v, want %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parse position: %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("position = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAllocationLogQueryOptionsPreserveBrowserScope(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/ui/allocations/alloc/logs?namespace=team-a&region=west", nil)
+	options := allocationLogQueryOptions(request, "browser-token")
+	if options.Namespace != "team-a" || options.Region != "west" || options.AuthToken != "browser-token" {
+		t.Fatalf("log query options lost browser scope: %#v", options)
 	}
 }
 

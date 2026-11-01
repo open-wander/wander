@@ -784,12 +784,15 @@ document.addEventListener('htmx:afterRequest', (event) => {
  * ```
  */
 function logViewer(allocId, initialTask, initialLogType) {
+    const wrapPreferenceKey = 'wanderShouldWrapCode';
+
     return {
         // Configuration
         allocId: allocId,
         selectedTask: initialTask || '',
         logType: initialLogType || 'stdout',
         maxLines: 10000,
+        tailBytes: 50000,
 
         // State
         logs: [],
@@ -800,6 +803,8 @@ function logViewer(allocId, initialTask, initialLogType) {
         isPaused: false,
         isAtBottom: true,
         showTimestamps: false,
+        wrapLines: false,
+        viewMode: 'live',
         lastUpdate: null,
         ansiParser: null,
 
@@ -810,6 +815,11 @@ function logViewer(allocId, initialTask, initialLogType) {
 
         init() {
             if (typeof AnsiParser !== 'undefined') this.ansiParser = new AnsiParser();
+            try {
+                this.wrapLines = window.localStorage.getItem(wrapPreferenceKey) === 'true';
+            } catch (_) {
+                this.wrapLines = false;
+            }
         },
 
         // Build SSE URL
@@ -817,6 +827,9 @@ function logViewer(allocId, initialTask, initialLogType) {
             const params = new URLSearchParams({
                 task: this.selectedTask,
                 type: this.logType,
+                follow: this.viewMode === 'live' ? 'true' : 'false',
+                origin: this.viewMode === 'head' ? 'start' : 'end',
+                offset: this.viewMode === 'tail' ? String(this.tailBytes) : '0',
             });
             return window.wanderScopeURL(`/ui/allocations/${this.allocId}/logs/stream?${params.toString()}`);
         },
@@ -864,6 +877,10 @@ function logViewer(allocId, initialTask, initialLogType) {
                     this.connectionState = 'error';
                 });
 
+                this.sseClient.on('complete', () => {
+                    this.finishSnapshot();
+                });
+
                 // Listen for manual reconnection requests
                 this._reconnectHandler = () => {
                     if (this.connectionState === 'disconnected' || this.connectionState === 'error') {
@@ -893,7 +910,16 @@ function logViewer(allocId, initialTask, initialLogType) {
                         this.handleLogLine({ message: event.data });
                     }
                 });
+
+                this.sseClient.addEventListener('complete', () => {
+                    this.finishSnapshot();
+                });
             }
+        },
+
+        finishSnapshot() {
+            this.disconnect();
+            this.connectionState = 'complete';
         },
 
         // Disconnect from SSE stream
@@ -972,6 +998,23 @@ function logViewer(allocId, initialTask, initialLogType) {
                 this.logType = type;
                 this.clearLogs();
                 this.connect();
+            }
+        },
+
+        setViewMode(mode) {
+            if (!['head', 'live', 'tail'].includes(mode)) return;
+            if (this.viewMode === mode && mode === 'live') return;
+            this.viewMode = mode;
+            this.clearLogs();
+            this.connect();
+        },
+
+        toggleWrap() {
+            this.wrapLines = !this.wrapLines;
+            try {
+                window.localStorage.setItem(wrapPreferenceKey, String(this.wrapLines));
+            } catch (_) {
+                // The toggle remains useful when storage is unavailable.
             }
         },
 

@@ -670,6 +670,23 @@ test.describe('Wander release smoke', () => {
     const currentOutput = await logOutput.innerText();
     await expect.poll(() => logOutput.innerText(), { timeout: 10_000 }).not.toBe(currentOutput);
 
+    const wrapToggle = page.locator('[data-log-wrap-toggle]');
+    await expect(wrapToggle).toHaveAttribute('aria-pressed', 'false');
+    await wrapToggle.click();
+    await expect(wrapToggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-log-line]').first()).toHaveCSS('white-space', 'pre-wrap');
+
+    await page.locator('[data-log-action="head"]').click();
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('complete');
+    await expect(logOutput).toContainText('wander-ui-smoke-head');
+
+    await page.locator('[data-log-action="tail"]').click();
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('complete');
+    await expect(logOutput).toContainText('wander-ui-smoke');
+
+    await page.locator('[data-log-action="live"]').click();
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('connected');
+
     await page.getByRole('button', { name: 'Pause', exact: true }).click();
     await page.getByRole('button', { name: 'Clear', exact: true }).click();
     const layout = await logViewer.evaluate(element => {

@@ -36,7 +36,7 @@ templ LogsTabContent(props LogsTabProps) {
 				<div class="flex items-center gap-2">
 					<span
 						:class="{
-							'bg-success-500': connectionState === 'connected',
+							'bg-success-500': connectionState === 'connected' || connectionState === 'complete',
 							'bg-warning-500': connectionState === 'connecting',
 							'bg-error-500': connectionState === 'error',
 							'bg-neutral-400': connectionState === 'disconnected'
@@ -106,6 +106,40 @@ templ LogsTabContent(props LogsTabProps) {
 						both
 					</button>
 				</div>
+
+				<!-- Log Position Toggle -->
+				<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Log position">
+					<button
+						type="button"
+						@click="setViewMode('head')"
+						:class="viewMode === 'head' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+						data-log-action="head"
+						class="px-3 py-2 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					>Head</button>
+					<button
+						type="button"
+						@click="setViewMode('live')"
+						:class="viewMode === 'live' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+						data-log-action="live"
+						class="-ml-px px-3 py-2 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					>Live</button>
+					<button
+						type="button"
+						@click="setViewMode('tail')"
+						:class="viewMode === 'tail' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+						data-log-action="tail"
+						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					>Tail</button>
+				</div>
+
+				<button
+					type="button"
+					@click="toggleWrap()"
+					:aria-pressed="wrapLines"
+					:class="wrapLines ? 'bg-primary-50 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+					data-log-wrap-toggle
+					class="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+				>Word Wrap</button>
 
 				<!-- Pause/Resume Button -->
 				<button
@@ -189,7 +223,7 @@ templ LogsTabContent(props LogsTabProps) {
 		>
 			<!-- Empty State -->
 			<div
-				x-show="logs.length === 0 && connectionState === 'connected'"
+				x-show="logs.length === 0 && (connectionState === 'connected' || connectionState === 'complete')"
 				x-cloak
 				class="absolute inset-0 flex items-center justify-center text-neutral-500"
 			>
@@ -197,7 +231,7 @@ templ LogsTabContent(props LogsTabProps) {
 					<svg class="mx-auto h-12 w-12 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
 					</svg>
-					<p class="mt-2">Waiting for log output...</p>
+					<p class="mt-2" x-text="connectionState === 'complete' ? 'No log output in this range.' : 'Waiting for log output...'"></p>
 				</div>
 			</div>
 
@@ -245,9 +279,12 @@ templ LogsTabContent(props LogsTabProps) {
 							'text-warning-400': line.level === 'warn',
 							'text-success-400': line.level === 'info',
 							'text-neutral-400': line.level === 'debug',
-							'text-neutral-100': !line.level
+							'text-neutral-100': !line.level,
+							'whitespace-pre-wrap break-all': wrapLines,
+							'whitespace-pre': !wrapLines
 						}"
-					class="whitespace-pre-wrap break-all hover:bg-neutral-800 px-1 -mx-1"
+					data-log-line
+					class="hover:bg-neutral-800 px-1 -mx-1"
 					>
 						<span x-show="showTimestamps" class="text-neutral-500 mr-2" x-text="line.timestamp"></span>
 						<span>

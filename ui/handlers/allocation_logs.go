@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -38,6 +39,12 @@ type allocationLogEvent struct {
 	frame   *api.StreamFrame
 	logType string
 	err     error
+}
+
+type allocationLogPosition struct {
+	follow bool
+	offset int64
+	origin string
 }
 
 // ServeHTTP handles log-related requests.
@@ -167,33 +174,19 @@ func (h *AllocationLogsHandler) StreamLogs(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Parse follow parameter (default: true for streaming)
-	follow := true
-	if followStr := r.URL.Query().Get("follow"); followStr != "" {
-		follow = followStr == "true"
-	}
-
-	// Parse offset parameter (default: 0)
-	offset := int64(0)
-	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
-		if parsedOffset, err := strconv.ParseInt(offsetStr, 10, 64); err == nil {
-			offset = parsedOffset
-		}
-	}
-
-	// Parse origin parameter (default: "end" for tailing)
-	origin := "end"
-	if originStr := r.URL.Query().Get("origin"); originStr != "" {
-		origin = originStr
+	position, err := parseAllocationLogPosition(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	h.handler.logger.Debug("starting log stream",
 		"allocID", allocID,
 		"task", task,
 		"type", logType,
-		"follow", follow,
-		"offset", offset,
-		"origin", origin,
+		"follow", position.follow,
+		"offset", position.offset,
+		"origin", position.origin,
 	)
 
 	// Validate required parameters
@@ -216,7 +209,40 @@ func (h *AllocationLogsHandler) StreamLogs(w http.ResponseWriter, r *http.Reques
 	token := GetTokenFromRequest(r)
 
 	// Stream logs from Nomad API
-	h.streamLogsFromNomad(sse, r, allocID, task, logType, follow, offset, origin, token)
+	h.streamLogsFromNomad(sse, r, allocID, task, logType, position.follow, position.offset, position.origin, token)
+}
+
+func parseAllocationLogPosition(r *http.Request) (allocationLogPosition, error) {
+	position := allocationLogPosition{follow: true, origin: "end"}
+	query := r.URL.Query()
+
+	if value := query.Get("follow"); value != "" {
+		switch value {
+		case "true":
+			position.follow = true
+		case "false":
+			position.follow = false
+		default:
+			return allocationLogPosition{}, fmt.Errorf("invalid follow: expected true or false")
+		}
+	}
+
+	if value := query.Get("offset"); value != "" {
+		offset, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || offset < 0 {
+			return allocationLogPosition{}, fmt.Errorf("invalid offset: expected a non-negative integer")
+		}
+		position.offset = offset
+	}
+
+	if value := query.Get("origin"); value != "" {
+		position.origin = value
+	}
+	if position.origin != "start" && position.origin != "end" {
+		return allocationLogPosition{}, fmt.Errorf("invalid origin: expected start or end")
+	}
+
+	return position, nil
 }
 
 func normalizeLogType(logType string) (string, bool) {
@@ -252,10 +278,7 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
+	queryOpts := allocationLogQueryOptions(r, token)
 
 	// Fetch allocation info
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
@@ -319,6 +342,9 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 		case event, ok := <-events:
 			if !ok {
 				h.handler.logger.Debug("log streams closed", "allocID", allocID)
+				if !follow {
+					_ = sse.WriteJSON("complete", map[string]string{"mode": origin})
+				}
 				return
 			}
 
@@ -421,10 +447,7 @@ func (h *AllocationLogsHandler) getAllocationDetailForLogs(r *http.Request, allo
 		return allocationspartials.AllocationDetail{ID: allocID}
 	}
 
-	queryOpts := &api.QueryOptions{}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
+	queryOpts := allocationLogQueryOptions(r, token)
 
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
@@ -467,10 +490,7 @@ func (h *AllocationLogsHandler) getTasksForAllocation(r *http.Request, allocID, 
 		return []string{}
 	}
 
-	queryOpts := &api.QueryOptions{}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
+	queryOpts := allocationLogQueryOptions(r, token)
 
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
@@ -488,4 +508,12 @@ func (h *AllocationLogsHandler) getTasksForAllocation(r *http.Request, allocID, 
 	sort.Strings(tasks)
 
 	return tasks
+}
+
+func allocationLogQueryOptions(r *http.Request, token string) *api.QueryOptions {
+	return &api.QueryOptions{
+		Namespace: GetNamespaceFromRequest(r),
+		Region:    GetRegionFromRequest(r),
+		AuthToken: token,
+	}
 }
