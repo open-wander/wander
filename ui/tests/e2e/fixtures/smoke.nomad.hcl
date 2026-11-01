@@ -56,7 +56,7 @@ job "wander-ui-smoke" {
 
       config {
         command = "/bin/sh"
-        args    = ["-c", "i=1; mkdir -p local/deep; while [ $i -le 30 ]; do echo fixture-$i > local/deep/file-$i.txt; i=$((i + 1)); done; echo wander-ui-smoke-head; while true; do echo wander-ui-smoke; sleep 5; done"]
+        args    = ["-c", "i=1; mkdir -p local/deep; while [ $i -le 30 ]; do echo fixture-$i > local/deep/file-$i.txt; i=$((i + 1)); done; { echo FILE-HEAD-MARKER; i=1; while [ $i -le 12000 ]; do echo file-line-$i; i=$((i + 1)); done; echo FILE-TAIL-MARKER; } > local/deep/large.txt; echo wander-ui-smoke-head; while true; do echo wander-ui-smoke; sleep 5; done"]
       }
 
       resources {

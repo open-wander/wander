@@ -727,8 +727,14 @@ test.describe('Wander release smoke', () => {
     await page.keyboard.press('Enter');
     await expect(terminal.locator('.xterm-rows')).toContainText('wander-browser-exec');
 
-    await openAllocationView(page, href!, 'files', /files|fixture/i);
-    await page.getByText('fixture', { exact: true }).last().click();
+    const allocationURL = new URL(href!, 'http://wander.test');
+    await page.goto(`${allocationURL.pathname}/fs${allocationURL.search}`);
+    await expect(page.getByText('fixture', { exact: true }).last()).toBeVisible();
+    await page.goto(`${allocationURL.pathname}/fixture/fs${allocationURL.search}`);
+    await expect(page).toHaveURL(/\/ui\/allocations\/[^/]+\/fixture\/fs/);
+    await expect(page.getByText('local', { exact: true })).toBeVisible();
+
+    await openAllocationView(page, href!, 'files', /files|local/i);
     await page.getByText('local', { exact: true }).click();
     await page.getByText('deep', { exact: true }).click();
     await expect(page.getByText('file-30.txt', { exact: true })).toBeVisible();
@@ -747,6 +753,29 @@ test.describe('Wander release smoke', () => {
     expect(fileTreeLayout.scrollHeight).toBeGreaterThan(fileTreeLayout.clientHeight);
     expect(fileTreeLayout.scrollTop).toBeGreaterThan(0);
     expect(fileTreeLayout.overflowY).toBe('auto');
+
+    const largeFileRow = page.locator('[data-file-name="large.txt"]');
+    await expect(largeFileRow).toBeVisible();
+    const largeDownloadURL = await largeFileRow.getAttribute('data-download-url');
+    await largeFileRow.click();
+    await expect(page.locator('#file-preview-content')).toContainText('FILE-HEAD-MARKER');
+    await expect(page.locator('#file-preview-content')).not.toContainText('FILE-TAIL-MARKER');
+    await page.locator('[data-file-preview-mode="tail"]').click();
+    await expect(page.locator('#file-preview-content')).toContainText('FILE-TAIL-MARKER');
+    await expect(page.locator('#file-preview-content')).not.toContainText('FILE-HEAD-MARKER');
+    const liveFileButton = page.locator('[data-file-preview-mode="live"]');
+    await liveFileButton.click();
+    await expect(liveFileButton).toContainText('Stop Live');
+    await expect(page.locator('[data-file-stream-output]')).toContainText('FILE-TAIL-MARKER');
+    await liveFileButton.click();
+    await expect(liveFileButton).toContainText('Live');
+    const largeDownload = await page.request.get(largeDownloadURL!);
+    expect(largeDownload.ok()).toBeTruthy();
+    const largeDownloadBody = await largeDownload.body();
+    expect(largeDownloadBody.length).toBeGreaterThan(50_000);
+    expect(largeDownloadBody.toString()).toContain('FILE-HEAD-MARKER');
+    expect(largeDownloadBody.toString()).toContain('FILE-TAIL-MARKER');
+
     const file = page.getByText('executor.out', { exact: true });
     await expect(file).toBeVisible();
     await file.click();

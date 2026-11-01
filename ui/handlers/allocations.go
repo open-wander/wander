@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -521,13 +523,22 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	actualAllocID := parts[0]
 	tabName := ""
 	subAction := ""
-	if len(parts) > 1 {
+	legacyFSRoute := false
+	if len(parts) > 1 && parts[1] == "fs" {
+		legacyFSRoute = true
+		tabName = "files"
+		setAllocationFSRouteQuery(r, "", parts[2:])
+	} else if len(parts) > 2 && parts[2] == "fs" {
+		legacyFSRoute = true
+		tabName = "files"
+		setAllocationFSRouteQuery(r, parts[1], parts[3:])
+	} else if len(parts) > 1 {
 		tabName = parts[1]
 	}
-	if len(parts) > 2 {
+	if !legacyFSRoute && len(parts) > 2 {
 		subAction = parts[2]
 	}
-	if len(parts) > 3 || (len(parts) > 2 && tabName != "files") {
+	if !legacyFSRoute && (len(parts) > 3 || (len(parts) > 2 && tabName != "files")) {
 		h.handler.RenderNotFound(w, r, NotFoundError{
 			Message:     "The allocation page you requested could not be found.",
 			RequestPath: r.URL.Path,
@@ -575,6 +586,12 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 			return
 		case "download":
 			h.FilesDownloadHandler(w, r, actualAllocID)
+			return
+		case "content":
+			h.FilesContentHandler(w, r, actualAllocID)
+			return
+		case "stream":
+			h.FilesStreamHandler(w, r, actualAllocID)
 			return
 		}
 	}
@@ -1072,6 +1089,10 @@ func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Req
 }
 
 func (h *AllocationsHandler) renderAllocationTabError(w http.ResponseWriter, r *http.Request, allocID, tabName string, err error) {
+	if tabName == "files" {
+		h.renderFileReadError(w, r, allocID, r.URL.Query().Get("path"), err)
+		return
+	}
 	if h.handler.CheckClusterError(w, r, err) {
 		return
 	}
@@ -1118,8 +1139,18 @@ func (h *AllocationsHandler) allocationTabContent(r *http.Request, allocID, tabN
 		}), nil
 	case "files":
 		tasks := h.getTaskNames(allocDetail)
-		selectedTask := selectAllocationTask(r.URL.Query().Get("task"), tasks)
-		files := h.getFiles(r, allocID, selectedTask, "/", token)
+		selectedTask := r.URL.Query().Get("task")
+		if !isAllocationFSRoute(r.URL.Path) {
+			selectedTask = selectAllocationTask(selectedTask, tasks)
+		}
+		initialPath := r.URL.Query().Get("path")
+		if initialPath == "" {
+			initialPath = "/"
+		}
+		files, err := h.getFiles(r, allocID, selectedTask, initialPath, token)
+		if err != nil {
+			return nil, err
+		}
 		return allocationspartials.FilesTab(allocID, tasks, selectedTask, files), nil
 	case "raw":
 		raw, err := h.getRawAllocation(r, allocID, token)
@@ -1172,7 +1203,11 @@ func (h *AllocationsHandler) FilesListHandler(w http.ResponseWriter, r *http.Req
 	token := GetTokenFromRequest(r)
 
 	// Get directory contents from API
-	files := h.getFiles(r, allocID, task, path, token)
+	files, fetchErr := h.getFiles(r, allocID, task, path, token)
+	if fetchErr != nil {
+		h.renderFileReadError(w, r, allocID, path, fetchErr)
+		return
+	}
 
 	// Determine depth based on path
 	depth := 0
@@ -1189,37 +1224,58 @@ func (h *AllocationsHandler) FilesListHandler(w http.ResponseWriter, r *http.Req
 	}
 }
 
-// MaxPreviewSize is the maximum number of bytes to show in file preview (100KB)
-const MaxPreviewSize int64 = 100 * 1024
+// FilePreviewSize matches the inherited large-file Head and Tail window.
+const FilePreviewSize int64 = 50000
 
 // FilesPreviewHandler handles requests for previewing file contents
 func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.Request, allocID string) {
 	task := r.URL.Query().Get("task")
 	path := r.URL.Query().Get("path")
+	mode := r.URL.Query().Get("mode")
+	if mode == "" {
+		mode = "head"
+	}
+	if mode != "head" && mode != "tail" {
+		http.Error(w, "Invalid file preview mode: expected head or tail", http.StatusBadRequest)
+		return
+	}
+	if path == "" {
+		http.Error(w, "Missing required parameter: path", http.StatusBadRequest)
+		return
+	}
 
 	h.handler.logger.Debug("files preview request", "allocID", allocID, "task", task, "path", path)
 
 	// Get ACL token from request
 	token := GetTokenFromRequest(r)
 
-	// Get file content from API
-	content, size, isText := h.getFileContent(r, allocID, path, token)
+	client, alloc, fileInfo, queryOpts, allocationPath, err := h.getAllocationFile(r, allocID, task, path, token)
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
+		return
+	}
 
 	// Get file name from path
 	fileName := pathpkg.Base(path)
+	isText := isTextContentType(fileInfo.ContentType, path)
+	isImage := isPreviewableImage(fileInfo.ContentType)
+	baseProps := allocationspartials.FilePreviewProps{
+		AllocID:   allocID,
+		Task:      task,
+		FileName:  fileName,
+		Path:      path,
+		IsText:    isText,
+		IsImage:   isImage,
+		Size:      fileInfo.Size,
+		MaxSize:   FilePreviewSize,
+		Mode:      mode,
+		ImageURL:  allocationspartials.FileActionURL(allocID, "content", task, path),
+		StreamURL: allocationspartials.FileActionURL(allocID, "stream", task, path),
+	}
 
 	// Check for binary files
 	if !isText {
-		props := allocationspartials.FilePreviewProps{
-			FileName:    fileName,
-			Path:        path,
-			Content:     content,
-			IsText:      false,
-			Size:        size,
-			IsTruncated: false,
-			MaxSize:     MaxPreviewSize,
-		}
-		err := RenderPartial(w, r, allocationspartials.FilePreviewEnhanced(props))
+		err := RenderPartial(w, r, allocationspartials.FilePreviewEnhanced(baseProps))
 		if err != nil {
 			h.handler.logger.Error("failed to render file preview", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -1227,33 +1283,23 @@ func (h *AllocationsHandler) FilesPreviewHandler(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Handle large files by truncating content
-	isTruncated := false
-	displayContent := content
-	if int64(len(content)) > MaxPreviewSize {
-		isTruncated = true
-		displayContent = content[:MaxPreviewSize]
-		// Try to cut at a newline to avoid breaking mid-line
-		for i := len(displayContent) - 1; i > int(MaxPreviewSize)-1000 && i >= 0; i-- {
-			if displayContent[i] == '\n' {
-				displayContent = displayContent[:i+1]
-				break
-			}
-		}
-		h.handler.logger.Debug("truncated large file for preview", "path", path, "originalSize", size, "truncatedTo", len(displayContent))
+	offset, limit := filePreviewRange(fileInfo.Size, mode)
+	reader, err := client.AllocFS().ReadAt(alloc, allocationPath, offset, limit, queryOpts)
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
+		return
+	}
+	defer reader.Close()
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
+		return
 	}
 
-	props := allocationspartials.FilePreviewProps{
-		FileName:    fileName,
-		Path:        path,
-		Content:     displayContent,
-		IsText:      true,
-		Size:        size,
-		IsTruncated: isTruncated,
-		MaxSize:     MaxPreviewSize,
-	}
+	baseProps.Content = string(content)
+	baseProps.IsTruncated = fileInfo.Size > int64(len(content))
 
-	err := RenderPartial(w, r, allocationspartials.FilePreviewEnhanced(props))
+	err = RenderPartial(w, r, allocationspartials.FilePreviewEnhanced(baseProps))
 	if err != nil {
 		h.handler.logger.Error("failed to render file preview", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -1274,38 +1320,134 @@ func (h *AllocationsHandler) FilesDownloadHandler(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Get file name from path
-	fileName := path
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			fileName = path[i+1:]
-			break
-		}
-	}
+	fileName := pathpkg.Base(path)
 
 	// Get ACL token from request
 	token := GetTokenFromRequest(r)
 
-	// Get file content from API
-	content, size, isText := h.getFileContent(r, allocID, path, token)
-
-	// Check if file exists
-	if content == "" && size == 0 {
-		h.handler.logger.Warn("file not found", "allocID", allocID, "path", path)
-		http.Error(w, "File not found", http.StatusNotFound)
+	client, alloc, fileInfo, queryOpts, allocationPath, err := h.getAllocationFile(r, allocID, task, path, token)
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
 		return
 	}
+	reader, err := client.AllocFS().Cat(alloc, allocationPath, queryOpts)
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
+		return
+	}
+	defer reader.Close()
 
 	// Determine Content-Type based on file extension
-	contentType := getContentTypeForFile(fileName, isText)
+	contentType := getContentTypeForFile(fileName, isTextContentType(fileInfo.ContentType, path))
 
 	// Set headers for download
 	w.Header().Set("Content-Disposition", downloadContentDisposition(fileName))
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(content)), 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 
-	_, _ = w.Write([]byte(content)) // #nosec G705 -- forced attachment with nosniff; content is never inserted into HTML.
+	if _, err := io.Copy(w, reader); err != nil {
+		h.handler.logger.Warn("file download interrupted", "allocID", allocID, "path", path, "error", err)
+	}
+}
+
+// FilesContentHandler serves allowlisted images for the same-origin preview.
+func (h *AllocationsHandler) FilesContentHandler(w http.ResponseWriter, r *http.Request, allocID string) {
+	task := r.URL.Query().Get("task")
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Missing required parameter: path", http.StatusBadRequest)
+		return
+	}
+
+	client, alloc, fileInfo, queryOpts, allocationPath, err := h.getAllocationFile(r, allocID, task, path, GetTokenFromRequest(r))
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
+		return
+	}
+	if !isPreviewableImage(fileInfo.ContentType) {
+		http.Error(w, "Inline preview is not available for this file type", http.StatusUnsupportedMediaType)
+		return
+	}
+	reader, err := client.AllocFS().Cat(alloc, allocationPath, queryOpts)
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
+		return
+	}
+	defer reader.Close()
+
+	w.Header().Set("Content-Type", fileInfo.ContentType)
+	w.Header().Set("Content-Disposition", "inline")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if _, err := io.Copy(w, reader); err != nil {
+		h.handler.logger.Warn("image preview interrupted", "allocID", allocID, "path", path, "error", err)
+	}
+}
+
+// FilesStreamHandler follows a growing text file from its latest preview window.
+func (h *AllocationsHandler) FilesStreamHandler(w http.ResponseWriter, r *http.Request, allocID string) {
+	task := r.URL.Query().Get("task")
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Missing required parameter: path", http.StatusBadRequest)
+		return
+	}
+
+	client, alloc, fileInfo, queryOpts, allocationPath, err := h.getAllocationFile(r, allocID, task, path, GetTokenFromRequest(r))
+	if err != nil {
+		h.renderFileReadError(w, r, allocID, path, err)
+		return
+	}
+	if !isTextContentType(fileInfo.ContentType, path) {
+		http.Error(w, "Live streaming is only available for text files", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	sse, err := NewSSEHandler(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer sse.Close()
+
+	cancel := make(chan struct{})
+	go func() {
+		select {
+		case <-r.Context().Done():
+		case <-sse.Done():
+		}
+		close(cancel)
+	}()
+	frames, streamErrors := client.AllocFS().Stream(alloc, allocationPath, "end", FilePreviewSize, cancel, queryOpts)
+	for frames != nil || streamErrors != nil {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-sse.Done():
+			return
+		case frame, ok := <-frames:
+			if !ok {
+				frames = nil
+				continue
+			}
+			if frame == nil || frame.IsHeartbeat() {
+				continue
+			}
+			encoded := base64.StdEncoding.EncodeToString(frame.Data)
+			if err := sse.WriteJSON("file", map[string]string{"data": encoded}); err != nil {
+				return
+			}
+		case streamErr, ok := <-streamErrors:
+			if !ok {
+				streamErrors = nil
+				continue
+			}
+			if streamErr == nil || streamErr == io.EOF {
+				continue
+			}
+			_ = sse.WriteJSON("error", map[string]string{"message": streamErr.Error()})
+			return
+		}
+	}
 }
 
 func downloadContentDisposition(fileName string) string {
@@ -1432,31 +1574,29 @@ func (h *AllocationsHandler) getTasksForAllocation(r *http.Request, allocID, tok
 
 // getFiles fetches file entries from the Nomad API for a given allocation and path.
 // Returns a list of FileEntry objects representing files and directories.
-func (h *AllocationsHandler) getFiles(r *http.Request, allocID, task, path, token string) []allocationspartials.FileEntry {
+func (h *AllocationsHandler) getFiles(r *http.Request, allocID, task, path, token string) ([]allocationspartials.FileEntry, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available for file listing")
-		return []allocationspartials.FileEntry{}
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
-	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
+	queryOpts := allocationQueryOptions(r, token)
 
 	// Fetch allocation info to get the allocation object
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch allocation for file listing", "allocID", allocID, "error", err)
-		return []allocationspartials.FileEntry{}
+		return nil, fmt.Errorf("fetch allocation for file listing: %w", err)
+	}
+
+	allocationPath, err := allocationFilePath(task, path)
+	if err != nil {
+		return nil, err
 	}
 
 	// Call AllocFS().List to get file listing
-	files, _, err := client.AllocFS().List(alloc, path, queryOpts)
+	files, _, err := client.AllocFS().List(alloc, allocationPath, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to list files", "allocID", allocID, "path", path, "error", err)
-		return []allocationspartials.FileEntry{}
+		return nil, fmt.Errorf("list allocation files: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched files from API", "allocID", allocID, "path", path, "count", len(files))
@@ -1480,71 +1620,122 @@ func (h *AllocationsHandler) getFiles(r *http.Request, allocID, task, path, toke
 		})
 	}
 
-	return result
+	return result, nil
 }
 
-// getFileContent fetches file content from the Nomad API.
-// Returns the file content as a string, the file size, and whether it's a text file.
-func (h *AllocationsHandler) getFileContent(r *http.Request, allocID, path, token string) (content string, size int64, isText bool) {
+func (h *AllocationsHandler) getAllocationFile(r *http.Request, allocID, task, path, token string) (*api.Client, *api.Allocation, *api.AllocFileInfo, *api.QueryOptions, string, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available for file content")
-		return "", 0, true
+		return nil, nil, nil, nil, "", fmt.Errorf("Wander API client is unavailable")
 	}
 
-	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
+	queryOpts := allocationQueryOptions(r, token)
 
-	// Fetch allocation info
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch allocation for file content", "allocID", allocID, "error", err)
-		return "", 0, true
+		return nil, nil, nil, nil, "", fmt.Errorf("fetch allocation: %w", err)
 	}
 
-	// First, stat the file to get size and type
-	fileInfo, _, err := client.AllocFS().Stat(alloc, path, queryOpts)
+	allocationPath, err := allocationFilePath(task, path)
 	if err != nil {
-		h.handler.logger.Error("failed to stat file", "allocID", allocID, "path", path, "error", err)
-		return "", 0, true
+		return nil, nil, nil, nil, "", err
 	}
 
-	// Check if it's a directory
+	fileInfo, _, err := client.AllocFS().Stat(alloc, allocationPath, queryOpts)
+	if err != nil {
+		return nil, nil, nil, nil, "", fmt.Errorf("stat allocation file: %w", err)
+	}
 	if fileInfo.IsDir {
-		h.handler.logger.Warn("cannot read directory as file", "allocID", allocID, "path", path)
-		return "", 0, true
+		return nil, nil, nil, nil, "", fmt.Errorf("%w: %s", errAllocationFileIsDirectory, path)
 	}
 
-	// Determine if it's a text file based on ContentType or filename
-	isText = isTextContentType(fileInfo.ContentType, path)
+	return client, alloc, fileInfo, queryOpts, allocationPath, nil
+}
 
-	// For preview, limit to MaxPreviewSize
-	limit := MaxPreviewSize
-	if fileInfo.Size < limit {
-		limit = fileInfo.Size
+func allocationFilePath(task, logicalPath string) (string, error) {
+	if logicalPath == "" {
+		logicalPath = "/"
 	}
+	for _, segment := range strings.Split(strings.ReplaceAll(logicalPath, "\\", "/"), "/") {
+		if segment == ".." {
+			return "", fmt.Errorf("%w: parent traversal", errInvalidAllocationFilePath)
+		}
+	}
+	logicalPath = pathpkg.Clean("/" + strings.TrimPrefix(logicalPath, "/"))
+	if task == "" {
+		return logicalPath, nil
+	}
+	if task == "." || task == ".." || strings.ContainsAny(task, "/\\\x00") {
+		return "", fmt.Errorf("%w: invalid task name", errInvalidAllocationFilePath)
+	}
+	if logicalPath == "/" {
+		return task + "/", nil
+	}
+	return task + logicalPath, nil
+}
 
-	// Read file content
-	reader, err := client.AllocFS().ReadAt(alloc, path, 0, limit, queryOpts)
+func setAllocationFSRouteQuery(r *http.Request, task string, pathParts []string) {
+	query := r.URL.Query()
+	if task == "" {
+		query.Del("task")
+	} else {
+		query.Set("task", task)
+	}
+	logicalPath := "/"
+	if len(pathParts) > 0 {
+		logicalPath += strings.Join(pathParts, "/")
+	}
+	query.Set("path", logicalPath)
+	r.URL.RawQuery = query.Encode()
+}
+
+func isAllocationFSRoute(requestPath string) bool {
+	parts := strings.Split(strings.TrimPrefix(requestPath, "/ui/allocations/"), "/")
+	return len(parts) > 1 && parts[1] == "fs"
+}
+
+func filePreviewRange(size int64, mode string) (offset, limit int64) {
+	limit = min(size, FilePreviewSize)
+	if mode == "tail" {
+		offset = max(0, size-limit)
+	}
+	return offset, limit
+}
+
+func isPreviewableImage(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		h.handler.logger.Error("failed to read file", "allocID", allocID, "path", path, "error", err)
-		return "", 0, isText
+		return false
 	}
-	defer reader.Close()
-
-	// Read all content from reader
-	buf, err := io.ReadAll(reader)
-	if err != nil {
-		h.handler.logger.Error("failed to read file content", "allocID", allocID, "path", path, "error", err)
-		return "", 0, isText
+	switch mediaType {
+	case "image/avif", "image/gif", "image/jpeg", "image/png", "image/webp":
+		return true
+	default:
+		return false
 	}
+}
 
-	h.handler.logger.Debug("fetched file content", "allocID", allocID, "path", path, "size", fileInfo.Size, "read", len(buf))
+var (
+	errInvalidAllocationFilePath = errors.New("invalid allocation file path")
+	errAllocationFileIsDirectory = errors.New("allocation file path is a directory")
+)
 
-	return string(buf), fileInfo.Size, isText
+func (h *AllocationsHandler) renderFileReadError(w http.ResponseWriter, r *http.Request, allocID, path string, err error) {
+	h.handler.logger.Error("allocation file read failed", "allocID", allocID, "path", path, "error", err)
+	switch {
+	case errors.Is(err, errInvalidAllocationFilePath), errors.Is(err, errAllocationFileIsDirectory):
+		http.Error(w, "The requested allocation file path is invalid", http.StatusBadRequest)
+	case apiResponseHasStatus(err, http.StatusNotFound):
+		h.handler.RenderNotFound(w, r, NotFoundError{Message: "The requested allocation file was not found.", RequestPath: r.URL.Path})
+	case apiResponseHasStatus(err, http.StatusForbidden):
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message: "You do not have permission to read the allocation filesystem", Capability: "read-fs", Namespace: GetNamespaceFromRequest(r),
+		})
+	case h.handler.CheckClusterError(w, r, err):
+		return
+	default:
+		h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{Message: "Wander could not read the allocation file from the cluster."})
+	}
 }
 
 // isTextContentType determines if a file is text based on ContentType and filename.
@@ -1556,6 +1747,9 @@ func isTextContentType(contentType, fileName string) bool {
 		strings.Contains(contentType, "yaml") ||
 		strings.Contains(contentType, "javascript") {
 		return true
+	}
+	if contentType != "" {
+		return false
 	}
 
 	// Fallback to filename extension check

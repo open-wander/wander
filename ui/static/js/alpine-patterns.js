@@ -1932,6 +1932,93 @@ function fileExplorer() {
     };
 }
 
+function filePreviewStream() {
+    return {
+        streamURL: '',
+        streamClient: null,
+        decoder: null,
+        content: '',
+        maxContentLength: 50000,
+        isStreaming: false,
+        hasStreamed: false,
+        streamError: '',
+
+        init() {
+            this.streamURL = this.$root.dataset.fileStreamUrl || '';
+        },
+
+        toggleStream() {
+            if (this.isStreaming) {
+                this.stopStream();
+            } else {
+                this.startStream();
+            }
+        },
+
+        startStream() {
+            if (!this.streamURL) return;
+            this.stopStream();
+            this.content = '';
+            this.streamError = '';
+            this.hasStreamed = true;
+            this.isStreaming = true;
+            this.decoder = new TextDecoder();
+            const url = window.wanderScopeURL(this.streamURL);
+
+            if (typeof SSEClient !== 'undefined') {
+                this.streamClient = new SSEClient(url, {
+                    maxRetries: 10,
+                    onError: () => { this.streamError = 'The file stream was interrupted.'; },
+                    onMaxRetries: () => { this.isStreaming = false; },
+                });
+                this.streamClient.on('file', data => this.appendEncodedChunk(data.data));
+                this.streamClient.on('error', data => {
+                    this.streamError = data.message || 'The file stream stopped unexpectedly.';
+                    this.stopStream();
+                });
+                this.streamClient.connect();
+                return;
+            }
+
+            this.streamClient = new EventSource(url);
+            this.streamClient.addEventListener('file', event => {
+                const data = JSON.parse(event.data);
+                this.appendEncodedChunk(data.data);
+            });
+            this.streamClient.onerror = () => {
+                this.streamError = 'The file stream was interrupted.';
+            };
+        },
+
+        appendEncodedChunk(encoded) {
+            if (!encoded || !this.decoder) return;
+            const binary = window.atob(encoded);
+            const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+            this.content += this.decoder.decode(bytes, { stream: true });
+            if (this.content.length > this.maxContentLength) {
+                this.content = this.content.slice(-this.maxContentLength);
+            }
+            this.$nextTick(() => {
+                const output = this.$root.querySelector('[data-file-stream-output]');
+                if (output) output.scrollTop = output.scrollHeight;
+            });
+        },
+
+        stopStream() {
+            if (this.streamClient) {
+                if (this.streamClient.disconnect) this.streamClient.disconnect();
+                else if (this.streamClient.close) this.streamClient.close();
+            }
+            this.streamClient = null;
+            this.isStreaming = false;
+        },
+
+        destroy() {
+            this.stopStream();
+        },
+    };
+}
+
 function variableItemsState() {
     return {
         items: [],
@@ -2314,6 +2401,7 @@ document.addEventListener('alpine:init', () => {
         evaluationsPanel,
         connectionStatus,
         fileExplorer,
+        filePreviewStream,
         variableCreator,
         variableEditor,
         searchBar,
@@ -2349,6 +2437,7 @@ if (typeof window !== 'undefined') {
         evaluationsPanel,
         connectionStatus,
         fileExplorer,
+        filePreviewStream,
         variableCreator,
         variableEditor,
         searchBar,

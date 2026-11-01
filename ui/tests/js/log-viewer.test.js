@@ -66,3 +66,23 @@ test('a completed snapshot closes intentionally and does not remain in an error 
     assert.equal(viewer.sseClient, null);
     assert.equal(viewer.connectionState, 'complete');
 });
+
+test('file preview streaming decodes chunks and keeps only the latest 50 KB', () => {
+    loadLogViewer();
+    const preview = global.window.alpinePatterns.filePreviewStream();
+    preview.$root = {
+        dataset: { fileStreamUrl: '/ui/allocations/alloc-1/files/stream' },
+        querySelector: () => null,
+    };
+    preview.$nextTick = callback => callback();
+    preview.init();
+    preview.maxContentLength = 5;
+    preview.decoder = new TextDecoder();
+    global.window.atob = encoded => Buffer.from(encoded, 'base64').toString('binary');
+
+    preview.appendEncodedChunk(Buffer.from('abc').toString('base64'));
+    preview.appendEncodedChunk(Buffer.from('defgh').toString('base64'));
+
+    assert.equal(preview.streamURL, '/ui/allocations/alloc-1/files/stream');
+    assert.equal(preview.content, 'defgh');
+});

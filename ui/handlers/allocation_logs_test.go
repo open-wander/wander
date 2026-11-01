@@ -84,9 +84,9 @@ func TestParseAllocationLogPosition(t *testing.T) {
 	}
 }
 
-func TestAllocationLogQueryOptionsPreserveBrowserScope(t *testing.T) {
+func TestAllocationQueryOptionsPreserveBrowserScope(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/ui/allocations/alloc/logs?namespace=team-a&region=west", nil)
-	options := allocationLogQueryOptions(request, "browser-token")
+	options := allocationQueryOptions(request, "browser-token")
 	if options.Namespace != "team-a" || options.Region != "west" || options.AuthToken != "browser-token" {
 		t.Fatalf("log query options lost browser scope: %#v", options)
 	}

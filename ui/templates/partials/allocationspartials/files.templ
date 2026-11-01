@@ -170,7 +170,7 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 			class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
 			style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20) }
 			@click="expanded = !expanded"
-			hx-get={ fileActionURL(allocID, "list", task, entry.Path) }
+		hx-get={ FileActionURL(allocID, "list", task, entry.Path) }
 			hx-target="next .directory-contents"
 			hx-trigger="click once"
 			hx-swap="innerHTML"
@@ -225,11 +225,11 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 	<div
 		class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
 		style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20+24) }
-		hx-get={ fileActionURL(allocID, "preview", task, entry.Path) }
+		hx-get={ FileActionURL(allocID, "preview", task, entry.Path) }
 		hx-target="#file-preview-content"
 		hx-swap="innerHTML"
 		data-file-name={ entry.Name }
-		data-download-url={ fileActionURL(allocID, "download", task, entry.Path) }
+		data-download-url={ FileActionURL(allocID, "download", task, entry.Path) }
 		@click="openPreview($el.dataset.fileName, $el.dataset.downloadUrl)"
 	>
 		<div class="flex items-center space-x-2 min-w-0">
@@ -243,7 +243,7 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 			<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
 			<!-- Download Button -->
 			<a
-				href={ templ.SafeURL(fileActionURL(allocID, "download", task, entry.Path)) }
+			href={ templ.SafeURL(FileActionURL(allocID, "download", task, entry.Path)) }
 				class="w-8 text-center opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-primary-600"
 				title="Download file"
 				download
@@ -257,7 +257,7 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 	</div>
 }
 
-func fileActionURL(allocID, action, task, path string) string {
+func FileActionURL(allocID, action, task, path string) string {
 	query := url.Values{}
 	query.Set("task", task)
 	query.Set("path", path)
@@ -279,13 +279,19 @@ templ DirectoryListing(entries []FileEntry, allocID, task string, depth int) {
 
 // FilePreviewProps contains data for rendering a file preview with syntax highlighting
 type FilePreviewProps struct {
+	AllocID     string
+	Task        string
 	FileName    string // File name
 	Path        string // Full file path
 	Content     string // File content (may be truncated)
 	IsText      bool   // True if text file
+	IsImage     bool   // True if the content type is safe to render as an image
+	ImageURL    string // Same-origin allowlisted image endpoint
+	StreamURL   string // Same-origin SSE endpoint for growing text files
 	Size        int64  // Actual file size in bytes
 	IsTruncated bool   // True if content was truncated
 	MaxSize     int64  // Maximum size shown (for truncation message)
+	Mode        string // "head" or "tail"
 }
 
 // FilePreview renders the file preview content (legacy signature for backwards compatibility)
@@ -302,7 +308,16 @@ templ FilePreview(fileName string, content string, isText bool, size int64) {
 
 // FilePreviewEnhanced renders the file preview with full props including truncation info
 templ FilePreviewEnhanced(props FilePreviewProps) {
-	if !props.IsText {
+	if props.IsImage {
+		<figure class="file-preview-container text-center" data-file-image-preview>
+			<img
+				src={ templ.SafeURL(props.ImageURL) }
+				alt={ props.FileName }
+				class="max-w-full max-h-[32rem] mx-auto object-contain rounded border border-neutral-200"
+			/>
+			<figcaption class="mt-2 text-xs text-neutral-500">{ props.FileName } ({ formatFileSize(props.Size) })</figcaption>
+		</figure>
+	} else if !props.IsText {
 		<!-- Binary file display -->
 		<div class="text-center py-8">
 			<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,12 +328,44 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 		</div>
 	} else {
 		<!-- Text file with syntax highlighting -->
-		<div class="file-preview-container">
+		<div
+			class="file-preview-container"
+			x-data="filePreviewStream"
+			data-file-stream-url={ props.StreamURL }
+		>
 			<!-- File info header -->
 			<div class="flex items-center justify-between mb-2 px-1">
 				<span class="text-xs text-neutral-500">{ formatFileSize(props.Size) }</span>
 				<span class="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded">{ getLanguageLabel(props.FileName) }</span>
 			</div>
+			if props.Size > props.MaxSize {
+				<div class="mb-2 inline-flex rounded-md shadow-sm" role="group" aria-label="File preview position">
+					<button
+						type="button"
+						hx-get={ FilePreviewModeURL(props, "head") }
+						hx-target="#file-preview-content"
+						hx-swap="innerHTML"
+						class={ "px-3 py-1.5 text-xs font-medium border rounded-l-md " + filePreviewModeClass(props.Mode == "head") }
+						data-file-preview-mode="head"
+					>Head</button>
+					<button
+						type="button"
+						hx-get={ FilePreviewModeURL(props, "tail") }
+						hx-target="#file-preview-content"
+						hx-swap="innerHTML"
+						class={ "-ml-px px-3 py-1.5 text-xs font-medium border " + filePreviewModeClass(props.Mode == "tail") }
+						data-file-preview-mode="tail"
+					>Tail</button>
+					<button
+						type="button"
+						@click="toggleStream()"
+						:class="isStreaming ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+						class="-ml-px px-3 py-1.5 text-xs font-medium border rounded-r-md"
+						data-file-preview-mode="live"
+					><span x-text="isStreaming ? 'Stop Live' : 'Live'"></span></button>
+				</div>
+			}
+			<div x-show="streamError" x-cloak class="mb-2 px-3 py-2 text-xs text-error-700 bg-error-50 border border-error-200 rounded" x-text="streamError"></div>
 			<!-- Truncation warning if applicable -->
 			if props.IsTruncated {
 				<div class="mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md">
@@ -327,7 +374,7 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
 						</svg>
 						<span class="text-xs text-amber-700">
-							Large file - showing first { formatFileSize(props.MaxSize) } of { formatFileSize(props.Size) }
+							Large file - showing { props.Mode } { formatFileSize(props.MaxSize) } of { formatFileSize(props.Size) }
 						</span>
 					</div>
 				</div>
@@ -338,6 +385,7 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 				class="wander-editor file-preview-editor"
 				data-language={ getFileLanguage(props.FileName) }
 				data-content={ props.Content }
+				x-show="!hasStreamed"
 			>
 				<!-- Initial content with line numbers (pre-rendered for immediate display) -->
 				<div class="wander-editor-wrapper theme-dark rounded-lg overflow-auto max-h-full">
@@ -349,8 +397,30 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 					</div>
 				</div>
 			</div>
+			<pre
+				x-show="hasStreamed"
+				x-cloak
+				x-text="content"
+				data-file-stream-output
+				class="theme-dark rounded-lg overflow-auto max-h-[32rem] p-4 m-0 whitespace-pre text-neutral-100 bg-neutral-900 font-mono text-xs leading-relaxed"
+			></pre>
 		</div>
 	}
+}
+
+func FilePreviewModeURL(props FilePreviewProps, mode string) string {
+	query, _ := url.Parse(FileActionURL(props.AllocID, "preview", props.Task, props.Path))
+	values := query.Query()
+	values.Set("mode", mode)
+	query.RawQuery = values.Encode()
+	return query.String()
+}
+
+func filePreviewModeClass(active bool) string {
+	if active {
+		return "bg-primary-600 text-white border-primary-600"
+	}
+	return "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
 }
 
 // renderLineNumbers generates line number divs for the content

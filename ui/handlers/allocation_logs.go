@@ -278,7 +278,7 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 	}
 
 	// Build query options with ACL token
-	queryOpts := allocationLogQueryOptions(r, token)
+	queryOpts := allocationQueryOptions(r, token)
 
 	// Fetch allocation info
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
@@ -447,7 +447,7 @@ func (h *AllocationLogsHandler) getAllocationDetailForLogs(r *http.Request, allo
 		return allocationspartials.AllocationDetail{ID: allocID}
 	}
 
-	queryOpts := allocationLogQueryOptions(r, token)
+	queryOpts := allocationQueryOptions(r, token)
 
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
@@ -490,7 +490,7 @@ func (h *AllocationLogsHandler) getTasksForAllocation(r *http.Request, allocID, 
 		return []string{}
 	}
 
-	queryOpts := allocationLogQueryOptions(r, token)
+	queryOpts := allocationQueryOptions(r, token)
 
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
@@ -510,7 +510,7 @@ func (h *AllocationLogsHandler) getTasksForAllocation(r *http.Request, allocID, 
 	return tasks
 }
 
-func allocationLogQueryOptions(r *http.Request, token string) *api.QueryOptions {
+func allocationQueryOptions(r *http.Request, token string) *api.QueryOptions {
 	return &api.QueryOptions{
 		Namespace: GetNamespaceFromRequest(r),
 		Region:    GetRegionFromRequest(r),
