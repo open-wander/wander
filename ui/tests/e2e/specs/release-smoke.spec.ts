@@ -654,6 +654,10 @@ test.describe('Wander release smoke', () => {
 	await expect(page.locator('[data-testid="allocation-ports"]')).toContainText('http');
 	await expect(page.locator('[data-testid="allocation-services"]')).toContainText('wander-ui-http');
 	await expect(page.locator('[data-task-lifecycle="prepare"]')).toContainText('prestart');
+	const liveStats = page.locator('[data-testid="allocation-live-stats"]');
+	await expect(liveStats).toContainText('Sampled');
+	await expect(liveStats).not.toContainText('Statistics unavailable');
+	await expect(page.getByText('Live Resource Usage', { exact: true }).first()).toBeVisible();
 
     await openAllocationView(page, href!, 'logs', /stdout|logs/i);
     const logViewer = page.locator('[data-log-viewer]');

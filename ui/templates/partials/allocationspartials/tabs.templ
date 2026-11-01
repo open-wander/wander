@@ -2,8 +2,8 @@ package allocationspartials
 
 import (
 	"fmt"
-	"time"
 	"github.com/open-wander/wander/ui/templates/components"
+	"time"
 )
 
 // TasksTab renders the tasks tab content with detailed task information
@@ -88,6 +88,39 @@ templ TasksTab(alloc AllocationDetail) {
 				</div>
 			</section>
 		</div>
+		<section data-testid="allocation-live-stats" class="mb-8">
+			<h3 class="text-lg font-medium text-neutral-900 mb-3">Live Resource Statistics</h3>
+			if !alloc.StatsReady {
+				<div class="p-4 rounded-lg bg-warning-50 text-sm text-warning-800">
+					<p class="font-medium">Statistics unavailable</p>
+					<p class="mt-1">{ alloc.StatsError }</p>
+				</div>
+			} else if alloc.Stats == nil {
+				<p class="p-4 border border-neutral-200 rounded-lg text-sm text-neutral-500">No live resource sample is available.</p>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<div class="bg-neutral-50 rounded-lg p-4">
+						<div class="text-sm text-neutral-600 mb-1">CPU</div>
+						<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%.1f%%", alloc.Stats.CPUPercent) }</div>
+					</div>
+					<div class="bg-neutral-50 rounded-lg p-4">
+						<div class="text-sm text-neutral-600 mb-1">Memory usage</div>
+						<div class="text-2xl font-bold text-neutral-900">{ formatAllocationBytes(alloc.Stats.MemoryUsage) }</div>
+						<div class="text-xs text-neutral-500 mt-1">RSS { formatAllocationBytes(alloc.Stats.MemoryRSS) }</div>
+					</div>
+					<div class="bg-neutral-50 rounded-lg p-4">
+						<div class="text-sm text-neutral-600 mb-1">Sampled</div>
+						<div class="text-base font-semibold text-neutral-900">
+							if !alloc.Stats.Timestamp.IsZero() {
+								{ alloc.Stats.Timestamp.Format("Jan 2, 15:04:05") }
+							} else {
+								Unknown
+							}
+						</div>
+					</div>
+				</div>
+			}
+		</section>
 		<div class="flex items-center justify-between mb-6">
 			<h3 class="text-lg font-medium text-neutral-900">Tasks ({ fmt.Sprintf("%d", len(alloc.Tasks)) })</h3>
 		</div>
@@ -136,7 +169,7 @@ templ TasksTab(alloc AllocationDetail) {
 												}) {
 													{ task.LifecycleHook }
 													if task.LifecycleSidecar {
-														 sidecar
+														sidecar
 													}
 												}
 											</span>
@@ -201,41 +234,36 @@ templ TasksTab(alloc AllocationDetail) {
 							</div>
 						</div>
 						<!-- Task Resources -->
-						if task.Resources.CPU > 0 || task.Resources.Memory > 0 {
+						if task.Resources.CPU > 0 || task.Resources.Memory > 0 || task.Resources.LiveStats != nil {
 							<div class="mb-4">
-								<h5 class="text-sm font-medium text-neutral-700 mb-2">Resource Usage</h5>
-								<div class="grid grid-cols-2 gap-4">
-									<!-- CPU -->
-									<div>
-										<div class="flex items-center justify-between text-xs mb-1">
-											<span class="text-neutral-600">CPU</span>
-											<span class="font-medium text-neutral-900">
-												{ fmt.Sprintf("%d%%", task.Resources.CPUUsage) } of { fmt.Sprintf("%d", task.Resources.CPU) } MHz
-											</span>
+								if task.Resources.LiveStats == nil {
+									<h5 class="text-sm font-medium text-neutral-700 mb-2">Reserved Resources</h5>
+									<div class="grid grid-cols-2 gap-4 text-sm">
+										<div class="bg-neutral-50 rounded p-3"><span class="text-neutral-600">CPU</span><span class="float-right font-medium">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</span></div>
+										<div class="bg-neutral-50 rounded p-3"><span class="text-neutral-600">Memory</span><span class="float-right font-medium">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</span></div>
+									</div>
+								} else {
+									<h5 class="text-sm font-medium text-neutral-700 mb-2">Live Resource Usage</h5>
+									<div class="grid grid-cols-2 gap-4">
+										<div>
+											<div class="flex items-center justify-between text-xs mb-1">
+												<span class="text-neutral-600">CPU</span>
+												<span class="font-medium text-neutral-900">{ fmt.Sprintf("%.1f%%", task.Resources.LiveStats.CPUPercent) } <span class="text-neutral-500">({ fmt.Sprintf("%d MHz reserved", task.Resources.CPU) })</span></span>
+											</div>
+											<div class="w-full bg-neutral-200 rounded-full h-2"><div class={ resourceBarClasses(task.Resources.LiveStats.CPUPercent) } style={ fmt.Sprintf("width: %.1f%%", resourceBarWidth(task.Resources.LiveStats.CPUPercent)) }></div></div>
 										</div>
-										<div class="w-full bg-neutral-200 rounded-full h-2">
-											<div
-												class={ resourceBarClasses(task.Resources.CPUUsage) }
-												style={ fmt.Sprintf("width: %d%%", task.Resources.CPUUsage) }
-											></div>
+										<div>
+											<div class="flex items-center justify-between text-xs mb-1">
+												<span class="text-neutral-600">Memory</span>
+												<span class="font-medium text-neutral-900">{ formatAllocationBytes(task.Resources.LiveStats.MemoryUsage) } <span class="text-neutral-500">of { fmt.Sprintf("%d MB", task.Resources.Memory) }</span></span>
+											</div>
+											<div class="w-full bg-neutral-200 rounded-full h-2"><div class={ resourceBarClasses(memoryUsagePercent(task.Resources.LiveStats.MemoryUsage, task.Resources.Memory)) } style={ fmt.Sprintf("width: %.1f%%", resourceBarWidth(memoryUsagePercent(task.Resources.LiveStats.MemoryUsage, task.Resources.Memory))) }></div></div>
 										</div>
 									</div>
-									<!-- Memory -->
-									<div>
-										<div class="flex items-center justify-between text-xs mb-1">
-											<span class="text-neutral-600">Memory</span>
-											<span class="font-medium text-neutral-900">
-												{ fmt.Sprintf("%d%%", task.Resources.MemUsage) } of { fmt.Sprintf("%d", task.Resources.Memory) } MB
-											</span>
-										</div>
-										<div class="w-full bg-neutral-200 rounded-full h-2">
-											<div
-												class={ resourceBarClasses(task.Resources.MemUsage) }
-												style={ fmt.Sprintf("width: %d%%", task.Resources.MemUsage) }
-											></div>
-										</div>
-									</div>
-								</div>
+									if !task.Resources.LiveStats.Timestamp.IsZero() {
+										<p class="mt-2 text-xs text-neutral-500">Sampled { task.Resources.LiveStats.Timestamp.Format("Jan 2, 15:04:05") }</p>
+									}
+								}
 							</div>
 						}
 						<!-- Events Timeline -->
@@ -296,6 +324,60 @@ templ TasksTab(alloc AllocationDetail) {
 				</div>
 			</div>
 		</div>
+		<section data-testid="allocation-history" class="mt-6 border-t border-neutral-200 pt-6">
+			<h3 class="text-lg font-medium text-neutral-900 mb-4">Allocation History</h3>
+			if allocationHistoryEmpty(alloc.History) {
+				<p class="text-sm text-neutral-500">No reschedule or preemption history.</p>
+			}
+			if !allocationHistoryEmpty(alloc.History) {
+				<div class="space-y-5 text-sm">
+					if alloc.History.Previous.ID != "" || alloc.History.Next.ID != "" {
+						<div class="flex flex-wrap gap-x-8 gap-y-2">
+							if alloc.History.Previous.ID != "" {
+								<div><span class="text-neutral-600">Previous:</span> <a href={ templ.URL(alloc.History.Previous.URL) } class="font-mono text-primary-600 hover:underline">{ shortID(alloc.History.Previous.ID) }</a></div>
+							}
+							if alloc.History.Next.ID != "" {
+								<div><span class="text-neutral-600">Next:</span> <a href={ templ.URL(alloc.History.Next.URL) } class="font-mono text-primary-600 hover:underline">{ shortID(alloc.History.Next.ID) }</a></div>
+							}
+						</div>
+					}
+					if len(alloc.History.Reschedules) > 0 {
+						<div>
+							<h4 class="font-medium text-neutral-900 mb-2">Reschedule attempts</h4>
+							<ul class="divide-y divide-neutral-200 border border-neutral-200 rounded-lg">
+								for _, event := range alloc.History.Reschedules {
+									<li class="p-3 flex flex-wrap items-center justify-between gap-2">
+										<div>
+											Previous allocation <a href={ templ.URL(event.PreviousAllocation.URL) } class="font-mono text-primary-600 hover:underline">{ shortID(event.PreviousAllocation.ID) }</a>
+											if event.PreviousNode.ID != "" {
+												on client <a href={ templ.URL(event.PreviousNode.URL) } class="font-mono text-primary-600 hover:underline">{ shortID(event.PreviousNode.ID) }</a>
+											}
+										</div>
+										if !event.Time.IsZero() {
+											<time class="text-neutral-500">{ event.Time.Format("Jan 2, 15:04:05") }</time>
+										}
+									</li>
+								}
+							</ul>
+						</div>
+					}
+					if alloc.History.PreemptedBy.ID != "" {
+						<div><span class="text-neutral-600">Preempted by:</span> <a href={ templ.URL(alloc.History.PreemptedBy.URL) } class="font-mono text-primary-600 hover:underline">{ shortID(alloc.History.PreemptedBy.ID) }</a></div>
+					}
+					if len(alloc.History.PreemptedAllocations) > 0 {
+						<div>
+							<span class="text-neutral-600">Preempted allocations:</span>
+							for index, related := range alloc.History.PreemptedAllocations {
+								if index > 0 {
+									<span>, </span>
+								}
+								<a href={ templ.URL(related.URL) } class="font-mono text-primary-600 hover:underline">{ shortID(related.ID) }</a>
+							}
+						</div>
+					}
+				</div>
+			}
+		</section>
 		<!-- Allocation Events -->
 		if len(alloc.Events) > 0 {
 			<div class="mt-6 border-t border-neutral-200 pt-6">
@@ -401,7 +483,7 @@ templ taskStateIcon(state string) {
 }
 
 // resourceBarClasses returns CSS classes for resource usage bar based on usage percentage
-func resourceBarClasses(usage int) string {
+func resourceBarClasses(usage float64) string {
 	base := "h-2 rounded-full transition-all duration-300 "
 	if usage >= 90 {
 		return base + "bg-error-500"
@@ -409,6 +491,40 @@ func resourceBarClasses(usage int) string {
 		return base + "bg-warning-500"
 	}
 	return base + "bg-success-500"
+}
+
+func resourceBarWidth(usage float64) float64 {
+	if usage < 0 {
+		return 0
+	}
+	if usage > 100 {
+		return 100
+	}
+	return usage
+}
+
+func memoryUsagePercent(usage uint64, reservedMB int) float64 {
+	if reservedMB <= 0 {
+		return 0
+	}
+	return float64(usage) * 100 / (float64(reservedMB) * 1024 * 1024)
+}
+
+func formatAllocationBytes(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := uint64(unit), 0
+	for value := bytes / unit; value >= unit; value /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func allocationHistoryEmpty(history AllocationHistory) bool {
+	return history.Previous.ID == "" && history.Next.ID == "" && len(history.Reschedules) == 0 && len(history.PreemptedAllocations) == 0 && history.PreemptedBy.ID == ""
 }
 
 // timelineDotClasses returns CSS classes for timeline event dots

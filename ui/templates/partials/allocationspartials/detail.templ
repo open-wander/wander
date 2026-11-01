@@ -20,6 +20,10 @@ type AllocationDetail struct {
 	Services         []AllocationService
 	ServicesReady    bool
 	ServicesError    string
+	Stats            *AllocationStats
+	StatsReady       bool
+	StatsError       string
+	History          AllocationHistory
 	Resources        ResourceUsage
 	Events           []AllocationEvent
 	ActiveTab        string // Which tab to show as active (default: "tasks")
@@ -59,10 +63,44 @@ type AllocationService struct {
 
 // TaskResources represents resource allocation for a task
 type TaskResources struct {
-	CPU      int // MHz
-	Memory   int // MB
-	CPUUsage int // Current CPU usage percentage (0-100)
-	MemUsage int // Current memory usage percentage (0-100)
+	CPU       int // Reserved MHz
+	Memory    int // Reserved MB
+	LiveStats *LiveResourceStats
+}
+
+// LiveResourceStats contains a single client resource sample.
+type LiveResourceStats struct {
+	CPUPercent  float64
+	MemoryUsage uint64
+	MemoryRSS   uint64
+	Timestamp   time.Time
+}
+
+// AllocationStats contains the aggregate client resource sample.
+type AllocationStats struct {
+	LiveResourceStats
+}
+
+// AllocationLink is a scoped link to a related allocation or client.
+type AllocationLink struct {
+	ID  string
+	URL string
+}
+
+// AllocationRescheduleEvent records a previous allocation reschedule attempt.
+type AllocationRescheduleEvent struct {
+	Time               time.Time
+	PreviousAllocation AllocationLink
+	PreviousNode       AllocationLink
+}
+
+// AllocationHistory contains scheduler relationships for an allocation.
+type AllocationHistory struct {
+	Previous             AllocationLink
+	Next                 AllocationLink
+	Reschedules          []AllocationRescheduleEvent
+	PreemptedAllocations []AllocationLink
+	PreemptedBy          AllocationLink
 }
 
 // TaskEvent represents an event in a task's lifecycle

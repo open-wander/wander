@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	pathpkg "path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -588,7 +589,8 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Fetch allocation detail data from API
-	allocDetail, fetchErr := h.getAllocationDetail(r, actualAllocID, token)
+	loadTaskRuntime := tabName == "" || tabName == "tasks"
+	allocDetail, fetchErr := h.getAllocationDetail(r, actualAllocID, token, loadTaskRuntime)
 	if fetchErr != nil {
 		h.renderAllocationFetchError(w, r, actualAllocID, fetchErr)
 		return
@@ -648,7 +650,7 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 
 // getAllocationDetail fetches allocation details from the Nomad API.
 // Returns allocation detail structure for template rendering.
-func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token string) (allocationspartials.AllocationDetail, error) {
+func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token string, loadTaskRuntime bool) (allocationspartials.AllocationDetail, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		return allocationspartials.AllocationDetail{}, fmt.Errorf("Wander API client is unavailable")
@@ -670,39 +672,6 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 	}
 
 	h.handler.logger.Debug("fetched allocation from API", "allocID", allocID, "status", alloc.ClientStatus)
-
-	servicesReady := true
-	servicesError := ""
-	serviceModels := make([]allocationspartials.AllocationService, 0)
-	registrations, _, servicesErr := client.Allocations().Services(allocID, queryOpts)
-	if servicesErr != nil {
-		servicesReady = false
-		servicesError = "Live service registrations are unavailable."
-		h.handler.logger.Warn("failed to fetch allocation services", "allocID", allocID, "error", servicesErr)
-	} else {
-		for _, registration := range registrations {
-			if registration == nil {
-				continue
-			}
-			serviceModels = append(serviceModels, allocationspartials.AllocationService{
-				Name:      registration.ServiceName,
-				Address:   registration.Address,
-				Port:      registration.Port,
-				Tags:      strings.Join(registration.Tags, ", "),
-				DetailURL: scopedUIURL("/ui/services/"+url.PathEscape(registration.ServiceName), queryOpts.Namespace, queryOpts.Region),
-			})
-		}
-		sort.Slice(serviceModels, func(i, j int) bool {
-			left, right := serviceModels[i], serviceModels[j]
-			if left.Name != right.Name {
-				return left.Name < right.Name
-			}
-			if left.Address != right.Address {
-				return left.Address < right.Address
-			}
-			return left.Port < right.Port
-		})
-	}
 
 	ports := make([]allocationspartials.AllocationPort, 0)
 	if alloc.AllocatedResources != nil {
@@ -854,23 +823,169 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 		return allocEvents[i].Time.Before(allocEvents[j].Time)
 	})
 
-	return allocationspartials.AllocationDetail{
-		ID:            alloc.ID,
-		JobID:         alloc.JobID,
-		TaskGroup:     alloc.TaskGroup,
-		NodeID:        alloc.NodeID,
-		NodeName:      alloc.NodeName,
-		Status:        alloc.ClientStatus,
-		Created:       created,
-		Modified:      modified,
-		Tasks:         tasks,
-		Ports:         ports,
-		Services:      serviceModels,
-		ServicesReady: servicesReady,
-		ServicesError: servicesError,
-		Resources:     resources,
-		Events:        allocEvents,
-	}, nil
+	detail := allocationspartials.AllocationDetail{
+		ID:        alloc.ID,
+		JobID:     alloc.JobID,
+		TaskGroup: alloc.TaskGroup,
+		NodeID:    alloc.NodeID,
+		NodeName:  alloc.NodeName,
+		Status:    alloc.ClientStatus,
+		Created:   created,
+		Modified:  modified,
+		Tasks:     tasks,
+		Ports:     ports,
+		History:   allocationHistory(alloc, queryOpts.Namespace, queryOpts.Region),
+		Resources: resources,
+		Events:    allocEvents,
+	}
+	if loadTaskRuntime {
+		h.enrichAllocationTaskRuntime(client, alloc, queryOpts, &detail)
+	}
+	return detail, nil
+}
+
+func (h *AllocationsHandler) enrichAllocationTaskRuntime(client *api.Client, alloc *api.Allocation, queryOpts *api.QueryOptions, detail *allocationspartials.AllocationDetail) {
+	detail.ServicesReady = true
+	registrations, _, err := client.Allocations().Services(alloc.ID, queryOpts)
+	if err != nil {
+		h.markAllocationRuntimeUnavailable(&detail.ServicesReady, &detail.ServicesError, "Live service registrations are unavailable.", "services", alloc.ID, err)
+	} else {
+		detail.Services = projectAllocationServices(registrations, queryOpts.Namespace, queryOpts.Region)
+	}
+
+	detail.StatsReady = true
+	stats, err := client.Allocations().Stats(alloc, queryOpts)
+	if err != nil {
+		h.markAllocationRuntimeUnavailable(&detail.StatsReady, &detail.StatsError, "Live resource statistics are unavailable.", "statistics", alloc.ID, err)
+		return
+	}
+	if stats == nil {
+		return
+	}
+	detail.Stats = projectLiveAllocationStats(stats.ResourceUsage, stats.Timestamp)
+	taskIndexes := make(map[string]int, len(detail.Tasks))
+	for index := range detail.Tasks {
+		taskIndexes[detail.Tasks[index].Name] = index
+	}
+	for taskName, taskStats := range stats.Tasks {
+		index, ok := taskIndexes[taskName]
+		if !ok || taskStats == nil {
+			continue
+		}
+		timestamp := taskStats.Timestamp
+		if timestamp == 0 {
+			timestamp = stats.Timestamp
+		}
+		detail.Tasks[index].Resources.LiveStats = projectLiveResourceStats(taskStats.ResourceUsage, timestamp)
+	}
+}
+
+func (h *AllocationsHandler) markAllocationRuntimeUnavailable(ready *bool, message *string, userMessage, resource, allocID string, err error) {
+	*ready = false
+	*message = userMessage
+	h.handler.logger.Warn("failed to fetch allocation "+resource, "allocID", allocID, "error", err)
+}
+
+func projectAllocationServices(registrations []*api.ServiceRegistration, namespace, region string) []allocationspartials.AllocationService {
+	services := make([]allocationspartials.AllocationService, 0, len(registrations))
+	for _, registration := range registrations {
+		if registration == nil {
+			continue
+		}
+		services = append(services, allocationspartials.AllocationService{
+			Name:      registration.ServiceName,
+			Address:   registration.Address,
+			Port:      registration.Port,
+			Tags:      strings.Join(registration.Tags, ", "),
+			DetailURL: scopedUIURL("/ui/services/"+url.PathEscape(registration.ServiceName), namespace, region),
+		})
+	}
+	sort.Slice(services, func(i, j int) bool {
+		left, right := services[i], services[j]
+		if left.Name != right.Name {
+			return left.Name < right.Name
+		}
+		if left.Address != right.Address {
+			return left.Address < right.Address
+		}
+		return left.Port < right.Port
+	})
+	return services
+}
+
+func projectLiveAllocationStats(usage *api.ResourceUsage, timestamp int64) *allocationspartials.AllocationStats {
+	live := projectLiveResourceStats(usage, timestamp)
+	if live == nil {
+		return nil
+	}
+	return &allocationspartials.AllocationStats{LiveResourceStats: *live}
+}
+
+func projectLiveResourceStats(usage *api.ResourceUsage, timestamp int64) *allocationspartials.LiveResourceStats {
+	if usage == nil {
+		return nil
+	}
+	result := &allocationspartials.LiveResourceStats{}
+	if usage.CpuStats != nil {
+		result.CPUPercent = usage.CpuStats.Percent
+	}
+	if usage.MemoryStats != nil {
+		result.MemoryUsage = usage.MemoryStats.Usage
+		result.MemoryRSS = usage.MemoryStats.RSS
+	}
+	if timestamp > 0 {
+		result.Timestamp = time.Unix(0, timestamp)
+	}
+	return result
+}
+
+func allocationHistory(alloc *api.Allocation, namespace, region string) allocationspartials.AllocationHistory {
+	history := allocationspartials.AllocationHistory{
+		Previous:    allocationHistoryLink("allocations", alloc.PreviousAllocation, namespace, region),
+		Next:        allocationHistoryLink("allocations", alloc.NextAllocation, namespace, region),
+		PreemptedBy: allocationHistoryLink("allocations", alloc.PreemptedByAllocation, namespace, region),
+	}
+	for _, allocID := range alloc.PreemptedAllocations {
+		if allocID != "" {
+			history.PreemptedAllocations = append(history.PreemptedAllocations, allocationHistoryLink("allocations", allocID, namespace, region))
+		}
+	}
+	slices.SortFunc(history.PreemptedAllocations, func(left, right allocationspartials.AllocationLink) int {
+		return strings.Compare(left.ID, right.ID)
+	})
+	if alloc.RescheduleTracker != nil {
+		for _, event := range alloc.RescheduleTracker.Events {
+			if event == nil {
+				continue
+			}
+			reschedule := allocationspartials.AllocationRescheduleEvent{
+				PreviousAllocation: allocationHistoryLink("allocations", event.PrevAllocID, namespace, region),
+				PreviousNode:       allocationHistoryLink("clients", event.PrevNodeID, namespace, region),
+			}
+			if event.RescheduleTime > 0 {
+				reschedule.Time = time.Unix(0, event.RescheduleTime)
+			}
+			history.Reschedules = append(history.Reschedules, reschedule)
+		}
+		sort.Slice(history.Reschedules, func(i, j int) bool {
+			left, right := history.Reschedules[i], history.Reschedules[j]
+			if !left.Time.Equal(right.Time) {
+				return left.Time.After(right.Time)
+			}
+			return left.PreviousAllocation.ID < right.PreviousAllocation.ID
+		})
+	}
+	return history
+}
+
+func allocationHistoryLink(resource, id, namespace, region string) allocationspartials.AllocationLink {
+	if id == "" {
+		return allocationspartials.AllocationLink{}
+	}
+	return allocationspartials.AllocationLink{
+		ID:  id,
+		URL: scopedUIURL("/ui/"+resource+"/"+url.PathEscape(id), namespace, region),
+	}
 }
 
 func allocationTaskLifecycles(alloc *api.Allocation) map[string]api.TaskLifecycle {
@@ -912,7 +1027,7 @@ func (h *AllocationsHandler) renderAllocationFetchError(w http.ResponseWriter, r
 func (h *AllocationsHandler) renderTabContent(w http.ResponseWriter, r *http.Request, allocID, tabName string) {
 	// Get ACL token and allocation detail data
 	token := GetTokenFromRequest(r)
-	allocDetail, fetchErr := h.getAllocationDetail(r, allocID, token)
+	allocDetail, fetchErr := h.getAllocationDetail(r, allocID, token, tabName == "tasks")
 	if fetchErr != nil {
 		h.renderAllocationFetchError(w, r, allocID, fetchErr)
 		return
