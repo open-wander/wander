@@ -3,33 +3,44 @@ package clientspartials
 import (
 	"fmt"
 	"net/url"
+	"strings"
+
 	"github.com/open-wander/wander/ui/templates/components"
 )
 
 // ClientSummary represents a summary view of a client for list display.
 type ClientSummary struct {
-	ID          string
-	Name        string
-	Address     string
-	Status      string
-	Datacenter  string
-	NodeClass   string
-	Allocations int
-	CPUUsed     int
-	CPUTotal    int
-	MemUsed     int64
-	MemTotal    int64
-	DiskUsed    int64
-	DiskTotal   int64
-	ResourcesAvailable  bool
+	ID                   string
+	Name                 string
+	Address              string
+	Status               string
+	Datacenter           string
+	NodePool             string
+	NodeClass            string
+	Version              string
+	Volumes              []string
+	DetailURL            string
+	Allocations          int
+	CPUUsed              int
+	CPUTotal             int
+	MemUsed              int64
+	MemTotal             int64
+	DiskUsed             int64
+	DiskTotal            int64
+	ResourcesAvailable   bool
 	AllocationsAvailable bool
 }
 
 // ClientFilters holds the current filter values for the clients list.
 type ClientFilters struct {
+	Namespace  string
+	Region     string
 	Status     string
 	Datacenter string
+	NodePool   string
 	NodeClass  string
+	Version    string
+	Volume     string
 	Search     string
 }
 
@@ -37,10 +48,29 @@ type ClientFilters struct {
 type ClientFilterOptions struct {
 	Datacenters []string
 	NodeClasses []string
+	NodePools   []string
+	Versions    []string
+	Volumes     []string
+}
+
+type PaginationMeta struct {
+	Page       int
+	PerPage    int
+	Total      int
+	TotalPages int
+}
+
+type ListProps struct {
+	Clients       []ClientSummary
+	FilterOptions ClientFilterOptions
+	Filters       ClientFilters
+	Pagination    PaginationMeta
+	SortColumn    string
+	SortDir       string
 }
 
 // ListContent renders the clients table content for HTMX partial updates.
-templ ListContent(clientsList []ClientSummary, filters ClientFilters, options ClientFilterOptions) {
+templ ListContent(props ListProps) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="sm:flex sm:items-center sm:justify-between mb-6">
 			<div>
@@ -50,125 +80,73 @@ templ ListContent(clientsList []ClientSummary, filters ClientFilters, options Cl
 				</p>
 			</div>
 		</div>
-		<!-- Search and Filters -->
-		<div class="mb-6 space-y-4">
-			<!-- Search Bar -->
-			<div id="clients-search-container">
-				@components.SearchBar(components.SearchBarProps{
-					Name:        "search",
-					Placeholder: "Search clients by name, address, or datacenter...",
-					Value:       filters.Search,
-					SearchURL:   buildClientsFilterURL(filters, ""),
-					ResultsID:   "clients-table-container",
-					Debounce:    300,
-					MinChars:    0,
-				})
+		<form class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/clients" hx-get="/ui/clients" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+			if props.Filters.Namespace != "" {
+				<input type="hidden" name="namespace" value={ props.Filters.Namespace }/>
+			}
+			if props.Filters.Region != "" {
+				<input type="hidden" name="region" value={ props.Filters.Region }/>
+			}
+			<input type="hidden" name="sort" value={ props.SortColumn }/>
+			<input type="hidden" name="dir" value={ props.SortDir }/>
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300"><span>Search</span><input type="search" name="search" value={ props.Filters.Search } placeholder="Name, address, ID, pool, version, or volume" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"/></label>
+				@clientFilterSelect("status", "State", "All states", props.Filters.Status, []string{"initializing", "ready", "down", "disconnected", "ineligible", "draining"})
+				@clientFilterSelect("nodepool", "Node pool", "All node pools", props.Filters.NodePool, props.FilterOptions.NodePools)
+				@clientFilterSelect("nodeclass", "Class", "All classes", props.Filters.NodeClass, props.FilterOptions.NodeClasses)
+				@clientFilterSelect("datacenter", "Datacenter", "All datacenters", props.Filters.Datacenter, props.FilterOptions.Datacenters)
+				@clientFilterSelect("version", "Version", "All versions", props.Filters.Version, props.FilterOptions.Versions)
+				@clientFilterSelect("volume", "Volume", "All volumes", props.Filters.Volume, props.FilterOptions.Volumes)
+				@clientPageSizeSelect(props.Pagination.PerPage)
 			</div>
-			<!-- Filter Dropdowns -->
-			<div class="flex flex-wrap items-center gap-3">
-				<!-- Status Filter -->
-				<div class="w-40">
-					@components.Select(components.SelectProps{
-						Name:        "status",
-						ID:          "filter-status",
-						Placeholder: "All Statuses",
-						Selected:    filters.Status,
-						Options: []components.SelectOption{
-							{Value: "initializing", Label: "Initializing"},
-							{Value: "ready", Label: "Ready"},
-							{Value: "down", Label: "Down"},
-							{Value: "disconnected", Label: "Disconnected"},
-							{Value: "ineligible", Label: "Ineligible"},
-							{Value: "draining", Label: "Draining"},
-						},
-						Size:      "sm",
-						HxGet:     buildClientsFilterURL(filters, "status"),
-						HxTarget:  "#clients-table-container",
-						HxTrigger: "change",
-					})
-				</div>
-				<!-- Datacenter Filter -->
-				<div class="w-40">
-					@components.Select(components.SelectProps{
-						Name:        "datacenter",
-						ID:          "filter-datacenter",
-						Placeholder: "All DCs",
-						Selected:    filters.Datacenter,
-						Options:     buildDatacenterOptions(options.Datacenters),
-						Size:        "sm",
-						HxGet:       buildClientsFilterURL(filters, "datacenter"),
-						HxTarget:    "#clients-table-container",
-						HxTrigger:   "change",
-					})
-				</div>
-				<!-- Node Class Filter -->
-				<div class="w-40">
-					@components.Select(components.SelectProps{
-						Name:        "nodeclass",
-						ID:          "filter-nodeclass",
-						Placeholder: "All Classes",
-						Selected:    filters.NodeClass,
-						Options:     buildNodeClassOptions(options.NodeClasses),
-						Size:        "sm",
-						HxGet:       buildClientsFilterURL(filters, "nodeclass"),
-						HxTarget:    "#clients-table-container",
-						HxTrigger:   "change",
-					})
-				</div>
-				<!-- Clear Filters Button -->
-				if hasActiveFilters(filters) {
-					<button
-						type="button"
-						class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-md transition-colors"
-						hx-get="/ui/clients"
-						hx-target="#clients-table-container"
-						hx-push-url="true"
-					>
-						<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-						</svg>
-						Clear filters
-					</button>
+			<div class="mt-4 flex justify-end gap-3">
+				if hasActiveFilters(props.Filters) {
+					<a href={ templ.SafeURL(clientClearFiltersURL(props)) } hx-get={ clientClearFiltersURL(props) } hx-target="#main-content" hx-push-url="true" class="px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400">Clear filters</a>
 				}
-				<!-- Active filter count -->
-				if countActiveFilters(filters) > 0 {
-					<span class="text-sm text-neutral-500 dark:text-neutral-400">
-						{ fmt.Sprintf("%d filter(s) active", countActiveFilters(filters)) }
-					</span>
-				}
+				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500">Apply filters</button>
 			</div>
-		</div>
+		</form>
 		<!-- Clients Table Container -->
 		<div id="clients-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
-			@components.Table(components.TableProps{
-				Columns: []components.Column{
-					{Key: "name", Label: "Name", Sortable: true, Align: "left"},
-					{Key: "address", Label: "Address", Sortable: true, Align: "left"},
-					{Key: "status", Label: "Status", Sortable: true, Align: "center", Width: "w-28"},
-					{Key: "datacenter", Label: "DC", Sortable: true, Align: "left", Width: "w-24"},
-					{Key: "nodeclass", Label: "Node Class", Sortable: true, Align: "left", Width: "w-28"},
-					{Key: "allocations", Label: "Running Allocs", Sortable: true, Align: "center", Width: "w-20"},
-					{Key: "resources", Label: "Allocated / Capacity", Sortable: false, Align: "left"},
-				},
-				SortColumn: "name",
-				SortDir:    "asc",
-				Striped:    true,
-				Hover:      true,
-				SortURL:    "/ui/clients",
-			}) {
-				@components.TableBody() {
-					if len(clientsList) == 0 {
-						@components.TableEmptyState("No clients found", "There are no client nodes to display")
-					} else {
-						for _, client := range clientsList {
-							@clientRow(client)
-						}
-					}
+			@ClientsTable(props)
+		</div>
+	</div>
+}
+
+templ ClientsTable(props ListProps) {
+	@components.Table(components.TableProps{
+		Columns: []components.Column{
+			{Key: "name", Label: "Name", Sortable: true, Align: "left"},
+			{Key: "address", Label: "Address", Sortable: true, Align: "left"},
+			{Key: "status", Label: "State", Sortable: true, Align: "center", Width: "w-28"},
+			{Key: "nodepool", Label: "Node Pool", Sortable: true, Align: "left"},
+			{Key: "nodeclass", Label: "Class", Sortable: true, Align: "left"},
+			{Key: "datacenter", Label: "DC", Sortable: true, Align: "left", Width: "w-24"},
+			{Key: "version", Label: "Version", Sortable: true, Align: "left"},
+			{Key: "volumes", Label: "Volumes", Sortable: true, Align: "left"},
+			{Key: "allocations", Label: "Running Allocs", Sortable: true, Align: "center", Width: "w-20"},
+			{Key: "resources", Label: "Allocated / Capacity", Sortable: false, Align: "left"},
+		},
+		SortColumn: props.SortColumn,
+		SortDir:    props.SortDir,
+		Striped:    true,
+		Compact:    true,
+		Hover:      true,
+		SortURL:    buildClientsURL(props.Filters, "", "", props.Pagination.PerPage),
+		HxTarget:   "#main-content",
+		Class:      "min-w-[96rem]",
+	}) {
+		@components.TableBody() {
+			if len(props.Clients) == 0 {
+				@components.TableEmptyState("No clients found", "There are no client nodes to display")
+			} else {
+				for _, client := range props.Clients {
+					@clientRow(client)
 				}
 			}
-		</div>
-		@components.TableLoadingIndicator()
-	</div>
+		}
+	}
+	@components.Pagination(components.PaginationProps{Page: props.Pagination.Page, PerPage: props.Pagination.PerPage, Total: props.Pagination.Total, BaseURL: buildClientsURL(props.Filters, props.SortColumn, props.SortDir, 0), HxTarget: "#clients-table-container", HxSwap: "innerHTML"})
 }
 
 // clientRow renders a single client row in the table
@@ -176,14 +154,14 @@ templ clientRow(client ClientSummary) {
 	<tr
 		data-client-id={ client.ID }
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-		hx-get={ fmt.Sprintf("/ui/clients/%s", client.ID) }
+		hx-get={ client.DetailURL }
 		hx-target="#main-content"
 		hx-swap="innerHTML"
 		hx-push-url="true"
 	>
 		@components.TableCell("left", "") {
 			<a
-				href={ templ.URL("/ui/clients/" + client.ID) }
+				href={ templ.SafeURL(client.DetailURL) }
 				class="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
 				@click.stop
 			>
@@ -207,22 +185,15 @@ templ clientRow(client ClientSummary) {
 				{ client.Status }
 			}
 		}
+		@textClientCell(client.NodePool)
+		@textClientCell(client.NodeClass)
 		@components.TableCell("left", "w-24") {
 			<span class="text-neutral-700 dark:text-neutral-300">
 				{ client.Datacenter }
 			</span>
 		}
-		@components.TableCell("left", "w-28") {
-			if client.NodeClass != "" {
-				<span class="text-neutral-700 dark:text-neutral-300 text-sm">
-					{ client.NodeClass }
-				</span>
-			} else {
-				<span class="text-neutral-400 dark:text-neutral-500 text-sm italic">
-					none
-				</span>
-			}
-		}
+		@textClientCell(client.Version)
+		@textClientCell(formatClientVolumes(client.Volumes))
 		@components.TableCell("center", "w-20") {
 			if client.AllocationsAvailable {
 				<span class="text-neutral-700 dark:text-neutral-300 font-medium">
@@ -236,56 +207,66 @@ templ clientRow(client ClientSummary) {
 			if !client.ResourcesAvailable {
 				<span class="text-sm text-neutral-500 dark:text-neutral-400">Unavailable</span>
 			} else {
-			<div class="space-y-2 min-w-[200px]" aria-label="Allocated resources and schedulable capacity">
-				<!-- CPU Resource Bar -->
-				<div>
-					<div class="flex items-center justify-between text-xs mb-1">
-						<span class="text-neutral-600 dark:text-neutral-400">CPU allocated</span>
-						<span class="text-neutral-700 dark:text-neutral-300 font-medium">
-							{ fmt.Sprintf("%d / %d MHz", client.CPUUsed, client.CPUTotal) }
-						</span>
+				<div class="space-y-2 min-w-[200px]" aria-label="Allocated resources and schedulable capacity">
+					<!-- CPU Resource Bar -->
+					<div>
+						<div class="flex items-center justify-between text-xs mb-1">
+							<span class="text-neutral-600 dark:text-neutral-400">CPU allocated</span>
+							<span class="text-neutral-700 dark:text-neutral-300 font-medium">
+								{ fmt.Sprintf("%d / %d MHz", client.CPUUsed, client.CPUTotal) }
+							</span>
+						</div>
+						@components.ProgressBar(components.ProgressProps{
+							Value: calculatePercentage(client.CPUUsed, client.CPUTotal),
+							Max:   100,
+							Size:  "sm",
+							Color: resourceColor(calculatePercentage(client.CPUUsed, client.CPUTotal)),
+						})
 					</div>
-					@components.ProgressBar(components.ProgressProps{
-						Value: calculatePercentage(client.CPUUsed, client.CPUTotal),
-						Max:   100,
-						Size:  "sm",
-						Color: resourceColor(calculatePercentage(client.CPUUsed, client.CPUTotal)),
-					})
-				</div>
-				<!-- Memory Resource Bar -->
-				<div>
-					<div class="flex items-center justify-between text-xs mb-1">
-						<span class="text-neutral-600 dark:text-neutral-400">Memory allocated</span>
-						<span class="text-neutral-700 dark:text-neutral-300 font-medium">
-							{ formatMemory(client.MemUsed) } / { formatMemory(client.MemTotal) }
-						</span>
+					<!-- Memory Resource Bar -->
+					<div>
+						<div class="flex items-center justify-between text-xs mb-1">
+							<span class="text-neutral-600 dark:text-neutral-400">Memory allocated</span>
+							<span class="text-neutral-700 dark:text-neutral-300 font-medium">
+								{ formatMemory(client.MemUsed) } / { formatMemory(client.MemTotal) }
+							</span>
+						</div>
+						@components.ProgressBar(components.ProgressProps{
+							Value: calculateMemoryPercentage(client.MemUsed, client.MemTotal),
+							Max:   100,
+							Size:  "sm",
+							Color: resourceColor(calculateMemoryPercentage(client.MemUsed, client.MemTotal)),
+						})
 					</div>
-					@components.ProgressBar(components.ProgressProps{
-						Value: calculateMemoryPercentage(client.MemUsed, client.MemTotal),
-						Max:   100,
-						Size:  "sm",
-						Color: resourceColor(calculateMemoryPercentage(client.MemUsed, client.MemTotal)),
-					})
-				</div>
-				<!-- Disk Resource Bar -->
-				<div>
-					<div class="flex items-center justify-between text-xs mb-1">
-						<span class="text-neutral-600 dark:text-neutral-400">Disk allocated</span>
-						<span class="text-neutral-700 dark:text-neutral-300 font-medium">
-							{ formatMemory(client.DiskUsed) } / { formatMemory(client.DiskTotal) }
-						</span>
+					<!-- Disk Resource Bar -->
+					<div>
+						<div class="flex items-center justify-between text-xs mb-1">
+							<span class="text-neutral-600 dark:text-neutral-400">Disk allocated</span>
+							<span class="text-neutral-700 dark:text-neutral-300 font-medium">
+								{ formatMemory(client.DiskUsed) } / { formatMemory(client.DiskTotal) }
+							</span>
+						</div>
+						@components.ProgressBar(components.ProgressProps{
+							Value: calculateMemoryPercentage(client.DiskUsed, client.DiskTotal),
+							Max:   100,
+							Size:  "sm",
+							Color: resourceColor(calculateMemoryPercentage(client.DiskUsed, client.DiskTotal)),
+						})
 					</div>
-					@components.ProgressBar(components.ProgressProps{
-						Value: calculateMemoryPercentage(client.DiskUsed, client.DiskTotal),
-						Max:   100,
-						Size:  "sm",
-						Color: resourceColor(calculateMemoryPercentage(client.DiskUsed, client.DiskTotal)),
-					})
 				</div>
-			</div>
 			}
 		}
 	</tr>
+}
+
+templ textClientCell(value string) {
+	@components.TableCell("left", "") {
+		if value == "" {
+			<span class="text-neutral-400 dark:text-neutral-500">—</span>
+		} else {
+			<span class="text-sm text-neutral-700 dark:text-neutral-300">{ value }</span>
+		}
+	}
 }
 
 // statusVariant maps client status to badge variant
@@ -368,71 +349,66 @@ func truncateID(id string) string {
 	return id[:8]
 }
 
-// buildClientsFilterURL constructs the URL for filter requests.
-// The excludeParam allows excluding a specific parameter so the select can add its new value.
-func buildClientsFilterURL(filters ClientFilters, excludeParam string) string {
+func buildClientsURL(filters ClientFilters, sortColumn, sortDir string, perPage int) string {
 	params := url.Values{}
-
-	if filters.Status != "" && excludeParam != "status" {
-		params.Add("status", filters.Status)
+	setClientParam(params, "namespace", filters.Namespace)
+	setClientParam(params, "region", filters.Region)
+	setClientParam(params, "status", filters.Status)
+	setClientParam(params, "datacenter", filters.Datacenter)
+	setClientParam(params, "nodepool", filters.NodePool)
+	setClientParam(params, "nodeclass", filters.NodeClass)
+	setClientParam(params, "version", filters.Version)
+	setClientParam(params, "volume", filters.Volume)
+	setClientParam(params, "search", filters.Search)
+	setClientParam(params, "sort", sortColumn)
+	setClientParam(params, "dir", sortDir)
+	if perPage > 0 {
+		params.Set("per_page", fmt.Sprintf("%d", perPage))
 	}
-	if filters.Datacenter != "" && excludeParam != "datacenter" {
-		params.Add("datacenter", filters.Datacenter)
+	if encoded := params.Encode(); encoded != "" {
+		return "/ui/clients?" + encoded
 	}
-	if filters.NodeClass != "" && excludeParam != "nodeclass" {
-		params.Add("nodeclass", filters.NodeClass)
-	}
-	if filters.Search != "" && excludeParam != "search" {
-		params.Add("search", filters.Search)
-	}
-
-	baseURL := "/ui/clients"
-	if len(params) > 0 {
-		return baseURL + "?" + params.Encode()
-	}
-	return baseURL
+	return "/ui/clients"
 }
 
-// buildDatacenterOptions converts a list of datacenter names to SelectOptions.
-func buildDatacenterOptions(datacenters []string) []components.SelectOption {
-	options := make([]components.SelectOption, len(datacenters))
-	for i, dc := range datacenters {
-		options[i] = components.SelectOption{
-			Value: dc,
-			Label: dc,
-		}
+func setClientParam(params url.Values, name, value string) {
+	if value != "" {
+		params.Set(name, value)
 	}
-	return options
 }
 
-// buildNodeClassOptions converts a list of node class names to SelectOptions.
-func buildNodeClassOptions(nodeClasses []string) []components.SelectOption {
-	options := make([]components.SelectOption, len(nodeClasses))
-	for i, nc := range nodeClasses {
-		options[i] = components.SelectOption{
-			Value: nc,
-			Label: nc,
-		}
-	}
-	return options
+func clientClearFiltersURL(props ListProps) string {
+	return buildClientsURL(ClientFilters{Namespace: props.Filters.Namespace, Region: props.Filters.Region}, "", "", props.Pagination.PerPage)
 }
 
 // hasActiveFilters returns true if any filter is active.
 func hasActiveFilters(filters ClientFilters) bool {
-	return filters.Status != "" || filters.Datacenter != "" || filters.NodeClass != ""
+	return filters.Status != "" || filters.Datacenter != "" || filters.NodePool != "" || filters.NodeClass != "" || filters.Version != "" || filters.Volume != "" || filters.Search != ""
 }
 
-// countActiveFilters returns the number of active filters.
-func countActiveFilters(filters ClientFilters) int {
-	count := 0
-	if filters.Status != "" {
-		count++
-	}
-	if filters.Datacenter != "" {
-		count++
-	}
-	if filters.NodeClass != "" {
-		count++
-	}
-	return count
+func formatClientVolumes(volumes []string) string {
+	return strings.Join(volumes, ", ")
+}
+
+templ clientFilterSelect(name, label, placeholder, selected string, options []string) {
+	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+		<span>{ label }</span>
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+			<option value="">{ placeholder }</option>
+			for _, option := range options {
+				<option value={ option } selected?={ selected == option }>{ option }</option>
+			}
+		</select>
+	</label>
+}
+
+templ clientPageSizeSelect(selected int) {
+	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+		<span>Rows per page</span>
+		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+			for _, option := range []int{10, 25, 50, 100} {
+				<option value={ fmt.Sprintf("%d", option) } selected?={ selected == option }>{ fmt.Sprintf("%d", option) }</option>
+			}
+		</select>
+	</label>
 }

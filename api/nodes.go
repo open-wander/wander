@@ -917,6 +917,7 @@ type NodeListStub struct {
 	NodeClass             string
 	NodePool              string
 	Version               string
+	HostVolumes           map[string]*HostVolumeInfo `json:",omitempty"`
 	Drain                 bool
 	SchedulingEligibility string
 	Status                string

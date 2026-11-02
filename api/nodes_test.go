@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"testing"
@@ -14,6 +15,17 @@ import (
 	"github.com/shoenig/test/must"
 	"github.com/shoenig/test/wait"
 )
+
+func TestNodeListStubDecodesHostVolumes(t *testing.T) {
+	testutil.Parallel(t)
+
+	var node NodeListStub
+	err := json.Unmarshal([]byte(`{"ID":"node-1","HostVolumes":{"cache":{"Path":"/srv/cache","ReadOnly":true}}}`), &node)
+	must.NoError(t, err)
+	must.NotNil(t, node.HostVolumes)
+	must.Eq(t, "/srv/cache", node.HostVolumes["cache"].Path)
+	must.True(t, node.HostVolumes["cache"].ReadOnly)
+}
 
 func queryNodeList(t *testing.T, nodes *Nodes) ([]*NodeListStub, *QueryMeta) {
 	t.Helper()

@@ -6,6 +6,6 @@ import (
 )
 
 // List renders the full clients list page with layout.
-templ List(layoutProps layouts.PageLayoutProps, clientsList []clientspartials.ClientSummary, filters clientspartials.ClientFilters, options clientspartials.ClientFilterOptions) {
-	@layouts.PageLayout(layoutProps, clientspartials.ListContent(clientsList, filters, options))
+templ List(layoutProps layouts.PageLayoutProps, props clientspartials.ListProps) {
+	@layouts.PageLayout(layoutProps, clientspartials.ListContent(props))
 }

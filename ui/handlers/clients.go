@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -110,25 +112,67 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse filter query parameters
+	query := r.URL.Query()
+	view := parseListViewOptions(query, "name", "asc")
+	if !validClientSortColumn(view.sort) {
+		view.sort = "name"
+	}
+	if view.dir != "asc" && view.dir != "desc" {
+		view.dir = "asc"
+	}
+
 	filters := clientspartials.ClientFilters{
-		Status:     r.URL.Query().Get("status"),
-		Datacenter: r.URL.Query().Get("datacenter"),
-		NodeClass:  r.URL.Query().Get("nodeclass"),
-		Search:     r.URL.Query().Get("search"),
+		Namespace:  GetNamespaceFromRequest(r),
+		Region:     GetRegionFromRequest(r),
+		Status:     query.Get("status"),
+		Datacenter: query.Get("datacenter"),
+		NodePool:   query.Get("nodepool"),
+		NodeClass:  query.Get("nodeclass"),
+		Version:    query.Get("version"),
+		Volume:     query.Get("volume"),
+		Search:     view.search,
 	}
 
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
 	// Get client data from Nomad API
-	allClients := h.getClientsList(r, token)
+	allClients, err := h.getClientsList(r, token)
+	if err != nil {
+		h.renderClientListError(w, r, err)
+		return
+	}
 
 	// Extract filter options from all clients (before filtering)
 	filterOptions := h.extractFilterOptions(allClients)
 
 	// Apply filters
 	filteredClients := h.applyFilters(allClients, filters)
+	h.sortClients(filteredClients, view.sort, view.dir)
+
+	total := len(filteredClients)
+	totalPages := int(math.Ceil(float64(total) / float64(view.perPage)))
+	if totalPages > 0 && view.page > totalPages {
+		view.page = totalPages
+	}
+	paginatedClients := paginateClients(filteredClients, view.page, view.perPage)
+	props := clientspartials.ListProps{
+		Clients:       paginatedClients,
+		FilterOptions: filterOptions,
+		Filters:       filters,
+		Pagination: clientspartials.PaginationMeta{
+			Page: view.page, PerPage: view.perPage, Total: total, TotalPages: totalPages,
+		},
+		SortColumn: view.sort,
+		SortDir:    view.dir,
+	}
+	if IsHTMXFromRequest(r) && r.Header.Get("HX-Target") == "clients-table-container" {
+		if err := RenderPartial(w, r, clientspartials.ClientsTable(props)); err != nil {
+			h.handler.logger.Error("failed to render clients table", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(r,
@@ -142,9 +186,9 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the clients list page
-	err := Render(w, r,
-		clients.List(layoutProps, filteredClients, filters, filterOptions),   // Full page with layout
-		clientspartials.ListContent(filteredClients, filters, filterOptions), // Partial content for HTMX requests
+	err = Render(w, r,
+		clients.List(layoutProps, props),
+		clientspartials.ListContent(props),
 	)
 
 	if err != nil {
@@ -154,10 +198,25 @@ func (h *ClientsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func paginateClients(clientsList []clientspartials.ClientSummary, page, perPage int) []clientspartials.ClientSummary {
+	start := (page - 1) * perPage
+	if start > len(clientsList) {
+		start = len(clientsList)
+	}
+	end := start + perPage
+	if end > len(clientsList) {
+		end = len(clientsList)
+	}
+	return clientsList[start:end]
+}
+
 // extractFilterOptions extracts unique datacenters and node classes from the client list.
 func (h *ClientsHandler) extractFilterOptions(clientsList []clientspartials.ClientSummary) clientspartials.ClientFilterOptions {
 	dcSet := make(map[string]struct{})
 	ncSet := make(map[string]struct{})
+	npSet := make(map[string]struct{})
+	versionSet := make(map[string]struct{})
+	volumeSet := make(map[string]struct{})
 
 	for _, client := range clientsList {
 		if client.Datacenter != "" {
@@ -165,6 +224,15 @@ func (h *ClientsHandler) extractFilterOptions(clientsList []clientspartials.Clie
 		}
 		if client.NodeClass != "" {
 			ncSet[client.NodeClass] = struct{}{}
+		}
+		if client.NodePool != "" {
+			npSet[client.NodePool] = struct{}{}
+		}
+		if client.Version != "" {
+			versionSet[client.Version] = struct{}{}
+		}
+		for _, volume := range client.Volumes {
+			volumeSet[volume] = struct{}{}
 		}
 	}
 
@@ -180,10 +248,16 @@ func (h *ClientsHandler) extractFilterOptions(clientsList []clientspartials.Clie
 		nodeClasses = append(nodeClasses, nc)
 	}
 	sort.Strings(nodeClasses)
+	nodePools := sortedSetValues(npSet)
+	versions := sortedSetValues(versionSet)
+	volumes := sortedSetValues(volumeSet)
 
 	return clientspartials.ClientFilterOptions{
 		Datacenters: datacenters,
 		NodeClasses: nodeClasses,
+		NodePools:   nodePools,
+		Versions:    versions,
+		Volumes:     volumes,
 	}
 }
 
@@ -206,6 +280,15 @@ func (h *ClientsHandler) applyFilters(clientsList []clientspartials.ClientSummar
 		if filters.NodeClass != "" && client.NodeClass != filters.NodeClass {
 			continue
 		}
+		if filters.NodePool != "" && client.NodePool != filters.NodePool {
+			continue
+		}
+		if filters.Version != "" && client.Version != filters.Version {
+			continue
+		}
+		if filters.Volume != "" && !clientContainsString(client.Volumes, filters.Volume) {
+			continue
+		}
 
 		// Search filter (matches name, address, datacenter, or ID)
 		if filters.Search != "" {
@@ -213,7 +296,10 @@ func (h *ClientsHandler) applyFilters(clientsList []clientspartials.ClientSummar
 			if !strings.Contains(strings.ToLower(client.Name), searchLower) &&
 				!strings.Contains(strings.ToLower(client.Address), searchLower) &&
 				!strings.Contains(strings.ToLower(client.Datacenter), searchLower) &&
-				!strings.Contains(strings.ToLower(client.ID), searchLower) {
+				!strings.Contains(strings.ToLower(client.ID), searchLower) &&
+				!strings.Contains(strings.ToLower(client.NodePool), searchLower) &&
+				!strings.Contains(strings.ToLower(client.Version), searchLower) &&
+				!strings.Contains(strings.ToLower(strings.Join(client.Volumes, " ")), searchLower) {
 				continue
 			}
 		}
@@ -222,6 +308,24 @@ func (h *ClientsHandler) applyFilters(clientsList []clientspartials.ClientSummar
 	}
 
 	return filtered
+}
+
+func sortedSetValues(set map[string]struct{}) []string {
+	values := make([]string, 0, len(set))
+	for value := range set {
+		values = append(values, value)
+	}
+	sort.Strings(values)
+	return values
+}
+
+func clientContainsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 // Detail handles the client detail page
@@ -378,17 +482,15 @@ func (h *ClientsHandler) updateNodeDrain(w http.ResponseWriter, r *http.Request,
 	return true
 }
 
-// getClientsList fetches client nodes from the Nomad API.
-// Falls back to empty list if API is unavailable.
-func (h *ClientsHandler) getClientsList(r *http.Request, token string) []clientspartials.ClientSummary {
+// getClientsList fetches client nodes from the Wander API.
+func (h *ClientsHandler) getClientsList(r *http.Request, token string) ([]clientspartials.ClientSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty client list")
-		return []clientspartials.ClientSummary{}
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
-	// Build query options with ACL token
 	queryOpts := resourceQueryOptions(token)
+	queryOpts.Region = GetRegionFromRequest(r)
 
 	// Log the request for debugging
 	h.handler.logger.Debug("fetching nodes from API", "hasToken", token != "")
@@ -396,10 +498,15 @@ func (h *ClientsHandler) getClientsList(r *http.Request, token string) []clients
 	// Fetch nodes from the API
 	nodes, _, err := client.Nodes().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch nodes from Nomad API", "error", err)
-		return []clientspartials.ClientSummary{}
+		return nil, err
 	}
-	allocations, _, allocationsErr := client.Allocations().List(queryOpts)
+	allocationOpts := &api.QueryOptions{
+		AuthToken: token,
+		Namespace: GetNamespaceFromRequest(r),
+		Region:    GetRegionFromRequest(r),
+		Params:    map[string]string{"resources": "true"},
+	}
+	allocations, _, allocationsErr := client.Allocations().List(allocationOpts)
 	if allocationsErr != nil {
 		h.handler.logger.Warn("failed to fetch allocation resources for clients", "error", allocationsErr)
 	}
@@ -424,6 +531,11 @@ func (h *ClientsHandler) getClientsList(r *http.Request, token string) []clients
 
 		cpuTotal, memTotal, diskTotal, capacityAvailable := nodeCapacity(node)
 		allocated := allocationsByNode[node.ID]
+		volumes := make([]string, 0, len(node.HostVolumes))
+		for name := range node.HostVolumes {
+			volumes = append(volumes, name)
+		}
+		sort.Strings(volumes)
 
 		result = append(result, clientspartials.ClientSummary{
 			ID:                   node.ID,
@@ -431,7 +543,11 @@ func (h *ClientsHandler) getClientsList(r *http.Request, token string) []clients
 			Address:              node.Address,
 			Status:               status,
 			Datacenter:           node.Datacenter,
+			NodePool:             node.NodePool,
 			NodeClass:            node.NodeClass,
+			Version:              node.Version,
+			Volumes:              volumes,
+			DetailURL:            scopedUIURL("/ui/clients/"+url.PathEscape(node.ID), GetNamespaceFromRequest(r), GetRegionFromRequest(r)),
 			Allocations:          allocated.Count,
 			CPUUsed:              int(allocated.CPU),
 			CPUTotal:             int(cpuTotal),
@@ -444,7 +560,74 @@ func (h *ClientsHandler) getClientsList(r *http.Request, token string) []clients
 		})
 	}
 
-	return result
+	return result, nil
+}
+
+func (h *ClientsHandler) renderClientListError(w http.ResponseWriter, r *http.Request, err error) {
+	if apiResponseHasStatus(err, http.StatusForbidden) {
+		h.handler.RenderForbidden(w, r, ForbiddenError{
+			Message: "You do not have permission to list client nodes", Capability: "node:read",
+		})
+		return
+	}
+	h.handler.logger.Error("failed to list client nodes", "error", err)
+	h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{
+		Message: "Wander could not list client nodes from the cluster.",
+	})
+}
+
+func validClientSortColumn(column string) bool {
+	switch column {
+	case "name", "address", "status", "nodepool", "nodeclass", "datacenter", "version", "volumes", "allocations":
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *ClientsHandler) sortClients(clientsList []clientspartials.ClientSummary, column, direction string) {
+	sort.SliceStable(clientsList, func(i, j int) bool {
+		left, right := clientsList[i], clientsList[j]
+		comparison := compareClientSummaries(left, right, column)
+		if comparison == 0 {
+			comparison = strings.Compare(left.ID, right.ID)
+		}
+		if direction == "desc" {
+			return comparison > 0
+		}
+		return comparison < 0
+	})
+}
+
+func compareClientSummaries(left, right clientspartials.ClientSummary, column string) int {
+	var leftValue, rightValue string
+	switch column {
+	case "address":
+		leftValue, rightValue = left.Address, right.Address
+	case "status":
+		leftValue, rightValue = left.Status, right.Status
+	case "nodepool":
+		leftValue, rightValue = left.NodePool, right.NodePool
+	case "nodeclass":
+		leftValue, rightValue = left.NodeClass, right.NodeClass
+	case "datacenter":
+		leftValue, rightValue = left.Datacenter, right.Datacenter
+	case "version":
+		leftValue, rightValue = left.Version, right.Version
+	case "volumes":
+		leftValue, rightValue = strings.Join(left.Volumes, "\x00"), strings.Join(right.Volumes, "\x00")
+	case "allocations":
+		if left.Allocations < right.Allocations {
+			return -1
+		}
+		if left.Allocations > right.Allocations {
+			return 1
+		}
+		return 0
+	default:
+		leftValue, rightValue = left.Name, right.Name
+	}
+	return strings.Compare(strings.ToLower(leftValue), strings.ToLower(rightValue))
 }
 
 // getClientDetail fetches client node detail from the Nomad API.

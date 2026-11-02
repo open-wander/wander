@@ -451,12 +451,23 @@ test.describe('Wander release smoke', () => {
     await expect(page.locator('body')).toContainText('test-purpose');
     await expect(page.locator('body')).toContainText('job-overview');
     await openResource(page, '/ui/allocations', '[data-alloc-id]:has-text("wander-ui-smoke")', 'a[href^="/ui/allocations/"]', /\/ui\/allocations\/[0-9a-f-]+/, 'fixture');
-    await page.goto('/ui/clients');
+    await page.goto('/ui/clients?namespace=default&region=global');
+    for (const heading of ['State', 'Node Pool', 'Class', 'DC', 'Version', 'Volumes', 'Running Allocs']) {
+      await expect(page.getByRole('columnheader', { name: heading, exact: true })).toBeVisible();
+    }
+    await expect(page.getByLabel('Rows per page')).toHaveValue('25');
+    await page.getByLabel('Node pool').selectOption('default');
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    await expect(page).toHaveURL(/nodepool=default/);
+    await expect(page).toHaveURL(/namespace=default/);
+    await expect(page).toHaveURL(/region=global/);
     const clientRow = page.locator('[data-client-id]').first();
     await expect(clientRow).toContainText('CPU allocated');
     await expect(clientRow).toContainText('Memory allocated');
     await clientRow.locator('a[href^="/ui/clients/"]').first().click();
     await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+/);
+    await expect(page).toHaveURL(/namespace=default/);
+    await expect(page).toHaveURL(/region=global/);
 
     await page.goto('/ui/servers');
     await expect(page.locator('tbody tr').first()).toBeVisible();
