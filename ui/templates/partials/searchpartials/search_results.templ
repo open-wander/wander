@@ -5,8 +5,10 @@ import "github.com/open-wander/wander/ui/templates/components"
 
 // SearchResultsProps contains parameters for rendering search results
 type SearchResultsProps struct {
-	Query   string
-	Results []SearchResultGroup
+	Query        string
+	Results      []SearchResultGroup
+	ErrorMessage string
+	TooShort     bool
 }
 
 // SearchResultGroup represents a group of search results by type
@@ -29,23 +31,31 @@ templ SearchResults(props SearchResultsProps) {
 	if props.Query == "" {
 		<!-- Empty state when no query -->
 		<div></div>
+	} else if props.ErrorMessage != "" {
+		<div class="absolute z-50 mt-2 w-full rounded-lg border border-error-200 bg-white shadow-lg dark:border-error-900 dark:bg-neutral-900" role="alert" data-search-error>
+			<div class="p-4 text-center text-sm text-error-700 dark:text-error-300">{ props.ErrorMessage }</div>
+		</div>
+	} else if props.TooShort {
+		<div class="absolute z-50 mt-2 w-full rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900" role="status" data-search-too-short>
+			<div class="p-4 text-center text-sm text-neutral-600 dark:text-neutral-300">Enter at least 2 characters to search.</div>
+		</div>
 	} else if len(props.Results) == 0 {
 		<!-- No results found -->
-		<div class="absolute z-50 mt-2 w-full bg-white rounded-lg shadow-lg border border-neutral-200 max-h-96 overflow-y-auto">
+		<div class="absolute z-50 mt-2 w-full bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 max-h-96 overflow-y-auto" role="status" data-search-empty>
 			<div class="p-4 text-center">
 				<div class="flex flex-col items-center justify-center py-6">
 					@components.Icon(components.IconProps{Name: "search", Size: "lg", Class: "text-neutral-400 mb-2"})
-					<p class="text-sm text-neutral-600">No results found for "{ props.Query }"</p>
-					<p class="text-xs text-neutral-500 mt-1">Try a different search term</p>
+					<p class="text-sm text-neutral-600 dark:text-neutral-300">No results found for "{ props.Query }"</p>
+					<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Try a different search term</p>
 				</div>
 			</div>
 		</div>
 	} else {
 		<!-- Results dropdown -->
-		<div class="absolute z-50 mt-2 w-full bg-white rounded-lg shadow-lg border border-neutral-200 max-h-96 overflow-y-auto">
+		<div class="absolute z-50 mt-2 w-full bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 max-h-96 overflow-y-auto" aria-label="Search results" data-search-results>
 			<div class="p-2">
 				<!-- Header -->
-				<div class="px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider border-b border-neutral-100 mb-2">
+				<div class="px-3 py-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-100 dark:border-neutral-800 mb-2">
 					Search Results for "{ props.Query }"
 				</div>
 
@@ -53,7 +63,7 @@ templ SearchResults(props SearchResultsProps) {
 				for groupIdx, group := range props.Results {
 					<div class={ templ.KV("mt-4", groupIdx > 0) }>
 						<!-- Group header -->
-						<div class="px-3 py-1 text-xs font-semibold text-neutral-700 bg-neutral-50 rounded">
+						<div class="px-3 py-1 text-xs font-semibold text-neutral-700 dark:text-neutral-200 bg-neutral-50 dark:bg-neutral-800 rounded">
 							{ group.Type }
 							if group.Truncated {
 								<span class="text-neutral-500 font-normal ml-1">(showing first { fmt.Sprintf("%d", len(group.Items)) })</span>
@@ -81,18 +91,18 @@ templ SearchResultItemComponent(item SearchResultItem) {
 		hx-target="#main-content"
 		hx-swap="innerHTML transition:true"
 		hx-push-url="true"
-		class="block px-3 py-2 rounded hover:bg-primary-50 transition-colors duration-150 group"
+		class="block px-3 py-2 rounded hover:bg-primary-50 dark:hover:bg-neutral-800 transition-colors duration-150 group"
 	>
 		<div class="flex items-center justify-between">
 			<div class="flex-1 min-w-0">
 				<!-- ID/Name -->
-				<div class="text-sm font-medium text-neutral-900 group-hover:text-primary-700 truncate">
+				<div class="text-sm font-medium text-neutral-900 dark:text-neutral-100 group-hover:text-primary-700 dark:group-hover:text-primary-400 truncate">
 					{ item.ID }
 				</div>
 
 				<!-- Scope/hierarchy breadcrumb -->
 				if len(item.Scope) > 0 {
-					<div class="text-xs text-neutral-500 mt-0.5 truncate">
+					<div class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">
 						{ formatScope(item.Scope) }
 					</div>
 				}

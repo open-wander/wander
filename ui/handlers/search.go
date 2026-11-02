@@ -1,8 +1,9 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/open-wander/wander/api"
@@ -31,76 +32,86 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get search query from URL parameter
-	query := r.URL.Query().Get("q")
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if query == "" {
-		// Empty query - return empty results
-		h.renderResults(w, r, nil, query)
+		query = strings.TrimSpace(r.URL.Query().Get("global-search"))
+	}
+	if query == "" {
+		h.renderResults(w, r, nil, query, "", false)
 		return
 	}
 
-	// If query is too short, don't search
-	if len(query) < 2 {
-		h.renderResults(w, r, nil, query)
+	if len([]rune(query)) < 2 {
+		h.renderResults(w, r, nil, query, "", true)
 		return
 	}
 
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("Nomad client not available for search")
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		h.renderResults(w, r, nil, query, "Search is temporarily unavailable.", false)
 		return
 	}
 
-	// Call Nomad's fuzzy search API
-	// Context "all" searches across all object types
-	resp, _, err := client.Search().FuzzySearch(query, contexts.All, &api.QueryOptions{})
+	resp, _, err := client.Search().FuzzySearch(query, contexts.All, &api.QueryOptions{
+		Namespace: GetNamespaceFromRequest(r),
+		Region:    GetRegionFromRequest(r),
+		AuthToken: GetTokenFromRequest(r),
+	})
 	if err != nil {
 		h.handler.logger.Error("failed to search", "error", err, "query", query)
-		http.Error(w, fmt.Sprintf("Search failed: %v", err), http.StatusInternalServerError)
+		h.renderResults(w, r, nil, query, "Search is temporarily unavailable.", false)
 		return
 	}
 
-	// Render search results
-	h.renderResults(w, r, resp, query)
+	h.renderResults(w, r, resp, query, "", false)
 }
 
-// renderResults renders the search results partial
-func (h *SearchHandler) renderResults(w http.ResponseWriter, r *http.Request, resp *api.FuzzySearchResponse, query string) {
-	// Convert API response to template props
-	var results []searchpartials.SearchResultGroup
+var searchContextOrder = []contexts.Context{
+	contexts.Jobs,
+	contexts.Allocs,
+	contexts.Nodes,
+	contexts.Evals,
+	contexts.Deployments,
+	contexts.Services,
+	contexts.Variables,
+	contexts.Volumes,
+	contexts.Plugins,
+	contexts.Namespaces,
+	contexts.NodePools,
+	contexts.Groups,
+	contexts.Tasks,
+}
 
+func (h *SearchHandler) renderResults(
+	w http.ResponseWriter,
+	r *http.Request,
+	resp *api.FuzzySearchResponse,
+	query, errorMessage string,
+	tooShort bool,
+) {
+	var results []searchpartials.SearchResultGroup
 	if resp != nil {
-		// Process each context type that has matches
-		for ctx, matches := range resp.Matches {
-			if len(matches) == 0 {
+		for _, ctx := range searchContextOrder {
+			items := projectSearchMatches(ctx, resp.Matches[ctx], GetNamespaceFromRequest(r), GetRegionFromRequest(r))
+			if len(items) == 0 {
 				continue
 			}
-
 			group := searchpartials.SearchResultGroup{
 				Type:       formatContextType(ctx),
 				Truncated:  resp.Truncations[ctx],
-				TotalCount: len(matches),
-				Items:      make([]searchpartials.SearchResultItem, 0, len(matches)),
+				TotalCount: len(items),
+				Items:      items,
 			}
-
-			// Convert matches to items
-			for _, match := range matches {
-				item := searchpartials.SearchResultItem{
-					ID:    match.ID,
-					Scope: match.Scope,
-					URL:   buildResultURL(ctx, match),
-				}
-				group.Items = append(group.Items, item)
-			}
-
 			results = append(results, group)
 		}
 	}
 
-	// Render the search results partial
 	props := searchpartials.SearchResultsProps{
-		Query:   query,
-		Results: results,
+		Query:        query,
+		Results:      results,
+		ErrorMessage: errorMessage,
+		TooShort:     tooShort,
 	}
 
 	err := searchpartials.SearchResults(props).Render(r.Context(), w)
@@ -109,6 +120,28 @@ func (h *SearchHandler) renderResults(w http.ResponseWriter, r *http.Request, re
 		http.Error(w, "Failed to render results", http.StatusInternalServerError)
 		return
 	}
+}
+
+func projectSearchMatches(
+	ctx contexts.Context,
+	matches []api.FuzzyMatch,
+	requestNamespace, region string,
+) []searchpartials.SearchResultItem {
+	items := make([]searchpartials.SearchResultItem, 0, len(matches))
+	for _, match := range matches {
+		resultURL := buildResultURL(ctx, match, requestNamespace, region)
+		if resultURL == "" {
+			continue
+		}
+		items = append(items, searchpartials.SearchResultItem{ID: match.ID, Scope: match.Scope, URL: resultURL})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].ID == items[j].ID {
+			return strings.Join(items[i].Scope, "\x00") < strings.Join(items[j].Scope, "\x00")
+		}
+		return items[i].ID < items[j].ID
+	})
+	return items
 }
 
 // formatContextType converts a context.Context to a human-readable label
@@ -161,70 +194,69 @@ func formatContextType(ctx contexts.Context) string {
 }
 
 // buildResultURL constructs the UI URL for a search result based on its type and scope
-func buildResultURL(ctx contexts.Context, match api.FuzzyMatch) string {
-	// Build URL based on context type
+func buildResultURL(ctx contexts.Context, match api.FuzzyMatch, requestNamespace, region string) string {
+	namespace := searchMatchNamespace(match, requestNamespace)
+	escapedID := url.PathEscape(match.ID)
 	switch ctx {
 	case contexts.Jobs:
-		// Jobs: /ui/jobs/{id}
-		if len(match.Scope) > 0 {
-			// Job is in a namespace: scope[0] is namespace, ID is job name
-			return fmt.Sprintf("/ui/jobs/%s@%s", match.ID, match.Scope[0])
-		}
-		return fmt.Sprintf("/ui/jobs/%s", match.ID)
-
+		return scopedSearchResultURL("/ui/jobs/"+escapedID, namespace, region, "", "")
 	case contexts.Allocs:
-		// Allocations: /ui/allocations/{id}
-		return fmt.Sprintf("/ui/allocations/%s", match.ID)
-
+		return scopedSearchResultURL("/ui/allocations/"+escapedID, namespace, region, "", "")
 	case contexts.Nodes:
-		// Nodes/Clients: /ui/clients/{id}
-		return fmt.Sprintf("/ui/clients/%s", match.ID)
-
+		return scopedSearchResultURL("/ui/clients/"+escapedID, "", region, "", "")
 	case contexts.Evals:
-		// Evaluations: /ui/evaluations/{id}
-		return fmt.Sprintf("/ui/evaluations/%s", match.ID)
-
+		return scopedSearchResultURL("/ui/evaluations/"+escapedID, namespace, region, "", "")
 	case contexts.Deployments:
-		// Deployments: /ui/deployments/{id}
-		return fmt.Sprintf("/ui/deployments/%s", match.ID)
-
+		return scopedSearchResultURL("/ui/deployments/"+escapedID, namespace, region, "", "")
+	case contexts.Services:
+		return scopedSearchResultURL("/ui/services/"+escapedID, namespace, region, "", "")
 	case contexts.Namespaces:
-		// Namespaces: /ui/namespaces
-		return "/ui/namespaces"
-
+		return scopedSearchResultURL("/ui/namespaces", match.ID, region, "", "")
+	case contexts.NodePools:
+		return scopedSearchResultURL("/ui/clients", "", region, "node_pool", match.ID)
 	case contexts.Volumes:
-		// CSI Volumes: /ui/csi/volumes/{id}
-		return fmt.Sprintf("/ui/csi/volumes/%s", match.ID)
-
+		return scopedSearchResultURL("/ui/csi/volumes/"+escapedID, namespace, region, "", "")
 	case contexts.Plugins:
-		// CSI Plugins: /ui/csi/plugins
-		return "/ui/csi/plugins"
-
+		return scopedSearchResultURL("/ui/csi/plugins/"+escapedID, "", region, "", "")
 	case contexts.Variables:
-		// Variables: /ui/variables/{path}
-		return fmt.Sprintf("/ui/variables/%s", match.ID)
-
+		return scopedSearchResultURL("/ui/variables/"+escapedID, namespace, region, "", "")
 	case contexts.Groups:
-		// Task Groups: /ui/jobs/{job}/taskgroups/{group}
-		// Scope: [namespace, job]
-		if len(match.Scope) >= 2 {
-			return fmt.Sprintf("/ui/jobs/%s@%s/taskgroups/%s", match.Scope[1], match.Scope[0], match.ID)
+		if len(match.Scope) >= 2 && match.Scope[1] != "" {
+			path := "/ui/jobs/" + url.PathEscape(match.Scope[1]) + "/taskgroups/" + escapedID
+			return scopedSearchResultURL(path, namespace, region, "", "")
 		}
 		return ""
-
 	case contexts.Tasks:
-		// Tasks: /ui/jobs/{job}/taskgroups/{group}
-		// Scope: [namespace, job, group]
-		if len(match.Scope) >= 3 {
-			return fmt.Sprintf("/ui/jobs/%s@%s/taskgroups/%s", match.Scope[1], match.Scope[0], match.Scope[2])
+		if len(match.Scope) >= 3 && match.Scope[1] != "" && match.Scope[2] != "" {
+			path := "/ui/jobs/" + url.PathEscape(match.Scope[1]) + "/taskgroups/" + url.PathEscape(match.Scope[2])
+			return scopedSearchResultURL(path, namespace, region, "", "")
 		}
 		return ""
-
 	default:
-		// For other types, try to link to job if scope indicates it
-		if len(match.Scope) >= 2 {
-			return fmt.Sprintf("/ui/jobs/%s@%s", match.Scope[1], match.Scope[0])
-		}
 		return ""
 	}
+}
+
+func searchMatchNamespace(match api.FuzzyMatch, fallback string) string {
+	if len(match.Scope) > 0 && match.Scope[0] != "" {
+		return match.Scope[0]
+	}
+	return fallback
+}
+
+func scopedSearchResultURL(path, namespace, region, extraKey, extraValue string) string {
+	query := url.Values{}
+	if namespace != "" {
+		query.Set("namespace", namespace)
+	}
+	if region != "" {
+		query.Set("region", region)
+	}
+	if extraKey != "" && extraValue != "" {
+		query.Set(extraKey, extraValue)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		return path + "?" + encoded
+	}
+	return path
 }

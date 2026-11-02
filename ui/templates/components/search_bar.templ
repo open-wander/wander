@@ -6,6 +6,7 @@ import "strings"
 // SearchBarProps contains parameters for the SearchBar component
 type SearchBarProps struct {
 	Name        string
+	ID          string
 	Label       string
 	Placeholder string
 	Value       string
@@ -54,14 +55,15 @@ templ SearchBar(props SearchBarProps) {
 			<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 				@Icon(IconProps{Name: "search", Size: "md", Class: "text-neutral-400"})
 			</div>
-
 			<!-- Search Input -->
 			<input
 				type="search"
 				aria-label={ searchBarLabel(props) }
 				if props.Name != "" {
 					name={ props.Name }
-					id={ props.Name }
+				}
+				if searchBarID(props) != "" {
+					id={ searchBarID(props) }
 				}
 				class="input !pl-10 !pr-20 w-full"
 				if props.Value != "" {
@@ -86,7 +88,6 @@ templ SearchBar(props SearchBarProps) {
 				x-ref="input"
 				@keydown="handleKeydown($event)"
 			/>
-
 			<!-- Right Side Icons Container -->
 			<div class="absolute inset-y-0 right-0 pr-3 flex items-center gap-2">
 				<!-- Loading Indicator -->
@@ -96,7 +97,6 @@ templ SearchBar(props SearchBarProps) {
 				>
 					@Spinner(SpinnerProps{Size: "sm", Color: "neutral"})
 				</div>
-
 				<!-- Clear Button -->
 				<button
 					type="button"
@@ -109,7 +109,6 @@ templ SearchBar(props SearchBarProps) {
 				>
 					@Icon(IconProps{Name: "x", Size: "sm"})
 				</button>
-
 				<!-- Keyboard Shortcut Hint (hidden when focused) -->
 				<div
 					class="text-xs text-neutral-400 font-medium px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700"
@@ -164,9 +163,18 @@ func buildHxTrigger(props SearchBarProps) string {
 
 // getSearchBarID returns a unique ID for the search bar
 func getSearchBarID(props SearchBarProps) string {
+	if props.ID != "" {
+		return props.ID
+	}
 	if props.Name != "" {
 		return props.Name
 	}
 	return "search-bar"
 }
 
+func searchBarID(props SearchBarProps) string {
+	if props.ID != "" {
+		return props.ID
+	}
+	return props.Name
+}

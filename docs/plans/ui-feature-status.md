@@ -46,6 +46,10 @@ scope and parity work list is the
   links to their jobs, allocations, and clients. Job detail includes separate
   service and allocation-observed client tabs without implying scheduler
   eligibility.
+- Search: live fuzzy-search results retain ACL token, namespace, and region
+  scope; supported result groups and items are deterministic; links escape
+  identifiers and retain applicable scope; and short, empty, no-match, and
+  unavailable states remain distinct without exposing backend errors.
 - ACL settings: token validation, secure browser cookie handling, sign-in, and
   sign-out.
 - Namespaces: live cluster reads and UI namespace selection. Namespace creation,
@@ -149,8 +153,6 @@ be used to defer baseline behavior without explicit approval:
 
 - Richer job allocation filtering, sorting, task expansion, and live resource
   statistics.
-- Variable validation, conflict detection, JSON/tree views, copy controls, and
-  unsaved-change warnings.
 - Additional job/client filters, columns, charts, eligibility analysis, and
   detail panels.
 - Consistent copy controls and improved relative time display. The applicable

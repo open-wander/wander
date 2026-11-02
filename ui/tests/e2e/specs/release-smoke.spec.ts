@@ -629,6 +629,18 @@ test.describe('Wander release smoke', () => {
     expect(browserErrors).toEqual([]);
   });
 
+  test('searches live scoped resources and follows a result', async ({ page }) => {
+    const browserErrors = await openCheckedDesktopPage(page, '/ui/jobs?namespace=default&region=global');
+    const search = page.locator('#global-search');
+    await expect(search).toHaveAttribute('name', 'q');
+    await search.pressSequentially('wander-ui-smoke');
+    const jobResult = page.locator('a[href^="/ui/jobs/wander-ui-smoke?"]').first();
+    await expect(jobResult).toHaveAttribute('href', /namespace=default&region=global/);
+    await jobResult.click();
+    await expect(page.getByRole('heading', { name: 'wander-ui-smoke', exact: true })).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
   test('reviews and submits an existing job edit with retained variables', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     const jobID = `wander-ui-edit-${Date.now()}`;

@@ -2300,7 +2300,7 @@ function searchBar() {
 
         triggerSearch() {
             if (this.$refs.input.getAttribute('hx-get') && window.htmx) {
-                window.htmx.trigger(this.$refs.input, 'input');
+                window.htmx.trigger(this.$refs.input, 'keyup');
             }
         }
     };

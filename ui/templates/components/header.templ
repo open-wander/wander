@@ -217,7 +217,8 @@ templ Header(props HeaderProps) {
 		<div class="hidden xl:block px-4 pb-3 lg:px-6" data-global-search>
 			<div class="relative mx-auto max-w-2xl" x-data="{ searchFocused: false }">
 				@SearchBar(SearchBarProps{
-					Name:        "global-search",
+					Name:        "q",
+					ID:          "global-search",
 					Placeholder: "Search jobs, allocations, nodes...",
 					SearchURL:   "/ui/search",
 					ResultsID:   "global-search-results",
