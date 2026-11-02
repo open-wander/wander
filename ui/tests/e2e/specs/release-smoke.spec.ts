@@ -49,7 +49,7 @@ async function openCheckedDesktopPage(page: Page, path: string) {
 
 async function expectColumnHeaders(page: Page, headings: string[]) {
   for (const heading of headings) {
-    await expect(page.getByRole('columnheader', { name: heading })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: heading, exact: true })).toBeVisible();
   }
 }
 
@@ -210,6 +210,29 @@ test.describe('Wander release smoke', () => {
     await expect(page.getByRole('button', { name: 'Dispatch', exact: true })).toBeVisible();
     await expect(page.locator('[data-overview-child-jobs]')).toBeVisible();
     await expect(page.locator('[data-overview-scheduling]')).toContainText('Dispatch Payload');
+    expect(browserErrors).toEqual([]);
+  });
+
+  test('renders and filters the scoped allocation matrix', async ({ page }) => {
+    const browserErrors = await openCheckedDesktopPage(page, '/ui/allocations?namespace=default&region=global&per_page=10');
+    await expectColumnHeaders(page, ['Short ID', 'Job', 'Type', 'Task Group', 'Job Version', 'Client', 'Status', 'Scheduling', 'Created', 'Logs']);
+
+    const smokeAllocation = page.locator('[data-alloc-id]').filter({ hasText: 'wander-ui-smoke' }).first();
+    await expect(smokeAllocation).toContainText('service');
+    await expect(smokeAllocation).toContainText('web');
+    await expect(smokeAllocation).toContainText('running');
+    const logsURL = new URL((await smokeAllocation.getByRole('link', { name: 'View Logs' }).getAttribute('href'))!, 'http://wander.test');
+    expect(logsURL.searchParams.get('namespace')).toBe('default');
+    expect(logsURL.searchParams.get('region')).toBe('global');
+
+    const filters = page.locator('#allocation-filters');
+    await filters.locator('select[name="type"]').selectOption('service');
+    await filters.locator('select[name="task_group"]').selectOption('web');
+    await filters.locator('select[name="status"]').selectOption('running');
+    await filters.locator('select[name="scheduling"]').selectOption('run');
+    await filters.getByRole('button', { name: 'Apply filters' }).click();
+    await expectURLParams(page, { namespace: 'default', region: 'global', type: 'service', task_group: 'web', status: 'running', scheduling: 'run' });
+    await expect(page.locator('[data-alloc-id]').filter({ hasText: 'wander-ui-smoke' }).first()).toBeVisible();
     expect(browserErrors).toEqual([]);
   });
 
@@ -647,7 +670,7 @@ test.describe('Wander release smoke', () => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/allocations');
     const smokeAllocation = page.locator('[data-alloc-id]').filter({ hasText: 'wander-ui-smoke' }).first();
-    const href = await smokeAllocation.locator('a[href^="/ui/allocations/"]').getAttribute('href');
+    const href = await smokeAllocation.locator('a[href^="/ui/allocations/"]').first().getAttribute('href');
     expect(href).toBeTruthy();
 
 	await page.goto(href!);

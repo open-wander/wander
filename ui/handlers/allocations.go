@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"cmp"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -24,16 +25,20 @@ import (
 	"github.com/open-wander/wander/ui/templates/partials/allocationspartials"
 )
 
-// AllocationSummary represents a summary view of an allocation for list display.
-// This structure will eventually be populated from the Nomad API.
+// AllocationSummary represents live allocation-list data used for filtering,
+// sorting, and projection into the rendered list.
 type AllocationSummary struct {
-	ID        string
-	JobID     string
-	TaskGroup string
-	NodeID    string
-	NodeName  string
-	Status    string
-	Created   time.Time
+	ID                 string
+	JobID              string
+	JobType            string
+	JobVersion         uint64
+	TaskGroup          string
+	NodeID             string
+	NodeName           string
+	Status             string
+	DesiredStatus      string
+	DesiredDescription string
+	Created            time.Time
 }
 
 // AllocationsHandler handles requests for the allocations list page.
@@ -110,6 +115,7 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters first to get namespace
 	query := r.URL.Query()
 	namespace := GetNamespaceFromRequest(r)
+	region := GetRegionFromRequest(r)
 
 	// Check permissions - allocations inherit job permissions
 	perms := GetPermissionsFromRequest(r)
@@ -127,7 +133,10 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	statusFilter := query.Get("status")
 	jobFilter := query.Get("job")
+	typeFilter := query.Get("type")
+	taskGroupFilter := query.Get("task_group")
 	nodeFilter := query.Get("node")
+	desiredStatusFilter := query.Get("scheduling")
 	searchQuery := query.Get("search")
 	sortColumn := query.Get("sort")
 	sortDir := query.Get("dir")
@@ -138,7 +147,13 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	if sortColumn == "" {
 		sortColumn = "created"
 	}
+	if !validAllocationSortColumn(sortColumn) {
+		sortColumn = "created"
+	}
 	if sortDir == "" {
+		sortDir = "desc"
+	}
+	if sortDir != "asc" && sortDir != "desc" {
 		sortDir = "desc"
 	}
 
@@ -155,14 +170,22 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
 
-	// Get all allocations with server-side filtering
-	allAllocations := h.getAllocationsList(r, namespace, token, statusFilter, jobFilter, nodeFilter)
+	// Read the complete scoped list once so filter choices do not disappear as
+	// filters are composed.
+	allAllocations, err := h.getAllocationsList(r, namespace, token)
+	if err != nil {
+		h.handler.renderJobScopedReadError(w, r, namespace, "list allocations", "allocation", false, err)
+		return
+	}
 
 	// Extract filter options from all allocations (before filtering)
 	filterOptions := h.extractFilterOptions(allAllocations)
 
-	// Apply client-side search filter (status/job/node already filtered server-side)
-	filteredAllocations := h.filterAllocations(allAllocations, "", "", "", searchQuery)
+	filteredAllocations := h.filterAllocations(allAllocations, allocationListFilters{
+		status: statusFilter, job: jobFilter, jobType: typeFilter,
+		taskGroup: taskGroupFilter, node: nodeFilter,
+		desiredStatus: desiredStatusFilter, search: searchQuery,
+	})
 
 	// Apply sorting
 	h.sortAllocations(filteredAllocations, sortColumn, sortDir)
@@ -194,15 +217,23 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	for i, a := range paginatedAllocations {
 		idPrefixMatch, matchedPrefix := h.isIDPrefixMatch(a.ID, searchNormalized)
 		allocationsList[i] = allocationspartials.AllocationSummary{
-			ID:            a.ID,
-			JobID:         a.JobID,
-			TaskGroup:     a.TaskGroup,
-			NodeID:        a.NodeID,
-			NodeName:      a.NodeName,
-			Status:        a.Status,
-			Created:       a.Created,
-			IDPrefixMatch: idPrefixMatch,
-			MatchedPrefix: matchedPrefix,
+			ID:                 a.ID,
+			JobID:              a.JobID,
+			JobType:            a.JobType,
+			JobVersion:         a.JobVersion,
+			TaskGroup:          a.TaskGroup,
+			NodeID:             a.NodeID,
+			NodeName:           a.NodeName,
+			Status:             a.Status,
+			DesiredStatus:      a.DesiredStatus,
+			DesiredDescription: a.DesiredDescription,
+			Created:            a.Created,
+			IDPrefixMatch:      idPrefixMatch,
+			MatchedPrefix:      matchedPrefix,
+			DetailURL:          scopedUIURL("/ui/allocations/"+url.PathEscape(a.ID), namespace, region),
+			JobURL:             scopedUIURL("/ui/jobs/"+url.PathEscape(a.JobID), namespace, region),
+			ClientURL:          scopedUIURL("/ui/clients/"+url.PathEscape(a.NodeID), namespace, region),
+			LogsURL:            scopedUIURL("/ui/allocations/"+url.PathEscape(a.ID)+"/logs", namespace, region),
 		}
 	}
 
@@ -210,15 +241,23 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	props := allocationspartials.ListProps{
 		Allocations: allocationsList,
 		FilterOptions: allocationspartials.FilterOptions{
-			Statuses: filterOptions.Statuses,
-			Jobs:     filterOptions.Jobs,
-			Nodes:    filterOptions.Nodes,
+			Statuses:        filterOptions.Statuses,
+			Jobs:            filterOptions.Jobs,
+			JobTypes:        filterOptions.JobTypes,
+			TaskGroups:      filterOptions.TaskGroups,
+			Nodes:           filterOptions.Nodes,
+			DesiredStatuses: filterOptions.DesiredStatuses,
 		},
 		Filters: allocationspartials.ListFilters{
-			Status: statusFilter,
-			Job:    jobFilter,
-			Node:   nodeFilter,
-			Search: searchQuery,
+			Namespace:     namespace,
+			Region:        region,
+			Status:        statusFilter,
+			Job:           jobFilter,
+			JobType:       typeFilter,
+			TaskGroup:     taskGroupFilter,
+			Node:          nodeFilter,
+			DesiredStatus: desiredStatusFilter,
+			Search:        searchQuery,
 		},
 		Pagination: allocationspartials.PaginationMeta{
 			Page:       page,
@@ -252,7 +291,7 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the allocations list page
-	err := Render(w, r,
+	err = Render(w, r,
 		allocations.List(layoutProps, props),   // Full page with layout
 		allocationspartials.ListContent(props), // Partial content for HTMX requests
 	)
@@ -266,68 +305,95 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // FilterOptions holds the available filter options
 type FilterOptions struct {
-	Statuses []string
-	Jobs     []string
-	Nodes    []string
+	Statuses        []string
+	Jobs            []string
+	JobTypes        []string
+	TaskGroups      []string
+	Nodes           []string
+	DesiredStatuses []string
 }
 
 // extractFilterOptions extracts unique values for filter dropdowns
 func (h *AllocationsHandler) extractFilterOptions(allocs []AllocationSummary) FilterOptions {
 	statusSet := make(map[string]bool)
 	jobSet := make(map[string]bool)
+	typeSet := make(map[string]bool)
+	taskGroupSet := make(map[string]bool)
 	nodeSet := make(map[string]bool)
+	desiredStatusSet := make(map[string]bool)
 
 	for _, a := range allocs {
-		statusSet[a.Status] = true
-		jobSet[a.JobID] = true
-		nodeSet[a.NodeName] = true
+		addAllocationFilterValue(statusSet, a.Status)
+		addAllocationFilterValue(jobSet, a.JobID)
+		addAllocationFilterValue(typeSet, a.JobType)
+		addAllocationFilterValue(taskGroupSet, a.TaskGroup)
+		addAllocationFilterValue(nodeSet, a.NodeName)
+		addAllocationFilterValue(desiredStatusSet, a.DesiredStatus)
 	}
-
-	// Convert to sorted slices
-	statuses := make([]string, 0, len(statusSet))
-	for s := range statusSet {
-		statuses = append(statuses, s)
-	}
-	sort.Strings(statuses)
-
-	jobs := make([]string, 0, len(jobSet))
-	for j := range jobSet {
-		jobs = append(jobs, j)
-	}
-	sort.Strings(jobs)
-
-	nodes := make([]string, 0, len(nodeSet))
-	for n := range nodeSet {
-		nodes = append(nodes, n)
-	}
-	sort.Strings(nodes)
 
 	return FilterOptions{
-		Statuses: statuses,
-		Jobs:     jobs,
-		Nodes:    nodes,
+		Statuses:        sortedAllocationFilterValues(statusSet),
+		Jobs:            sortedAllocationFilterValues(jobSet),
+		JobTypes:        sortedAllocationFilterValues(typeSet),
+		TaskGroups:      sortedAllocationFilterValues(taskGroupSet),
+		Nodes:           sortedAllocationFilterValues(nodeSet),
+		DesiredStatuses: sortedAllocationFilterValues(desiredStatusSet),
 	}
+}
+
+func addAllocationFilterValue(values map[string]bool, value string) {
+	if value != "" {
+		values[value] = true
+	}
+}
+
+func sortedAllocationFilterValues(values map[string]bool) []string {
+	result := make([]string, 0, len(values))
+	for value := range values {
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
+}
+
+type allocationListFilters struct {
+	status        string
+	job           string
+	jobType       string
+	taskGroup     string
+	node          string
+	desiredStatus string
+	search        string
 }
 
 // filterAllocations applies filters to the allocations list.
 // When searching, ID prefix matches are prioritized over other matches.
-func (h *AllocationsHandler) filterAllocations(allocs []AllocationSummary, status, job, node, search string) []AllocationSummary {
+func (h *AllocationsHandler) filterAllocations(allocs []AllocationSummary, filters allocationListFilters) []AllocationSummary {
 	// Apply non-search filters first
 	preFiltered := make([]AllocationSummary, 0, len(allocs))
 
 	for _, a := range allocs {
 		// Status filter
-		if status != "" && a.Status != status {
+		if filters.status != "" && a.Status != filters.status {
 			continue
 		}
 
 		// Job filter
-		if job != "" && a.JobID != job {
+		if filters.job != "" && a.JobID != filters.job {
+			continue
+		}
+		if filters.jobType != "" && a.JobType != filters.jobType {
+			continue
+		}
+		if filters.taskGroup != "" && a.TaskGroup != filters.taskGroup {
 			continue
 		}
 
 		// Node filter
-		if node != "" && a.NodeName != node {
+		if filters.node != "" && a.NodeName != filters.node && a.NodeID != filters.node {
+			continue
+		}
+		if filters.desiredStatus != "" && a.DesiredStatus != filters.desiredStatus {
 			continue
 		}
 
@@ -335,12 +401,12 @@ func (h *AllocationsHandler) filterAllocations(allocs []AllocationSummary, statu
 	}
 
 	// If no search query, return pre-filtered results
-	if search == "" {
+	if strings.TrimSpace(filters.search) == "" {
 		return preFiltered
 	}
 
 	// Apply search filter with ID prefix prioritization
-	searchLower := strings.ToLower(strings.TrimSpace(search))
+	searchLower := strings.ToLower(strings.TrimSpace(filters.search))
 
 	// Separate into ID prefix matches (exact start) and other matches
 	idPrefixMatches := make([]AllocationSummary, 0)
@@ -369,9 +435,11 @@ func (h *AllocationsHandler) filterAllocations(allocs []AllocationSummary, statu
 		// Check other fields for matches
 		if strings.Contains(idLower, searchLower) ||
 			strings.Contains(strings.ToLower(a.JobID), searchLower) ||
+			strings.Contains(strings.ToLower(a.JobType), searchLower) ||
 			strings.Contains(strings.ToLower(a.TaskGroup), searchLower) ||
 			strings.Contains(strings.ToLower(a.NodeName), searchLower) ||
-			strings.Contains(strings.ToLower(a.NodeID), searchLower) {
+			strings.Contains(strings.ToLower(a.NodeID), searchLower) ||
+			strings.Contains(strings.ToLower(a.DesiredStatus), searchLower) {
 			otherMatches = append(otherMatches, a)
 		}
 	}
@@ -413,44 +481,62 @@ func (h *AllocationsHandler) isIDPrefixMatch(allocID, search string) (bool, stri
 // sortAllocations sorts the allocations list by the specified column
 func (h *AllocationsHandler) sortAllocations(allocs []AllocationSummary, column, dir string) {
 	sort.Slice(allocs, func(i, j int) bool {
-		var less bool
+		comparison := 0
 
 		switch column {
 		case "id":
-			less = allocs[i].ID < allocs[j].ID
+			comparison = cmp.Compare(allocs[i].ID, allocs[j].ID)
 		case "job":
-			less = allocs[i].JobID < allocs[j].JobID
+			comparison = cmp.Compare(allocs[i].JobID, allocs[j].JobID)
+		case "type":
+			comparison = cmp.Compare(allocs[i].JobType, allocs[j].JobType)
 		case "taskgroup":
-			less = allocs[i].TaskGroup < allocs[j].TaskGroup
+			comparison = cmp.Compare(allocs[i].TaskGroup, allocs[j].TaskGroup)
+		case "version":
+			comparison = cmp.Compare(allocs[i].JobVersion, allocs[j].JobVersion)
 		case "node":
-			less = allocs[i].NodeName < allocs[j].NodeName
+			comparison = cmp.Compare(allocs[i].NodeName, allocs[j].NodeName)
 		case "status":
-			less = allocs[i].Status < allocs[j].Status
+			comparison = cmp.Compare(allocs[i].Status, allocs[j].Status)
+		case "scheduling":
+			comparison = cmp.Compare(allocs[i].DesiredStatus, allocs[j].DesiredStatus)
 		case "created":
-			less = allocs[i].Created.Before(allocs[j].Created)
+			comparison = allocs[i].Created.Compare(allocs[j].Created)
 		default:
-			less = allocs[i].Created.Before(allocs[j].Created)
+			comparison = allocs[i].Created.Compare(allocs[j].Created)
 		}
 
-		if dir == "desc" {
-			return !less
+		if comparison == 0 {
+			comparison = cmp.Compare(allocs[i].ID, allocs[j].ID)
 		}
-		return less
+		if dir == "desc" {
+			return comparison > 0
+		}
+		return comparison < 0
 	})
 }
 
-// getAllocationsList fetches allocations from the Nomad API with server-side filtering.
-// Falls back to empty list if API is unavailable.
-func (h *AllocationsHandler) getAllocationsList(r *http.Request, namespace, token, statusFilter, jobFilter, nodeFilter string) []AllocationSummary {
+func validAllocationSortColumn(column string) bool {
+	switch column {
+	case "id", "job", "type", "taskgroup", "version", "node", "status", "scheduling", "created":
+		return true
+	default:
+		return false
+	}
+}
+
+// getAllocationsList fetches allocations from the Nomad API.
+func (h *AllocationsHandler) getAllocationsList(r *http.Request, namespace, token string) ([]AllocationSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty allocation list")
-		return []AllocationSummary{}
+		h.handler.logger.Warn("no Nomad client available for allocation list")
+		return nil, errNomadClientUnavailable
 	}
 
 	// Build query options with namespace
 	queryOpts := &api.QueryOptions{
 		Namespace: namespace,
+		Region:    GetRegionFromRequest(r),
 	}
 
 	// Set ACL token if available
@@ -458,26 +544,10 @@ func (h *AllocationsHandler) getAllocationsList(r *http.Request, namespace, toke
 		queryOpts.AuthToken = token
 	}
 
-	// Build Nomad filter expression for server-side filtering
-	var filters []string
-	if statusFilter != "" {
-		filters = append(filters, fmt.Sprintf("ClientStatus == %q", statusFilter))
-	}
-	if jobFilter != "" {
-		filters = append(filters, fmt.Sprintf("JobID == %q", jobFilter))
-	}
-	if nodeFilter != "" {
-		// NodeFilter can match by NodeID or NodeName
-		filters = append(filters, fmt.Sprintf("(NodeID == %q or NodeName == %q)", nodeFilter, nodeFilter))
-	}
-	if len(filters) > 0 {
-		queryOpts.Filter = strings.Join(filters, " and ")
-	}
-
 	// Log the request for debugging
 	h.handler.logger.Debug("fetching allocations from API",
 		"namespace", namespace,
-		"filter", queryOpts.Filter,
+		"region", queryOpts.Region,
 		"hasToken", token != "",
 	)
 
@@ -485,7 +555,7 @@ func (h *AllocationsHandler) getAllocationsList(r *http.Request, namespace, toke
 	allocs, _, err := client.Allocations().List(queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch allocations from Nomad API", "error", err)
-		return []AllocationSummary{}
+		return nil, err
 	}
 
 	h.handler.logger.Debug("fetched allocations from API", "count", len(allocs))
@@ -493,23 +563,30 @@ func (h *AllocationsHandler) getAllocationsList(r *http.Request, namespace, toke
 	// Convert API response to our summary type
 	result := make([]AllocationSummary, 0, len(allocs))
 	for _, alloc := range allocs {
+		if alloc == nil {
+			continue
+		}
 		created := time.Time{}
 		if alloc.CreateTime > 0 {
 			created = time.Unix(0, alloc.CreateTime)
 		}
 
 		result = append(result, AllocationSummary{
-			ID:        alloc.ID,
-			JobID:     alloc.JobID,
-			TaskGroup: alloc.TaskGroup,
-			NodeID:    alloc.NodeID,
-			NodeName:  alloc.NodeName,
-			Status:    alloc.ClientStatus,
-			Created:   created,
+			ID:                 alloc.ID,
+			JobID:              alloc.JobID,
+			JobType:            alloc.JobType,
+			JobVersion:         alloc.JobVersion,
+			TaskGroup:          alloc.TaskGroup,
+			NodeID:             alloc.NodeID,
+			NodeName:           alloc.NodeName,
+			Status:             alloc.ClientStatus,
+			DesiredStatus:      alloc.DesiredStatus,
+			DesiredDescription: alloc.DesiredDescription,
+			Created:            created,
 		})
 	}
 
-	return result
+	return result, nil
 }
 
 // Detail handles the allocation detail page

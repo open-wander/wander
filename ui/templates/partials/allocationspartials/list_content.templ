@@ -2,37 +2,54 @@ package allocationspartials
 
 import (
 	"fmt"
-	"github.com/open-wander/wander/ui/templates/components"
 	"net/url"
 	"time"
+
+	"github.com/open-wander/wander/ui/templates/components"
 )
 
 // AllocationSummary represents a summary view of an allocation for list display.
 type AllocationSummary struct {
-	ID            string
-	JobID         string
-	TaskGroup     string
-	NodeID        string
-	NodeName      string
-	Status        string
-	Created       time.Time
-	IDPrefixMatch bool   // True if this allocation matched by ID prefix search
-	MatchedPrefix string // The search term that matched the ID prefix (for highlighting)
+	ID                 string
+	JobID              string
+	JobType            string
+	JobVersion         uint64
+	TaskGroup          string
+	NodeID             string
+	NodeName           string
+	Status             string
+	DesiredStatus      string
+	DesiredDescription string
+	Created            time.Time
+	IDPrefixMatch      bool   // True if this allocation matched by ID prefix search
+	MatchedPrefix      string // The search term that matched the ID prefix (for highlighting)
+	DetailURL          string
+	JobURL             string
+	ClientURL          string
+	LogsURL            string
 }
 
 // FilterOptions contains the available options for each filter.
 type FilterOptions struct {
-	Statuses []string // Available status options
-	Jobs     []string // Available job IDs
-	Nodes    []string // Available node names
+	Statuses        []string // Available client status options
+	Jobs            []string // Available job IDs
+	JobTypes        []string // Available job kinds
+	TaskGroups      []string // Available task groups
+	Nodes           []string // Available client names
+	DesiredStatuses []string // Available scheduling states
 }
 
 // ListFilters contains the current filter selections.
 type ListFilters struct {
-	Status string // Selected status filter
-	Job    string // Selected job filter
-	Node   string // Selected node filter
-	Search string // Search query
+	Namespace     string // Selected namespace scope
+	Region        string // Selected region scope
+	Status        string // Selected client status filter
+	Job           string // Selected job filter
+	JobType       string // Selected job kind filter
+	TaskGroup     string // Selected task group filter
+	Node          string // Selected client filter
+	DesiredStatus string // Selected scheduling filter
+	Search        string // Search query
 }
 
 // PaginationMeta holds pagination metadata for list views.
@@ -64,89 +81,35 @@ templ ListContent(props ListProps) {
 				</p>
 			</div>
 		</div>
-		<!-- Filters Row -->
-		<div class="mb-6 space-y-4">
-			<!-- Search Bar -->
-			<div>
-				@components.SearchBar(components.SearchBarProps{
-					Name:        "search",
-					Placeholder: "Search by ID prefix (e.g. a1b2c3d4), job, or node...",
-					Value:       props.Filters.Search,
-					SearchURL:   buildAllocationsURL(props.Filters.Status, props.Filters.Job, props.Filters.Node, "", props.SortColumn, props.SortDir),
-					ResultsID:   "allocations-table-container",
-					Debounce:    300,
-					MinChars:    0,
-				})
+		<form id="allocation-filters" class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/allocations" hx-get="/ui/allocations" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+			if props.Filters.Namespace != "" {
+				<input type="hidden" name="namespace" value={ props.Filters.Namespace }/>
+			}
+			if props.Filters.Region != "" {
+				<input type="hidden" name="region" value={ props.Filters.Region }/>
+			}
+			<input type="hidden" name="sort" value={ props.SortColumn }/>
+			<input type="hidden" name="dir" value={ props.SortDir }/>
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+					<span>Search</span>
+					<input type="search" name="search" value={ props.Filters.Search } placeholder="ID, job, task group, or client" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"/>
+				</label>
+				@allocationFilterSelect("status", "Client status", "All client states", props.Filters.Status, props.FilterOptions.Statuses)
+				@allocationFilterSelect("scheduling", "Scheduling", "All scheduling states", props.Filters.DesiredStatus, props.FilterOptions.DesiredStatuses)
+				@allocationFilterSelect("type", "Job type", "All job types", props.Filters.JobType, props.FilterOptions.JobTypes)
+				@allocationFilterSelect("job", "Job", "All jobs", props.Filters.Job, props.FilterOptions.Jobs)
+				@allocationFilterSelect("task_group", "Task group", "All task groups", props.Filters.TaskGroup, props.FilterOptions.TaskGroups)
+				@allocationFilterSelect("node", "Client", "All clients", props.Filters.Node, props.FilterOptions.Nodes)
+				@allocationPageSizeSelect(props.Pagination.PerPage)
 			</div>
-			<!-- Filter Dropdowns -->
-			<div class="flex flex-wrap gap-4">
-				<!-- Status Filter -->
-				<div class="w-48">
-					<label for="status-filter" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-						Status
-					</label>
-					@components.Select(components.SelectProps{
-						Name:        "status",
-						ID:          "status-filter",
-						Placeholder: "All Statuses",
-						Selected:    props.Filters.Status,
-						Options:     buildStatusOptions(props.FilterOptions.Statuses),
-						Size:        "sm",
-						HxGet:       buildFilterURL(props.Filters, "status", props.SortColumn, props.SortDir),
-						HxTarget:    "#allocations-table-container",
-						HxTrigger:   "change",
-					})
-				</div>
-				<!-- Job Filter -->
-				<div class="w-48">
-					<label for="job-filter" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-						Job
-					</label>
-					@components.Select(components.SelectProps{
-						Name:        "job",
-						ID:          "job-filter",
-						Placeholder: "All Jobs",
-						Selected:    props.Filters.Job,
-						Options:     buildJobOptions(props.FilterOptions.Jobs),
-						Size:        "sm",
-						HxGet:       buildFilterURL(props.Filters, "job", props.SortColumn, props.SortDir),
-						HxTarget:    "#allocations-table-container",
-						HxTrigger:   "change",
-					})
-				</div>
-				<!-- Node Filter -->
-				<div class="w-48">
-					<label for="node-filter" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-						Node
-					</label>
-					@components.Select(components.SelectProps{
-						Name:        "node",
-						ID:          "node-filter",
-						Placeholder: "All Nodes",
-						Selected:    props.Filters.Node,
-						Options:     buildNodeOptions(props.FilterOptions.Nodes),
-						Size:        "sm",
-						HxGet:       buildFilterURL(props.Filters, "node", props.SortColumn, props.SortDir),
-						HxTarget:    "#allocations-table-container",
-						HxTrigger:   "change",
-					})
-				</div>
-				<!-- Clear Filters Button -->
-				if props.Filters.Status != "" || props.Filters.Job != "" || props.Filters.Node != "" || props.Filters.Search != "" {
-					<div class="flex items-end">
-						<button
-							type="button"
-							class="px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-							hx-get="/ui/allocations"
-							hx-target="#allocations-table-container"
-							hx-push-url="true"
-						>
-							Clear Filters
-						</button>
-					</div>
+			<div class="mt-4 flex justify-end gap-3">
+				if hasActiveAllocationFilters(props.Filters) {
+					<a href={ templ.SafeURL(allocationPageSizeURL(props.Pagination.PerPage, props.Filters.Namespace, props.Filters.Region)) } hx-get={ allocationPageSizeURL(props.Pagination.PerPage, props.Filters.Namespace, props.Filters.Region) } hx-target="#main-content" hx-push-url="true" class="px-3 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">Clear filters</a>
 				}
+				<button type="submit" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply filters</button>
 			</div>
-		</div>
+		</form>
 		<!-- Allocations Table Container -->
 		<div id="allocations-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
 			@AllocationsTable(props)
@@ -159,17 +122,24 @@ templ AllocationsTable(props ListProps) {
 	@components.Table(components.TableProps{
 		Columns: []components.Column{
 			{Key: "id", Label: "Short ID", Sortable: true, Align: "left", Width: "w-32"},
-			{Key: "job", Label: "Job", Sortable: true, Align: "left", Width: "w-1/5"},
-			{Key: "taskgroup", Label: "Task Group", Sortable: true, Align: "left", Width: "w-1/6"},
-			{Key: "node", Label: "Node", Sortable: true, Align: "left", Width: "w-1/5"},
+			{Key: "job", Label: "Job", Sortable: true, Align: "left"},
+			{Key: "type", Label: "Type", Sortable: true, Align: "left"},
+			{Key: "taskgroup", Label: "Task Group", Sortable: true, Align: "left"},
+			{Key: "version", Label: "Job Version", Sortable: true, Align: "center"},
+			{Key: "node", Label: "Client", Sortable: true, Align: "left"},
 			{Key: "status", Label: "Status", Sortable: true, Align: "center", Width: "w-28"},
+			{Key: "scheduling", Label: "Scheduling", Sortable: true, Align: "left"},
 			{Key: "created", Label: "Created", Sortable: true, Align: "right"},
+			{Key: "logs", Label: "Logs", Align: "right"},
 		},
 		SortColumn: props.SortColumn,
 		SortDir:    props.SortDir,
 		Striped:    true,
+		Compact:    true,
 		Hover:      true,
-		SortURL:    buildAllocationsBaseURL(props.Filters),
+		SortURL:    buildAllocationsBaseURL(props.Filters, props.Pagination.PerPage),
+		HxTarget:   "#main-content",
+		Class:      "min-w-[88rem]",
 	}) {
 		@components.TableBody() {
 			if len(props.Allocations) == 0 {
@@ -186,7 +156,7 @@ templ AllocationsTable(props ListProps) {
 		Page:     props.Pagination.Page,
 		PerPage:  props.Pagination.PerPage,
 		Total:    props.Pagination.Total,
-		BaseURL:  buildAllocationsURL(props.Filters.Status, props.Filters.Job, props.Filters.Node, props.Filters.Search, props.SortColumn, props.SortDir),
+		BaseURL:  buildAllocationsURL(props.Filters, props.SortColumn, props.SortDir, 0),
 		HxTarget: "#allocations-table-container",
 		HxSwap:   "innerHTML",
 	})
@@ -197,17 +167,17 @@ templ allocationRow(allocation AllocationSummary) {
 	<tr
 		data-alloc-id={ allocation.ID }
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-		hx-get={ fmt.Sprintf("/ui/allocations/%s", allocation.ID) }
+		hx-get={ allocation.DetailURL }
 		hx-target="#main-content"
 		hx-swap="innerHTML"
 		hx-push-url="true"
 	>
 		@components.TableCell("left", "w-32") {
 			<a
-				href={ templ.SafeURL(fmt.Sprintf("/ui/allocations/%s", allocation.ID)) }
+				href={ templ.SafeURL(allocation.DetailURL) }
 				class="font-mono text-sm text-primary-600 dark:text-primary-400 hover:underline"
 				@click.stop
-				hx-get={ fmt.Sprintf("/ui/allocations/%s", allocation.ID) }
+				hx-get={ allocation.DetailURL }
 				hx-target="#main-content"
 				hx-swap="innerHTML"
 				hx-push-url="true"
@@ -221,10 +191,10 @@ templ allocationRow(allocation AllocationSummary) {
 		}
 		@components.TableCell("left", "w-1/5") {
 			<a
-				href={ templ.SafeURL(fmt.Sprintf("/ui/jobs/%s", allocation.JobID)) }
+				href={ templ.SafeURL(allocation.JobURL) }
 				class="font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 dark:hover:text-primary-400"
 				@click.stop
-				hx-get={ fmt.Sprintf("/ui/jobs/%s", allocation.JobID) }
+				hx-get={ allocation.JobURL }
 				hx-target="#main-content"
 				hx-swap="innerHTML"
 				hx-push-url="true"
@@ -232,15 +202,17 @@ templ allocationRow(allocation AllocationSummary) {
 				{ allocation.JobID }
 			</a>
 		}
+		@textAllocationCell(valueOrDash(allocation.JobType))
 		@components.TableCell("left", "w-1/6") {
 			<span class="text-neutral-700 dark:text-neutral-300">
 				{ allocation.TaskGroup }
 			</span>
 		}
+		@components.TableCell("center", "") {
+			{ fmt.Sprintf("%d", allocation.JobVersion) }
+		}
 		@components.TableCell("left", "w-1/5") {
-			<div class="text-neutral-900 dark:text-neutral-100">
-				{ allocation.NodeName }
-			</div>
+			<a href={ templ.SafeURL(allocation.ClientURL) } hx-get={ allocation.ClientURL } hx-target="#main-content" hx-push-url="true" @click.stop class="text-neutral-900 hover:text-primary-600 dark:text-neutral-100 dark:hover:text-primary-400">{ valueOrDash(allocation.NodeName) }</a>
 			<div class="text-xs font-mono text-neutral-500 dark:text-neutral-400">
 				{ shortID(allocation.NodeID) }
 			</div>
@@ -254,126 +226,115 @@ templ allocationRow(allocation AllocationSummary) {
 				{ allocation.Status }
 			}
 		}
+		@components.TableCell("left", "") {
+			<div class="font-medium text-neutral-800 dark:text-neutral-200">{ capitalizeFirst(valueOrDash(allocation.DesiredStatus)) }</div>
+			if allocation.DesiredDescription != "" {
+				<div class="max-w-48 truncate text-xs text-neutral-500 dark:text-neutral-400" title={ allocation.DesiredDescription }>{ allocation.DesiredDescription }</div>
+			}
+		}
 		@components.TableCell("right", "") {
 			<span class="text-neutral-600 dark:text-neutral-400">
 				{ formatTimeAgo(allocation.Created) }
 			</span>
 		}
+		@components.TableCell("right", "") {
+			<a href={ templ.SafeURL(allocation.LogsURL) } hx-get={ allocation.LogsURL } hx-target="#main-content" hx-push-url="true" @click.stop class="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400">View Logs</a>
+		}
 	</tr>
 }
 
-// buildStatusOptions creates select options for status filter
-func buildStatusOptions(statuses []string) []components.SelectOption {
-	options := make([]components.SelectOption, len(statuses))
-	for i, status := range statuses {
-		options[i] = components.SelectOption{
-			Value: status,
-			Label: capitalizeFirst(status),
-		}
+templ textAllocationCell(value string) {
+	@components.TableCell("left", "") {
+		<span class="text-neutral-700 dark:text-neutral-300">{ value }</span>
 	}
-	return options
 }
 
-// buildJobOptions creates select options for job filter
-func buildJobOptions(jobs []string) []components.SelectOption {
-	options := make([]components.SelectOption, len(jobs))
-	for i, job := range jobs {
-		options[i] = components.SelectOption{
-			Value: job,
-			Label: job,
-		}
-	}
-	return options
+templ allocationFilterSelect(name, label, placeholder, selected string, options []string) {
+	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+		<span>{ label }</span>
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+			<option value="">{ placeholder }</option>
+			for _, option := range options {
+				<option value={ option } selected?={ selected == option }>{ capitalizeFirst(option) }</option>
+			}
+		</select>
+	</label>
 }
 
-// buildNodeOptions creates select options for node filter
-func buildNodeOptions(nodes []string) []components.SelectOption {
-	options := make([]components.SelectOption, len(nodes))
-	for i, node := range nodes {
-		options[i] = components.SelectOption{
-			Value: node,
-			Label: node,
-		}
-	}
-	return options
+templ allocationPageSizeSelect(selected int) {
+	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+		<span>Rows per page</span>
+		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+			for _, option := range []int{10, 25, 50, 100} {
+				<option value={ fmt.Sprintf("%d", option) } selected?={ selected == option }>{ fmt.Sprintf("%d", option) }</option>
+			}
+		</select>
+	</label>
 }
 
 // buildAllocationsBaseURL constructs the base URL for table sorting
-func buildAllocationsBaseURL(filters ListFilters) string {
+func buildAllocationsBaseURL(filters ListFilters, perPage int) string {
+	return buildAllocationsURL(filters, "", "", perPage)
+}
+
+// buildAllocationsURL constructs the full URL with all filters and sort params
+func buildAllocationsURL(filters ListFilters, sortColumn, sortDir string, perPage int) string {
 	params := url.Values{}
+	if filters.Namespace != "" {
+		params.Set("namespace", filters.Namespace)
+	}
+	if filters.Region != "" {
+		params.Set("region", filters.Region)
+	}
 	if filters.Status != "" {
-		params.Add("status", filters.Status)
+		params.Set("status", filters.Status)
 	}
 	if filters.Job != "" {
-		params.Add("job", filters.Job)
+		params.Set("job", filters.Job)
+	}
+	if filters.JobType != "" {
+		params.Set("type", filters.JobType)
+	}
+	if filters.TaskGroup != "" {
+		params.Set("task_group", filters.TaskGroup)
 	}
 	if filters.Node != "" {
-		params.Add("node", filters.Node)
+		params.Set("node", filters.Node)
+	}
+	if filters.DesiredStatus != "" {
+		params.Set("scheduling", filters.DesiredStatus)
 	}
 	if filters.Search != "" {
-		params.Add("search", filters.Search)
+		params.Set("search", filters.Search)
 	}
-	if len(params) > 0 {
-		return "/ui/allocations?" + params.Encode()
+	if sortColumn != "" {
+		params.Set("sort", sortColumn)
+	}
+	if sortDir != "" {
+		params.Set("dir", sortDir)
+	}
+	if perPage > 0 {
+		params.Set("per_page", fmt.Sprintf("%d", perPage))
+	}
+	if encoded := params.Encode(); encoded != "" {
+		return "/ui/allocations?" + encoded
 	}
 	return "/ui/allocations"
 }
 
-// buildAllocationsURL constructs the full URL with all filters and sort params
-func buildAllocationsURL(status, job, node, search, sortColumn, sortDir string) string {
-	baseURL := "/ui/allocations?"
-	params := url.Values{}
-
-	if status != "" {
-		params.Add("status", status)
-	}
-	if job != "" {
-		params.Add("job", job)
-	}
-	if node != "" {
-		params.Add("node", node)
-	}
-	if search != "" {
-		params.Add("search", search)
-	}
-	if sortColumn != "" {
-		params.Add("sort", sortColumn)
-	}
-	if sortDir != "" {
-		params.Add("dir", sortDir)
-	}
-
-	if len(params) > 0 {
-		return baseURL + params.Encode() + "&"
-	}
-	return baseURL
+func allocationPageSizeURL(perPage int, namespace, region string) string {
+	return buildAllocationsURL(ListFilters{Namespace: namespace, Region: region}, "", "", perPage)
 }
 
-// buildFilterURL constructs URL for filter changes, excluding the filter being changed
-func buildFilterURL(filters ListFilters, excludeFilter, sortColumn, sortDir string) string {
-	baseURL := "/ui/allocations?"
-	params := url.Values{}
+func hasActiveAllocationFilters(filters ListFilters) bool {
+	return filters.Status != "" || filters.Job != "" || filters.JobType != "" || filters.TaskGroup != "" || filters.Node != "" || filters.DesiredStatus != "" || filters.Search != ""
+}
 
-	if excludeFilter != "status" && filters.Status != "" {
-		params.Add("status", filters.Status)
+func valueOrDash(value string) string {
+	if value == "" {
+		return "—"
 	}
-	if excludeFilter != "job" && filters.Job != "" {
-		params.Add("job", filters.Job)
-	}
-	if excludeFilter != "node" && filters.Node != "" {
-		params.Add("node", filters.Node)
-	}
-	if filters.Search != "" {
-		params.Add("search", filters.Search)
-	}
-	if sortColumn != "" {
-		params.Add("sort", sortColumn)
-	}
-	if sortDir != "" {
-		params.Add("dir", sortDir)
-	}
-
-	return baseURL + params.Encode()
+	return value
 }
 
 // capitalizeFirst capitalizes the first letter of a string
