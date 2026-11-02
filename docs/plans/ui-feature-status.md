@@ -67,7 +67,11 @@ scope and parity work list is the
   and link to their detail routes without masking API failures as empty data.
   Topology shows active allocation reservations against schedulable node
   capacity and identifies the selected region without inventing heartbeat
-  data.
+  data. Its clean-room topology graph restores the inherited Metrics,
+  Allocation Status, Node Pool, Datacenter, Class, State, and Version controls;
+  deterministic multi-datacenter/client ordering; scoped client/allocation
+  selection; and accessible node-to-allocation edges with allocation-level
+  job, task-group, status, and reservation detail.
 - CSI volumes: live controller/node health, complete capability constraints,
   separate read and read/write allocation claim tables, and truthful denied,
   missing, and unavailable responses. CSI mutations remain inherited API/CLI
@@ -145,7 +149,6 @@ be used to defer baseline behavior without explicit approval:
   statistics.
 - Variable validation, conflict detection, JSON/tree views, copy controls, and
   unsaved-change warnings.
-- Richer topology filtering and allocation overlays.
 - Additional job/client filters, columns, charts, eligibility analysis, and
   detail panels.
 - Consistent copy controls and improved relative time display. The applicable

@@ -27,19 +27,27 @@ func summarizeNodeAllocations(allocations []*api.AllocationListStub) map[string]
 
 		summary := byNode[allocation.NodeID]
 		summary.Count++
-		if allocation.AllocatedResources != nil {
-			for _, task := range allocation.AllocatedResources.Tasks {
-				if task == nil {
-					continue
-				}
-				summary.CPU += task.Cpu.CpuShares
-				summary.MemoryBytes += task.Memory.MemoryMB * bytesPerMegabyte
-			}
-			summary.DiskBytes += allocation.AllocatedResources.Shared.DiskMB * bytesPerMegabyte
-		}
+		cpu, memoryBytes, diskBytes := allocationReservations(allocation)
+		summary.CPU += cpu
+		summary.MemoryBytes += memoryBytes
+		summary.DiskBytes += diskBytes
 		byNode[allocation.NodeID] = summary
 	}
 	return byNode
+}
+
+func allocationReservations(allocation *api.AllocationListStub) (cpu, memoryBytes, diskBytes int64) {
+	if allocation == nil || allocation.AllocatedResources == nil {
+		return 0, 0, 0
+	}
+	for _, task := range allocation.AllocatedResources.Tasks {
+		if task == nil {
+			continue
+		}
+		cpu += task.Cpu.CpuShares
+		memoryBytes += task.Memory.MemoryMB * bytesPerMegabyte
+	}
+	return cpu, memoryBytes, allocation.AllocatedResources.Shared.DiskMB * bytesPerMegabyte
 }
 
 func isActiveAllocation(status string) bool {

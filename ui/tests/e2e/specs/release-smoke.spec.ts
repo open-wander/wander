@@ -550,10 +550,30 @@ test.describe('Wander release smoke', () => {
     await expect(page.locator('#job-detail-panel')).not.toContainText('job-linked-variable');
 
     await page.goto('/ui/topology');
+    await expect(page.getByLabel('Metrics')).toBeVisible();
+    await expect(page.getByLabel('Allocation Status')).toBeVisible();
+    await expect(page.getByLabel('Node Pool')).toBeVisible();
+    await expect(page.getByLabel('Datacenter')).toBeVisible();
+    await expect(page.getByLabel('Class')).toBeVisible();
+    await expect(page.getByLabel('State')).toBeVisible();
+    await expect(page.getByLabel('Version')).toBeVisible();
+    await page.getByLabel('Metrics').selectOption('memory');
+    await page.getByLabel('Allocation Status').selectOption('running');
+    await page.getByLabel('Node Pool').selectOption('default');
+    await page.getByLabel('Datacenter').selectOption('dc1');
+    await page.getByLabel('State').selectOption('ready');
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    await expectURLParams(page, { metric: 'memory', allocation_status: 'running', node_pool: 'default', datacenter: 'dc1', state: 'ready' });
     const topologyNode = page.locator('[data-topology-node-id]').first();
     await expect(topologyNode).toContainText('Allocations');
-    await expect(topologyNode).toContainText('CPU allocated');
     await expect(topologyNode).toContainText('Memory allocated');
+    await expect(topologyNode).not.toContainText('CPU allocated');
+    await topologyNode.getByRole('link', { name: 'Select client' }).click();
+    await expect(page.locator('[data-topology-node-id][data-selected="true"]')).toHaveCount(1);
+    const topologyAllocation = page.locator('[data-topology-allocation-id]').first();
+    await expect(topologyAllocation).toBeVisible();
+    await topologyAllocation.getByRole('link', { name: 'Select allocation' }).click();
+    await expect(page.locator('[data-topology-allocation-id][data-selected="true"]')).toHaveCount(1);
     await expect(page.locator('body')).toContainText('Region: global');
     await expect(page.locator('body')).not.toContainText('Last heartbeat: Unknown');
 
