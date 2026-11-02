@@ -3,34 +3,49 @@ package clientspartials
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/open-wander/wander/ui/templates/components"
 	"math/bits"
+	"net/url"
 	"sort"
 	"time"
+
+	"github.com/open-wander/wander/ui/templates/components"
 )
 
 // ClientDetail represents detailed information about a client node
 type ClientDetail struct {
-	ID          string
-	Name        string
-	Status      string
-	Datacenter  string
-	Address     string
-	Version     string
-	Uptime      string
-	NodeClass   string
-	Drain       bool
-	Draining    bool // True if currently draining
-	Eligible    bool
-	Resources   ClientResources
-	Allocations []AllocationSummary
-	Attributes  map[string]string
-	Meta        map[string]string
-	Events      []ClientEvent
-	Drivers     map[string]DriverInfo
+	ID                      string
+	Name                    string
+	Status                  string
+	Datacenter              string
+	Address                 string
+	Version                 string
+	Uptime                  string
+	NodeClass               string
+	Drain                   bool
+	Draining                bool // True if currently draining
+	Eligible                bool
+	Resources               ClientResources
+	Allocations             []AllocationSummary
+	AllocationFilters       ClientAllocationFilters
+	AllocationFilterOptions ClientAllocationFilterOptions
+	AllocationsAvailable    bool
+	AllocationError         string
+	Attributes              map[string]string
+	Meta                    map[string]string
+	StaticMeta              map[string]string
+	DynamicMeta             map[string]*string
+	MetadataAvailable       bool
+	MetadataError           string
+	CanWriteNode            bool
+	Events                  []ClientEvent
+	Drivers                 []DriverInfo
+	HostVolumes             []HostVolumeInfo
+	ActiveTab               string
+	Namespace               string
+	Region                  string
 	// Real-time resource stats from node (if available)
 	Stats *ClientStats
-	// Resource history for charts (mock data for now)
+	// Resource history is empty until the server provides historical samples.
 	CPUHistory    []ResourceDataPoint
 	MemoryHistory []ResourceDataPoint
 }
@@ -50,9 +65,32 @@ type ClientEvent struct {
 
 // DriverInfo represents driver information on a client
 type DriverInfo struct {
-	Detected bool
-	Healthy  bool
-	Version  string
+	Name              string
+	Detected          bool
+	Healthy           bool
+	Version           string
+	HealthDescription string
+	Attributes        map[string]string
+}
+
+type HostVolumeInfo struct {
+	Name     string
+	Path     string
+	ReadOnly bool
+}
+
+type ClientAllocationFilters struct {
+	Status    string
+	Namespace string
+	Job       string
+	TaskGroup string
+}
+
+type ClientAllocationFilterOptions struct {
+	Statuses   []string
+	Namespaces []string
+	Jobs       []string
+	TaskGroups []string
 }
 
 // ClientResources represents resource allocation and usage for a client
@@ -101,13 +139,17 @@ type DiskStat struct {
 
 // AllocationSummary represents a summary of an allocation running on this client
 type AllocationSummary struct {
-	ID        string
-	JobID     string
-	TaskGroup string
-	Status    string
-	CPUUsed   int
-	MemUsed   int64
-	DiskUsed  int64
+	ID            string
+	JobID         string
+	Namespace     string
+	TaskGroup     string
+	Status        string
+	DesiredStatus string
+	DetailURL     string
+	JobURL        string
+	CPUUsed       int
+	MemUsed       int64
+	DiskUsed      int64
 }
 
 // DetailContent renders the client detail page content (without layout)
@@ -214,22 +256,24 @@ templ DetailContent(client ClientDetail) {
 							Label:   "Overview",
 							Icon:    "chart",
 							Content: OverviewTab(client),
-							Active:  true,
+							Active:  client.ActiveTab == "overview",
 						},
 						{
 							ID:      "allocations",
 							Label:   fmt.Sprintf("Allocations (%d)", len(client.Allocations)),
 							Icon:    "cube",
 							Content: AllocationsTab(client),
+							Active:  client.ActiveTab == "allocations",
 						},
 						{
 							ID:      "events",
 							Label:   fmt.Sprintf("Events (%d)", len(client.Events)),
 							Icon:    "clock",
 							Content: EventsTab(client),
+							Active:  client.ActiveTab == "events",
 						},
 					},
-					ActiveTab: "overview",
+					ActiveTab: client.ActiveTab,
 					Mode:      "static",
 					PanelID:   "client-detail-panel",
 				})
@@ -247,47 +291,51 @@ templ OverviewTab(client ClientDetail) {
 		<!-- Resource Usage Section -->
 		<div>
 			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Usage</h3>
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-				<!-- CPU Usage -->
-				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
-					<div class="flex items-center justify-between text-sm mb-2">
-						<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU</span>
-						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
-							{ fmt.Sprintf("%d / %d MHz allocated", client.Resources.CPUUsed, client.Resources.CPUTotal) }
-						</span>
+			if !client.AllocationsAvailable {
+				<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800 dark:border-warning-800 dark:bg-warning-900/20 dark:text-warning-200">Allocated resource totals are unavailable because the allocation read failed.</div>
+			} else {
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+					<!-- CPU Usage -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU</span>
+							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+								{ fmt.Sprintf("%d / %d MHz allocated", client.Resources.CPUUsed, client.Resources.CPUTotal) }
+							</span>
+						</div>
+						@resourceBar(client.Resources.CPUUsed, client.Resources.CPUTotal)
+						<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+							{ fmt.Sprintf("%d%% allocated", calculatePercentage(client.Resources.CPUUsed, client.Resources.CPUTotal)) }
+						</div>
 					</div>
-					@resourceBar(client.Resources.CPUUsed, client.Resources.CPUTotal)
-					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-						{ fmt.Sprintf("%d%% allocated", calculatePercentage(client.Resources.CPUUsed, client.Resources.CPUTotal)) }
+					<!-- Memory Usage -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory</span>
+							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+								{ formatMemory(client.Resources.MemUsed) } / { formatMemory(client.Resources.MemTotal) }
+							</span>
+						</div>
+						@memoryBar(client.Resources.MemUsed, client.Resources.MemTotal)
+						<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+							{ fmt.Sprintf("%d%% allocated", calculateMemoryPercentage(client.Resources.MemUsed, client.Resources.MemTotal)) }
+						</div>
+					</div>
+					<!-- Disk Usage -->
+					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
+						<div class="flex items-center justify-between text-sm mb-2">
+							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk</span>
+							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
+								{ formatMemory(client.Resources.DiskUsed) } / { formatMemory(client.Resources.DiskTotal) }
+							</span>
+						</div>
+						@memoryBar(client.Resources.DiskUsed, client.Resources.DiskTotal)
+						<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+							{ fmt.Sprintf("%d%% allocated", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
+						</div>
 					</div>
 				</div>
-				<!-- Memory Usage -->
-				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
-					<div class="flex items-center justify-between text-sm mb-2">
-						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory</span>
-						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
-							{ formatMemory(client.Resources.MemUsed) } / { formatMemory(client.Resources.MemTotal) }
-						</span>
-					</div>
-					@memoryBar(client.Resources.MemUsed, client.Resources.MemTotal)
-					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-						{ fmt.Sprintf("%d%% allocated", calculateMemoryPercentage(client.Resources.MemUsed, client.Resources.MemTotal)) }
-					</div>
-				</div>
-				<!-- Disk Usage -->
-				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
-					<div class="flex items-center justify-between text-sm mb-2">
-						<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk</span>
-						<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
-							{ formatMemory(client.Resources.DiskUsed) } / { formatMemory(client.Resources.DiskTotal) }
-						</span>
-					</div>
-					@memoryBar(client.Resources.DiskUsed, client.Resources.DiskTotal)
-					<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-						{ fmt.Sprintf("%d%% allocated", calculateMemoryPercentage(client.Resources.DiskUsed, client.Resources.DiskTotal)) }
-					</div>
-				</div>
-			</div>
+			}
 		</div>
 		<!-- Real-time Resource Stats Section -->
 		if client.Stats != nil {
@@ -399,42 +447,81 @@ templ OverviewTab(client ClientDetail) {
 		if len(client.Drivers) > 0 {
 			<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Drivers</h3>
-				<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-					for name, driver := range client.Drivers {
-						<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3 flex items-center justify-between">
-							<div>
-								<div class="font-medium text-neutral-900 dark:text-neutral-100 text-sm">{ name }</div>
-								if driver.Version != "" {
-									<div class="text-xs text-neutral-500 dark:text-neutral-400">v{ driver.Version }</div>
-								}
-							</div>
-							<div class="flex items-center space-x-2">
-								if driver.Detected {
-									@components.Badge(components.BadgeProps{
-										Variant: driverHealthVariant(driver.Healthy),
-										Dot:     true,
-										Size:    "sm",
-									}) {
-										if driver.Healthy {
-											healthy
-										} else {
-											unhealthy
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					for _, driver := range client.Drivers {
+						<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3">
+							<div class="flex items-center justify-between">
+								<div>
+									<div class="font-medium text-neutral-900 dark:text-neutral-100 text-sm">{ driver.Name }</div>
+									if driver.Version != "" {
+										<div class="text-xs text-neutral-500 dark:text-neutral-400">v{ driver.Version }</div>
+									}
+								</div>
+								<div class="flex items-center space-x-2">
+									if driver.Detected {
+										@components.Badge(components.BadgeProps{
+											Variant: driverHealthVariant(driver.Healthy),
+											Dot:     true,
+											Size:    "sm",
+										}) {
+											if driver.Healthy {
+												healthy
+											} else {
+												unhealthy
+											}
+										}
+									} else {
+										@components.Badge(components.BadgeProps{
+											Variant: "neutral",
+											Size:    "sm",
+										}) {
+											not detected
 										}
 									}
-								} else {
-									@components.Badge(components.BadgeProps{
-										Variant: "neutral",
-										Size:    "sm",
-									}) {
-										not detected
-									}
-								}
+								</div>
 							</div>
+							if driver.HealthDescription != "" {
+								<p class="mt-2 text-xs text-neutral-600 dark:text-neutral-400">{ driver.HealthDescription }</p>
+							}
+							if len(driver.Attributes) > 0 {
+								<dl class="mt-3 space-y-1 border-t border-neutral-200 pt-2 dark:border-neutral-700">
+									for _, key := range sortedKeys(driver.Attributes) {
+										<div class="flex gap-2 text-xs"><dt class="min-w-0 flex-1 break-all font-medium text-neutral-600 dark:text-neutral-400">{ key }</dt><dd class="min-w-0 flex-1 break-all font-mono text-neutral-900 dark:text-neutral-100">{ driver.Attributes[key] }</dd></div>
+									}
+								</dl>
+							}
 						</div>
 					}
 				</div>
 			</div>
 		}
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Host Volumes</h3>
+			if len(client.HostVolumes) == 0 {
+				<p class="text-neutral-500 dark:text-neutral-400 text-sm">No host volumes configured</p>
+			} else {
+				<div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
+					<table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+						<thead class="bg-neutral-50 dark:bg-neutral-800"><tr><th class="px-4 py-2 text-left">Name</th><th class="px-4 py-2 text-left">Path</th><th class="px-4 py-2 text-left">Access</th></tr></thead>
+						<tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
+							for _, volume := range client.HostVolumes {
+								<tr>
+									<td class="px-4 py-2 font-medium">{ volume.Name }</td>
+									<td class="px-4 py-2 font-mono break-all">{ volume.Path }</td>
+									<td class="px-4 py-2">
+										if volume.ReadOnly {
+											<span>Read only</span>
+										} else {
+											<span>Read/write</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
 		<!-- Node Attributes Section -->
 		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
 			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Node Attributes</h3>
@@ -451,35 +538,113 @@ templ OverviewTab(client ClientDetail) {
 				</div>
 			}
 		</div>
-		<!-- Meta Attributes Section -->
+		<!-- Node Metadata Section -->
 		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
-			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Meta Attributes</h3>
-			if len(client.Meta) == 0 {
-				<p class="text-neutral-500 dark:text-neutral-400 text-sm">No meta attributes defined</p>
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Node Metadata</h3>
+			if !client.MetadataAvailable {
+				<div class="mb-4 rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800 dark:border-warning-800 dark:bg-warning-900/20 dark:text-warning-200">{ client.MetadataError }</div>
+				@metadataValues("Merged metadata", client.Meta)
 			} else {
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-					for _, key := range sortedKeys(client.Meta) {
-						<div class="flex items-start py-2 border-b border-neutral-100 dark:border-neutral-800">
-							<span class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/2">{ key }</span>
-							<span class="text-sm text-neutral-900 dark:text-neutral-100 w-1/2">{ client.Meta[key] }</span>
-						</div>
-					}
+				<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+					@metadataValues("Static metadata", client.StaticMeta)
+					@dynamicMetadataValues(client)
 				</div>
+				if client.CanWriteNode {
+					<form class="mt-6 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700" method="post" action={ scopedClientActionURL(client, "/metadata") }>
+						<input type="hidden" name="operation" value="set"/>
+						<h4 class="mb-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Create or update dynamic metadata</h4>
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
+							<label class="text-sm text-neutral-700 dark:text-neutral-300">Key<input class="form-input mt-1 w-full" type="text" name="key" required placeholder="example.key"/></label>
+							<label class="text-sm text-neutral-700 dark:text-neutral-300">Value<input class="form-input mt-1 w-full" type="text" name="value" placeholder="value"/></label>
+							<button class="btn btn-primary btn-sm self-end" type="submit">Save metadata</button>
+						</div>
+						<p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">Keys must be valid dotted identifiers. Empty values are allowed.</p>
+					</form>
+				}
 			}
 		</div>
+	</div>
+}
+
+templ metadataValues(title string, values map[string]string) {
+	<div>
+		<h4 class="mb-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">{ title }</h4>
+		if len(values) == 0 {
+			<p class="text-sm text-neutral-500 dark:text-neutral-400">None</p>
+		} else {
+			<dl class="divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-700">
+				for _, key := range sortedKeys(values) {
+					<div class="flex gap-3 px-3 py-2 text-sm"><dt class="min-w-0 flex-1 break-all font-medium text-neutral-600 dark:text-neutral-400">{ key }</dt><dd class="min-w-0 flex-1 break-all font-mono text-neutral-900 dark:text-neutral-100">{ values[key] }</dd></div>
+				}
+			</dl>
+		}
+	</div>
+}
+
+templ dynamicMetadataValues(client ClientDetail) {
+	<div>
+		<h4 class="mb-2 text-sm font-semibold text-neutral-700 dark:text-neutral-300">Dynamic metadata</h4>
+		if len(client.DynamicMeta) == 0 {
+			<p class="text-sm text-neutral-500 dark:text-neutral-400">None</p>
+		} else {
+			<div class="divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-700">
+				for _, key := range sortedPointerKeys(client.DynamicMeta) {
+					<div class="flex items-center gap-3 px-3 py-2 text-sm" data-meta-key={ key }>
+						<div class="min-w-0 flex-1 break-all font-medium text-neutral-600 dark:text-neutral-400">{ key }</div>
+						<div class="min-w-0 flex-1 break-all font-mono text-neutral-900 dark:text-neutral-100">
+							if client.DynamicMeta[key] == nil {
+								<span class="italic text-neutral-500">static value masked</span>
+							} else {
+								{ *client.DynamicMeta[key] }
+							}
+						</div>
+						if client.CanWriteNode {
+							<form method="post" action={ scopedClientActionURL(client, "/metadata") }>
+								<input type="hidden" name="operation" value="unset"/>
+								<input type="hidden" name="key" value={ key }/>
+								<button class="btn btn-secondary btn-xs" type="submit">Unset</button>
+							</form>
+						}
+					</div>
+				}
+			</div>
+		}
 	</div>
 }
 
 // AllocationsTab renders the allocations tab with a table of allocations on this client
 templ AllocationsTab(client ClientDetail) {
 	<div class="pt-4">
-		if len(client.Allocations) == 0 {
+		<form method="get" action={ clientDetailPath(client) } class="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800">
+			<input type="hidden" name="tab" value="allocations"/>
+			if client.Namespace != "" {
+				<input type="hidden" name="namespace" value={ client.Namespace }/>
+			}
+			if client.Region != "" {
+				<input type="hidden" name="region" value={ client.Region }/>
+			}
+			<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+				@clientAllocationFilter("allocation_status", "Status", "All statuses", client.AllocationFilters.Status, client.AllocationFilterOptions.Statuses)
+				@clientAllocationFilter("allocation_namespace", "Namespace", "All namespaces", client.AllocationFilters.Namespace, client.AllocationFilterOptions.Namespaces)
+				@clientAllocationFilter("allocation_job", "Job", "All jobs", client.AllocationFilters.Job, client.AllocationFilterOptions.Jobs)
+				@clientAllocationFilter("allocation_task_group", "Task group", "All task groups", client.AllocationFilters.TaskGroup, client.AllocationFilterOptions.TaskGroups)
+			</div>
+			<div class="mt-3 flex justify-end gap-3">
+				if hasClientAllocationFilters(client.AllocationFilters) {
+					<a class="px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400" href={ templ.SafeURL(clientAllocationsClearURL(client)) }>Clear filters</a>
+				}
+				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white">Apply filters</button>
+			</div>
+		</form>
+		if !client.AllocationsAvailable {
+			<div class="rounded-lg border border-warning-200 bg-warning-50 p-6 text-sm text-warning-800 dark:border-warning-800 dark:bg-warning-900/20 dark:text-warning-200">{ client.AllocationError }</div>
+		} else if len(client.Allocations) == 0 {
 			<div class="text-center py-12 bg-neutral-50 dark:bg-neutral-800 rounded-lg">
 				<svg class="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
 				</svg>
 				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No allocations</h3>
-				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">There are no allocations running on this client.</p>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">No allocations match the selected scope and filters.</p>
 			</div>
 		} else {
 			<div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
@@ -487,6 +652,7 @@ templ AllocationsTab(client ClientDetail) {
 					Columns: []components.Column{
 						{Key: "id", Label: "ID", Sortable: false, Align: "left", Width: "w-32"},
 						{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-1/4"},
+						{Key: "namespace", Label: "Namespace", Sortable: false, Align: "left"},
 						{Key: "taskgroup", Label: "Task Group", Sortable: false, Align: "left", Width: "w-1/4"},
 						{Key: "status", Label: "Status", Sortable: false, Align: "center", Width: "w-32"},
 						{Key: "resources", Label: "Resources", Sortable: false, Align: "left"},
@@ -547,10 +713,13 @@ templ EventsTab(client ClientDetail) {
 
 // allocationRow renders a single allocation row in the table
 templ allocationRow(alloc AllocationSummary) {
-	<tr class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+	<tr data-alloc-id={ alloc.ID } class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
 		@components.TableCell("left", "w-32") {
 			<a
-				href={ templ.URL("/ui/allocations/" + alloc.ID) }
+				href={ templ.SafeURL(alloc.DetailURL) }
+				hx-get={ alloc.DetailURL }
+				hx-target="#main-content"
+				hx-push-url="true"
 				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-mono text-xs"
 			>
 				{ truncateID(alloc.ID) }
@@ -558,11 +727,17 @@ templ allocationRow(alloc AllocationSummary) {
 		}
 		@components.TableCell("left", "w-1/4") {
 			<a
-				href={ templ.URL("/ui/jobs/" + alloc.JobID) }
+				href={ templ.SafeURL(alloc.JobURL) }
+				hx-get={ alloc.JobURL }
+				hx-target="#main-content"
+				hx-push-url="true"
 				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
 			>
 				{ alloc.JobID }
 			</a>
+		}
+		@components.TableCell("left", "") {
+			{ alloc.Namespace }
 		}
 		@components.TableCell("left", "w-1/4") {
 			<span class="text-neutral-700 dark:text-neutral-300">
@@ -588,6 +763,52 @@ templ allocationRow(alloc AllocationSummary) {
 			</div>
 		}
 	</tr>
+}
+
+templ clientAllocationFilter(name, label, placeholder, selected string, options []string) {
+	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+		<span>{ label }</span>
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100">
+			<option value="">{ placeholder }</option>
+			for _, option := range options {
+				<option value={ option } selected?={ selected == option }>{ option }</option>
+			}
+		</select>
+	</label>
+}
+
+func clientDetailPath(client ClientDetail) string {
+	return "/ui/clients/" + url.PathEscape(client.ID)
+}
+
+func clientAllocationsClearURL(client ClientDetail) string {
+	params := url.Values{"tab": []string{"allocations"}}
+	if client.Namespace != "" {
+		params.Set("namespace", client.Namespace)
+	}
+	if client.Region != "" {
+		params.Set("region", client.Region)
+	}
+	return clientDetailPath(client) + "?" + params.Encode()
+}
+
+func scopedClientActionURL(client ClientDetail, suffix string) string {
+	params := url.Values{}
+	if client.Namespace != "" {
+		params.Set("namespace", client.Namespace)
+	}
+	if client.Region != "" {
+		params.Set("region", client.Region)
+	}
+	result := clientDetailPath(client) + suffix
+	if encoded := params.Encode(); encoded != "" {
+		return result + "?" + encoded
+	}
+	return result
+}
+
+func hasClientAllocationFilters(filters ClientAllocationFilters) bool {
+	return filters.Status != "" || filters.Namespace != "" || filters.Job != "" || filters.TaskGroup != ""
 }
 
 // statusToBadgeVariant maps client status to badge variant
@@ -767,6 +988,15 @@ func sortedKeys(m map[string]string) []string {
 	return keys
 }
 
+func sortedPointerKeys(m map[string]*string) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // driverHealthVariant maps driver health to badge variant
 func driverHealthVariant(healthy bool) string {
 	if healthy {
@@ -854,7 +1084,7 @@ templ DrainNodeModal(client ClientDetail) {
 			Closable: true,
 		}) {
 			@components.ModalBody() {
-				<form id="drain-form" hx-post={ "/ui/clients/" + client.ID + "/drain" } hx-swap="none">
+				<form id="drain-form" method="post" action={ scopedClientActionURL(client, "/drain") }>
 					<div class="space-y-4">
 						<div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
 							<div class="flex">
@@ -872,10 +1102,17 @@ templ DrainNodeModal(client ClientDetail) {
 						<p class="text-sm text-neutral-600 dark:text-neutral-400">
 							Are you sure you want to drain node <strong class="text-neutral-900 dark:text-neutral-100">{ client.Name }</strong>?
 						</p>
+						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for="drain-deadline-mode">Drain strategy</label>
+						<select id="drain-deadline-mode" name="deadline_mode" class="form-select w-full">
+							<option value="default">Default — force remaining allocations after 1 hour</option>
+							<option value="custom">Custom deadline</option>
+							<option value="none">No deadline — wait indefinitely</option>
+							<option value="force">Force immediately</option>
+						</select>
 						@components.FormField(components.FormFieldProps{
-							Label: "Deadline",
+							Label: "Custom deadline",
 							ID:    "drain-deadline",
-							Hint:  "Optional: Time limit for the drain (e.g., 1h, 30m). Leave empty for no deadline.",
+							Hint:  "Used only with Custom deadline; enter a positive duration such as 30m or 2h30m.",
 						}) {
 							@components.Input(components.InputProps{
 								Type:        "text",
@@ -883,6 +1120,13 @@ templ DrainNodeModal(client ClientDetail) {
 								Name:        "deadline",
 								Placeholder: "e.g., 1h, 30m, 2h30m",
 							})
+						}
+						@components.FormField(components.FormFieldProps{
+							Label: "Operator message",
+							ID:    "drain-message",
+							Hint:  "Optional message stored with the drain operation.",
+						}) {
+							@components.Input(components.InputProps{Type: "text", ID: "drain-message", Name: "message", Placeholder: "Reason for draining this node"})
 						}
 						<div class="pt-2">
 							@components.Checkbox(components.CheckboxProps{
@@ -926,14 +1170,16 @@ templ CancelDrainModal(client ClientDetail) {
 			Closable: true,
 		}) {
 			@components.ModalBody() {
-				<div class="space-y-4">
+				<form id="cancel-drain-form" method="post" action={ scopedClientActionURL(client, "/drain/cancel") } class="space-y-4">
 					<p class="text-sm text-neutral-600 dark:text-neutral-400">
 						Are you sure you want to cancel the drain operation on node <strong class="text-neutral-900 dark:text-neutral-100">{ client.Name }</strong>?
 					</p>
-					<p class="text-sm text-neutral-500 dark:text-neutral-500">
-						The node will become eligible for new allocations again. Any allocations that have already been migrated will not be returned.
-					</p>
-				</div>
+					<p class="text-sm text-neutral-500 dark:text-neutral-500">By default the node becomes eligible for new allocations again. Migrated allocations will not be returned.</p>
+					@components.Checkbox(components.CheckboxProps{ID: "keep-ineligible", Name: "keep_ineligible", Value: "true", Label: "Keep the node ineligible after cancelling"})
+					@components.FormField(components.FormFieldProps{Label: "Cancellation message", ID: "cancel-drain-message", Hint: "Optional message stored with the cancelled drain."}) {
+						@components.Input(components.InputProps{Type: "text", ID: "cancel-drain-message", Name: "cancel_message", Placeholder: "Reason for cancelling the drain"})
+					}
+				</form>
 			}
 			@components.ModalFooter() {
 				<button
@@ -944,9 +1190,8 @@ templ CancelDrainModal(client ClientDetail) {
 					Keep Draining
 				</button>
 				<button
-					type="button"
-					hx-post={ "/ui/clients/" + client.ID + "/drain/cancel" }
-					hx-swap="none"
+					type="submit"
+					form="cancel-drain-form"
 					@click="close"
 					class="btn btn-warning btn-sm"
 				>

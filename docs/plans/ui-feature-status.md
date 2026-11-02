@@ -34,7 +34,11 @@ scope and parity work list is the
   filters and sorting, scheduler health counts, and deterministic scaling-event
   history preserve namespace, region, and ACL scope and expose partial failures.
 - Clients: live list and detail data, drain, cancel drain, active allocation
-  counts, and allocation reservations against schedulable node capacity.
+  counts, allocation reservations against schedulable node capacity, scoped
+  allocation filtering, host-volume detail, complete driver attributes, and
+  dynamic metadata editing with truthful partial-failure states. Drain controls
+  cover default, custom, unlimited, and immediate strategies plus system-job,
+  message, and cancellation-eligibility choices.
 - Services: live namespace-scoped list and registration detail routes, with
   links to their jobs, allocations, and clients. Job detail includes separate
   service and allocation-observed client tabs without implying scheduler

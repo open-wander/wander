@@ -494,6 +494,7 @@ func TestACLMutations(t *testing.T) {
 	assertMonitorStream(t, client, serverMonitorStream, root.SecretID)
 
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/clients/"+nodeID+"/drain", "", "application/x-www-form-urlencoded", "deadline=5m", http.StatusForbidden)
+	assertRequestStatus(t, client, http.MethodPost, address+"/ui/clients/"+nodeID+"/metadata", "", "application/x-www-form-urlencoded", "operation=set&key=wander.acl&value=denied", http.StatusForbidden)
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/allocations/"+allocationID+"/restart", "", "", "", http.StatusForbidden)
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/variables", "", "application/x-www-form-urlencoded", "path=acl-audit/test&namespace=default&key_0=answer&value_0=denied", http.StatusForbidden)
 	dispatchForm := url.Values{"meta.environment": {"acl-test"}, "payload": {"acl-dispatch-payload"}}
@@ -518,8 +519,11 @@ func TestACLMutations(t *testing.T) {
 		body        string
 	}{
 		{endpoint: address + "/api/clients/" + nodeID + "/eligibility", contentType: "application/json", body: `{"Eligible":true}`},
-		{endpoint: address + "/ui/clients/" + nodeID + "/drain", contentType: "application/x-www-form-urlencoded", body: "deadline=5m&ignore_system=true"},
-		{endpoint: address + "/ui/clients/" + nodeID + "/drain/cancel"},
+		{endpoint: address + "/ui/clients/" + nodeID + "/drain", contentType: "application/x-www-form-urlencoded", body: "deadline_mode=none&ignore_system=true&message=acl+audit"},
+		{endpoint: address + "/ui/clients/" + nodeID + "/drain/cancel", contentType: "application/x-www-form-urlencoded", body: "keep_ineligible=true&cancel_message=acl+audit+cancel"},
+		{endpoint: address + "/api/clients/" + nodeID + "/eligibility", contentType: "application/json", body: `{"Eligible":true}`},
+		{endpoint: address + "/ui/clients/" + nodeID + "/metadata", contentType: "application/x-www-form-urlencoded", body: "operation=set&key=wander.acl&value=allowed"},
+		{endpoint: address + "/ui/clients/" + nodeID + "/metadata", contentType: "application/x-www-form-urlencoded", body: "operation=unset&key=wander.acl"},
 	}
 	for _, action := range nodeActions {
 		assertRequestStatus(t, client, http.MethodPost, action.endpoint, root.SecretID, action.contentType, action.body, http.StatusOK)

@@ -115,6 +115,7 @@ func TestDynamicUIRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/ui/clients/example/monitor/stream",
 		"/ui/clients/example/drain",
 		"/ui/clients/example/drain/cancel",
+		"/ui/clients/example/metadata",
 		"/ui/servers/example",
 		"/ui/servers/example/monitor",
 		"/ui/servers/example/monitor/stream",

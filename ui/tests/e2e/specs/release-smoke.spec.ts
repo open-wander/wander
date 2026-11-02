@@ -468,6 +468,58 @@ test.describe('Wander release smoke', () => {
     await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+/);
     await expect(page).toHaveURL(/namespace=default/);
     await expect(page).toHaveURL(/region=global/);
+    await expect(page.getByRole('heading', { name: 'Host Volumes' })).toBeVisible();
+    await expect(page.getByText('No host volumes configured')).toBeVisible();
+    const drainDialog = await openDialog(page, 'Drain Node', 'Drain Node');
+    await expect(drainDialog.getByLabel('Drain strategy')).toHaveValue('default');
+    await expect(drainDialog.getByLabel('Drain strategy').locator('option')).toHaveCount(4);
+    await expect(drainDialog.getByLabel('Custom deadline')).toBeVisible();
+    await expect(drainDialog.getByLabel('Ignore system jobs (system jobs will not be drained)')).toBeVisible();
+    await expect(drainDialog.getByLabel('Operator message')).toBeVisible();
+    await drainDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(drainDialog).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'Node Metadata' })).toBeVisible();
+    const metadataKey = 'wander.browser';
+    const clientURL = new URL(page.url());
+    const metadataURL = `${clientURL.pathname}/metadata${clientURL.search}`;
+    try {
+      await page.getByLabel('Key', { exact: true }).fill(metadataKey);
+      await page.getByLabel('Value', { exact: true }).fill('release-smoke');
+      await expect(page.getByRole('button', { name: 'Save metadata' })).toBeVisible();
+      const setResponse = await page.request.post(metadataURL, {
+        form: { operation: 'set', key: metadataKey, value: 'release-smoke' },
+      });
+      expect(setResponse.ok()).toBeTruthy();
+      await page.reload();
+      const metadataRow = page.locator(`[data-meta-key="${metadataKey}"]`);
+      await expect(metadataRow).toBeVisible();
+      await expect(metadataRow.getByRole('button', { name: 'Unset' })).toBeVisible();
+      const unsetResponse = await page.request.post(metadataURL, {
+        form: { operation: 'unset', key: metadataKey },
+      });
+      expect(unsetResponse.ok()).toBeTruthy();
+      await page.reload();
+      await expect(page.getByText(metadataKey, { exact: true })).toHaveCount(0);
+    } finally {
+      await page.request.post(metadataURL, {
+        form: { operation: 'unset', key: metadataKey },
+      });
+    }
+    await page.getByRole('tab', { name: /Allocations/ }).click();
+    const clientAllocationFilters = page.locator('form').filter({ has: page.getByLabel('Task group') });
+    await clientAllocationFilters.getByLabel('Status').selectOption('running');
+    const filteredClientURL = new URL(page.url());
+    filteredClientURL.searchParams.set('tab', 'allocations');
+    filteredClientURL.searchParams.set('allocation_status', 'running');
+    await page.goto(`${filteredClientURL.pathname}${filteredClientURL.search}`);
+    await expect(page).toHaveURL(/tab=allocations/);
+    await expect(page).toHaveURL(/allocation_status=running/);
+    await expect(page).toHaveURL(/namespace=default/);
+    await expect(page).toHaveURL(/region=global/);
+    await expect(page.getByRole('tab', { name: /Allocations/ })).toHaveAttribute('aria-selected', 'true');
+    const scopedAllocationLink = page.locator('[data-alloc-id] a[href^="/ui/allocations/"]').first();
+    await expect(scopedAllocationLink).toHaveAttribute('href', /namespace=default/);
+    await expect(scopedAllocationLink).toHaveAttribute('href', /region=global/);
 
     await page.goto('/ui/servers');
     await expect(page.locator('tbody tr').first()).toBeVisible();

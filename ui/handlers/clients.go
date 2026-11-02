@@ -63,6 +63,16 @@ func (h *ClientsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle dynamic metadata endpoint: /ui/clients/{id}/metadata
+	if strings.HasSuffix(path, "/metadata") && strings.HasPrefix(path, "/ui/clients/") {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h.UpdateMetadata(w, r)
+		return
+	}
+
 	// Handle client agent monitor routes before the general detail route.
 	if isClientMonitorRoute(path) {
 		if r.Method != http.MethodGet {
@@ -328,6 +338,51 @@ func clientContainsString(values []string, target string) bool {
 	return false
 }
 
+func extractClientAllocationFilterOptions(allocations []clientspartials.AllocationSummary) clientspartials.ClientAllocationFilterOptions {
+	statuses := make(map[string]struct{})
+	namespaces := make(map[string]struct{})
+	jobs := make(map[string]struct{})
+	taskGroups := make(map[string]struct{})
+	for _, allocation := range allocations {
+		if allocation.Status != "" {
+			statuses[allocation.Status] = struct{}{}
+		}
+		if allocation.Namespace != "" {
+			namespaces[allocation.Namespace] = struct{}{}
+		}
+		if allocation.JobID != "" {
+			jobs[allocation.JobID] = struct{}{}
+		}
+		if allocation.TaskGroup != "" {
+			taskGroups[allocation.TaskGroup] = struct{}{}
+		}
+	}
+	return clientspartials.ClientAllocationFilterOptions{
+		Statuses: sortedSetValues(statuses), Namespaces: sortedSetValues(namespaces),
+		Jobs: sortedSetValues(jobs), TaskGroups: sortedSetValues(taskGroups),
+	}
+}
+
+func filterClientAllocations(allocations []clientspartials.AllocationSummary, filters clientspartials.ClientAllocationFilters) []clientspartials.AllocationSummary {
+	filtered := make([]clientspartials.AllocationSummary, 0, len(allocations))
+	for _, allocation := range allocations {
+		if filters.Status != "" && allocation.Status != filters.Status {
+			continue
+		}
+		if filters.Namespace != "" && allocation.Namespace != filters.Namespace {
+			continue
+		}
+		if filters.Job != "" && allocation.JobID != filters.Job {
+			continue
+		}
+		if filters.TaskGroup != "" && allocation.TaskGroup != filters.TaskGroup {
+			continue
+		}
+		filtered = append(filtered, allocation)
+	}
+	return filtered
+}
+
 // Detail handles the client detail page
 func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	// Extract client ID from path
@@ -355,11 +410,34 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get client detail data from Nomad API
-	clientDetail, found := h.getClientDetail(r, clientID, token)
-	if !found {
-		http.NotFound(w, r)
+	clientDetail, found, err := h.getClientDetail(r, clientID, token)
+	if err != nil {
+		if apiResponseHasStatus(err, http.StatusForbidden) {
+			h.handler.RenderForbidden(w, r, ForbiddenError{Message: "You do not have permission to view client node details", Capability: "node:read"})
+			return
+		}
+		h.handler.logger.Error("failed to read client node detail", "clientID", clientID, "error", err)
+		h.handler.RenderClusterUnavailable(w, r, ClusterUnavailableError{Message: "Wander could not read the client node from the cluster."})
 		return
 	}
+	if !found {
+		h.handler.RenderNotFound(w, r, NotFoundError{Message: "The requested client node was not found.", RequestPath: r.URL.Path})
+		return
+	}
+	clientDetail.ActiveTab = r.URL.Query().Get("tab")
+	if clientDetail.ActiveTab != "allocations" && clientDetail.ActiveTab != "events" {
+		clientDetail.ActiveTab = "overview"
+	}
+	clientDetail.AllocationFilters = clientspartials.ClientAllocationFilters{
+		Status:    r.URL.Query().Get("allocation_status"),
+		Namespace: r.URL.Query().Get("allocation_namespace"),
+		Job:       r.URL.Query().Get("allocation_job"),
+		TaskGroup: r.URL.Query().Get("allocation_task_group"),
+	}
+	clientDetail.AllocationFilterOptions = extractClientAllocationFilterOptions(clientDetail.Allocations)
+	clientDetail.Allocations = filterClientAllocations(clientDetail.Allocations, clientDetail.AllocationFilters)
+	perms = GetPermissionsFromRequest(r)
+	clientDetail.CanWriteNode = perms == nil || perms.HasCapability("", "node:write")
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(r,
@@ -374,7 +452,7 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		clients.Detail(layoutProps, clientDetail),   // Full page with layout
 		clientspartials.DetailContent(clientDetail), // Partial content for HTMX requests
 	)
@@ -384,6 +462,67 @@ func (h *ClientsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+}
+
+// UpdateMetadata creates, updates, or unsets one dynamic metadata key.
+func (h *ClientsHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
+	clientID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/ui/clients/"), "/metadata")
+	if clientID == "" || strings.Contains(clientID, "/") {
+		http.Error(w, "invalid client ID", http.StatusBadRequest)
+		return
+	}
+
+	perms := GetPermissionsFromRequest(r)
+	if perms != nil && !perms.HasCapability("", "node:write") {
+		http.Error(w, "Permission denied: you do not have the 'node:write' capability", http.StatusForbidden)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid metadata form", http.StatusBadRequest)
+		return
+	}
+
+	key := strings.TrimSpace(r.FormValue("key"))
+	operation := r.FormValue("operation")
+	if key == "" {
+		http.Error(w, "metadata key is required", http.StatusBadRequest)
+		return
+	}
+	if operation != "set" && operation != "unset" {
+		http.Error(w, "metadata operation must be set or unset", http.StatusBadRequest)
+		return
+	}
+
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		http.Error(w, "Wander API client is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	updates := map[string]*string{key: nil}
+	if operation == "set" {
+		value := r.FormValue("value")
+		updates[key] = &value
+	}
+	_, err := client.Nodes().Meta().Apply(&api.NodeMetaApplyRequest{NodeID: clientID, Meta: updates}, &api.QueryOptions{
+		AuthToken: GetTokenFromRequest(r),
+		Region:    GetRegionFromRequest(r),
+	})
+	if err != nil {
+		h.handler.logger.Error("failed to update client metadata", "clientID", clientID, "operation", operation, "key", key, "error", err)
+		switch {
+		case apiResponseHasStatus(err, http.StatusBadRequest):
+			http.Error(w, "Invalid metadata: "+err.Error(), http.StatusBadRequest)
+		case apiResponseHasStatus(err, http.StatusForbidden):
+			http.Error(w, "Permission denied: node:write is required", http.StatusForbidden)
+		case apiResponseHasStatus(err, http.StatusNotFound):
+			http.Error(w, "The client is unavailable for metadata updates", http.StatusNotFound)
+		default:
+			http.Error(w, "Failed to update client metadata", http.StatusBadGateway)
+		}
+		return
+	}
+
+	http.Redirect(w, r, scopedUIURL("/ui/clients/"+url.PathEscape(clientID), GetNamespaceFromRequest(r), GetRegionFromRequest(r)), http.StatusSeeOther)
 }
 
 // Drain handles the drain node request
@@ -407,34 +546,24 @@ func (h *ClientsHandler) Drain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deadline := r.FormValue("deadline")
-	ignoreSystem := r.FormValue("ignore_system") == "true"
-	drainDuration := time.Hour
-	if deadline != "" {
-		var err error
-		drainDuration, err = time.ParseDuration(deadline)
-		if err != nil || drainDuration <= 0 {
-			http.Error(w, "deadline must be a positive duration such as 1h or 30m", http.StatusBadRequest)
-			return
-		}
+	drainSpec, metadata, err := parseDrainStrategy(r.Form)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	// Log the drain request
 	h.handler.logger.Info("drain node request",
 		"clientID", clientID,
-		"deadline", deadline,
-		"ignoreSystem", ignoreSystem,
+		"deadline", drainSpec.Deadline,
+		"ignoreSystem", drainSpec.IgnoreSystemJobs,
 	)
 
-	drainSpec := &api.DrainSpec{
-		Deadline:         drainDuration,
-		IgnoreSystemJobs: ignoreSystem,
-	}
-	if !h.updateNodeDrain(w, r, clientID, drainSpec, false, "start") {
+	if !h.updateNodeDrain(w, r, clientID, &api.DrainOptions{DrainSpec: drainSpec, Meta: metadata}, "start") {
 		return
 	}
 
-	redirectToClient(w, clientID)
+	redirectToClient(w, r, clientID)
 }
 
 // CancelDrain handles the cancel drain request
@@ -451,30 +580,81 @@ func (h *ClientsHandler) CancelDrain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+	keepIneligible := r.FormValue("keep_ineligible") == "true"
+	metadata := make(map[string]string)
+	if message := strings.TrimSpace(r.FormValue("cancel_message")); message != "" {
+		metadata["cancel_message"] = message
+	}
+
 	// Log the cancel drain request
 	h.handler.logger.Info("cancel drain request", "clientID", clientID)
 
-	if !h.updateNodeDrain(w, r, clientID, nil, true, "cancel") {
+	if !h.updateNodeDrain(w, r, clientID, &api.DrainOptions{MarkEligible: !keepIneligible, Meta: metadata}, "cancel") {
 		return
 	}
 
-	redirectToClient(w, clientID)
+	redirectToClient(w, r, clientID)
 }
 
-func redirectToClient(w http.ResponseWriter, clientID string) {
-	w.Header().Set("HX-Redirect", "/ui/clients/"+clientID)
-	w.WriteHeader(http.StatusOK)
+func redirectToClient(w http.ResponseWriter, r *http.Request, clientID string) {
+	target := scopedUIURL("/ui/clients/"+url.PathEscape(clientID), GetNamespaceFromRequest(r), GetRegionFromRequest(r))
+	if IsHTMXFromRequest(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
-func (h *ClientsHandler) updateNodeDrain(w http.ResponseWriter, r *http.Request, clientID string, spec *api.DrainSpec, markEligible bool, action string) bool {
+func parseDrainStrategy(form url.Values) (*api.DrainSpec, map[string]string, error) {
+	mode := form.Get("deadline_mode")
+	deadline := strings.TrimSpace(form.Get("deadline"))
+	if mode == "" {
+		if deadline != "" {
+			mode = "custom"
+		} else {
+			mode = "default"
+		}
+	}
+
+	var duration time.Duration
+	switch mode {
+	case "default":
+		duration = time.Hour
+	case "custom":
+		parsed, err := time.ParseDuration(deadline)
+		if err != nil || parsed <= 0 {
+			return nil, nil, fmt.Errorf("custom deadline must be a positive duration such as 1h or 30m")
+		}
+		duration = parsed
+	case "none":
+		duration = 0
+	case "force":
+		duration = -time.Second
+	default:
+		return nil, nil, fmt.Errorf("unknown drain deadline mode %q", mode)
+	}
+
+	metadata := make(map[string]string)
+	if message := strings.TrimSpace(form.Get("message")); message != "" {
+		metadata["message"] = message
+	}
+	return &api.DrainSpec{Deadline: duration, IgnoreSystemJobs: form.Get("ignore_system") == "true"}, metadata, nil
+}
+
+func (h *ClientsHandler) updateNodeDrain(w http.ResponseWriter, r *http.Request, clientID string, opts *api.DrainOptions, action string) bool {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		http.Error(w, "Wander API client is unavailable", http.StatusServiceUnavailable)
 		return false
 	}
 
-	writeOpts := &api.WriteOptions{AuthToken: GetTokenFromRequest(r)}
-	if _, err := client.Nodes().UpdateDrain(clientID, spec, markEligible, writeOpts); err != nil {
+	writeOpts := &api.WriteOptions{AuthToken: GetTokenFromRequest(r), Region: GetRegionFromRequest(r)}
+	if _, err := client.Nodes().UpdateDrainOpts(clientID, opts, writeOpts); err != nil {
 		h.handler.logger.Error("failed to update node drain", "action", action, "clientID", clientID, "error", err)
 		http.Error(w, "Failed to "+action+" node drain", http.StatusBadGateway)
 		return false
@@ -632,15 +812,15 @@ func compareClientSummaries(left, right clientspartials.ClientSummary, column st
 
 // getClientDetail fetches client node detail from the Nomad API.
 // Returns the client detail and a boolean indicating if the node was found.
-func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token string) (clientspartials.ClientDetail, bool) {
+func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token string) (clientspartials.ClientDetail, bool, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty client detail")
-		return clientspartials.ClientDetail{ID: clientID}, false
+		return clientspartials.ClientDetail{ID: clientID}, false, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Region: GetRegionFromRequest(r)}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
@@ -648,8 +828,10 @@ func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token
 	// Fetch node from the API
 	node, _, err := client.Nodes().Info(clientID, queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch node from Nomad API", "clientID", clientID, "error", err)
-		return clientspartials.ClientDetail{ID: clientID}, false
+		if apiResponseHasStatus(err, http.StatusNotFound) {
+			return clientspartials.ClientDetail{ID: clientID}, false, nil
+		}
+		return clientspartials.ClientDetail{ID: clientID}, false, err
 	}
 
 	h.handler.logger.Debug("fetched node from API", "clientID", clientID, "status", node.Status)
@@ -698,7 +880,7 @@ func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token
 	}
 
 	// Convert drivers
-	drivers := make(map[string]clientspartials.DriverInfo)
+	drivers := make([]clientspartials.DriverInfo, 0, len(node.Drivers))
 	if node.Drivers != nil {
 		for name, driver := range node.Drivers {
 			version := ""
@@ -708,13 +890,22 @@ func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token
 					version = v
 				}
 			}
-			drivers[name] = clientspartials.DriverInfo{
-				Detected: driver.Detected,
-				Healthy:  driver.Healthy,
-				Version:  version,
-			}
+			drivers = append(drivers, clientspartials.DriverInfo{
+				Name: name, Detected: driver.Detected, Healthy: driver.Healthy,
+				Version: version, HealthDescription: driver.HealthDescription,
+				Attributes: driver.Attributes,
+			})
 		}
 	}
+	sort.Slice(drivers, func(i, j int) bool { return drivers[i].Name < drivers[j].Name })
+	hostVolumes := make([]clientspartials.HostVolumeInfo, 0, len(node.HostVolumes))
+	for name, volume := range node.HostVolumes {
+		if volume == nil {
+			continue
+		}
+		hostVolumes = append(hostVolumes, clientspartials.HostVolumeInfo{Name: name, Path: volume.Path, ReadOnly: volume.ReadOnly})
+	}
+	sort.Slice(hostVolumes, func(i, j int) bool { return hostVolumes[i].Name < hostVolumes[j].Name })
 
 	// Convert node events
 	events := make([]clientspartials.ClientEvent, 0, len(node.Events))
@@ -728,8 +919,32 @@ func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token
 		}
 	}
 
+	metadata, metadataErr := client.Nodes().Meta().Read(clientID, &api.QueryOptions{
+		AuthToken: token,
+		Region:    GetRegionFromRequest(r),
+	})
+	metadataError := ""
+	var staticMetadata map[string]string
+	var dynamicMetadata map[string]*string
+	if metadataErr != nil {
+		metadataError = "Dynamic metadata is unavailable because Wander could not contact this client."
+		if apiResponseHasStatus(metadataErr, http.StatusForbidden) {
+			metadataError = "Dynamic metadata is unavailable because you do not have permission to read it."
+		}
+	} else if metadata != nil {
+		staticMetadata = metadata.Static
+		dynamicMetadata = metadata.Dynamic
+	}
+
 	// Fetch allocations for this node
-	allocations := h.getNodeAllocations(r, clientID, token)
+	allocations, allocationsErr := h.getNodeAllocations(r, clientID, token)
+	allocationError := ""
+	if allocationsErr != nil {
+		allocationError = "Allocations are unavailable. Wander could not read this client's allocations from the cluster."
+		if apiResponseHasStatus(allocationsErr, http.StatusForbidden) {
+			allocationError = "Allocations are unavailable because you do not have permission to read them in this namespace."
+		}
+	}
 	var cpuUsed int
 	var memUsed, diskUsed int64
 	for _, allocation := range allocations {
@@ -769,27 +984,36 @@ func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token
 			DiskUsed:  diskUsed,
 			DiskTotal: diskTotal,
 		},
-		Stats:         stats,
-		CPUHistory:    cpuHistory,
-		MemoryHistory: memoryHistory,
-		Allocations:   allocations,
-		Attributes:    node.Attributes,
-		Meta:          node.Meta,
-		Drivers:       drivers,
-		Events:        events,
-	}, true
+		Stats:                stats,
+		CPUHistory:           cpuHistory,
+		MemoryHistory:        memoryHistory,
+		Allocations:          allocations,
+		Attributes:           node.Attributes,
+		Meta:                 node.Meta,
+		StaticMeta:           staticMetadata,
+		DynamicMeta:          dynamicMetadata,
+		MetadataAvailable:    metadataErr == nil,
+		MetadataError:        metadataError,
+		Drivers:              drivers,
+		HostVolumes:          hostVolumes,
+		Events:               events,
+		AllocationsAvailable: allocationsErr == nil,
+		AllocationError:      allocationError,
+		Namespace:            GetNamespaceFromRequest(r),
+		Region:               GetRegionFromRequest(r),
+	}, true, nil
 }
 
 // getNodeAllocations fetches all allocations running on a specific node.
-func (h *ClientsHandler) getNodeAllocations(r *http.Request, nodeID string, token string) []clientspartials.AllocationSummary {
+func (h *ClientsHandler) getNodeAllocations(r *http.Request, nodeID string, token string) ([]clientspartials.AllocationSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, returning empty allocations list")
-		return []clientspartials.AllocationSummary{}
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Namespace: GetNamespaceFromRequest(r), Region: GetRegionFromRequest(r)}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
@@ -798,7 +1022,7 @@ func (h *ClientsHandler) getNodeAllocations(r *http.Request, nodeID string, toke
 	allocs, _, err := client.Nodes().Allocations(nodeID, queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to fetch node allocations from Nomad API", "nodeID", nodeID, "error", err)
-		return []clientspartials.AllocationSummary{}
+		return nil, err
 	}
 
 	// Convert to summary format
@@ -820,17 +1044,27 @@ func (h *ClientsHandler) getNodeAllocations(r *http.Request, nodeID string, toke
 		}
 
 		result = append(result, clientspartials.AllocationSummary{
-			ID:        alloc.ID,
-			JobID:     alloc.JobID,
-			TaskGroup: alloc.TaskGroup,
-			Status:    alloc.ClientStatus,
-			CPUUsed:   cpuUsed,
-			MemUsed:   memUsed,
-			DiskUsed:  diskUsed,
+			ID:            alloc.ID,
+			JobID:         alloc.JobID,
+			Namespace:     alloc.Namespace,
+			TaskGroup:     alloc.TaskGroup,
+			Status:        alloc.ClientStatus,
+			DesiredStatus: alloc.DesiredStatus,
+			DetailURL:     scopedUIURL("/ui/allocations/"+url.PathEscape(alloc.ID), GetNamespaceFromRequest(r), GetRegionFromRequest(r)),
+			JobURL:        scopedUIURL("/ui/jobs/"+url.PathEscape(alloc.JobID), alloc.Namespace, GetRegionFromRequest(r)),
+			CPUUsed:       cpuUsed,
+			MemUsed:       memUsed,
+			DiskUsed:      diskUsed,
 		})
 	}
 
-	return result
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].JobID != result[j].JobID {
+			return result[i].JobID < result[j].JobID
+		}
+		return result[i].ID < result[j].ID
+	})
+	return result, nil
 }
 
 // getNodeStats fetches real-time resource stats for a specific node.
@@ -843,7 +1077,7 @@ func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token stri
 	}
 
 	// Build query options with ACL token
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Region: GetRegionFromRequest(r)}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
