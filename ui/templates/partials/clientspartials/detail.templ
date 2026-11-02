@@ -1,7 +1,6 @@
 package clientspartials
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/bits"
 	"net/url"
@@ -43,17 +42,10 @@ type ClientDetail struct {
 	ActiveTab               string
 	Namespace               string
 	Region                  string
-	// Real-time resource stats from node (if available)
-	Stats *ClientStats
-	// Resource history is empty until the server provides historical samples.
-	CPUHistory    []ResourceDataPoint
-	MemoryHistory []ResourceDataPoint
-}
-
-// ResourceDataPoint represents a single point in time-series resource data
-type ResourceDataPoint struct {
-	Time  time.Time
-	Value float64 // Percentage 0-100
+	// Current resource statistics sample from the client, when available.
+	Stats          *ClientStats
+	StatsAvailable bool
+	StatsError     string
 }
 
 // ClientEvent represents an event in the client's lifecycle
@@ -116,7 +108,10 @@ type ClientStats struct {
 	// Disk stats
 	DiskStats []DiskStat
 	// Uptime in seconds
-	Uptime uint64
+	Uptime    uint64
+	HasCPU    bool
+	HasMemory bool
+	HasDisk   bool
 }
 
 // CPUCoreStat represents stats for a single CPU core
@@ -337,21 +332,31 @@ templ OverviewTab(client ClientDetail) {
 				</div>
 			}
 		</div>
-		<!-- Real-time Resource Stats Section -->
-		if client.Stats != nil {
-			<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
-				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Real-time Resource Stats</h3>
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+		<!-- Current Host Statistics Section -->
+		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
+			<div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Current Host Statistics</h3>
+				<span class="text-xs text-neutral-500 dark:text-neutral-400">Current client sample; historical samples are not provided by this API</span>
+			</div>
+			if !client.StatsAvailable {
+				<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800 dark:border-warning-800 dark:bg-warning-900/20 dark:text-warning-200">{ client.StatsError }</div>
+			} else if !hasCurrentStats(client.Stats) {
+				<div class="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">The client returned no current CPU, memory, or disk samples.</div>
+			} else {
+				if client.Stats.Uptime > 0 {
+					<p class="mb-3 text-sm text-neutral-600 dark:text-neutral-400">Host uptime: <span class="font-medium text-neutral-900 dark:text-neutral-100">{ formatHostUptime(client.Stats.Uptime) }</span></p>
+				}
+				<div class="grid grid-cols-1 gap-6 md:grid-cols-3">
 					<!-- CPU Utilization -->
 					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
 						<div class="flex items-center justify-between text-sm mb-2">
 							<span class="text-neutral-600 dark:text-neutral-400 font-medium">CPU Utilization</span>
-							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
-								{ fmt.Sprintf("%.1f%%", client.Stats.CPUUtilization) }
-							</span>
+							if client.Stats.HasCPU {
+								<span class="text-neutral-900 dark:text-neutral-100 font-semibold">{ fmt.Sprintf("%.1f%%", client.Stats.CPUUtilization) }</span>
+							}
 						</div>
-						@utilizationBar(client.Stats.CPUUtilization)
-						if len(client.Stats.CPUCores) > 0 {
+						if client.Stats.HasCPU {
+							@utilizationBar(client.Stats.CPUUtilization)
 							<div class="mt-3 text-xs text-neutral-600 dark:text-neutral-400">
 								<details class="cursor-pointer">
 									<summary class="hover:text-neutral-900 dark:hover:text-neutral-100">
@@ -367,27 +372,31 @@ templ OverviewTab(client ClientDetail) {
 									</div>
 								</details>
 							</div>
+						} else {
+							<p class="text-sm text-neutral-500 dark:text-neutral-400">No CPU sample returned</p>
 						}
 					</div>
 					<!-- Memory Usage -->
 					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
 						<div class="flex items-center justify-between text-sm mb-2">
 							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Memory Usage</span>
-							<span class="text-neutral-900 dark:text-neutral-100 font-semibold">
-								{ formatBytes(client.Stats.MemoryUsed) } / { formatBytes(client.Stats.MemoryTotal) }
-							</span>
+							if client.Stats.HasMemory {
+								<span class="text-neutral-900 dark:text-neutral-100 font-semibold">{ formatBytes(client.Stats.MemoryUsed) } / { formatBytes(client.Stats.MemoryTotal) }</span>
+							}
 						</div>
-						@bytesBar(client.Stats.MemoryUsed, client.Stats.MemoryTotal)
-						<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-							{ fmt.Sprintf("%d%% used, %s available", calculateBytesPercentage(client.Stats.MemoryUsed, client.Stats.MemoryTotal), formatBytes(client.Stats.MemoryAvailable)) }
-						</div>
+						if client.Stats.HasMemory {
+							@bytesBar(client.Stats.MemoryUsed, client.Stats.MemoryTotal)
+							<div class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("%d%% used, %s available", calculateBytesPercentage(client.Stats.MemoryUsed, client.Stats.MemoryTotal), formatBytes(client.Stats.MemoryAvailable)) }</div>
+						} else {
+							<p class="text-sm text-neutral-500 dark:text-neutral-400">No memory sample returned</p>
+						}
 					</div>
 					<!-- Disk Usage -->
 					<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
 						<div class="flex items-center justify-between text-sm mb-2">
 							<span class="text-neutral-600 dark:text-neutral-400 font-medium">Disk Usage</span>
 						</div>
-						if len(client.Stats.DiskStats) > 0 {
+						if client.Stats.HasDisk {
 							<div class="space-y-2">
 								for _, disk := range client.Stats.DiskStats {
 									<div class="text-xs">
@@ -403,45 +412,11 @@ templ OverviewTab(client ClientDetail) {
 								}
 							</div>
 						} else {
-							<div class="text-sm text-neutral-500 dark:text-neutral-400">No disk stats available</div>
+							<div class="text-sm text-neutral-500 dark:text-neutral-400">No disk sample returned</div>
 						}
 					</div>
 				</div>
-			</div>
-		}
-		<!-- Resource Utilization Charts Section -->
-		<div class="border-t border-neutral-200 dark:border-neutral-700 pt-6">
-			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Resource Utilization History</h3>
-			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-				<!-- CPU Utilization Chart -->
-				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
-					<div class="flex items-center justify-between mb-4">
-						<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">CPU Utilization</h4>
-						<span class="text-xs text-neutral-500 dark:text-neutral-400">Last 24 hours</span>
-					</div>
-					@components.ChartContainer(components.ChartContainerProps{
-						ID:     "cpu-utilization-chart-" + client.ID,
-						Height: "48",
-						Class:  "bg-white dark:bg-neutral-900 rounded",
-					}) {
-						@ResourceUtilizationChart(client.ID, "cpu", client.CPUHistory)
-					}
-				</div>
-				<!-- Memory Utilization Chart -->
-				<div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-4">
-					<div class="flex items-center justify-between mb-4">
-						<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Memory Utilization</h4>
-						<span class="text-xs text-neutral-500 dark:text-neutral-400">Last 24 hours</span>
-					</div>
-					@components.ChartContainer(components.ChartContainerProps{
-						ID:     "memory-utilization-chart-" + client.ID,
-						Height: "48",
-						Class:  "bg-white dark:bg-neutral-900 rounded",
-					}) {
-						@ResourceUtilizationChart(client.ID, "memory", client.MemoryHistory)
-					}
-				</div>
-			</div>
+			}
 		</div>
 		<!-- Drivers Section -->
 		if len(client.Drivers) > 0 {
@@ -1038,40 +1013,21 @@ func eventTypeTextClasses(eventType string) string {
 	}
 }
 
-// ResourceUtilizationChart renders a time-series area chart for resource utilization
-templ ResourceUtilizationChart(clientID string, resourceType string, data []ResourceDataPoint) {
-	<div
-		id={ "chart-" + resourceType + "-" + clientID }
-		class="w-full h-full"
-		data-chart-points={ resourceDataJSON(data) }
-		data-chart-color={ resourceChartColor(resourceType) }
-		data-resource-type={ resourceType }
-		x-data="resourceUtilizationChart()"
-	>
-		<svg class="w-full h-full"></svg>
-	</div>
+func hasCurrentStats(stats *ClientStats) bool {
+	return stats != nil && (stats.HasCPU || stats.HasMemory || stats.HasDisk)
 }
 
-func resourceDataJSON(data []ResourceDataPoint) string {
-	points := make([]map[string]any, 0, len(data))
-	for _, point := range data {
-		points = append(points, map[string]any{
-			"time":  point.Time.Unix() * 1000,
-			"value": point.Value,
-		})
+func formatHostUptime(seconds uint64) string {
+	days := seconds / (24 * 60 * 60)
+	hours := (seconds / (60 * 60)) % 24
+	minutes := (seconds / 60) % 60
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh", days, hours)
 	}
-	encoded, err := json.Marshal(points)
-	if err != nil {
-		return "[]"
+	if hours > 0 {
+		return fmt.Sprintf("%dh %dm", hours, minutes)
 	}
-	return string(encoded)
-}
-
-func resourceChartColor(resourceType string) string {
-	if resourceType == "memory" {
-		return "#8b5cf6"
-	}
-	return "#3b82f6"
+	return fmt.Sprintf("%dm", minutes)
 }
 
 // DrainNodeModal renders the modal for draining a node

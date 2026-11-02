@@ -15,7 +15,7 @@ import (
 )
 
 func TestClientDetailProjectsAndFiltersScopedLiveData(t *testing.T) {
-	backend := newClientDetailBackend(t, http.StatusOK)
+	backend := newClientDetailBackend(t, clientDetailBackendConfig{})
 	defer backend.Close()
 
 	target := "/ui/clients/node-1?namespace=*&region=west&tab=allocations" +
@@ -32,6 +32,8 @@ func TestClientDetailProjectsAndFiltersScopedLiveData(t *testing.T) {
 		"Dynamic metadata", "runtime.note", "ready", "Save metadata",
 		"Default — force remaining allocations after 1 hour", "No deadline — wait indefinitely",
 		"Force immediately", "Operator message", "Keep the node ineligible after cancelling",
+		"Current Host Statistics", "40.0%", "3.0 GiB", "8.0 GiB", "1d 1h",
+		"historical samples are not provided by this API",
 		`name="allocation_status"`, `name="allocation_namespace"`,
 		`name="allocation_job"`, `name="allocation_task_group"`,
 		"namespace=team-a", "region=west",
@@ -42,6 +44,15 @@ func TestClientDetailProjectsAndFiltersScopedLiveData(t *testing.T) {
 	}
 	if strings.Contains(body, `data-alloc-id="alloc-b"`) {
 		t.Fatal("client detail includes an allocation excluded by composed filters")
+	}
+	if strings.Contains(body, "Last 24 hours") {
+		t.Fatal("client detail still implies unavailable historical statistics")
+	}
+	if strings.Index(body, "core0") > strings.Index(body, "core1") {
+		t.Fatal("client CPU samples are not rendered deterministically")
+	}
+	if strings.Index(body, `title="/"`) > strings.Index(body, `title="/var"`) {
+		t.Fatal("client disk samples are not rendered deterministically")
 	}
 }
 
@@ -119,12 +130,31 @@ func TestClientDetailDistinguishesDeniedAndUnavailableAllocations(t *testing.T) 
 }
 
 func TestClientDetailKeepsMergedMetadataWhenDynamicReadIsUnavailable(t *testing.T) {
-	backend := newClientDetailBackend(t, http.StatusOK, http.StatusServiceUnavailable)
+	backend := newClientDetailBackend(t, clientDetailBackendConfig{MetadataStatus: http.StatusServiceUnavailable})
 	defer backend.Close()
 	response := serveClientRequest(t, backend.URL, http.MethodGet, "/ui/clients/node-1?namespace=*&region=west", "")
 	assertHTTPResponse(t, response, http.StatusOK, "Dynamic metadata is unavailable")
 	if !strings.Contains(response.Body.String(), "Merged metadata") {
 		t.Fatal("client detail did not retain the merged metadata fallback")
+	}
+}
+
+func TestClientDetailDistinguishesUnavailableAndEmptyStatistics(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		config   clientDetailBackendConfig
+		wantText string
+	}{
+		{name: "denied", config: clientDetailBackendConfig{StatsStatus: http.StatusForbidden}, wantText: "do not have permission to read them"},
+		{name: "unavailable", config: clientDetailBackendConfig{StatsStatus: http.StatusServiceUnavailable}, wantText: "could not contact this client"},
+		{name: "empty", config: clientDetailBackendConfig{EmptyStats: true}, wantText: "returned no current CPU, memory, or disk samples"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			backend := newClientDetailBackend(t, test.config)
+			defer backend.Close()
+			response := serveClientRequest(t, backend.URL, http.MethodGet, "/ui/clients/node-1?namespace=*&region=west", "")
+			assertHTTPResponse(t, response, http.StatusOK, test.wantText)
+		})
 	}
 }
 
@@ -230,7 +260,7 @@ func TestClientCancelDrainCanKeepNodeIneligible(t *testing.T) {
 
 func assertClientDetailAllocationFailure(t *testing.T, status int, wantText string) {
 	t.Helper()
-	backend := newClientDetailBackend(t, status)
+	backend := newClientDetailBackend(t, clientDetailBackendConfig{AllocationStatus: status})
 	defer backend.Close()
 	response := serveClientRequest(t, backend.URL, http.MethodGet, "/ui/clients/node-1?namespace=*&region=west&tab=allocations", "")
 	assertHTTPResponse(t, response, http.StatusOK, "worker-1")
@@ -249,11 +279,23 @@ func assertClientDetailNodeFailure(t *testing.T, backendStatus, wantStatus int, 
 	assertHTTPResponse(t, response, wantStatus, wantText)
 }
 
-func newClientDetailBackend(t *testing.T, allocationStatus int, metadataStatuses ...int) *httptest.Server {
+type clientDetailBackendConfig struct {
+	AllocationStatus int
+	MetadataStatus   int
+	StatsStatus      int
+	EmptyStats       bool
+}
+
+func newClientDetailBackend(t *testing.T, config clientDetailBackendConfig) *httptest.Server {
 	t.Helper()
-	metadataStatus := http.StatusOK
-	if len(metadataStatuses) > 0 {
-		metadataStatus = metadataStatuses[0]
+	if config.AllocationStatus == 0 {
+		config.AllocationStatus = http.StatusOK
+	}
+	if config.MetadataStatus == 0 {
+		config.MetadataStatus = http.StatusOK
+	}
+	if config.StatsStatus == 0 {
+		config.StatsStatus = http.StatusOK
 	}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -274,8 +316,8 @@ func newClientDetailBackend(t *testing.T, allocationStatus int, metadataStatuses
 			})
 		case "/v1/node/node-1/allocations":
 			assertClientDetailScope(t, r, "*", "west")
-			if allocationStatus != http.StatusOK {
-				w.WriteHeader(allocationStatus)
+			if config.AllocationStatus != http.StatusOK {
+				w.WriteHeader(config.AllocationStatus)
 				return
 			}
 			writeJSON(t, w, []*api.Allocation{
@@ -284,11 +326,19 @@ func newClientDetailBackend(t *testing.T, allocationStatus int, metadataStatuses
 			})
 		case "/v1/client/stats":
 			assertClientDetailScope(t, r, "", "west")
-			writeJSON(t, w, &api.HostStats{})
+			if config.StatsStatus != http.StatusOK {
+				w.WriteHeader(config.StatsStatus)
+				return
+			}
+			if config.EmptyStats {
+				writeJSON(t, w, &api.HostStats{})
+				return
+			}
+			writeJSON(t, w, clientDetailStatsFixture())
 		case "/v1/client/metadata":
 			assertClientDetailScope(t, r, "", "west")
-			if metadataStatus != http.StatusOK {
-				w.WriteHeader(metadataStatus)
+			if config.MetadataStatus != http.StatusOK {
+				w.WriteHeader(config.MetadataStatus)
 				return
 			}
 			if r.URL.Query().Get("node_id") != "node-1" {
@@ -309,6 +359,22 @@ func newClientDetailBackend(t *testing.T, allocationStatus int, metadataStatuses
 			http.NotFound(w, r)
 		}
 	}))
+}
+
+func clientDetailStatsFixture() *api.HostStats {
+	const gibibyte = uint64(1024 * 1024 * 1024)
+	return &api.HostStats{
+		Uptime: 25 * 60 * 60,
+		CPU: []*api.HostCPUStats{
+			{CPU: "core1", User: 20, System: 10, Idle: 70},
+			{CPU: "core0", User: 30, System: 20, Idle: 50},
+		},
+		Memory: &api.HostMemoryStats{Total: 8 * gibibyte, Used: 3 * gibibyte, Available: 5 * gibibyte},
+		DiskStats: []*api.HostDiskStats{
+			{Device: "disk1", Mountpoint: "/var", Size: 20 * gibibyte, Used: 5 * gibibyte, Available: 15 * gibibyte, UsedPercent: 25},
+			{Device: "disk0", Mountpoint: "/", Size: 10 * gibibyte, Used: 4 * gibibyte, Available: 6 * gibibyte, UsedPercent: 40},
+		},
+	}
 }
 
 func stringPointer(value string) *string {

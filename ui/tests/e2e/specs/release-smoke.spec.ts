@@ -470,6 +470,9 @@ test.describe('Wander release smoke', () => {
     await expect(page).toHaveURL(/region=global/);
     await expect(page.getByRole('heading', { name: 'Host Volumes' })).toBeVisible();
     await expect(page.getByText('No host volumes configured')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Current Host Statistics' })).toBeVisible();
+    await expect(page.getByText('Current client sample; historical samples are not provided by this API')).toBeVisible();
+    await expect(page.getByText('Last 24 hours', { exact: true })).toHaveCount(0);
     const drainDialog = await openDialog(page, 'Drain Node', 'Drain Node');
     await expect(drainDialog.getByLabel('Drain strategy')).toHaveValue('default');
     await expect(drainDialog.getByLabel('Drain strategy').locator('option')).toHaveCount(4);

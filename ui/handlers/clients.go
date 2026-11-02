@@ -956,13 +956,15 @@ func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token
 		diskUsed += allocation.DiskUsed
 	}
 
-	// Fetch real-time stats from the node
-	stats := h.getNodeStats(r, clientID, token)
-
-	// The node stats endpoint provides a current sample, not historical data.
-	// Leave history empty rather than presenting fabricated measurements.
-	cpuHistory := []clientspartials.ResourceDataPoint{}
-	memoryHistory := []clientspartials.ResourceDataPoint{}
+	// Fetch the current host statistics sample independently from node detail.
+	stats, statsErr := h.getNodeStats(r, clientID, token)
+	statsError := ""
+	if statsErr != nil {
+		statsError = "Current host statistics are unavailable because Wander could not contact this client."
+		if apiResponseHasStatus(statsErr, http.StatusForbidden) {
+			statsError = "Current host statistics are unavailable because you do not have permission to read them."
+		}
+	}
 
 	return clientspartials.ClientDetail{
 		ID:         node.ID,
@@ -985,8 +987,8 @@ func (h *ClientsHandler) getClientDetail(r *http.Request, clientID string, token
 			DiskTotal: diskTotal,
 		},
 		Stats:                stats,
-		CPUHistory:           cpuHistory,
-		MemoryHistory:        memoryHistory,
+		StatsAvailable:       statsErr == nil,
+		StatsError:           statsError,
 		Allocations:          allocations,
 		Attributes:           node.Attributes,
 		Meta:                 node.Meta,
@@ -1068,12 +1070,11 @@ func (h *ClientsHandler) getNodeAllocations(r *http.Request, nodeID string, toke
 }
 
 // getNodeStats fetches real-time resource stats for a specific node.
-// Returns nil if stats are unavailable (e.g., node is down or unreachable).
-func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token string) *clientspartials.ClientStats {
+func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token string) (*clientspartials.ClientStats, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Warn("no Nomad client available, cannot fetch node stats")
-		return nil
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Build query options with ACL token
@@ -1086,7 +1087,7 @@ func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token stri
 	stats, err := client.Nodes().Stats(nodeID, queryOpts)
 	if err != nil {
 		h.handler.logger.Warn("failed to fetch node stats from Nomad API", "nodeID", nodeID, "error", err)
-		return nil
+		return nil, err
 	}
 
 	// Convert API stats to our template type
@@ -1096,6 +1097,7 @@ func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token stri
 
 	// Process memory stats
 	if stats.Memory != nil {
+		result.HasMemory = true
 		result.MemoryTotal = stats.Memory.Total
 		result.MemoryUsed = stats.Memory.Used
 		result.MemoryAvailable = stats.Memory.Available
@@ -1120,8 +1122,10 @@ func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token stri
 		}
 		// Average across all cores
 		if len(result.CPUCores) > 0 {
+			result.HasCPU = true
 			result.CPUUtilization = totalUtilization / float64(len(result.CPUCores))
 		}
+		sort.Slice(result.CPUCores, func(i, j int) bool { return result.CPUCores[i].Core < result.CPUCores[j].Core })
 	}
 
 	// Process disk stats
@@ -1129,6 +1133,7 @@ func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token stri
 		result.DiskStats = make([]clientspartials.DiskStat, 0, len(stats.DiskStats))
 		for _, disk := range stats.DiskStats {
 			if disk != nil {
+				result.HasDisk = true
 				diskStat := clientspartials.DiskStat{
 					Device:      disk.Device,
 					Mountpoint:  disk.Mountpoint,
@@ -1140,9 +1145,15 @@ func (h *ClientsHandler) getNodeStats(r *http.Request, nodeID string, token stri
 				result.DiskStats = append(result.DiskStats, diskStat)
 			}
 		}
+		sort.Slice(result.DiskStats, func(i, j int) bool {
+			if result.DiskStats[i].Mountpoint != result.DiskStats[j].Mountpoint {
+				return result.DiskStats[i].Mountpoint < result.DiskStats[j].Mountpoint
+			}
+			return result.DiskStats[i].Device < result.DiskStats[j].Device
+		})
 	}
 
-	return result
+	return result, nil
 }
 
 // formatUptime formats a duration into a human-readable uptime string.

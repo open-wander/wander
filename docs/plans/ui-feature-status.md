@@ -36,9 +36,12 @@ scope and parity work list is the
 - Clients: live list and detail data, drain, cancel drain, active allocation
   counts, allocation reservations against schedulable node capacity, scoped
   allocation filtering, host-volume detail, complete driver attributes, and
-  dynamic metadata editing with truthful partial-failure states. Drain controls
-  cover default, custom, unlimited, and immediate strategies plus system-job,
-  message, and cancellation-eligibility choices.
+  dynamic metadata editing with truthful partial-failure states. Current host
+  CPU, memory, disk, and uptime samples retain ACL and region scope; denied,
+  unavailable, and empty samples remain distinct, and the UI does not invent
+  unsupported historical data. Drain controls cover default, custom,
+  unlimited, and immediate strategies plus system-job, message, and
+  cancellation-eligibility choices.
 - Services: live namespace-scoped list and registration detail routes, with
   links to their jobs, allocations, and clients. Job detail includes separate
   service and allocation-observed client tabs without implying scheduler
