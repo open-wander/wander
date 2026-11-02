@@ -1,10 +1,10 @@
 package variablespartials
 
 import (
-	"time"
 	"fmt"
-	"net/url"
 	"github.com/open-wander/wander/ui/templates/components"
+	"net/url"
+	"time"
 )
 
 // VariableSummary represents a summary view of a variable for list display.
@@ -18,6 +18,25 @@ type VariableSummary struct {
 	JobID       string // Associated job ID if this variable is job-related
 }
 
+type VariablePathNode struct {
+	Segment  string
+	Path     string
+	Variable *VariableSummary
+	Children []VariablePathNode
+}
+
+type ListProps struct {
+	Variables   []VariableSummary
+	PathTree    []VariablePathNode
+	View        string
+	Namespace   string
+	Region      string
+	SortColumn  string
+	SortDir     string
+	SearchQuery string
+	Pagination  PaginationMeta
+}
+
 // PaginationMeta holds pagination metadata for list views.
 type PaginationMeta struct {
 	Page       int // Current page (1-indexed)
@@ -27,7 +46,7 @@ type PaginationMeta struct {
 }
 
 // ListContent renders the variables table content for HTMX partial updates.
-templ ListContent(variablesList []VariableSummary, sortColumn string, sortDir string, searchQuery string, pagination PaginationMeta) {
+templ ListContent(props ListProps) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="sm:flex sm:items-center sm:justify-between mb-6">
 			<div>
@@ -38,7 +57,7 @@ templ ListContent(variablesList []VariableSummary, sortColumn string, sortDir st
 			</div>
 			<div class="mt-4 sm:mt-0">
 				<a
-					href="/ui/variables/new"
+					href={ templ.SafeURL(variableScopedURL("/ui/variables/new", props.Namespace, props.Region)) }
 					class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 				>
 					<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -48,71 +67,81 @@ templ ListContent(variablesList []VariableSummary, sortColumn string, sortDir st
 				</a>
 			</div>
 		</div>
-		<!-- Search Bar -->
-		<div class="mb-6">
-			@components.SearchBar(components.SearchBarProps{
-				Name:        "search",
-				Placeholder: "Search variables by path or namespace...",
-				Value:       searchQuery,
-				SearchURL:   "/ui/variables",
-				ResultsID:   "variables-table-container",
-				Debounce:    300,
-				MinChars:    0,
-			})
+		<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+			<div class="flex-1">
+				@components.SearchBar(components.SearchBarProps{
+					Name:        "search",
+					Placeholder: "Search variables by path or namespace...",
+					Value:       props.SearchQuery,
+					SearchURL:   variableWorkspaceURL(props, props.View),
+					ResultsID:   "variables-table-container",
+					Debounce:    300,
+					MinChars:    0,
+				})
+			</div>
+			<nav class="inline-flex rounded-md shadow-sm" aria-label="Variable view">
+				@variableViewLink(props, "list", "List")
+				@variableViewLink(props, "tree", "Tree")
+			</nav>
 		</div>
 		<!-- Variables Table Container -->
 		<div id="variables-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
-			@components.Table(components.TableProps{
-				Columns: []components.Column{
-					{Key: "path", Label: "Path", Sortable: true, Align: "left", Width: "w-2/5"},
-					{Key: "namespace", Label: "Namespace", Sortable: true, Align: "left", Width: "w-32"},
-					{Key: "items", Label: "Items", Sortable: true, Align: "center", Width: "w-24"},
-					{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-32"},
-					{Key: "modified", Label: "Last Modified", Sortable: true, Align: "right"},
-				},
-				SortColumn: sortColumn,
-				SortDir:    sortDir,
-				Striped:    true,
-				Hover:      true,
-				SortURL:    "/ui/variables",
-			}) {
-				@components.TableBody() {
-					if len(variablesList) == 0 {
-						@components.TableEmptyState("No variables found", "There are no variables to display")
-					} else {
-						for _, variable := range variablesList {
-							@variableRow(variable)
+			if props.View == "tree" {
+				@variableTreeView(props)
+			} else {
+				@components.Table(components.TableProps{
+					Columns: []components.Column{
+						{Key: "path", Label: "Path", Sortable: true, Align: "left", Width: "w-2/5"},
+						{Key: "namespace", Label: "Namespace", Sortable: true, Align: "left", Width: "w-32"},
+						{Key: "items", Label: "Items", Sortable: true, Align: "center", Width: "w-24"},
+						{Key: "job", Label: "Job", Sortable: false, Align: "left", Width: "w-32"},
+						{Key: "modified", Label: "Last Modified", Sortable: true, Align: "right"},
+					},
+					SortColumn: props.SortColumn,
+					SortDir:    props.SortDir,
+					Striped:    true,
+					Hover:      true,
+					SortURL:    variableWorkspaceURL(props, "list"),
+				}) {
+					@components.TableBody() {
+						if len(props.Variables) == 0 {
+							@components.TableEmptyState("No variables found", "There are no variables to display")
+						} else {
+							for _, variable := range props.Variables {
+								@variableRow(variable, props.Namespace, props.Region)
+							}
 						}
 					}
 				}
+				<!-- Pagination -->
+				@components.Pagination(components.PaginationProps{
+					Page:     props.Pagination.Page,
+					PerPage:  props.Pagination.PerPage,
+					Total:    props.Pagination.Total,
+					BaseURL:  buildVariablesURL(props),
+					HxTarget: "#main-content",
+					HxSwap:   "innerHTML",
+				})
 			}
-			<!-- Pagination -->
-			@components.Pagination(components.PaginationProps{
-				Page:     pagination.Page,
-				PerPage:  pagination.PerPage,
-				Total:    pagination.Total,
-				BaseURL:  buildVariablesURL(sortColumn, sortDir, searchQuery),
-				HxTarget: "#main-content",
-				HxSwap:   "innerHTML",
-			})
 		</div>
 	</div>
 }
 
 // buildVariablesURL constructs the base URL for pagination with sort and search params
-func buildVariablesURL(sortColumn, sortDir, searchQuery string) string {
+func buildVariablesURL(props ListProps) string {
 	baseURL := "/ui/variables?"
 	params := url.Values{}
 
-	if sortColumn != "" {
-		params.Add("sort", sortColumn)
+	if props.SortColumn != "" {
+		params.Add("sort", props.SortColumn)
 	}
-	if sortDir != "" {
-		params.Add("dir", sortDir)
+	if props.SortDir != "" {
+		params.Add("dir", props.SortDir)
 	}
-	if searchQuery != "" {
-		params.Add("search", searchQuery)
+	if props.SearchQuery != "" {
+		params.Add("search", props.SearchQuery)
 	}
+	addVariableScope(params, props.Namespace, props.Region)
 
 	if len(params) > 0 {
 		return baseURL + params.Encode() + "&"
@@ -120,11 +149,125 @@ func buildVariablesURL(sortColumn, sortDir, searchQuery string) string {
 	return baseURL
 }
 
+func variableWorkspaceURL(props ListProps, view string) string {
+	params := url.Values{}
+	addVariableScope(params, props.Namespace, props.Region)
+	if view == "tree" {
+		params.Set("view", view)
+	}
+	if props.SearchQuery != "" {
+		params.Set("search", props.SearchQuery)
+	}
+	if encoded := params.Encode(); encoded != "" {
+		return "/ui/variables?" + encoded
+	}
+	return "/ui/variables"
+}
+
+func variableScopedURL(path, namespace, region string) string {
+	params := url.Values{}
+	addVariableScope(params, namespace, region)
+	if encoded := params.Encode(); encoded != "" {
+		return path + "?" + encoded
+	}
+	return path
+}
+
+func addVariableScope(params url.Values, namespace, region string) {
+	if namespace != "" {
+		params.Set("namespace", namespace)
+	}
+	if region != "" {
+		params.Set("region", region)
+	}
+}
+
+templ variableViewLink(props ListProps, view string, label string) {
+	<a
+		href={ templ.SafeURL(variableWorkspaceURL(props, view)) }
+		class={ variableViewLinkClasses(props.View == view) }
+		aria-current={ variableViewCurrent(props.View == view) }
+		hx-get={ variableWorkspaceURL(props, view) }
+		hx-target="#main-content"
+		hx-swap="innerHTML"
+		hx-push-url="true"
+	>
+		{ label }
+	</a>
+}
+
+func variableViewLinkClasses(active bool) string {
+	base := "inline-flex items-center border px-4 py-2 text-sm font-medium first:rounded-l-md last:rounded-r-md focus:z-10 focus:outline-none focus:ring-2 focus:ring-primary-500"
+	if active {
+		return base + " border-primary-600 bg-primary-600 text-white"
+	}
+	return base + " border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+}
+
+func variableViewCurrent(active bool) string {
+	if active {
+		return "page"
+	}
+	return "false"
+}
+
+templ variableTreeView(props ListProps) {
+	<div class="p-4 sm:p-6" data-variable-tree>
+		if len(props.PathTree) == 0 {
+			<div class="py-10 text-center text-sm text-neutral-500 dark:text-neutral-400">
+				No variables found
+			</div>
+		} else {
+			<ul class="space-y-2" aria-label="Variable paths">
+				@variableTreeNodes(props.PathTree, props.Namespace, props.Region)
+			</ul>
+		}
+	</div>
+}
+
+templ variableTreeNodes(nodes []VariablePathNode, namespace string, region string) {
+	for _, node := range nodes {
+		<li data-variable-tree-path={ node.Path }>
+			if len(node.Children) > 0 {
+				<details open class="group">
+					<summary class="cursor-pointer rounded px-2 py-1 font-medium text-neutral-800 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800">
+						{ node.Segment }
+					</summary>
+					<div class="ml-4 border-l border-neutral-200 pl-3 dark:border-neutral-700">
+						if node.Variable != nil {
+							@variableTreeRecord(*node.Variable, namespace, region, "View "+node.Path)
+						}
+						<ul class="mt-1 space-y-1">
+							@variableTreeNodes(node.Children, namespace, region)
+						</ul>
+					</div>
+				</details>
+			} else if node.Variable != nil {
+				@variableTreeRecord(*node.Variable, namespace, region, node.Segment)
+			}
+		</li>
+	}
+}
+
+templ variableTreeRecord(variable VariableSummary, namespace string, region string, label string) {
+	<a
+		href={ templ.SafeURL(variableScopedURL("/ui/variables/"+url.PathEscape(variable.Path), namespace, region)) }
+		class="flex items-center justify-between gap-3 rounded px-2 py-2 text-sm text-primary-700 hover:bg-primary-50 hover:text-primary-800 dark:text-primary-400 dark:hover:bg-neutral-800"
+		hx-get={ variableScopedURL("/ui/variables/"+url.PathEscape(variable.Path), namespace, region) }
+		hx-target="#main-content"
+		hx-swap="innerHTML"
+		hx-push-url="true"
+	>
+		<span>{ label }</span>
+		<span class="text-xs text-neutral-500 dark:text-neutral-400">{ variable.Namespace }</span>
+	</a>
+}
+
 // variableRow renders a single variable row in the table
-templ variableRow(variable VariableSummary) {
+templ variableRow(variable VariableSummary, namespace string, region string) {
 	<tr
 		class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-		hx-get={ fmt.Sprintf("/ui/variables/%s", url.PathEscape(variable.Path)) }
+		hx-get={ variableScopedURL(fmt.Sprintf("/ui/variables/%s", url.PathEscape(variable.Path)), namespace, region) }
 		hx-target="#main-content"
 		hx-swap="innerHTML"
 		hx-push-url="true"
@@ -153,9 +296,9 @@ templ variableRow(variable VariableSummary) {
 		@components.TableCell("left", "w-32") {
 			if variable.JobID != "" {
 				<a
-					href={ templ.SafeURL("/ui/jobs/" + variable.JobID) }
+					href={ templ.SafeURL(variableScopedURL("/ui/jobs/"+url.PathEscape(variable.JobID), namespace, region)) }
 					class="inline-flex items-center text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-					hx-get={ fmt.Sprintf("/ui/jobs/%s", variable.JobID) }
+					hx-get={ variableScopedURL("/ui/jobs/"+url.PathEscape(variable.JobID), namespace, region) }
 					hx-target="#main-content"
 					hx-swap="innerHTML"
 					hx-push-url="true"

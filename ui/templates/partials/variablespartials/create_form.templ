@@ -2,16 +2,18 @@ package variablespartials
 
 import (
 	"github.com/open-wander/wander/ui/templates/components"
+	"net/url"
 )
 
 type CreateProps struct {
 	CurrentNamespace    string
 	AvailableNamespaces []components.NamespaceInfo
+	Region              string
 }
 
 // CreateContent renders the variable create page content (without layout)
 templ CreateContent(props CreateProps) {
-	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="variableCreator()">
+	<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="variableCreator()" @beforeunload.window="warnUnsaved($event)" @click.capture="guardNavigation($event)" @htmx:before-request.window="guardHTMXNavigation($event)">
 		<!-- Page Header -->
 		<div class="mb-6">
 			<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Create Variable</h1>
@@ -21,7 +23,8 @@ templ CreateContent(props CreateProps) {
 		</div>
 		<!-- Create Form -->
 		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
-			<form hx-post="/ui/variables">
+			<form hx-post={ variableCreateURL(props) } @submit="prepareSubmit($event)" @input="markDirty()" @htmx:after-request="handleMutationResult($event)">
+				<input type="hidden" name="items_json" :value="editorMode === 'json' ? jsonText : ''"/>
 				<!-- Path Field -->
 				@components.FormField(components.FormFieldProps{
 					Label:    "Path",
@@ -54,14 +57,20 @@ templ CreateContent(props CreateProps) {
 				}
 				<!-- Key-Value Items Section -->
 				<div class="mt-6">
-					<div class="mb-4 flex items-center justify-between">
+					<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 						<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 							Items
 							<span class="ml-1 text-sm font-normal text-neutral-500 dark:text-neutral-400">(Key-Value Pairs)</span>
 						</label>
+						<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Variable editor mode">
+							<button type="button" @click="switchEditorMode('list')" :aria-pressed="editorMode === 'list'" class="btn btn-secondary btn-sm rounded-r-none">List</button>
+							<button type="button" @click="switchEditorMode('json')" :aria-pressed="editorMode === 'json'" class="btn btn-secondary btn-sm rounded-l-none">JSON</button>
+							<button type="button" @click="copyItemsJSON()" class="btn btn-secondary btn-sm rounded-l-none" :aria-label="copiedJSON ? 'Copied variable JSON' : 'Copy variable JSON'" x-text="copiedJSON ? 'Copied' : 'Copy JSON'"></button>
+						</div>
 						<button
 							type="button"
 							@click="addItem()"
+							x-show="editorMode === 'list'"
 							class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 						>
 							<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -71,7 +80,7 @@ templ CreateContent(props CreateProps) {
 						</button>
 					</div>
 					<!-- Key-Value Pairs -->
-					<div class="space-y-3">
+					<div class="space-y-3" x-show="editorMode === 'list'">
 						<template x-for="(item, index) in items" :key="item.id">
 							<div class="flex items-start space-x-3">
 								<!-- Key Input -->
@@ -86,13 +95,7 @@ templ CreateContent(props CreateProps) {
 								</div>
 								<!-- Value Input -->
 								<div class="flex-1">
-									<input
-										type="text"
-										x-model="item.value"
-										:name="'value_' + index"
-										placeholder="Value"
-										class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-									/>
+									@variableValueEditor()
 								</div>
 								<!-- Remove Button -->
 								<button
@@ -129,14 +132,26 @@ templ CreateContent(props CreateProps) {
 							</div>
 						</template>
 					</div>
+					<div x-show="editorMode === 'json'">
+						<label for="variable-items-json" class="sr-only">Variable items JSON</label>
+						<textarea
+							id="variable-items-json"
+							x-model="jsonText"
+							@input="validateJSON()"
+							rows="12"
+							spellcheck="false"
+							class="block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+						></textarea>
+						<p x-show="jsonError" x-text="jsonError" class="mt-2 text-sm text-error-600 dark:text-error-400" role="alert"></p>
+					</div>
 					<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-						You can add items now or create the variable and add them later.
+						At least one item is required. JSON values must be strings.
 					</p>
 				</div>
 				<!-- Action Buttons -->
 				<div class="mt-8 flex items-center justify-end space-x-3 pt-6 border-t border-neutral-200 dark:border-neutral-700">
 					<a
-						href="/ui/variables"
+						href={ templ.SafeURL(variableListURL(props.CurrentNamespace, props.Region)) }
 						class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-sm text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 					>
 						Cancel
@@ -153,6 +168,21 @@ templ CreateContent(props CreateProps) {
 				</div>
 			</form>
 		</div>
+	</div>
+}
+
+templ variableValueEditor() {
+	<div class="flex items-center gap-1">
+		<input
+			:type="item.revealed ? 'text' : 'password'"
+			x-model="item.value"
+			:name="'value_' + index"
+			placeholder="Value"
+			autocomplete="off"
+			class="block min-w-0 flex-1 rounded-md border-neutral-300 bg-white text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 sm:text-sm"
+		/>
+		<button type="button" @click="toggleItemVisibility(item)" class="btn btn-secondary btn-sm" :aria-label="item.revealed ? 'Hide value' : 'Reveal value'" x-text="item.revealed ? 'Hide' : 'Reveal'"></button>
+		<button type="button" @click="copyItem(item)" class="btn btn-secondary btn-sm" :aria-label="copiedItemId === item.id ? 'Copied value' : 'Copy value'" x-text="copiedItemId === item.id ? 'Copied' : 'Copy'"></button>
 	</div>
 }
 
@@ -175,4 +205,29 @@ func variableNamespaceOptions(props CreateProps) []components.SelectOption {
 		}
 	}
 	return options
+}
+
+func variableCreateURL(props CreateProps) string {
+	query := url.Values{}
+	if props.Region != "" {
+		query.Set("region", props.Region)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		return "/ui/variables?" + encoded
+	}
+	return "/ui/variables"
+}
+
+func variableListURL(namespace, region string) string {
+	query := url.Values{}
+	if namespace != "" {
+		query.Set("namespace", namespace)
+	}
+	if region != "" {
+		query.Set("region", region)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		return "/ui/variables?" + encoded
+	}
+	return "/ui/variables"
 }

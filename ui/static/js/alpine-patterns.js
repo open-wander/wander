@@ -1243,31 +1243,32 @@ function copyText(value) {
     return {
         copied: false,
         async copy() {
-            let succeeded = false;
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(value);
-                    succeeded = true;
-                }
-            } catch (_) {
-                // Browser clipboard permissions vary; use the selection-based
-                // fallback below before reporting a failure.
-            }
-
-            if (!succeeded) {
-                succeeded = copyTextFallback(value);
-            }
-
-            if (succeeded) {
+            if (await writeClipboardText(value)) {
                 this.copied = true;
                 window.setTimeout(() => { this.copied = false; }, 1500);
                 return;
             }
 
             this.copied = false;
-            window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Failed to copy to clipboard' } }));
+            reportCopyFailure();
         }
     };
+}
+
+async function writeClipboardText(value) {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+    } catch (_) {
+        // Browser clipboard permissions vary; use the selection-based fallback.
+    }
+    return copyTextFallback(value);
+}
+
+function reportCopyFailure() {
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { type: 'error', message: 'Failed to copy to clipboard' } }));
 }
 
 function copyTextFallback(value) {
@@ -2052,13 +2053,175 @@ function variableItemsState() {
     return {
         items: [],
         nextId: 1,
+        editorMode: 'list',
+        jsonText: '{}',
+        jsonError: '',
+        copiedItemId: null,
+        copiedJSON: false,
+        dirty: false,
 
-        addItem() {
-            this.items.push({ id: this.nextId++, key: '', value: '' });
+        addItem(markDirty = true) {
+            this.items.push({ id: this.nextId++, key: '', value: '', revealed: false });
+            if (markDirty) this.markDirty();
         },
 
         removeItem(index) {
             this.items.splice(index, 1);
+            this.jsonError = '';
+            this.markDirty();
+        },
+
+        itemsObject() {
+            const result = {};
+            for (const item of this.items) {
+                const key = item.key.trim();
+                if (!key) return { error: 'Item keys cannot be blank.' };
+                if (Object.prototype.hasOwnProperty.call(result, key)) {
+                    return { error: `Duplicate item key: ${key}` };
+                }
+                result[key] = item.value;
+            }
+            return { value: result };
+        },
+
+        syncJSONFromItems() {
+            const state = this.itemsObject();
+            if (state.error) {
+                this.jsonError = state.error;
+                return false;
+            }
+            this.jsonText = JSON.stringify(state.value, null, 2);
+            this.jsonError = '';
+            return true;
+        },
+
+        parseJSONItems() {
+            let value;
+            try {
+                value = JSON.parse(this.jsonText);
+            } catch (_error) {
+                return { error: 'Enter a valid JSON object.' };
+            }
+            if (value === null || Array.isArray(value) || typeof value !== 'object') {
+                return { error: 'Variable JSON must be an object.' };
+            }
+            for (const [key, itemValue] of Object.entries(value)) {
+                if (!key.trim()) return { error: 'Item keys cannot be blank.' };
+                if (typeof itemValue !== 'string') {
+                    return { error: `Value for ${key} must be a string.` };
+                }
+            }
+            return { value };
+        },
+
+        validateJSON() {
+            const state = this.parseJSONItems();
+            this.jsonError = state.error || '';
+            return !state.error;
+        },
+
+        applyJSONItems() {
+            const state = this.parseJSONItems();
+            if (state.error) {
+                this.jsonError = state.error;
+                return false;
+            }
+            this.items = Object.entries(state.value).map(([key, value]) => ({
+                id: this.nextId++, key, value, revealed: false
+            }));
+            this.jsonError = '';
+            return true;
+        },
+
+        switchEditorMode(mode) {
+            if (mode === this.editorMode) return;
+            if (mode === 'json') {
+                if (!this.syncJSONFromItems()) return;
+                this.editorMode = mode;
+                return;
+            }
+            if (mode === 'list' && this.applyJSONItems()) this.editorMode = mode;
+        },
+
+        prepareSubmit(event) {
+            const valid = this.editorMode === 'json' ? this.validateJSON() : this.syncJSONFromItems();
+            if (!valid) event.preventDefault();
+            return valid;
+        },
+
+        toggleItemVisibility(item) {
+            item.revealed = !item.revealed;
+        },
+
+        async copyItem(item) {
+            if (!await writeClipboardText(item.value)) {
+                reportCopyFailure();
+                return;
+            }
+            this.copiedItemId = item.id;
+            window.setTimeout(() => {
+                if (this.copiedItemId === item.id) this.copiedItemId = null;
+            }, 1500);
+        },
+
+        async copyItemsJSON() {
+            const state = this.itemsObject();
+            if (state.error) {
+                this.jsonError = state.error;
+                return;
+            }
+            if (!await writeClipboardText(JSON.stringify(state.value, null, 2))) {
+                reportCopyFailure();
+                return;
+            }
+            this.copiedJSON = true;
+            window.setTimeout(() => { this.copiedJSON = false; }, 1500);
+        },
+
+        markDirty() {
+            this.dirty = true;
+        },
+
+        clearDirty() {
+            this.dirty = false;
+        },
+
+        warnUnsaved(event) {
+            if (!this.dirty) return;
+            event.preventDefault();
+            event.returnValue = '';
+        },
+
+        guardNavigation(event) {
+            const link = event.target.closest?.('a[href]');
+            if (!this.dirty || !link) return;
+            if (window.confirm('Discard unsaved variable changes?')) {
+                this.clearDirty();
+                return;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        },
+
+        guardHTMXNavigation(event) {
+            const verb = event.detail?.requestConfig?.verb?.toLowerCase();
+            if (!this.dirty || verb !== 'get') return;
+            if (window.confirm('Discard unsaved variable changes?')) {
+                this.clearDirty();
+                return;
+            }
+            event.preventDefault();
+        },
+
+        handleMutationResult(event) {
+            if (!event.detail?.successful) return;
+            if (this.editorMode === 'json' && !this.applyJSONItems()) return;
+            if (Array.isArray(this.originalItems)) {
+                this.originalItems = JSON.parse(JSON.stringify(this.items));
+            }
+            const modifyIndex = event.detail?.xhr?.getResponseHeader('X-Wander-Modify-Index');
+            if (modifyIndex && this.$refs?.modifyIndex) this.$refs.modifyIndex.value = modifyIndex;
+            this.clearDirty();
         }
     };
 }
@@ -2068,7 +2231,9 @@ function variableCreator() {
         ...variableItemsState(),
 
         init() {
-            this.addItem();
+            this.addItem(false);
+            this.syncJSONFromItems();
+            this.clearDirty();
         }
     };
 }
@@ -2084,13 +2249,16 @@ function variableEditor() {
             this.originalItems = Object.entries(initialItems).map(([key, value]) => ({
                 id: this.nextId++,
                 key,
-                value
+                value,
+                revealed: false
             }));
             this.resetItems();
         },
 
         resetItems() {
             this.items = JSON.parse(JSON.stringify(this.originalItems));
+            this.syncJSONFromItems();
+			this.clearDirty();
             const feedback = document.getElementById('save-feedback');
             if (feedback) feedback.replaceChildren();
         }

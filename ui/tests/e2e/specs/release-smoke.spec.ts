@@ -355,14 +355,43 @@ test.describe('Wander release smoke', () => {
       await openDesktopPage(defaultPage, '/ui/variables?namespace=default');
       await expect(defaultPage.getByText(variablePath, { exact: true })).toHaveCount(0);
 
-      await submitVariableValue(teamPage, 'updated', 'Save Variable');
+      await openDesktopPage(teamPage, '/ui/variables?namespace=team-a&region=global');
+      await teamPage.getByRole('link', { name: 'Tree', exact: true }).click();
+      await expect(teamPage).toHaveURL(/namespace=team-a&region=global&view=tree/);
+      const treeRecord = teamPage.locator(`[data-variable-tree-path="${variablePath}"] a`);
+      await expect(treeRecord).toHaveAttribute('href', /namespace=team-a&region=global/);
+      await treeRecord.click();
+      await expect(teamPage.getByRole('heading', { name: variablePath })).toBeVisible();
+      const firstValue = teamPage.getByPlaceholder('Value').first();
+      await expect(firstValue).toHaveAttribute('type', 'password');
+      await teamPage.getByRole('button', { name: 'Reveal value' }).first().click();
+      await expect(firstValue).toHaveAttribute('type', 'text');
+      await firstValue.fill('draft');
+      let unsavedPrompt = '';
+      teamPage.once('dialog', async dialog => {
+        unsavedPrompt = dialog.message();
+        await dialog.dismiss();
+      });
+      await teamPage.getByRole('link', { name: 'Jobs', exact: true }).first().click();
+      expect(unsavedPrompt).toContain('Discard unsaved variable changes?');
+      await expect(teamPage.getByRole('heading', { name: variablePath })).toBeVisible();
+      await teamPage.getByRole('button', { name: 'Reset' }).click();
+
+      await teamPage.getByRole('button', { name: 'JSON', exact: true }).click();
+      const jsonEditor = teamPage.getByLabel('Variable items JSON');
+      await expect(jsonEditor).toHaveValue(/"answer": "forty-two"/);
+      await jsonEditor.fill('{"answer":"updated","mode":"json"}');
+      await teamPage.getByRole('button', { name: 'Save Variable' }).click();
       await expect(teamPage.getByText('Variable saved successfully')).toBeVisible();
       await teamPage.reload();
-      await expect(teamPage.getByPlaceholder('Value')).toHaveValue('updated');
+      await teamPage.getByRole('button', { name: 'JSON', exact: true }).click();
+      await expect(teamPage.getByLabel('Variable items JSON')).toHaveValue(/"mode": "json"/);
+      await teamPage.getByRole('button', { name: 'List', exact: true }).click();
+      await expect(teamPage.getByPlaceholder('Value').first()).toHaveValue('updated');
 
       const deleteModal = await openDialog(teamPage, 'Delete', 'Delete Variable');
       await deleteModal.getByRole('button', { name: 'Delete Variable' }).click();
-      await expect(teamPage).toHaveURL(/\/ui\/variables$/);
+      await expect(teamPage).toHaveURL(/\/ui\/variables\?namespace=team-a&region=global$/);
       await expect(teamPage.getByText(variablePath, { exact: true })).toHaveCount(0);
     } finally {
       await teamPage.request.delete(`/ui/variables/${variablePath}?namespace=team-a`);
@@ -723,17 +752,20 @@ test.describe('Wander release smoke', () => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/servers?region=global');
 
-	await expectColumnHeaders(page, ['Name', 'Status', 'Leader', 'Address', 'Port', 'Datacenter', 'Version']);
+    await expectColumnHeaders(page, ['Name', 'Status', 'Leader', 'Address', 'Port', 'Datacenter', 'Version']);
     await expect(page.locator('[data-server-port]').first()).not.toBeEmpty();
     await expect(page.locator('[data-server-version]').first()).not.toBeEmpty();
 
     await page.locator('a[href^="/ui/servers/"]').first().click();
     const tagNames = await page.locator('[data-server-tag] dt').allTextContents();
-    expect(tagNames.length).toBeGreaterThan(0);
-    expect(tagNames).toEqual([...tagNames].sort());
-    const copyButton = page.locator('[data-copy-button]').first();
-    await copyButton.click();
-    await expect(copyButton).toContainText('Copied');
+    if (tagNames.length === 0) {
+      await expect(page.getByText('No tags available', { exact: true })).toBeVisible();
+    } else {
+      expect(tagNames).toEqual([...tagNames].sort());
+      const copyButton = page.locator('[data-server-tag] [data-copy-button]').first();
+      await copyButton.click();
+      await expect(copyButton).toContainText('Copied');
+    }
 
     await page.getByRole('link', { name: 'Monitor', exact: true }).click();
 

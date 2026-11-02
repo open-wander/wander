@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +23,10 @@ import (
 type VariablesHandler struct {
 	handler *Handler
 }
+
+const maxVariableItemsSize = 64 * 1024
+
+var validVariablePath = regexp.MustCompile(`^[a-zA-Z0-9-_~/]{1,128}$`)
 
 // NewVariablesHandler creates a new variables handler.
 func NewVariablesHandler(h *Handler) *VariablesHandler {
@@ -114,6 +123,7 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	if searchQuery != "" {
 		variablesList = h.filterVariables(variablesList, searchQuery)
 	}
+	view := variableListView(r.URL.Query().Get("view"))
 
 	// Parse sort parameters from query string
 	sortColumn := r.URL.Query().Get("sort")
@@ -127,6 +137,7 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Sort the variables list based on parameters
 	h.sortVariables(variablesList, sortColumn, sortDir)
+	pathTree := buildVariablePathTree(variablesList)
 
 	// Parse pagination parameters
 	page := parsePage(r.URL.Query().Get("page"))
@@ -157,10 +168,22 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 
+	listProps := variablespartials.ListProps{
+		Variables:   variablesList,
+		PathTree:    pathTree,
+		View:        view,
+		Namespace:   namespace,
+		Region:      GetRegionFromRequest(r),
+		SortColumn:  sortColumn,
+		SortDir:     sortDir,
+		SearchQuery: searchQuery,
+		Pagination:  pagination,
+	}
+
 	// Render the variables list page
 	err := Render(w, r,
-		variables.List(layoutProps, variablesList, sortColumn, sortDir, searchQuery, pagination),   // Full page with layout
-		variablespartials.ListContent(variablesList, sortColumn, sortDir, searchQuery, pagination), // Partial content for HTMX requests
+		variables.List(layoutProps, listProps),
+		variablespartials.ListContent(listProps),
 	)
 
 	if err != nil {
@@ -207,15 +230,6 @@ func (h *VariablesHandler) getVariablesList(r *http.Request, namespace, token st
 		// Convert ModifyTime (unix nano) to time.Time
 		modifiedTime := time.Unix(0, v.ModifyTime)
 
-		// Extract JobID from path if it follows the pattern nomad/jobs/{jobid}
-		jobID := ""
-		if strings.HasPrefix(v.Path, "nomad/jobs/") {
-			parts := strings.Split(v.Path, "/")
-			if len(parts) >= 3 {
-				jobID = parts[2]
-			}
-		}
-
 		// Note: The API returns VariableMetadata which doesn't include item count
 		// We would need to fetch the full variable to get item count, but that
 		// would be expensive for a list view. For now, set to 0.
@@ -229,7 +243,7 @@ func (h *VariablesHandler) getVariablesList(r *http.Request, namespace, token st
 			ModifyIndex: v.ModifyIndex,
 			ItemCount:   itemCount,
 			Modified:    modifiedTime,
-			JobID:       jobID,
+			JobID:       variableJobID(v.Path),
 		})
 	}
 
@@ -335,6 +349,7 @@ func (h *VariablesHandler) ShowCreate(w http.ResponseWriter, r *http.Request) {
 	createProps := variablespartials.CreateProps{
 		CurrentNamespace:    layoutProps.CurrentNamespace,
 		AvailableNamespaces: layoutProps.AvailableNamespaces,
+		Region:              GetRegionFromRequest(r),
 	}
 
 	// Render the create page
@@ -397,6 +412,10 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if err := validateVariableMutation(path, namespace, items); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Build the variable
 	variable := &api.Variable{
@@ -406,10 +425,14 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the variable via Nomad API
-	createdVar, _, err := client.Variables().Create(variable, writeOpts)
+	createdVar, _, err := client.Variables().CheckedCreate(variable, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to create variable", "error", err, "path", path, "namespace", namespace)
-		http.Error(w, "Failed to create variable: "+err.Error(), http.StatusInternalServerError)
+		if isVariableConflict(err) {
+			http.Error(w, "Variable already exists; reload the variable list before continuing", http.StatusConflict)
+			return
+		}
+		http.Error(w, "Failed to create variable: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -417,6 +440,9 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to the detail page for the new variable
 	redirectQuery := url.Values{"namespace": {createdVar.Namespace}}
+	if region := GetRegionFromRequest(r); region != "" {
+		redirectQuery.Set("region", region)
+	}
 	w.Header().Set("HX-Redirect", "/ui/variables/"+url.PathEscape(createdVar.Path)+"?"+redirectQuery.Encode())
 	w.WriteHeader(http.StatusCreated)
 }
@@ -534,23 +560,17 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, writeOpts, token, items, ok := h.variableItemsWriteContext(w, r, namespace)
+	client, writeOpts, _, items, ok := h.variableItemsWriteContext(w, r, namespace)
 	if !ok {
 		return
 	}
-
-	// First, read the existing variable to get its ModifyIndex (for proper CAS updates)
-	queryOpts := &api.QueryOptions{
-		Namespace: namespace,
+	if err := validateVariableMutation(variablePath, namespace, items); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
-
-	existingVar, _, err := client.Variables().Read(variablePath, queryOpts)
+	modifyIndex, err := parseVariableModifyIndex(r.FormValue("modify_index"))
 	if err != nil {
-		h.handler.logger.Error("failed to read existing variable", "error", err, "path", variablePath, "namespace", namespace)
-		http.Error(w, "Failed to read existing variable: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -559,14 +579,18 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Namespace:   namespace,
 		Path:        variablePath,
 		Items:       items,
-		ModifyIndex: existingVar.ModifyIndex,
+		ModifyIndex: modifyIndex,
 	}
 
 	// Update the variable via Nomad API
-	updatedVar, _, err := client.Variables().Update(variable, writeOpts)
+	updatedVar, _, err := client.Variables().CheckedUpdate(variable, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to update variable", "error", err, "path", variablePath, "namespace", namespace)
-		http.Error(w, "Failed to update variable: "+err.Error(), http.StatusInternalServerError)
+		if isVariableConflict(err) {
+			http.Error(w, "Variable changed since this page was loaded; reload and review the latest version before saving", http.StatusConflict)
+			return
+		}
+		http.Error(w, "Failed to update variable: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -574,6 +598,7 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// Return success response for HTMX
 	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("X-Wander-Modify-Index", strconv.FormatUint(updatedVar.ModifyIndex, 10))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<div class="rounded-lg bg-green-50 border border-green-200 p-4">
 		<div class="flex items-center">
@@ -622,18 +647,28 @@ func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the variable via Nomad API
-	_, err = client.Variables().Delete(variablePath, writeOpts)
+	modifyIndex, err := parseVariableModifyIndex(r.URL.Query().Get("modify_index"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Delete only the version that the user reviewed.
+	_, err = client.Variables().CheckedDelete(variablePath, modifyIndex, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to delete variable", "error", err, "path", variablePath, "namespace", namespace)
-		http.Error(w, "Failed to delete variable: "+err.Error(), http.StatusInternalServerError)
+		if isVariableConflict(err) {
+			http.Error(w, "Variable changed since this page was loaded; reload and review the latest version before deleting", http.StatusConflict)
+			return
+		}
+		http.Error(w, "Failed to delete variable: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	h.handler.logger.Info("variable deleted successfully", "path", variablePath, "namespace", namespace)
 
 	// Return success response that redirects to list
-	w.Header().Set("HX-Redirect", "/ui/variables")
+	w.Header().Set("HX-Redirect", scopedUIURL("/ui/variables", namespace, GetRegionFromRequest(r)))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -650,7 +685,7 @@ func (h *VariablesHandler) variableWriteContext(
 	}
 
 	token := GetTokenFromRequest(r)
-	writeOpts := &api.WriteOptions{Namespace: namespace, AuthToken: token}
+	writeOpts := &api.WriteOptions{Namespace: namespace, Region: GetRegionFromRequest(r), AuthToken: token}
 	return client, writeOpts, token, true
 }
 
@@ -663,7 +698,12 @@ func (h *VariablesHandler) variableItemsWriteContext(
 	if !ok {
 		return nil, nil, "", nil, false
 	}
-	return client, writeOpts, token, parseVariableItems(r.Form), true
+	items, err := parseVariableItems(r.Form)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil, nil, "", nil, false
+	}
+	return client, writeOpts, token, items, true
 }
 
 // getVariableDetail fetches a variable by path from the Nomad API.
@@ -714,10 +754,28 @@ func (h *VariablesHandler) getVariableDetail(r *http.Request, path, namespace, t
 		ModifyIndex: variable.ModifyIndex,
 		Modified:    modifiedTime,
 		Items:       variable.Items,
+		Region:      GetRegionFromRequest(r),
+		JobID:       variableJobID(variable.Path),
 	}
 }
 
-func parseVariableItems(form url.Values) map[string]string {
+func variableJobID(path string) string {
+	parts := strings.Split(path, "/")
+	if len(parts) < 3 || parts[0] != "nomad" || parts[1] != "jobs" || parts[2] == "" {
+		return ""
+	}
+	return parts[2]
+}
+
+func parseVariableItems(form url.Values) (map[string]string, error) {
+	if rawJSON := strings.TrimSpace(form.Get("items_json")); rawJSON != "" {
+		items := make(map[string]string)
+		if err := json.Unmarshal([]byte(rawJSON), &items); err != nil {
+			return nil, errors.New("variable items JSON must be an object whose values are strings")
+		}
+		return items, nil
+	}
+
 	items := make(map[string]string)
 	for field, values := range form {
 		if !strings.HasPrefix(field, "key_") || len(values) == 0 {
@@ -726,9 +784,64 @@ func parseVariableItems(form url.Values) map[string]string {
 
 		itemKey := strings.TrimSpace(values[0])
 		itemValues := form["value_"+strings.TrimPrefix(field, "key_")]
-		if itemKey != "" && len(itemValues) > 0 {
-			items[itemKey] = itemValues[0]
+		if itemKey == "" {
+			return nil, errors.New("variable item keys cannot be blank")
+		}
+		if len(itemValues) == 0 {
+			return nil, fmt.Errorf("variable item %q is missing its value field", itemKey)
+		}
+		if _, duplicate := items[itemKey]; duplicate {
+			return nil, fmt.Errorf("duplicate variable item key %q", itemKey)
+		}
+		items[itemKey] = itemValues[0]
+	}
+	return items, nil
+}
+
+func validateVariableMutation(path, namespace string, items map[string]string) error {
+	if namespace == api.AllNamespacesNamespace {
+		return errors.New("variables cannot target the wildcard namespace")
+	}
+	if !validVariablePath.MatchString(path) {
+		return errors.New("variable path must be 1-128 characters using only letters, numbers, '-', '_', '~', and '/'")
+	}
+	parts := strings.Split(path, "/")
+	if parts[0] == "nomad" {
+		if len(parts) == 1 {
+			return errors.New(`"nomad" is a reserved path; use "nomad/jobs" or "nomad/job-templates/<name>"`)
+		}
+		switch parts[1] {
+		case "jobs":
+		case "job-templates":
+			if len(parts) != 3 || parts[2] == "" {
+				return errors.New(`variables below "nomad/job-templates" require exactly one template name`)
+			}
+		default:
+			return errors.New(`only "nomad/jobs" and "nomad/job-templates" are valid below the reserved "nomad" path`)
 		}
 	}
-	return items
+	if len(items) == 0 {
+		return errors.New("a variable requires at least one item")
+	}
+	size := 0
+	for key, value := range items {
+		size += len(key) + len(value)
+	}
+	if size > maxVariableItemsSize {
+		return errors.New("variable items are limited to 64 KiB in total size")
+	}
+	return nil
+}
+
+func parseVariableModifyIndex(value string) (uint64, error) {
+	index, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+	if err != nil || index == 0 {
+		return 0, errors.New("a valid variable modify index is required; reload the page and try again")
+	}
+	return index, nil
+}
+
+func isVariableConflict(err error) bool {
+	var conflict api.ErrCASConflict
+	return errors.As(err, &conflict)
 }

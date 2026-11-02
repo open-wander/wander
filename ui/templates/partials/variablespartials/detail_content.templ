@@ -3,8 +3,10 @@ package variablespartials
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 	"github.com/open-wander/wander/ui/templates/components"
+	"net/url"
+	"strconv"
+	"time"
 )
 
 // VariableDetail represents detailed information about a variable
@@ -15,6 +17,8 @@ type VariableDetail struct {
 	ModifyIndex uint64
 	Modified    time.Time
 	Items       map[string]string
+	Region      string
+	JobID       string
 }
 
 // DetailContent renders the variable detail page content (without layout)
@@ -23,6 +27,9 @@ templ DetailContent(variable VariableDetail) {
 		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
 		x-data="variableEditor()"
 		data-variable-items={ variableItemsJSON(variable.Items) }
+		@beforeunload.window="warnUnsaved($event)"
+		@click.capture="guardNavigation($event)"
+		@htmx:before-request.window="guardHTMXNavigation($event)"
 	>
 		<!-- Variable Header -->
 		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
@@ -61,14 +68,30 @@ templ DetailContent(variable VariableDetail) {
 					<span class="ml-2 font-medium text-neutral-900 dark:text-neutral-100">{ formatTimeAgo(variable.Modified) }</span>
 				</div>
 			</div>
+			if variable.JobID != "" {
+				<div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+					<a
+						href={ templ.SafeURL(variableScopedURL("/ui/jobs/"+url.PathEscape(variable.JobID), variable.Namespace, variable.Region)) }
+						class="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+					>
+						View related job { variable.JobID }
+					</a>
+				</div>
+			}
 		</div>
 		<!-- Key-Value Editor -->
 		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
-			<div class="mb-4 flex items-center justify-between">
+			<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 				<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Items</h2>
+				<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Variable editor mode">
+					<button type="button" @click="switchEditorMode('list')" :aria-pressed="editorMode === 'list'" class="btn btn-secondary btn-sm rounded-r-none">List</button>
+					<button type="button" @click="switchEditorMode('json')" :aria-pressed="editorMode === 'json'" class="btn btn-secondary btn-sm rounded-l-none">JSON</button>
+					<button type="button" @click="copyItemsJSON()" class="btn btn-secondary btn-sm rounded-l-none" :aria-label="copiedJSON ? 'Copied variable JSON' : 'Copy variable JSON'" x-text="copiedJSON ? 'Copied' : 'Copy JSON'"></button>
+				</div>
 				<button
 					type="button"
 					@click="addItem()"
+					x-show="editorMode === 'list'"
 					class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 				>
 					<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -81,11 +104,16 @@ templ DetailContent(variable VariableDetail) {
 			<div id="save-feedback" class="mb-4"></div>
 			<!-- Key-Value Pairs -->
 			<form
-				hx-post={ "/ui/variables/" + variable.Path }
+				hx-post={ variableMutationURL(variable, false) }
 				hx-target="#save-feedback"
 				hx-swap="innerHTML"
+				@submit="prepareSubmit($event)"
+				@input="markDirty()"
+				@htmx:after-request="handleMutationResult($event)"
 			>
-				<div class="space-y-3">
+				<input type="hidden" name="modify_index" value={ fmt.Sprintf("%d", variable.ModifyIndex) } x-ref="modifyIndex"/>
+				<input type="hidden" name="items_json" :value="editorMode === 'json' ? jsonText : ''"/>
+				<div class="space-y-3" x-show="editorMode === 'list'">
 					<template x-for="(item, index) in items" :key="item.id">
 						<div class="flex items-start space-x-3">
 							<!-- Key Input -->
@@ -100,13 +128,7 @@ templ DetailContent(variable VariableDetail) {
 							</div>
 							<!-- Value Input -->
 							<div class="flex-1">
-								<input
-									type="text"
-									x-model="item.value"
-									:name="'value_' + index"
-									placeholder="Value"
-									class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-								/>
+								@variableValueEditor()
 							</div>
 							<!-- Remove Button -->
 							<button
@@ -142,6 +164,18 @@ templ DetailContent(variable VariableDetail) {
 							</div>
 						</div>
 					</template>
+				</div>
+				<div x-show="editorMode === 'json'">
+					<label for="variable-items-json" class="sr-only">Variable items JSON</label>
+					<textarea
+						id="variable-items-json"
+						x-model="jsonText"
+						@input="validateJSON()"
+						rows="12"
+						spellcheck="false"
+						class="block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+					></textarea>
+					<p x-show="jsonError" x-text="jsonError" class="mt-2 text-sm text-error-600 dark:text-error-400" role="alert"></p>
 				</div>
 				<!-- Action Buttons -->
 				<template x-if="items.length > 0">
@@ -193,14 +227,14 @@ templ DeleteVariableModal(variable VariableDetail) {
 			@components.ModalFooter() {
 				<button
 					type="button"
-					@click="close"
+					@click="clearDirty(); close"
 					class="btn btn-secondary btn-sm"
 				>
 					Cancel
 				</button>
 				<button
 					type="button"
-					hx-delete={ "/ui/variables/" + variable.Path }
+					hx-delete={ variableMutationURL(variable, true) }
 					@click="close"
 					class="btn btn-danger btn-sm"
 				>
@@ -214,4 +248,22 @@ templ DeleteVariableModal(variable VariableDetail) {
 func variableItemsJSON(items map[string]string) string {
 	itemsJSON, _ := json.Marshal(items)
 	return string(itemsJSON)
+}
+
+func variableMutationURL(variable VariableDetail, includeModifyIndex bool) string {
+	query := url.Values{}
+	if variable.Namespace != "" {
+		query.Set("namespace", variable.Namespace)
+	}
+	if variable.Region != "" {
+		query.Set("region", variable.Region)
+	}
+	if includeModifyIndex {
+		query.Set("modify_index", strconv.FormatUint(variable.ModifyIndex, 10))
+	}
+	result := "/ui/variables/" + url.PathEscape(variable.Path)
+	if encoded := query.Encode(); encoded != "" {
+		result += "?" + encoded
+	}
+	return result
 }
