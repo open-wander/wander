@@ -73,7 +73,9 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: ui/package-lock.json
+          cache-dependency-path: |
+            ui/package-lock.json
+            ui/tests/e2e/package-lock.json
       - name: Scan reachable Go vulnerabilities
         run: |
           make templ-deps ui-generate
@@ -81,6 +83,11 @@ jobs:
           govulncheck ./...
       - name: Audit HTMX UI dependencies
         working-directory: ui
+        run: |
+          npm ci
+          npm audit --audit-level=moderate
+      - name: Audit UI browser-test dependencies
+        working-directory: ui/tests/e2e
         run: |
           npm ci
           npm audit --audit-level=moderate
