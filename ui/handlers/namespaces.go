@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/open-wander/wander/api"
@@ -43,7 +44,11 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Never substitute fabricated namespaces when the cluster is unavailable.
-	namespacesList := h.getNamespacesFromAPI(r, token)
+	namespacesList, err := h.getNamespacesFromAPI(r, token)
+	if err != nil {
+		h.handler.renderScopedReadError(w, r, "", "list namespaces", "namespace", "", false, err)
+		return
+	}
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(r,
@@ -58,7 +63,7 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render full page or partial based on HTMX request
-	err := Render(w, r,
+	err = Render(w, r,
 		namespaces.List(layoutProps, namespacesList),   // Full page with layout
 		namespacespartials.ListContent(namespacesList), // Partial content for HTMX requests
 	)
@@ -71,10 +76,10 @@ func (h *NamespacesHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getNamespacesFromAPI fetches namespaces from the Nomad API.
-func (h *NamespacesHandler) getNamespacesFromAPI(r *http.Request, token string) []namespacespartials.NamespaceSummary {
+func (h *NamespacesHandler) getNamespacesFromAPI(r *http.Request, token string) ([]namespacespartials.NamespaceSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		return nil
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Build query options with ACL token
@@ -89,8 +94,7 @@ func (h *NamespacesHandler) getNamespacesFromAPI(r *http.Request, token string) 
 	// Fetch namespaces from the API
 	nsList, _, err := client.Namespaces().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Warn("failed to fetch namespaces from API", "error", err)
-		return nil
+		return nil, fmt.Errorf("list namespaces: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched namespaces from API", "count", len(nsList))
@@ -107,8 +111,10 @@ func (h *NamespacesHandler) getNamespacesFromAPI(r *http.Request, token string) 
 
 		// Get job count for this namespace
 		jobCount := 0
+		jobCountAvailable := false
 		if jobs, _, err := client.Jobs().List(jobQueryOpts); err == nil {
 			jobCount = len(jobs)
+			jobCountAvailable = true
 		}
 
 		quota := ""
@@ -117,14 +123,15 @@ func (h *NamespacesHandler) getNamespacesFromAPI(r *http.Request, token string) 
 		}
 
 		result = append(result, namespacespartials.NamespaceSummary{
-			Name:        ns.Name,
-			Description: ns.Description,
-			Quota:       quota,
-			JobCount:    jobCount,
-			CreateIndex: ns.CreateIndex,
-			ModifyIndex: ns.ModifyIndex,
+			Name:              ns.Name,
+			Description:       ns.Description,
+			Quota:             quota,
+			JobCount:          jobCount,
+			JobCountAvailable: jobCountAvailable,
+			CreateIndex:       ns.CreateIndex,
+			ModifyIndex:       ns.ModifyIndex,
 		})
 	}
 
-	return result
+	return result, nil
 }

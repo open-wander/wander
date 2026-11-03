@@ -7,12 +7,13 @@ import (
 
 // NamespaceSummary represents a summary view of a namespace for list display.
 type NamespaceSummary struct {
-	Name        string
-	Description string
-	Quota       string
-	JobCount    int
-	CreateIndex uint64
-	ModifyIndex uint64
+	Name              string
+	Description       string
+	Quota             string
+	JobCount          int
+	JobCountAvailable bool
+	CreateIndex       uint64
+	ModifyIndex       uint64
 }
 
 // ListContent renders the namespaces table content for HTMX partial updates.
@@ -35,8 +36,8 @@ templ ListContent(namespacesList []NamespaceSummary) {
 					{Key: "quota", Label: "Quota", Sortable: false, Align: "left", Width: "w-32"},
 					{Key: "jobs", Label: "Jobs", Sortable: false, Align: "center", Width: "w-24"},
 				},
-				Striped:    true,
-				Hover:      true,
+				Striped: true,
+				Hover:   true,
 			}) {
 				@components.TableBody() {
 					if len(namespacesList) == 0 {
@@ -85,16 +86,20 @@ templ namespaceRow(ns NamespaceSummary) {
 			}
 		}
 		@components.TableCell("center", "w-24") {
-			<a
-				href={ templ.SafeURL("/ui/jobs?namespace=" + ns.Name) }
-				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-				hx-get={ fmt.Sprintf("/ui/jobs?namespace=%s", ns.Name) }
-				hx-target="#main-content"
-				hx-swap="innerHTML"
-				hx-push-url="true"
-			>
-				{ fmt.Sprintf("%d", ns.JobCount) }
-			</a>
+			if ns.JobCountAvailable {
+				<a
+					href={ templ.SafeURL("/ui/jobs?namespace=" + ns.Name) }
+					class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+					hx-get={ fmt.Sprintf("/ui/jobs?namespace=%s", ns.Name) }
+					hx-target="#main-content"
+					hx-swap="innerHTML"
+					hx-push-url="true"
+				>
+					{ fmt.Sprintf("%d", ns.JobCount) }
+				</a>
+			} else {
+				<span class="text-neutral-500" title="Job count unavailable">Unavailable</span>
+			}
 		}
 	</tr>
 }

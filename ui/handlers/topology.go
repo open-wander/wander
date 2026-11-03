@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -63,7 +64,11 @@ func (h *TopologyHandler) List(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get topology data from Nomad API
-	topologyData := h.getTopologyData(r, token)
+	topologyData, err := h.getTopologyData(r, token)
+	if err != nil {
+		h.handler.renderScopedReadError(w, r, GetNamespaceFromRequest(r), "load topology", "topology", "node:read", false, err)
+		return
+	}
 
 	// Build layout props
 	layoutProps := h.handler.BaseLayoutProps(r,
@@ -78,7 +83,7 @@ func (h *TopologyHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the topology page
-	err := Render(w, r,
+	err = Render(w, r,
 		topology.List(layoutProps, topologyData),   // Full page with layout
 		topologypartials.ListContent(topologyData), // Partial content for HTMX requests
 	)
@@ -100,7 +105,11 @@ func (h *TopologyHandler) Data(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Get topology data from Nomad API
-	topologyData := h.getTopologyData(r, token)
+	topologyData, err := h.getTopologyData(r, token)
+	if err != nil {
+		h.handler.renderScopedReadError(w, r, GetNamespaceFromRequest(r), "load topology", "topology", "node:read", false, err)
+		return
+	}
 
 	// Convert to JSON response format
 	response := struct {
@@ -120,11 +129,10 @@ func (h *TopologyHandler) Data(w http.ResponseWriter, r *http.Request) {
 
 // getTopologyData fetches topology data from the Nomad API.
 // It combines data from Nodes().List() and Allocations().List().
-func (h *TopologyHandler) getTopologyData(r *http.Request, token string) topologypartials.TopologyData {
+func (h *TopologyHandler) getTopologyData(r *http.Request, token string) (topologypartials.TopologyData, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty topology data")
-		return topologypartials.TopologyData{}
+		return topologypartials.TopologyData{}, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Build query options with ACL token
@@ -133,8 +141,7 @@ func (h *TopologyHandler) getTopologyData(r *http.Request, token string) topolog
 	// Fetch all nodes from the API
 	nodeStubs, _, err := client.Nodes().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch nodes from Nomad API", "error", err)
-		return topologypartials.TopologyData{}
+		return topologypartials.TopologyData{}, fmt.Errorf("list topology nodes: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched nodes from API", "count", len(nodeStubs))
@@ -142,8 +149,7 @@ func (h *TopologyHandler) getTopologyData(r *http.Request, token string) topolog
 	// Fetch all allocations from the API
 	allocStubs, _, err := client.Allocations().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch allocations from Nomad API", "error", err)
-		return topologypartials.TopologyData{}
+		return topologypartials.TopologyData{}, fmt.Errorf("list topology allocations: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched allocations from API", "count", len(allocStubs))
@@ -264,7 +270,7 @@ func (h *TopologyHandler) getTopologyData(r *http.Request, token string) topolog
 		FilterOptions:      filterOptions,
 		Namespace:          GetNamespaceFromRequest(r),
 		Region:             region,
-	}
+	}, nil
 }
 
 func parseTopologyFilters(r *http.Request) topologypartials.Filters {

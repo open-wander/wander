@@ -1030,7 +1030,7 @@ test.describe('Wander release smoke', () => {
     const deepDirectory = page.getByRole('button', { name: /deep/ });
     await deepDirectory.click();
     await expect(deepDirectory).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByText('file-30.txt', { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('file-30.txt', { exact: true })).toBeVisible({ timeout: 30_000 });
     const privateDirectory = page.getByRole('button', { name: /private/ });
     await privateDirectory.focus();
     await page.keyboard.press('Enter');

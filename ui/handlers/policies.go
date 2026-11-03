@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -153,7 +154,11 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 	token := GetTokenFromRequest(r)
 
 	// Never substitute fabricated policies when the cluster is unavailable.
-	policiesList := h.getPoliciesFromAPI(r, token)
+	policiesList, err := h.getPoliciesFromAPI(r, token)
+	if err != nil {
+		h.handler.renderScopedReadError(w, r, "", "list ACL policies", "policy", "management token", false, err)
+		return
+	}
 
 	// Parse search query from query string
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
@@ -189,7 +194,7 @@ func (h *PoliciesHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the policies list page
-	err := Render(w, r,
+	err = Render(w, r,
 		policies.List(layoutProps, policiesList, sortColumn, sortDir, searchQuery),   // Full page with layout
 		policiespartials.ListContent(policiesList, sortColumn, sortDir, searchQuery), // Partial content for HTMX requests
 	)
@@ -399,10 +404,10 @@ func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, p
 }
 
 // getPoliciesFromAPI fetches policies from the Nomad API.
-func (h *PoliciesHandler) getPoliciesFromAPI(r *http.Request, token string) []policiespartials.PolicySummary {
+func (h *PoliciesHandler) getPoliciesFromAPI(r *http.Request, token string) ([]policiespartials.PolicySummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		return nil
+		return nil, errors.New("Wander API client unavailable")
 	}
 
 	// Build query options with ACL token
@@ -417,8 +422,7 @@ func (h *PoliciesHandler) getPoliciesFromAPI(r *http.Request, token string) []po
 	// Fetch policies from the API
 	policiesList, _, err := client.ACLPolicies().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Warn("failed to fetch policies from API", "error", err)
-		return nil
+		return nil, fmt.Errorf("list ACL policies: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched policies from API", "count", len(policiesList))
@@ -437,7 +441,7 @@ func (h *PoliciesHandler) getPoliciesFromAPI(r *http.Request, token string) []po
 		})
 	}
 
-	return result
+	return result, nil
 }
 
 // getPolicyFromAPI fetches a single policy from the Nomad API.

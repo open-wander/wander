@@ -15,7 +15,10 @@ func TestTopologyProjectsDeterministicMultiDatacenterGraph(t *testing.T) {
 	handler := NewTopologyHandler(newJobsTestHandler(t, backend.URL))
 	request := requestWithToken(http.MethodGet, "/ui/topology?namespace=team-a&region=west")
 
-	data := handler.getTopologyData(request, GetTokenFromRequest(request))
+	data, err := handler.getTopologyData(request, GetTokenFromRequest(request))
+	if err != nil {
+		t.Fatalf("get topology data: %v", err)
+	}
 	if data.TotalNodes != 3 || data.ReadyNodes != 2 || data.TotalAllocations != 3 {
 		t.Fatalf("unexpected complete topology totals: %#v", data)
 	}

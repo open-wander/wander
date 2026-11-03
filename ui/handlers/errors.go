@@ -14,6 +14,10 @@ func apiResponseHasStatus(err error, status int) bool {
 }
 
 func (h *Handler) renderJobScopedReadError(w http.ResponseWriter, r *http.Request, namespace, action, resource string, notFound bool, err error) {
+	h.renderScopedReadError(w, r, namespace, action, resource, "read-job", notFound, err)
+}
+
+func (h *Handler) renderScopedReadError(w http.ResponseWriter, r *http.Request, namespace, action, resource, capability string, notFound bool, err error) {
 	switch {
 	case notFound:
 		h.RenderNotFound(w, r, NotFoundError{
@@ -23,7 +27,7 @@ func (h *Handler) renderJobScopedReadError(w http.ResponseWriter, r *http.Reques
 	case apiResponseHasStatus(err, http.StatusForbidden):
 		h.RenderForbidden(w, r, ForbiddenError{
 			Message:    "You do not have permission to " + action,
-			Capability: "read-job",
+			Capability: capability,
 			Namespace:  namespace,
 		})
 	default:

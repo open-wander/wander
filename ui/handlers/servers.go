@@ -64,7 +64,11 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 	h.handler.logger.Debug("servers list request", "path", r.URL.Path, "htmx", IsHTMXFromRequest(r))
 
 	// Get live server data.
-	serversList := h.getServersList(r)
+	serversList, err := h.getServersList(r)
+	if err != nil {
+		h.handler.renderScopedReadError(w, r, "", "list servers", "server", "agent:read", false, err)
+		return
+	}
 
 	sortColumn, sortDir := serverSortOptions(r.URL.Query())
 	sortServers(serversList, sortColumn, sortDir)
@@ -90,7 +94,7 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Render the servers list page
-	err := Render(w, r,
+	err = Render(w, r,
 		servers.List(layoutProps, serversList, sortColumn, sortDir, pagination, listURL),
 		serverspartials.ListContent(serversList, sortColumn, sortDir, pagination, listURL),
 	)
@@ -103,23 +107,21 @@ func (h *ServersHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getServersList fetches server members from the Nomad API.
-func (h *ServersHandler) getServersList(r *http.Request) []serverspartials.ServerSummary {
+func (h *ServersHandler) getServersList(r *http.Request) ([]serverspartials.ServerSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available, returning empty server list")
-		return []serverspartials.ServerSummary{}
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Fetch server members from the API
 	serverMembers, err := client.Agent().Members()
 	if err != nil {
-		h.handler.logger.Error("failed to fetch server members from Nomad API", "error", err)
-		return []serverspartials.ServerSummary{}
+		return nil, fmt.Errorf("list server members: %w", err)
 	}
 
 	if serverMembers == nil || len(serverMembers.Members) == 0 {
 		h.handler.logger.Debug("no server members returned from Nomad API")
-		return []serverspartials.ServerSummary{}
+		return []serverspartials.ServerSummary{}, nil
 	}
 
 	// Get the current leader to mark it in the list
@@ -156,7 +158,7 @@ func (h *ServersHandler) getServersList(r *http.Request) []serverspartials.Serve
 	}
 
 	h.handler.logger.Debug("fetched server members from Nomad API", "count", len(result))
-	return result
+	return result, nil
 }
 
 // Detail handles the server detail page

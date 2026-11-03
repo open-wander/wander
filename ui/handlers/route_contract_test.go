@@ -72,6 +72,89 @@ func TestTopLevelPageRouteContracts(t *testing.T) {
 	}
 }
 
+func TestTopLevelDataRoutesDistinguishUnavailableBackend(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/v1/acl/token/self" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"AccessorID":"route-contract","SecretID":"browser-token","Type":"management"}`))
+			return
+		}
+		http.Error(w, "backend unavailable", http.StatusServiceUnavailable)
+	}))
+	defer backend.Close()
+
+	t.Setenv("WANDER_ADDR", backend.URL)
+	getTokenCache().Clear()
+	router := NewRouter(newJobsTestHandler(t, backend.URL))
+	paths := []string{
+		"/ui/search?q=example",
+		"/ui/jobs",
+		"/ui/jobs/run/templates",
+		"/ui/jobs/run/templates/manage",
+		"/ui/allocations",
+		"/ui/clients",
+		"/ui/servers",
+		"/ui/services",
+		"/ui/topology",
+		"/ui/variables",
+		"/ui/namespaces",
+		"/ui/access-control",
+		"/ui/access-control/policies",
+		"/ui/access-control/tokens",
+		"/ui/access-control/roles",
+		"/ui/csi/plugins",
+		"/ui/csi/volumes",
+		"/ui/evaluations",
+		"/ui/deployments",
+	}
+
+	for _, path := range paths {
+		path := path
+		t.Run(path, func(t *testing.T) {
+			for _, htmx := range []bool{false, true} {
+				request := httptest.NewRequest(http.MethodGet, path, nil)
+				if htmx {
+					request.Header.Set("HX-Request", "true")
+				}
+				request.Header.Set(XNomadToken, "browser-token")
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, request)
+				body := strings.ToLower(response.Body.String())
+				if response.Code < http.StatusInternalServerError &&
+					!strings.Contains(body, "unavailable") &&
+					!strings.Contains(body, "unable to") &&
+					!strings.Contains(body, "failed to") {
+					t.Fatalf("GET %s HTMX=%t hid backend failure with status %d", path, htmx, response.Code)
+				}
+			}
+		})
+	}
+}
+
+func TestNamespaceJobCountsDistinguishUnavailableFromZero(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/v1/namespaces":
+			_, _ = w.Write([]byte(`[{"Name":"team-a"}]`))
+		case "/v1/jobs":
+			http.Error(w, "backend unavailable", http.StatusServiceUnavailable)
+		case "/v1/regions":
+			_, _ = w.Write([]byte(`["global"]`))
+		default:
+			http.NotFound(w, request)
+		}
+	}))
+	defer backend.Close()
+
+	request := httptest.NewRequest(http.MethodGet, "/ui/namespaces", nil)
+	response := httptest.NewRecorder()
+	NewNamespacesHandler(newJobsTestHandler(t, backend.URL)).ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Job count unavailable") {
+		t.Fatalf("namespace partial failure status = %d; body: %s", response.Code, response.Body.String())
+	}
+}
+
 func TestTopLevelRoutesRejectUnsupportedMethods(t *testing.T) {
 	router, closeBackend := newRouteContractRouter(t)
 	defer closeBackend()

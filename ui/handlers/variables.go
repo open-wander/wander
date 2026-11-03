@@ -114,7 +114,11 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get variable data from the API.
-	variablesList := h.getVariablesList(r, namespace, token)
+	variablesList, err := h.getVariablesList(r, namespace, token)
+	if err != nil {
+		h.handler.renderScopedReadError(w, r, namespace, "list variables", "variable", "variables: list", false, err)
+		return
+	}
 
 	// Parse search query from query string
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
@@ -181,7 +185,7 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Render the variables list page
-	err := Render(w, r,
+	err = Render(w, r,
 		variables.List(layoutProps, listProps),
 		variablespartials.ListContent(listProps),
 	)
@@ -194,11 +198,10 @@ func (h *VariablesHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // getVariablesList fetches variables from the Nomad API.
-func (h *VariablesHandler) getVariablesList(r *http.Request, namespace, token string) []variablespartials.VariableSummary {
+func (h *VariablesHandler) getVariablesList(r *http.Request, namespace, token string) ([]variablespartials.VariableSummary, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
-		h.handler.logger.Warn("no Nomad client available")
-		return nil
+		return nil, fmt.Errorf("Wander API client is unavailable")
 	}
 
 	// Build query options with namespace and token
@@ -218,8 +221,7 @@ func (h *VariablesHandler) getVariablesList(r *http.Request, namespace, token st
 	// Fetch variables from the API
 	varsList, _, err := client.Variables().List(queryOpts)
 	if err != nil {
-		h.handler.logger.Warn("failed to fetch variables from API", "error", err)
-		return nil
+		return nil, fmt.Errorf("list variables: %w", err)
 	}
 
 	h.handler.logger.Debug("fetched variables from API", "count", len(varsList))
@@ -247,7 +249,7 @@ func (h *VariablesHandler) getVariablesList(r *http.Request, namespace, token st
 		})
 	}
 
-	return result
+	return result, nil
 }
 
 // filterVariables filters the variables list based on search query.

@@ -35,7 +35,8 @@ This work tests Wander's own routes and does not use legacy UI source.
 
 - `ui/handlers/route_contract_test.go` is the router-boundary inventory for
   rendered pages, redirects, supported route families, unsupported methods,
-  unknown paths, and representative missing resources.
+  unknown paths, representative missing resources, and full-page/HTMX backend
+  degradation across every data-backed top-level route.
 - Focused handler suites remain the source of truth for successful and denied
   mutations, SSE/WebSocket behavior, and resource-specific rendering.
 - `WANDER_UI_E2E=1 go test ./ui/tests/e2e -run '^TestE2E$'` exercises the

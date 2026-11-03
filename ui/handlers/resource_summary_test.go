@@ -75,7 +75,10 @@ func TestClientAndTopologyResourcesUseLiveReservations(t *testing.T) {
 		t.Fatalf("live client resources reported unavailable: %#v", client)
 	}
 
-	topology := NewTopologyHandler(handler).getTopologyData(request, "client-token")
+	topology, err := NewTopologyHandler(handler).getTopologyData(request, "client-token")
+	if err != nil {
+		t.Fatalf("get topology data: %v", err)
+	}
 	if topology.TotalNodes != 1 || topology.TotalAllocations != 1 || topology.UsedCPU != 50 || topology.TotalCPU != 900 {
 		t.Fatalf("unexpected topology summary: %#v", topology)
 	}
