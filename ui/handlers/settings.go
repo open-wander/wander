@@ -200,12 +200,12 @@ func requestUsesTLS(r *http.Request) bool {
 }
 
 func browserCookie(r *http.Request, name, value string, maxAge int, sameSite http.SameSite) *http.Cookie {
-	// #nosec G124 -- Secure is enabled for HTTPS requests and intentionally
-	// disabled for the supported localhost HTTP development flow.
 	return browserCookieWithSecure(name, value, maxAge, sameSite, requestUsesTLS(r))
 }
 
 func browserCookieWithSecure(name, value string, maxAge int, sameSite http.SameSite, secure bool) *http.Cookie {
+	// #nosec G124 -- callers enable Secure for HTTPS and intentionally disable
+	// it only for the supported localhost HTTP development flow.
 	return &http.Cookie{
 		Name:     name,
 		Value:    value,

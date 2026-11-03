@@ -271,6 +271,8 @@ func (h *Handler) verifyOIDCTransaction(encoded string) (oidcTransaction, error)
 }
 
 func oidcCookie(name, value string, maxAge int, secure bool) *http.Cookie {
+	// #nosec G124 -- OIDC callers enable Secure for HTTPS and intentionally
+	// disable it only for the supported localhost HTTP development flow.
 	return &http.Cookie{
 		Name:     name,
 		Value:    value,
