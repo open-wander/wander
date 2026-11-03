@@ -6,6 +6,6 @@ import (
 )
 
 // List renders the full evaluations list page with layout.
-templ List(layoutProps layouts.PageLayoutProps, evalsList []evaluationspartials.EvaluationSummary) {
-	@layouts.PageLayout(layoutProps, evaluationspartials.ListContent(evalsList))
+templ List(layoutProps layouts.PageLayoutProps, props evaluationspartials.ListProps) {
+	@layouts.PageLayout(layoutProps, evaluationspartials.ListContent(props))
 }

@@ -641,6 +641,18 @@ test.describe('Wander release smoke', () => {
     expect(browserErrors).toEqual([]);
   });
 
+  test('paginates the live evaluations list without losing scope', async ({ page }) => {
+    const browserErrors = await openCheckedDesktopPage(page, '/ui/evaluations?namespace=default&region=global&per_page=1');
+    await expect(page.getByText(/Showing\s+1\s+to\s+1\s+of\s+\d+\s+results/)).toBeVisible();
+    await page.getByRole('link', { name: 'Next' }).last().click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(page).toHaveURL(/namespace=default/);
+    await expect(page).toHaveURL(/region=global/);
+    await expect(page.getByText(/Showing\s+2\s+to\s+2\s+of\s+\d+\s+results/)).toBeVisible();
+    await expect(page.locator('#evaluations-list-container [aria-current="page"]')).toHaveText('2');
+    expect(browserErrors).toEqual([]);
+  });
+
   test('reviews and submits an existing job edit with retained variables', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     const jobID = `wander-ui-edit-${Date.now()}`;

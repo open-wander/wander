@@ -53,6 +53,69 @@ func TestEvaluationDetailRendersTerminalStatuses(t *testing.T) {
 	}
 }
 
+func TestEvaluationListPaginationPreservesViewAndScope(t *testing.T) {
+	created := time.Date(2026, time.October, 27, 12, 0, 0, 0, time.UTC)
+	handler := stateTestHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/evaluations":
+			if r.URL.Query().Get("namespace") != "team-a" || r.URL.Query().Get("region") != "west" {
+				t.Fatalf("selection query = %q", r.URL.RawQuery)
+			}
+			if filter := r.URL.Query().Get("filter"); !strings.Contains(filter, `Status == "complete"`) ||
+				!strings.Contains(filter, `Type == "service"`) || !strings.Contains(filter, `JobID == "example"`) {
+				t.Fatalf("evaluation filter = %q", filter)
+			}
+			writeJSON(t, w, []*api.Evaluation{
+				{ID: "eval-old", JobID: "example", Namespace: "team-a", Status: "complete", Type: "service", CreateTime: created.Add(-time.Minute).UnixNano()},
+				{ID: "eval-new", JobID: "example", Namespace: "team-a", Status: "complete", Type: "service", CreateTime: created.Add(time.Minute).UnixNano()},
+				{ID: "eval-middle", JobID: "example", Namespace: "team-a", Status: "complete", Type: "service", CreateTime: created.UnixNano()},
+			})
+		case "/v1/namespaces":
+			writeJSON(t, w, []*api.Namespace{{Name: "team-a"}})
+		case "/v1/regions":
+			writeJSON(t, w, []string{"west"})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	path := "/ui/evaluations?namespace=team-a&region=west&status=complete&type=service&job=example&search=eval&sort=created&dir=desc&per_page=1&page=2"
+	body := serveStateRequest(t, handler, path, http.StatusOK)
+	assertContainsAll(t, body,
+		"eval-middle", "Showing", "2", "of", "3", "results", "Rows per page",
+		"page=1", "page=3", "per_page=1", "namespace=team-a", "region=west",
+		"status=complete", "type=service", "job=example", "search=eval", "sort=created", "dir=desc",
+		`/ui/evaluations/eval-middle?namespace=team-a&amp;region=west`,
+	)
+	if strings.Contains(body, "eval-new") || strings.Contains(body, "eval-old") {
+		t.Fatalf("pagination rendered evaluations outside page two: %s", body)
+	}
+
+	bounded := serveStateRequest(t, handler, strings.Replace(path, "page=2", "page=999", 1), http.StatusOK)
+	assertContainsAll(t, bounded, "eval-old", `aria-current="page"`, ">3</span>")
+}
+
+func TestEvaluationPanelRemainsCompact(t *testing.T) {
+	handler := stateTestHandler(t, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []*api.Evaluation{{ID: "panel-eval", JobID: "example", Status: "complete"}})
+	})
+	request := httptest.NewRequest(http.MethodGet, "/ui/evaluations", nil)
+	request.Header.Set("HX-Request", "true")
+	request.Header.Set("HX-Target", "panel-content-evaluations")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("panel status = %d: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	assertContainsAll(t, body, "panel-eval", "/ui/evaluations/panel-eval")
+	for _, excluded := range []string{"Rows per page", "Pagination", "View recent Wander evaluations"} {
+		if strings.Contains(body, excluded) {
+			t.Fatalf("compact panel contains %q: %s", excluded, body)
+		}
+	}
+}
+
 func TestDeploymentDetailRendersSupportedStatusesAndNilTaskGroups(t *testing.T) {
 	for _, status := range []string{
 		api.DeploymentStatusRunning, api.DeploymentStatusSuccessful, api.DeploymentStatusFailed,

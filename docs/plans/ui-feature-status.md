@@ -71,6 +71,9 @@ scope and parity work list is the
   histories retain namespace, region, and ACL scope; use deterministic
   scheduler-index ordering; expose evaluation priority and placement failures;
   and link to their detail routes without masking API failures as empty data.
+  The global evaluations list provides deterministic bounded pagination,
+  selectable page sizes, truthful result counts, scoped detail links, and a
+  separate compact polling view for the slide-out panel.
   Topology shows active allocation reservations against schedulable node
   capacity and identifies the selected region without inventing heartbeat
   data. Its clean-room topology graph restores the inherited Metrics,

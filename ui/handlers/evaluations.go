@@ -103,7 +103,7 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Calculate pagination
 	total := len(filteredEvaluations)
-	_, _, startIdx, endIdx := paginationBounds(total, view.page, view.perPage)
+	boundedPage, _, startIdx, endIdx := paginationBounds(total, view.page, view.perPage)
 
 	paginatedEvaluations := filteredEvaluations[startIdx:endIdx]
 
@@ -129,7 +129,23 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 			TriggeredBy: eval.TriggeredBy,
 			Priority:    eval.Priority,
 			TimeAgo:     timeAgo,
+			DetailURL:   scopedUIURL("/ui/evaluations/"+url.PathEscape(eval.ID), evaluationNamespace(eval.Namespace, namespace), GetRegionFromRequest(r)),
 		}
+	}
+
+	listProps := evaluationspartials.ListProps{
+		Evaluations: evalsList,
+		Search:      view.search,
+		Status:      statusFilter,
+		Type:        typeFilter,
+		Job:         jobFilter,
+		SortColumn:  view.sort,
+		SortDir:     view.dir,
+		Namespace:   namespace,
+		Region:      GetRegionFromRequest(r),
+		Pagination: evaluationspartials.PaginationMeta{
+			Page: boundedPage, PerPage: view.perPage, Total: total,
+		},
 	}
 
 	// Build layout props
@@ -150,7 +166,7 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	if isPanelRequest {
 		// Panel requests should never push URL - use RenderPartial
-		err := RenderPartial(w, r, evaluationspartials.ListContent(evalsList))
+		err := RenderPartial(w, r, evaluationspartials.List(evalsList))
 		if err != nil {
 			h.handler.logger.Error("failed to render evaluations panel", "error", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -160,8 +176,8 @@ func (h *EvaluationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// Render full page or partial based on HTMX request
 	err = Render(w, r,
-		evaluations.List(layoutProps, evalsList),   // Full page with layout
-		evaluationspartials.ListContent(evalsList), // Partial content for HTMX requests
+		evaluations.List(layoutProps, listProps),   // Full page with layout
+		evaluationspartials.ListContent(listProps), // Partial content for HTMX requests
 	)
 
 	if err != nil {
@@ -478,11 +494,24 @@ func (h *EvaluationsHandler) filterEvaluations(evals []EvaluationSummary, status
 // sortEvaluations sorts the evaluations list by the specified column
 func (h *EvaluationsHandler) sortEvaluations(evals []EvaluationSummary, column, dir string) {
 	sort.Slice(evals, func(i, j int) bool {
+		if !sortEvaluationLess(evals[i], evals[j], column) && !sortEvaluationLess(evals[j], evals[i], column) {
+			if dir == "desc" {
+				return evals[i].ID > evals[j].ID
+			}
+			return evals[i].ID < evals[j].ID
+		}
 		if dir == "desc" {
 			return sortEvaluationLess(evals[j], evals[i], column)
 		}
 		return sortEvaluationLess(evals[i], evals[j], column)
 	})
+}
+
+func evaluationNamespace(value, fallback string) string {
+	if value != "" {
+		return value
+	}
+	return fallback
 }
 
 func sortEvaluationLess(left, right EvaluationSummary, column string) bool {
