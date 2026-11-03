@@ -2,12 +2,12 @@ package components
 
 // Tab represents a single tab in a tab list
 type Tab struct {
-	ID      string           // Unique identifier for the tab
-	Label   string           // Display text for the tab
-	Icon    string           // Optional Heroicon name (e.g., "home", "user")
-	URL     string           // For HTMX lazy-load mode - the endpoint to fetch content
-	Content templ.Component  // For static mode - pre-rendered content
-	Active  bool             // Whether this tab is initially active
+	ID      string          // Unique identifier for the tab
+	Label   string          // Display text for the tab
+	Icon    string          // Optional Heroicon name (e.g., "home", "user")
+	URL     string          // For HTMX lazy-load mode - the endpoint to fetch content
+	Content templ.Component // For static mode - pre-rendered content
+	Active  bool            // Whether this tab is initially active
 }
 
 // TabsProps contains parameters for the Tabs component
@@ -128,7 +128,6 @@ templ tabList(props TabsProps, mode string) {
 	<div
 		role="tablist"
 		class="border-b border-neutral-200"
-		@keydown={ "handleKeydown($event, activeTab)" }
 	>
 		<nav class="-mb-px flex space-x-4" aria-label="Tabs">
 			for _, tab := range props.Tabs {
@@ -153,12 +152,10 @@ templ staticTabButton(tab Tab, panelID string) {
 		:aria-selected={ "activeTab === '" + tab.ID + "'" }
 		:tabindex={ "activeTab === '" + tab.ID + "' ? '0' : '-1'" }
 		aria-controls={ "panel-" + tab.ID }
-		:class={
-			`{
+		:class={ `{
 				'border-primary-500 text-primary-600': activeTab === '` + tab.ID + `',
 				'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300': activeTab !== '` + tab.ID + `'
-			}`
-		}
+			}` }
 		class="group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 	>
 		if tab.Icon != "" {
@@ -185,12 +182,10 @@ templ htmxTabButton(tab Tab, panelID string) {
 		:aria-selected={ "activeTab === '" + tab.ID + "'" }
 		:tabindex={ "activeTab === '" + tab.ID + "' ? '0' : '-1'" }
 		aria-controls={ panelID }
-		:class={
-			`{
+		:class={ `{
 				'border-primary-500 text-primary-600': activeTab === '` + tab.ID + `',
 				'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300': activeTab !== '` + tab.ID + `'
-			}`
-		}
+			}` }
 		class="group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 	>
 		if tab.Icon != "" {
@@ -204,12 +199,10 @@ templ htmxTabButton(tab Tab, panelID string) {
 // Icons are styled to match the tab's active/inactive state.
 templ tabIcon(iconName string, tabID string) {
 	<svg
-		:class={
-			`{
+		:class={ `{
 				'text-primary-500': activeTab === '` + tabID + `',
 				'text-neutral-400 group-hover:text-neutral-500': activeTab !== '` + tabID + `'
-			}`
-		}
+			}` }
 		class="-ml-0.5 mr-2 h-5 w-5"
 		xmlns="http://www.w3.org/2000/svg"
 		fill="none"

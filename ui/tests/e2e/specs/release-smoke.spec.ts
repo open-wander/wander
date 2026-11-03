@@ -496,6 +496,7 @@ test.describe('Wander release smoke', () => {
       await card.getByLabel('HCL job definition').fill(updatedSource);
       await card.getByRole('button', { name: 'Save Template' }).click();
       await expect(page).toHaveURL(/\/ui\/jobs\/run\/templates\/manage\?namespace=default/);
+      await page.waitForLoadState('networkidle');
 
       await page.goto(`/ui/jobs/run?namespace=default&template=${templateName}`);
       await expect(page.locator('textarea[x-ref="initialSource"]')).toHaveValue(updatedSource);
@@ -907,6 +908,10 @@ test.describe('Wander release smoke', () => {
     await openAllocationView(page, href!, 'logs', /stdout|logs/i);
     const logViewer = page.locator('[data-log-viewer]');
     const logOutput = page.locator('[data-log-output]');
+    await expect(logOutput).toHaveAttribute('role', 'log');
+    await expect(logOutput).toHaveAttribute('aria-label', 'Allocation log output');
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveAttribute('role', 'status');
+    await expect(page.getByRole('button', { name: 'stdout', exact: true })).toHaveAttribute('aria-pressed', 'true');
     for (const mode of ['stdout', 'both']) {
       if (mode === 'both') await page.getByRole('button', { name: mode, exact: true }).click();
       await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('connected');
@@ -978,6 +983,9 @@ test.describe('Wander release smoke', () => {
 
     await openAllocationView(page, href!, 'exec', /exec|terminal/i);
     const terminal = page.locator('[data-exec-terminal]');
+    await expect(terminal).toHaveAttribute('role', 'region');
+    await expect(terminal).toHaveAttribute('aria-label', 'Interactive terminal');
+    await expect(page.locator('[data-exec-connection-state]')).toHaveAttribute('role', 'status');
     await expect(terminal.locator('.xterm')).toHaveCount(1);
     const terminalHeight = await terminal.evaluate(element => element.getBoundingClientRect().height);
     expect(terminalHeight).toBe(layout.maxHeight);
@@ -1016,9 +1024,17 @@ test.describe('Wander release smoke', () => {
     await expect(page.getByText('local', { exact: true })).toBeVisible();
 
     await openAllocationView(page, href!, 'files', /files|local/i);
-    await page.getByText('local', { exact: true }).click();
-    await page.getByText('deep', { exact: true }).click();
-    await expect(page.getByText('file-30.txt', { exact: true })).toBeVisible();
+    const localDirectory = page.getByRole('button', { name: /local/ });
+    await localDirectory.click();
+    await expect(localDirectory).toHaveAttribute('aria-expanded', 'true');
+    const deepDirectory = page.getByRole('button', { name: /deep/ });
+    await deepDirectory.click();
+    await expect(deepDirectory).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByText('file-30.txt', { exact: true })).toBeVisible({ timeout: 10_000 });
+    const privateDirectory = page.getByRole('button', { name: /private/ });
+    await privateDirectory.focus();
+    await page.keyboard.press('Enter');
+    await expect(privateDirectory).toHaveAttribute('aria-expanded', 'true');
     const fileTree = page.locator('[data-file-tree-scroll]');
     const fileTreeLayout = await fileTree.evaluate(element => {
       const style = window.getComputedStyle(element);
@@ -1038,7 +1054,8 @@ test.describe('Wander release smoke', () => {
     const largeFileRow = page.locator('[data-file-name="large.txt"]');
     await expect(largeFileRow).toBeVisible();
     const largeDownloadURL = await largeFileRow.getAttribute('data-download-url');
-    await largeFileRow.click();
+    await largeFileRow.focus();
+    await page.keyboard.press('Enter');
     await expect(page.locator('#file-preview-content')).toContainText('FILE-HEAD-MARKER');
     await expect(page.locator('#file-preview-content')).not.toContainText('FILE-TAIL-MARKER');
     await page.locator('[data-file-preview-mode="tail"]').click();
@@ -1076,6 +1093,7 @@ test.describe('Wander release smoke', () => {
     const editor = page.locator('.wander-editor-wrapper');
     await expect(editor).toBeVisible();
     await expect(editor).toContainText('job "wander-ui-smoke"');
+    await expect(editor.locator('.wander-textarea')).toHaveAttribute('aria-label', 'Code editor');
     await page.getByRole('button', { name: 'Full Definition', exact: true }).click();
     await expect(editor).toContainText('"ID": "wander-ui-smoke"');
     const editorContrast = await editor.locator('.wander-highlighted-code').evaluate(element => {
@@ -1203,6 +1221,63 @@ test.describe('Wander release smoke', () => {
     expect(reachedJobs).toBe(true);
     await expect(page).toHaveURL(/\/ui\/jobs/);
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
+  test('supports keyboard and screen-reader semantics for complex controls', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await openDesktopPage(page, '/ui/jobs?namespace=default&region=global');
+
+    const regionTrigger = page.getByRole('button', { name: 'Select region' });
+    await expect(regionTrigger).toHaveAttribute('aria-haspopup', 'menu');
+    await expect(regionTrigger).toHaveAttribute('aria-expanded', 'false');
+    await regionTrigger.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(regionTrigger).toHaveAttribute('aria-expanded', 'true');
+    const regionItems = page.getByRole('menuitem');
+    await expect(regionItems.first()).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(regionItems.last()).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(regionItems.first()).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(regionTrigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(regionTrigger).toBeFocused();
+
+    const sortedHeader = page.locator('th[aria-sort]').first();
+    await expect(sortedHeader).toHaveAttribute('aria-sort', /ascending|descending/);
+    await expect(sortedHeader.getByRole('button')).toBeVisible();
+
+    await page.locator('[data-job-id="wander-ui-smoke"] a').first().click();
+    const overviewTab = page.getByRole('tab', { name: 'Overview' });
+    await expect(page).toHaveURL(/\/ui\/jobs\/wander-ui-smoke/);
+    await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+    await overviewTab.focus();
+    await expect(overviewTab).toBeFocused();
+    const lastTab = page.getByRole('tab').last();
+    await page.keyboard.press('ArrowLeft');
+    await expect(lastTab).toBeFocused();
+    await expect(lastTab).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('ArrowRight');
+    await expect(overviewTab).toBeFocused();
+    await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Definition' })).toBeFocused();
+    await expect(page.getByRole('tab', { name: 'Definition' })).toHaveAttribute('aria-selected', 'true');
+
+    await openDesktopPage(page, '/ui/jobs/wander-ui-smoke/taskgroups/web');
+    await page.getByLabel('Instance count').fill('2');
+    const scaleButton = page.getByRole('button', { name: 'Scale', exact: true });
+    await scaleButton.click();
+    const dialog = page.getByRole('dialog', { name: 'Confirm Scale Operation' });
+    await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(dialog.getByRole('button', { name: 'Confirm Scale' })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(scaleButton).toBeFocused();
     expect(browserErrors).toEqual([]);
   });
 

@@ -1,8 +1,6 @@
 package allocationspartials
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // LogsTabProps contains configuration for the logs tab
 type LogsTabProps struct {
@@ -46,11 +44,12 @@ templ LogsTabContent(props LogsTabProps) {
 					<span
 						x-text="connectionState"
 						data-log-connection-state
+						role="status"
+						aria-live="polite"
 						class="text-xs text-neutral-500 capitalize"
 					></span>
 				</div>
 			</div>
-
 			<!-- Controls -->
 			<div class="flex flex-wrap items-center gap-3">
 				<!-- Task Selector -->
@@ -69,12 +68,12 @@ templ LogsTabContent(props LogsTabProps) {
 						</select>
 					</div>
 				}
-
 				<!-- Log Type Toggle (stdout/stderr/both) -->
-				<div class="inline-flex rounded-md shadow-sm" role="group">
+				<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Log stream">
 					<button
 						type="button"
 						@click="setLogType('stdout')"
+						:aria-pressed="logType === 'stdout'"
 						:class="{
 							'bg-primary-600 text-white border-primary-600': logType === 'stdout',
 							'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': logType !== 'stdout'
@@ -86,6 +85,7 @@ templ LogsTabContent(props LogsTabProps) {
 					<button
 						type="button"
 						@click="setLogType('stderr')"
+						:aria-pressed="logType === 'stderr'"
 						:class="{
 							'bg-primary-600 text-white border-primary-600': logType === 'stderr',
 							'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': logType !== 'stderr'
@@ -97,6 +97,7 @@ templ LogsTabContent(props LogsTabProps) {
 					<button
 						type="button"
 						@click="setLogType('both')"
+						:aria-pressed="logType === 'both'"
 						:class="{
 							'bg-primary-600 text-white border-primary-600': logType === 'both',
 							'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50': logType !== 'both'
@@ -106,7 +107,6 @@ templ LogsTabContent(props LogsTabProps) {
 						both
 					</button>
 				</div>
-
 				<!-- Log Position Toggle -->
 				<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Log position">
 					<button
@@ -131,7 +131,6 @@ templ LogsTabContent(props LogsTabProps) {
 						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>Tail</button>
 				</div>
-
 				<button
 					type="button"
 					@click="toggleWrap()"
@@ -140,7 +139,6 @@ templ LogsTabContent(props LogsTabProps) {
 					data-log-wrap-toggle
 					class="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 				>Word Wrap</button>
-
 				<!-- Pause/Resume Button -->
 				<button
 					type="button"
@@ -165,7 +163,6 @@ templ LogsTabContent(props LogsTabProps) {
 					</template>
 					<span x-text="isPaused ? 'Resume' : 'Pause'"></span>
 				</button>
-
 				<!-- Clear Button -->
 				<button
 					type="button"
@@ -178,7 +175,6 @@ templ LogsTabContent(props LogsTabProps) {
 					</svg>
 					Clear
 				</button>
-
 				<!-- Download Button -->
 				<button
 					type="button"
@@ -193,7 +189,6 @@ templ LogsTabContent(props LogsTabProps) {
 				</button>
 			</div>
 		</div>
-
 		<!-- Paused Banner -->
 		<div
 			x-show="isPaused"
@@ -216,12 +211,15 @@ templ LogsTabContent(props LogsTabProps) {
 				Resume
 			</button>
 		</div>
-
 		<!-- Log Output Container -->
 		<div
 			x-ref="logContainer"
 			@scroll="handleScroll()"
 			data-log-output
+			role="log"
+			aria-live="polite"
+			aria-label="Allocation log output"
+			tabindex="0"
 			class="log-surface bg-neutral-900 text-neutral-100 rounded-lg p-4 font-mono text-sm overflow-auto relative"
 		>
 			<!-- Empty State -->
@@ -237,7 +235,6 @@ templ LogsTabContent(props LogsTabProps) {
 					<p class="mt-2" x-text="connectionState === 'complete' ? 'No log output in this range.' : 'Waiting for log output...'"></p>
 				</div>
 			</div>
-
 			<!-- Connecting State -->
 			<div
 				x-show="connectionState === 'connecting'"
@@ -252,7 +249,6 @@ templ LogsTabContent(props LogsTabProps) {
 					<p class="mt-2">Connecting to log stream...</p>
 				</div>
 			</div>
-
 			<!-- Error State -->
 			<div
 				x-show="connectionState === 'error'"
@@ -272,7 +268,6 @@ templ LogsTabContent(props LogsTabProps) {
 					</button>
 				</div>
 			</div>
-
 			<!-- Log Lines -->
 			<div x-ref="logContent">
 				<template x-for="(line, index) in logs" :key="index">
@@ -286,8 +281,8 @@ templ LogsTabContent(props LogsTabProps) {
 							'whitespace-pre-wrap break-all': wrapLines,
 							'whitespace-pre': !wrapLines
 						}"
-					data-log-line
-					class="hover:bg-neutral-800 px-1 -mx-1"
+						data-log-line
+						class="hover:bg-neutral-800 px-1 -mx-1"
 					>
 						<span x-show="showTimestamps" class="text-neutral-500 mr-2" x-text="line.timestamp"></span>
 						<span>
@@ -298,12 +293,12 @@ templ LogsTabContent(props LogsTabProps) {
 					</div>
 				</template>
 			</div>
-
 			<!-- Scroll to Bottom Button -->
 			<button
 				x-show="!isAtBottom && logs.length > 0"
 				x-cloak
 				@click="scrollToBottom()"
+				aria-label="Scroll to latest log line"
 				class="absolute bottom-4 right-4 bg-primary-600 text-white p-2 rounded-full shadow-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-opacity"
 			>
 				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -311,7 +306,6 @@ templ LogsTabContent(props LogsTabProps) {
 				</svg>
 			</button>
 		</div>
-
 		<!-- Footer with stats -->
 		<div class="mt-3 flex items-center justify-between text-sm text-neutral-500">
 			<div class="flex items-center gap-4">

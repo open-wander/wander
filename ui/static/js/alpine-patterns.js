@@ -76,12 +76,42 @@ function dropdown(initialOpen = false) {
         open: initialOpen,
         loaded: false,
         selectedValue: null,
+        root: null,
+        trigger: null,
+
+        initialize(root) {
+            this.root = root;
+            this.trigger = root.querySelector('.dropdown-trigger button');
+            if (this.trigger) this.trigger.setAttribute('aria-haspopup', 'menu');
+            this.syncTrigger();
+        },
+
+        syncTrigger() {
+            if (this.trigger) this.trigger.setAttribute('aria-expanded', String(this.open));
+        },
+
+        menuItems() {
+            if (!this.root) return [];
+            return Array.from(this.root.querySelectorAll('[role="menuitem"]:not([aria-disabled="true"])'));
+        },
+
+        focusItem(index) {
+            const items = this.menuItems();
+            if (items.length === 0) return;
+            items[(index + items.length) % items.length].focus();
+        },
+
+        openAndFocus(index) {
+            this.open = true;
+            this.$nextTick(() => this.focusItem(index));
+        },
 
         toggle() {
             this.open = !this.open;
         },
 
-        close() {
+        close(returnFocus = false) {
+            if (returnFocus) this.trigger?.focus();
             this.open = false;
         },
 
@@ -95,13 +125,38 @@ function dropdown(initialOpen = false) {
         // Keyboard navigation helper
         handleKeydown(event) {
             if (event.key === 'Escape') {
-                this.close();
-            } else if (event.key === 'ArrowDown') {
                 event.preventDefault();
-                // Focus next item (implement based on your DOM structure)
+                this.close(true);
+                return;
+            }
+
+            const items = this.menuItems();
+            const currentIndex = items.indexOf(event.target);
+            if (currentIndex === -1) {
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    this.openAndFocus(0);
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    this.openAndFocus(-1);
+                }
+                return;
+            }
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                this.focusItem(currentIndex + 1);
             } else if (event.key === 'ArrowUp') {
                 event.preventDefault();
-                // Focus previous item
+                this.focusItem(currentIndex - 1);
+            } else if (event.key === 'Home') {
+                event.preventDefault();
+                this.focusItem(0);
+            } else if (event.key === 'End') {
+                event.preventDefault();
+                this.focusItem(-1);
+            } else if (event.key === 'Tab') {
+                this.close();
             }
         }
     };
@@ -323,36 +378,49 @@ function tabs(tabList = [], options = {}) {
             }
         },
 
-        // Keyboard navigation
-        handleKeydown(event, currentTab) {
-            const currentIndex = this.tabList.indexOf(currentTab);
-
-            if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-                event.preventDefault();
-                const nextIndex = (currentIndex + 1) % this.tabList.length;
-                this.setActive(this.tabList[nextIndex]);
-                // Focus the next tab button
-                event.target.nextElementSibling?.focus();
-            } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-                event.preventDefault();
-                const prevIndex = currentIndex === 0 ? this.tabList.length - 1 : currentIndex - 1;
-                this.setActive(this.tabList[prevIndex]);
-                // Focus the previous tab button
-                event.target.previousElementSibling?.focus();
-            } else if (event.key === 'Home') {
-                event.preventDefault();
-                this.setActive(this.tabList[0]);
-            } else if (event.key === 'End') {
-                event.preventDefault();
-                this.setActive(this.tabList[this.tabList.length - 1]);
-            }
-        },
-
         isActive(tab) {
             return this.activeTab === tab;
         }
     };
 }
+
+function enhanceFileTree(root = document) {
+    root.querySelectorAll('.file-tree-node > [hx-get*="/files/list"], [data-file-name]').forEach(row => {
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        if (row.closest('.file-tree-node') && !row.hasAttribute('data-file-name')) {
+            row.setAttribute('aria-expanded', 'false');
+            if (!row.dataset.expandedListener) {
+                row.dataset.expandedListener = 'true';
+                row.addEventListener('click', () => {
+                    row.setAttribute('aria-expanded', String(row.getAttribute('aria-expanded') !== 'true'));
+                });
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => enhanceFileTree());
+document.addEventListener('htmx:afterSwap', event => enhanceFileTree(event.detail.target));
+document.addEventListener('keydown', event => {
+    const fileRow = event.target instanceof Element ? event.target.closest('[data-file-name], .file-tree-node > [role="button"]') : null;
+    if (fileRow && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        fileRow.click();
+        return;
+    }
+    if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(event.key)) return;
+    const tab = event.target instanceof Element ? event.target.closest('[role="tab"]') : null;
+    const tabList = tab?.closest('[role="tablist"]');
+    if (!tab || !tabList) return;
+    const tabButtons = Array.from(tabList.querySelectorAll('[role="tab"]'));
+    const currentIndex = tabButtons.indexOf(tab);
+    const offset = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+    const nextTab = tabButtons[(currentIndex + offset + tabButtons.length) % tabButtons.length];
+    event.preventDefault();
+    nextTab.click();
+    nextTab.focus();
+});
 
 /**
  * TOGGLE PATTERN
@@ -2530,6 +2598,7 @@ function scaleControls() {
         maxCount: 999,
         hasConstraints: false,
         showConfirmModal: false,
+        dialogOpener: null,
 
         init() {
             this.count = Number(this.$root.dataset.count || 0);
@@ -2567,6 +2636,7 @@ function scaleControls() {
 
         openConfirmModal() {
             if (!this.hasChanges()) return;
+            this.dialogOpener = document.activeElement;
             this.showConfirmModal = true;
             document.body.classList.add('overflow-hidden');
             this.$nextTick(() => this.$refs.scaleDialogClose?.focus());
@@ -2575,6 +2645,14 @@ function scaleControls() {
         closeConfirmModal() {
             this.showConfirmModal = false;
             document.body.classList.remove('overflow-hidden');
+            const opener = this.dialogOpener;
+            this.dialogOpener = null;
+            this.$nextTick(() => opener?.focus());
+        },
+
+        trapFocus(event) {
+            const dialog = this.$root.querySelector('[role="dialog"]');
+            if (dialog) trapModalFocus(dialog, event);
         },
 
         resetCount() {

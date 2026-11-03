@@ -45,6 +45,8 @@ templ ExecTabContent(props ExecTabProps) {
 					<span
 						x-text="connectionState"
 						data-exec-connection-state
+						role="status"
+						aria-live="polite"
 						class="text-xs text-neutral-500 capitalize"
 					></span>
 				</div>
@@ -125,6 +127,8 @@ templ ExecTabContent(props ExecTabProps) {
 			<div
 				x-ref="terminal"
 				data-exec-terminal
+				role="region"
+				aria-label="Interactive terminal"
 				class="workspace-surface rounded-lg overflow-hidden border border-neutral-700 bg-neutral-900"
 			></div>
 			<!-- Overlay for disconnected state -->
@@ -162,7 +166,7 @@ templ ExecTabContent(props ExecTabProps) {
 				<span class="text-neutral-400">|</span>
 				<span>Press <kbd class="px-1.5 py-0.5 text-xs font-mono bg-neutral-200 rounded">Ctrl+D</kbd> to exit</span>
 			</div>
-			<div x-show="connectionState === 'complete'" class="flex items-center gap-2" data-exec-completion>
+			<div x-show="connectionState === 'complete'" class="flex items-center gap-2" data-exec-completion role="status" aria-live="polite">
 				<span>Session ended</span>
 				<span class="text-neutral-400">|</span>
 				<span>Exit code: <span x-text="lastExitCode === null ? 0 : lastExitCode" data-exec-exit-code></span></span>

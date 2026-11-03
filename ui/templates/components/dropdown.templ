@@ -60,7 +60,10 @@ templ Dropdown(props DropdownProps) {
 	<div
 		id={ props.ID }
 		x-data="dropdown()"
-		@keydown.escape.window="close"
+		x-init="initialize($el)"
+		x-effect="syncTrigger()"
+		@keydown="handleKeydown($event)"
+		@keydown.escape.window="close()"
 		class={ "relative inline-block text-left", props.Class }
 	>
 		{ children... }
@@ -71,12 +74,7 @@ templ Dropdown(props DropdownProps) {
 // Automatically handles click events and ARIA attributes.
 templ DropdownTrigger() {
 	<div @click="toggle" class="dropdown-trigger">
-		<div
-			role="button"
-			aria-haspopup="true"
-			:aria-expanded="open"
-			class="cursor-pointer"
-		>
+		<div class="cursor-pointer">
 			{ children... }
 		</div>
 	</div>

@@ -134,6 +134,7 @@ templ FilesTabFull(props FilesTabProps) {
 								type="button"
 								class="text-neutral-400 hover:text-neutral-500"
 								@click="closePreview()"
+								aria-label="Close file preview"
 							>
 								<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -170,7 +171,7 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 			class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
 			style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20) }
 			@click="expanded = !expanded"
-		hx-get={ FileActionURL(allocID, "list", task, entry.Path) }
+			hx-get={ FileActionURL(allocID, "list", task, entry.Path) }
 			hx-target="next .directory-contents"
 			hx-trigger="click once"
 			hx-swap="innerHTML"
@@ -241,15 +242,14 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 		<div class="flex items-center space-x-8 text-xs text-neutral-500">
 			<span class="w-20 text-right">{ formatFileSize(entry.Size) }</span>
 			<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
-			<!-- Download Button -->
 			<a
-			href={ templ.SafeURL(FileActionURL(allocID, "download", task, entry.Path)) }
-				class="w-8 text-center opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-primary-600"
-				title="Download file"
+				href={ templ.SafeURL(FileActionURL(allocID, "download", task, entry.Path)) }
+				class="w-8 text-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-neutral-400 hover:text-primary-600"
+				aria-label={ "Download " + entry.Name }
 				download
 				@click.stop
 			>
-				<svg class="h-4 w-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg class="h-4 w-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
 				</svg>
 			</a>
@@ -393,7 +393,8 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 						<div class="wander-line-numbers px-2 text-right select-none border-r border-neutral-700" style="min-width: 3rem; color: #6b7280;">
 							@renderLineNumbers(props.Content)
 						</div>
-						<pre class="wander-highlighted-code flex-1 px-4 m-0 whitespace-pre" style="color: #d4d4d4; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.5;">@templ.Raw(highlightContent(props.Content, getFileLanguage(props.FileName)))</pre>
+						<pre class="wander-highlighted-code flex-1 px-4 m-0 whitespace-pre" style="color: #d4d4d4; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.5;">@templ.Raw(highlightContent(props.Content, getFileLanguage(props.FileName)))
+</pre>
 					</div>
 				</div>
 			</div>

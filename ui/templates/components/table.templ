@@ -89,6 +89,9 @@ templ sortableHeaderCell(col Column, props TableProps) {
 	<th
 		class={ headerCellClasses(col) }
 		scope="col"
+		if col.Key == props.SortColumn {
+			aria-sort={ tableAriaSort(props.SortDir) }
+		}
 	>
 		<button
 			type="button"
@@ -105,8 +108,17 @@ templ sortableHeaderCell(col Column, props TableProps) {
 	</th>
 }
 
+func tableAriaSort(direction string) string {
+	if direction == "desc" {
+		return "descending"
+	}
+	return "ascending"
+}
+
 func tableHxTarget(target string) string {
-	if target == "" { return "closest table" }
+	if target == "" {
+		return "closest table"
+	}
 	return target
 }
 

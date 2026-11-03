@@ -445,6 +445,7 @@
       this.textarea.spellcheck = false;
       this.textarea.autocomplete = 'off';
       this.textarea.autocapitalize = 'off';
+      this.textarea.setAttribute('aria-label', this.options.ariaLabel || 'Code editor');
 
       this.codeContainer.appendChild(this.highlightedCode);
       this.codeContainer.appendChild(this.textarea);
