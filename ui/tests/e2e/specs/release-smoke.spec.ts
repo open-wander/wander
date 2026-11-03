@@ -301,6 +301,32 @@ test.describe('Wander release smoke', () => {
     expect(browserErrors).toEqual([]);
   });
 
+  test('promotes a canary deployment in a federated region without losing scope', async ({ page }) => {
+    test.skip(process.env.WANDER_UI_E2E_FEDERATED !== '1', 'requires the disposable federated fixture');
+    const deploymentID = process.env.WANDER_UI_E2E_REGION_DEPLOYMENT_ID;
+    expect(deploymentID).toBeTruthy();
+    const browserErrors = captureBrowserErrors(page);
+
+    await openDesktopPage(page, `/ui/deployments/${deploymentID}?namespace=default&region=region-a`);
+    await expectURLParams(page, { namespace: 'default', region: 'region-a' });
+    await expect(page.getByRole('button', { name: 'Promote canaries' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fail deployment' })).toBeVisible();
+
+    const jobLink = page.getByRole('link', { name: 'wander-ui-region-deployment' });
+    const jobURL = new URL((await jobLink.getAttribute('href'))!, 'http://wander.test');
+    expect(jobURL.searchParams.get('namespace')).toBe('default');
+    expect(jobURL.searchParams.get('region')).toBe('region-a');
+
+    page.once('dialog', dialog => dialog.accept());
+    const [promotion] = await Promise.all([
+      page.waitForResponse(response => response.url().includes(`/api/deployments/${deploymentID}/promote`)),
+      page.getByRole('button', { name: 'Promote canaries' }).click(),
+    ]);
+    expect(promotion.status()).toBe(200);
+    await expectURLParams(page, { namespace: 'default', region: 'region-a' });
+    expect(browserErrors).toEqual([]);
+  });
+
   test('isolates namespace selection between browser sessions', async ({ browser }) => {
     const { defaultPage, teamPage, close } = await newIsolatedNamespacePages(browser);
 

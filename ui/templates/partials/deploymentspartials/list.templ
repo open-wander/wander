@@ -9,6 +9,7 @@ import (
 type DeploymentSummary struct {
 	ID                string
 	ShortID           string
+	DetailURL         string
 	JobID             string
 	JobName           string
 	JobVersion        uint64
@@ -97,7 +98,7 @@ templ List(deploymentsList []DeploymentSummary) {
 // deploymentCard renders a single deployment card
 templ deploymentCard(deploy DeploymentSummary) {
 	<a
-		href={ templ.SafeURL("/ui/deployments/" + deploy.ID) }
+		href={ templ.SafeURL(deploy.DetailURL) }
 		class="block bg-white rounded-lg border border-neutral-200 p-4 hover:border-primary-500 hover:shadow-md transition-all duration-150 cursor-pointer"
 	>
 		<div class="flex items-start justify-between">

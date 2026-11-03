@@ -32,6 +32,7 @@ const (
 	namespaceSmokeJobID     = "wander-ui-team-smoke"
 	regionSmokeName         = "region-a"
 	regionSmokeJobID        = "wander-ui-region-smoke"
+	regionDeploymentJobID   = "wander-ui-region-deployment"
 	parameterizedSmokeNS    = "dispatch-test"
 	parameterizedSmokeJobID = "wander-ui-parameterized"
 )
@@ -107,7 +108,15 @@ func startTestCluster(t *testing.T) (string, func()) {
 	registerNamespaceSmokeJob(t, binary, address)
 	registerParameterizedSmokeJob(t, binary, address)
 	registerFixtureJob(t, binary, regionAddress, "", nil, "", regionSmokeJobID, "fixtures/region-smoke.nomad.hcl")
+	regionClient := &http.Client{Timeout: 5 * time.Second}
+	regionDeploymentOne := writeDeploymentFixtureForJob(t, regionDeploymentJobID, 1)
+	runJobFile(t, binary, regionAddress, "", regionDeploymentOne)
+	_ = waitForRunningAllocation(t, regionClient, regionAddress, "", regionDeploymentJobID)
+	regionDeploymentTwo := writeDeploymentFixtureForJob(t, regionDeploymentJobID, 2)
+	runJobFile(t, binary, regionAddress, "", regionDeploymentTwo)
+	regionDeploymentID := waitForJobDeployment(t, regionClient, regionAddress, "", regionDeploymentJobID, 1, "running")
 	t.Setenv("WANDER_UI_E2E_FEDERATED", "1")
+	t.Setenv("WANDER_UI_E2E_REGION_DEPLOYMENT_ID", regionDeploymentID)
 	return address, func() {}
 }
 
@@ -865,13 +874,17 @@ func waitForRunningAllocation(t *testing.T, client *http.Client, address, token,
 }
 
 func waitForDeployment(t *testing.T, client *http.Client, address, token string, version uint64, status string) string {
+	return waitForJobDeployment(t, client, address, token, "wander-ui-deployment-audit", version, status)
+}
+
+func waitForJobDeployment(t *testing.T, client *http.Client, address, token, jobID string, version uint64, status string) string {
 	t.Helper()
 	var deploymentID string
 	waitForHTTP(t, fmt.Sprintf("deployment version %d did not reach %s", version, status), func(_ *http.Client) bool {
 		var deployments []testDeployment
 		getJSON(t, client, address+"/v1/deployments?namespace=default", token, &deployments)
 		for _, deployment := range deployments {
-			if deployment.JobID == "wander-ui-deployment-audit" && deployment.JobVersion == version && deployment.Status == status && deploymentReady(deployment, status) {
+			if deployment.JobID == jobID && deployment.JobVersion == version && deployment.Status == status && deploymentReady(deployment, status) {
 				deploymentID = deployment.ID
 				return true
 			}
@@ -902,13 +915,22 @@ func startDeploymentUpdate(t *testing.T, client *http.Client, binary, address, t
 
 func runJobFile(t *testing.T, binary, address, token, path string) {
 	t.Helper()
-	command := exec.Command(binary, "job", "run", "-address="+address, "-token="+token, "-detach", path)
+	args := []string{"job", "run", "-address=" + address, "-detach"}
+	if token != "" {
+		args = append(args, "-token="+token)
+	}
+	args = append(args, path)
+	command := exec.Command(binary, args...)
 	runCommand(t, command, "register ACL mutation fixture")
 }
 
 func writeDeploymentFixture(t *testing.T, version int) string {
+	return writeDeploymentFixtureForJob(t, "wander-ui-deployment-audit", version)
+}
+
+func writeDeploymentFixtureForJob(t *testing.T, jobID string, version int) string {
 	t.Helper()
-	contents := fmt.Sprintf(`job "wander-ui-deployment-audit" {
+	contents := fmt.Sprintf(`job %q {
   datacenters = ["dc1"]
   type = "service"
   group "web" {
@@ -934,8 +956,8 @@ func writeDeploymentFixture(t *testing.T, version int) string {
     }
   }
 }
-`, version)
-	path := filepath.Join(t.TempDir(), fmt.Sprintf("deployment-v%d.nomad.hcl", version))
+`, jobID, version)
+	path := filepath.Join(t.TempDir(), fmt.Sprintf("deployment-%s-v%d.nomad.hcl", jobID, version))
 	writeTestFile(t, path, contents)
 	return path
 }

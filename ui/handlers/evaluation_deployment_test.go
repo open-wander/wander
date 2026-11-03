@@ -137,6 +137,40 @@ func TestDeploymentDetailRendersSupportedStatusesAndNilTaskGroups(t *testing.T) 
 	}
 }
 
+func TestDeploymentDetailPreservesScopeForCanaryActionsAndNavigation(t *testing.T) {
+	handler := stateTestHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("namespace") != "team-a" || r.URL.Query().Get("region") != "west" {
+			t.Fatalf("selection query = %q", r.URL.RawQuery)
+		}
+		writeJSON(t, w, &api.Deployment{
+			ID: "deployment-1", JobID: "example/child", Namespace: "team-a",
+			Status: api.DeploymentStatusRunning, IsMultiregion: true,
+			TaskGroups: map[string]*api.DeploymentState{"web": {DesiredCanaries: 1, PlacedCanaries: []string{"alloc-1"}}},
+		})
+	})
+
+	body := serveStateRequest(t, handler, "/ui/deployments/deployment-1?namespace=team-a&region=west", http.StatusOK)
+	assertContainsAll(t, body,
+		"Multi-region", "Promote canaries",
+		`hx-get="/ui/deployments/deployment-1?namespace=team-a&amp;region=west"`,
+		`hx-post="/api/deployments/deployment-1/promote?namespace=team-a&amp;region=west"`,
+		`hx-post="/api/deployments/deployment-1/fail?namespace=team-a&amp;region=west"`,
+		`href="/ui/jobs/example%2Fchild?namespace=team-a&amp;region=west"`,
+	)
+}
+
+func TestDeploymentListPreservesScopeInDetailLinks(t *testing.T) {
+	handler := stateTestHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("namespace") != "team-a" || r.URL.Query().Get("region") != "west" {
+			t.Fatalf("selection query = %q", r.URL.RawQuery)
+		}
+		writeJSON(t, w, []*api.Deployment{{ID: "deployment-1", JobID: "example", Namespace: "team-a", Status: api.DeploymentStatusRunning}})
+	})
+
+	body := serveStateRequest(t, handler, "/ui/deployments?namespace=team-a&region=west", http.StatusOK)
+	assertContainsAll(t, body, `href="/ui/deployments/deployment-1?namespace=team-a&amp;region=west"`)
+}
+
 func TestEvaluationAndDeploymentRoutesPreserveTruthfulErrors(t *testing.T) {
 	for _, route := range []string{"evaluations", "deployments"} {
 		for _, test := range []struct {

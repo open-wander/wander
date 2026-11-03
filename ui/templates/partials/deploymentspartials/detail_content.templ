@@ -15,6 +15,7 @@ type DeploymentDetail struct {
 	JobID             string
 	JobVersion        uint64
 	Namespace         string
+	Region            string
 	Status            string
 	StatusDescription string
 	IsMultiregion     bool
@@ -44,7 +45,7 @@ templ DetailContent(deploy DeploymentDetail) {
 		id="deployment-detail"
 		class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
 		if !isDeploymentTerminal(deploy.Status) {
-			hx-get={ "/ui/deployments/" + deploy.ID }
+			hx-get={ deploymentScopedURL("/ui/deployments/" + url.PathEscape(deploy.ID), deploy) }
 			hx-trigger="every 5s"
 			hx-swap="outerHTML"
 		}
@@ -68,7 +69,7 @@ templ DetailContent(deploy DeploymentDetail) {
 						if hasUnpromotedCanaries(deploy.TaskGroups) {
 							<button
 								type="button"
-								hx-post={ "/api/deployments/" + deploy.ID + "/promote?namespace=" + url.QueryEscape(deploy.Namespace) }
+								hx-post={ deploymentScopedURL("/api/deployments/" + url.PathEscape(deploy.ID) + "/promote", deploy) }
 								hx-swap="none"
 								hx-confirm="Promote all healthy canaries for this deployment?"
 								class="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
@@ -78,7 +79,7 @@ templ DetailContent(deploy DeploymentDetail) {
 						}
 						<button
 							type="button"
-							hx-post={ "/api/deployments/" + deploy.ID + "/fail?namespace=" + url.QueryEscape(deploy.Namespace) }
+							hx-post={ deploymentScopedURL("/api/deployments/" + url.PathEscape(deploy.ID) + "/fail", deploy) }
 							hx-swap="none"
 							hx-confirm="Fail this deployment? This may trigger an automatic revert if configured."
 							class="inline-flex items-center rounded-md bg-error-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-error-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-600"
@@ -95,7 +96,7 @@ templ DetailContent(deploy DeploymentDetail) {
 				<div>
 					<label class="block text-sm font-medium text-neutral-500 mb-1">Job</label>
 					<a
-						href={ templ.SafeURL("/ui/jobs/" + deploy.JobID) }
+						href={ templ.SafeURL(deploymentScopedURL("/ui/jobs/" + url.PathEscape(deploy.JobID), deploy)) }
 						class="text-primary-600 hover:text-primary-700 font-medium"
 					>
 						{ deploy.JobID }
@@ -241,6 +242,15 @@ templ DetailContent(deploy DeploymentDetail) {
 			</div>
 		</div>
 	</div>
+}
+
+func deploymentScopedURL(path string, deploy DeploymentDetail) string {
+	query := url.Values{}
+	query.Set("namespace", deploy.Namespace)
+	if deploy.Region != "" {
+		query.Set("region", deploy.Region)
+	}
+	return path + "?" + query.Encode()
 }
 
 func hasUnpromotedCanaries(groups []TaskGroupStatus) bool {

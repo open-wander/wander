@@ -48,61 +48,48 @@ func (h *DeploymentsAPIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 // FailDeployment handles failing a deployment.
 // Route: POST /api/deployments/{id}/fail
 func (h *DeploymentsAPIHandler) FailDeployment(w http.ResponseWriter, r *http.Request, deploymentID string) {
-	// Parse namespace from query param or use default
-	namespace := GetNamespaceFromRequest(r)
+	client := h.handler.NomadClientForRequest(r)
+	if client == nil {
+		h.handler.logger.Error("no Nomad client available")
+		writeDeploymentMutationError(w, http.StatusServiceUnavailable, "Wander client not available")
+		return
+	}
 
-	// Check permissions - need submit-job capability to fail deployments
+	token := GetTokenFromRequest(r)
+	deploy, err := h.deploymentForMutation(r, client, deploymentID, token)
+	if err != nil {
+		h.writeDeploymentBackendError(w, "load deployment before failing", deploymentID, err)
+		return
+	}
+	if deploy == nil {
+		writeDeploymentMutationError(w, http.StatusNotFound, "Deployment not found")
+		return
+	}
+	namespace := deploy.Namespace
+
 	perms := GetPermissionsFromRequest(r)
 	if perms != nil && !perms.CanSubmitJob(namespace) {
 		h.handler.logger.Warn("fail deployment permission denied", "deploymentID", deploymentID, "namespace", namespace)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Permission denied: you do not have the 'submit-job' capability in the " + namespace + " namespace",
-		})
+		writeDeploymentMutationError(w, http.StatusForbidden, "Permission denied: submit-job capability is required")
 		return
 	}
 
 	h.handler.logger.Info("failing deployment", "deploymentID", deploymentID, "namespace", namespace)
 
-	// Get Nomad client
-	client := h.handler.NomadClientForRequest(r)
-	if client == nil {
-		h.handler.logger.Error("no Nomad client available")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Wander client not available",
-		})
-		return
-	}
-
-	// Get ACL token from request context
-	token := GetTokenFromRequest(r)
-
-	// Build write options with namespace and token
 	writeOpts := &api.WriteOptions{
 		Namespace: namespace,
-	}
-	if token != "" {
-		writeOpts.AuthToken = token
+		Region:    GetRegionFromRequest(r),
+		AuthToken: token,
 	}
 
-	// Fail the deployment
 	resp, _, err := client.Deployments().Fail(deploymentID, writeOpts)
 	if err != nil {
-		h.handler.logger.Error("failed to fail deployment", "error", err, "deploymentID", deploymentID, "namespace", namespace)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to fail deployment: " + err.Error(),
-		})
+		h.writeDeploymentBackendError(w, "fail deployment", deploymentID, err)
 		return
 	}
 
 	h.handler.logger.Info("deployment failed successfully", "deploymentID", deploymentID, "namespace", namespace, "evalID", resp.EvalID)
 
-	// Return success response with eval ID
 	if IsHTMXFromRequest(r) {
 		w.Header().Set("HX-Refresh", "true")
 	}
@@ -131,50 +118,23 @@ type PromoteDeploymentResponse struct {
 // Route: POST /api/deployments/{id}/promote
 func (h *DeploymentsAPIHandler) PromoteDeployment(w http.ResponseWriter, r *http.Request, deploymentID string) {
 	perms := GetPermissionsFromRequest(r)
-	if perms != nil && perms.IsAnonymous() {
-		handlerError := PromoteDeploymentResponse{Error: "Permission denied: a valid ACL token is required"}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(handlerError)
-		return
-	}
-
-	// Get the deployment to determine its namespace
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		h.handler.logger.Error("no Nomad client available")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(PromoteDeploymentResponse{Error: "Wander client not available"})
+		writeDeploymentMutationError(w, http.StatusServiceUnavailable, "Wander client not available")
 		return
 	}
 
-	// Get ACL token from request context
 	token := GetTokenFromRequest(r)
-
-	// Build query options to fetch deployment
-	queryOpts := &api.QueryOptions{}
-	if token != "" {
-		queryOpts.AuthToken = token
-	}
-
-	// Fetch deployment to get namespace
-	deploy, _, err := client.Deployments().Info(deploymentID, queryOpts)
+	deploy, err := h.deploymentForMutation(r, client, deploymentID, token)
 	if err != nil {
-		h.handler.logger.Error("failed to fetch deployment", "error", err, "deploymentID", deploymentID)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(PromoteDeploymentResponse{
-			Error: fmt.Sprintf("Failed to fetch deployment: %v", err),
-		})
+		h.writeDeploymentBackendError(w, "load deployment before promoting", deploymentID, err)
 		return
 	}
 
 	if deploy == nil {
 		h.handler.logger.Warn("deployment not found", "deploymentID", deploymentID)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(PromoteDeploymentResponse{Error: "Deployment not found"})
+		writeDeploymentMutationError(w, http.StatusNotFound, "Deployment not found")
 		return
 	}
 
@@ -208,12 +168,10 @@ func (h *DeploymentsAPIHandler) PromoteDeployment(w http.ResponseWriter, r *http
 		req.All = true
 	}
 
-	// Build write options with namespace and token
 	writeOpts := &api.WriteOptions{
 		Namespace: namespace,
-	}
-	if token != "" {
-		writeOpts.AuthToken = token
+		Region:    GetRegionFromRequest(r),
+		AuthToken: token,
 	}
 
 	// Call appropriate promote method based on request
@@ -229,12 +187,7 @@ func (h *DeploymentsAPIHandler) PromoteDeployment(w http.ResponseWriter, r *http
 	}
 
 	if err != nil {
-		h.handler.logger.Error("failed to promote deployment", "error", err, "deploymentID", deploymentID, "namespace", namespace)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(PromoteDeploymentResponse{
-			Error: fmt.Sprintf("Failed to promote deployment: %v", err),
-		})
+		h.writeDeploymentBackendError(w, "promote deployment", deploymentID, err)
 		return
 	}
 
@@ -258,4 +211,31 @@ func (h *DeploymentsAPIHandler) PromoteDeployment(w http.ResponseWriter, r *http
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.handler.logger.Error("failed to encode promote response", "error", err)
 	}
+}
+
+func (h *DeploymentsAPIHandler) deploymentForMutation(r *http.Request, client *api.Client, deploymentID, token string) (*api.Deployment, error) {
+	returnValue, _, err := client.Deployments().Info(deploymentID, &api.QueryOptions{
+		Namespace: GetNamespaceFromRequest(r),
+		Region:    GetRegionFromRequest(r),
+		AuthToken: token,
+	})
+	return returnValue, err
+}
+
+func (h *DeploymentsAPIHandler) writeDeploymentBackendError(w http.ResponseWriter, action, deploymentID string, err error) {
+	h.handler.logger.Error("failed to "+action, "error", err, "deploymentID", deploymentID)
+	switch {
+	case apiResponseHasStatus(err, http.StatusForbidden):
+		writeDeploymentMutationError(w, http.StatusForbidden, "Permission denied: submit-job capability is required")
+	case apiResponseHasStatus(err, http.StatusNotFound):
+		writeDeploymentMutationError(w, http.StatusNotFound, "Deployment not found")
+	default:
+		writeDeploymentMutationError(w, http.StatusBadGateway, "The cluster rejected the deployment request")
+	}
+}
+
+func writeDeploymentMutationError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(PromoteDeploymentResponse{Error: message})
 }

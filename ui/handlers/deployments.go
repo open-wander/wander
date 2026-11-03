@@ -80,6 +80,7 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	query := r.URL.Query()
 	namespace := GetNamespaceFromRequest(r)
+	region := GetRegionFromRequest(r)
 	statusFilter := query.Get("status")
 	jobFilter := query.Get("job")
 	view := parseListViewOptions(query, "created", "desc")
@@ -109,6 +110,10 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 	// Convert to template format
 	deploymentsList := make([]deploymentspartials.DeploymentSummary, len(paginatedDeployments))
 	for i, deploy := range paginatedDeployments {
+		deploymentNamespace := deploy.Namespace
+		if deploymentNamespace == "" {
+			deploymentNamespace = namespace
+		}
 		// Get short ID (first 8 characters)
 		shortID := deploy.ID
 		if len(shortID) > 8 {
@@ -133,6 +138,7 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 		deploymentsList[i] = deploymentspartials.DeploymentSummary{
 			ID:                deploy.ID,
 			ShortID:           shortID,
+			DetailURL:         scopedUIURL("/ui/deployments/"+url.PathEscape(deploy.ID), deploymentNamespace, region),
 			JobID:             deploy.JobID,
 			JobName:           deploy.JobID, // JobName is same as JobID in the API
 			JobVersion:        deploy.JobVersion,
@@ -153,7 +159,7 @@ func (h *DeploymentsHandler) List(w http.ResponseWriter, r *http.Request) {
 		"View Wander deployments",
 		"/ui/deployments",
 		[]components.Breadcrumb{
-			{Label: "Home", URL: "/ui/"},
+			{Label: "Home", URL: scopedUIURL("/ui/", namespace, region)},
 			{Label: "Deployments", URL: ""},
 		},
 	)
@@ -327,8 +333,8 @@ func (h *DeploymentsHandler) Detail(w http.ResponseWriter, r *http.Request, depl
 		"Deployment detail for "+deploymentDetail.ShortID,
 		"/ui/deployments/"+deploymentID,
 		[]components.Breadcrumb{
-			{Label: "Home", URL: "/ui/"},
-			{Label: "Deployments", URL: "/ui/deployments"},
+			{Label: "Home", URL: scopedUIURL("/ui/", deploymentDetail.Namespace, deploymentDetail.Region)},
+			{Label: "Deployments", URL: scopedUIURL("/ui/deployments", deploymentDetail.Namespace, deploymentDetail.Region)},
 			{Label: deploymentDetail.ShortID, URL: ""},
 		},
 	)
@@ -424,6 +430,7 @@ func (h *DeploymentsHandler) getDeploymentDetail(r *http.Request, deploymentID, 
 		JobID:             deploy.JobID,
 		JobVersion:        deploy.JobVersion,
 		Namespace:         deploy.Namespace,
+		Region:            GetRegionFromRequest(r),
 		Status:            deploy.Status,
 		StatusDescription: deploy.StatusDescription,
 		IsMultiregion:     deploy.IsMultiregion,
