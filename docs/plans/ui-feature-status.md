@@ -19,6 +19,10 @@ scope and parity work list is the
   successful mutation, ACL denial, and cluster rejection have regression
   coverage. The live Chromium smoke also verifies inclusive autoscaling
   minimum and maximum bounds and blocks out-of-range confirmation.
+  Start, stop, run, and periodic-force confirmations close only after a
+  successful response. Forbidden, missing, and unavailable outcomes retain
+  namespace, region, and ACL scope, keep the dialog open with an accessible
+  error toast, and do not expose backend response text.
   Existing-job definitions expose retained Job Spec variables and the live Full
   Definition, support plan/review and modify-index-protected submission, reject
   cross-job identity changes, and preserve the selected tab on full-page

@@ -278,7 +278,7 @@ func getActiveJobTab(tab string) string {
 
 // ForcePeriodicJobModal confirms an immediate launch of a periodic job.
 templ ForcePeriodicJobModal(job JobDetail) {
-	<div x-data="modalBridge('forcePeriodicModal')">
+	<div x-data="modalBridge('forcePeriodicModal', { closeOnSuccess: true })">
 		@components.Modal(components.ModalProps{
 			ID:       "force-periodic-job-modal",
 			Title:    "Force Launch",
@@ -294,7 +294,7 @@ templ ForcePeriodicJobModal(job JobDetail) {
 			}
 			@components.ModalFooter() {
 				<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
-				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/periodic/force" } hx-swap="none" @click="close" class="btn btn-primary btn-sm">Force Launch</button>
+				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/periodic/force" } hx-swap="none" class="btn btn-primary btn-sm">Force Launch</button>
 			}
 		}
 	</div>
@@ -316,7 +316,7 @@ func statusToBadgeVariant(status string) string {
 
 // StartJobModal renders the confirmation modal for starting a job
 templ StartJobModal(job JobDetail) {
-	<div x-data="modalBridge('startModal')">
+	<div x-data="modalBridge('startModal', { closeOnSuccess: true })">
 		@components.Modal(components.ModalProps{
 			ID:       "start-job-modal",
 			Title:    "Start Job",
@@ -345,7 +345,6 @@ templ StartJobModal(job JobDetail) {
 					type="button"
 					hx-post={ "/api/jobs/" + job.ID + "/start" }
 					hx-swap="none"
-					@click="close"
 					class="btn btn-success btn-sm"
 				>
 					Start Job
@@ -357,7 +356,7 @@ templ StartJobModal(job JobDetail) {
 
 // StopJobModal renders the confirmation modal for stopping a job
 templ StopJobModal(job JobDetail) {
-	<div x-data="modalBridge('stopModal')">
+	<div x-data="modalBridge('stopModal', { closeOnSuccess: true })">
 		@components.Modal(components.ModalProps{
 			ID:       "stop-job-modal",
 			Title:    "Stop Job",
@@ -386,7 +385,6 @@ templ StopJobModal(job JobDetail) {
 					type="button"
 					hx-post={ "/api/jobs/" + job.ID + "/stop" }
 					hx-swap="none"
-					@click="close"
 					class="btn btn-danger btn-sm"
 				>
 					Stop Job
@@ -398,7 +396,7 @@ templ StopJobModal(job JobDetail) {
 
 // RunJobModal renders the confirmation modal for running a new job version
 templ RunJobModal(job JobDetail) {
-	<div x-data="modalBridge('runModal')">
+	<div x-data="modalBridge('runModal', { closeOnSuccess: true })">
 		@components.Modal(components.ModalProps{
 			ID:       "run-job-modal",
 			Title:    "Run Job",
@@ -427,7 +425,6 @@ templ RunJobModal(job JobDetail) {
 					type="button"
 					hx-post={ "/api/jobs/" + job.ID + "/run" }
 					hx-swap="none"
-					@click="close"
 					class="btn btn-primary btn-sm"
 				>
 					Run Job

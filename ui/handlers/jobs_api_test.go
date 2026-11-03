@@ -129,6 +129,78 @@ func TestForcePeriodicJobUsesScopedLiveMutation(t *testing.T) {
 	}
 }
 
+func TestJobLifecycleFailuresAreScopedAndSafe(t *testing.T) {
+	actions := []struct {
+		name      string
+		route     string
+		operation string
+	}{
+		{name: "start", route: "start", operation: "start the job"},
+		{name: "stop", route: "stop", operation: "stop the job"},
+		{name: "run", route: "run", operation: "run the job"},
+		{name: "periodic force", route: "periodic/force", operation: "force the periodic launch"},
+	}
+	outcomes := []struct {
+		name       string
+		apiStatus  int
+		wantStatus int
+		wantToast  string
+	}{
+		{name: "forbidden", apiStatus: http.StatusForbidden, wantStatus: http.StatusForbidden, wantToast: "Permission denied"},
+		{name: "missing", apiStatus: http.StatusNotFound, wantStatus: http.StatusNotFound, wantToast: "The job was not found"},
+		{name: "unavailable", apiStatus: http.StatusInternalServerError, wantStatus: http.StatusBadGateway, wantToast: "The cluster rejected the request"},
+	}
+
+	for _, action := range actions {
+		for _, outcome := range outcomes {
+			t.Run(action.name+" "+outcome.name, func(t *testing.T) {
+				backendCalls := 0
+				jobID := "example"
+				backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					backendCalls++
+					if r.URL.Query().Get("namespace") != "team-a" || r.URL.Query().Get("region") != "region-a" {
+						t.Errorf("action scope = %q", r.URL.RawQuery)
+					}
+					if token := r.Header.Get("X-Nomad-Token"); token != "browser-token" {
+						t.Errorf("action token = %q", token)
+					}
+					if (action.route == "start" || action.route == "run") && r.Method == http.MethodGet {
+						writeJSON(t, w, &api.Job{ID: &jobID})
+						return
+					}
+					http.Error(w, "backend-secret-detail", outcome.apiStatus)
+				}))
+				defer backend.Close()
+
+				handler := newJobsTestHandler(t, backend.URL)
+				request := httptest.NewRequest(http.MethodPost, "/api/jobs/example/"+action.route+"?namespace=team-a&region=region-a", nil)
+				request = request.WithContext(WithTokenContext(request.Context(), "browser-token"))
+				response := httptest.NewRecorder()
+				NewJobsAPIHandler(handler).ServeHTTP(response, request)
+
+				if response.Code != outcome.wantStatus {
+					t.Fatalf("status = %d, want %d", response.Code, outcome.wantStatus)
+				}
+				trigger := response.Header().Get("HX-Trigger")
+				if !strings.Contains(trigger, outcome.wantToast) ||
+					(!strings.Contains(trigger, action.operation) && outcome.apiStatus != http.StatusNotFound) {
+					t.Fatalf("unsafe or incomplete toast = %q", trigger)
+				}
+				if strings.Contains(trigger, "backend-secret-detail") {
+					t.Fatalf("toast leaked backend response: %q", trigger)
+				}
+				wantCalls := 1
+				if action.route == "start" || action.route == "run" {
+					wantCalls = 2
+				}
+				if backendCalls != wantCalls {
+					t.Fatalf("backend calls = %d, want %d", backendCalls, wantCalls)
+				}
+			})
+		}
+	}
+}
+
 func performJobAction(handler *Handler, target, contentType, body string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
 	if contentType != "" {

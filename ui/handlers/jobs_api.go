@@ -110,12 +110,7 @@ func (h *JobsAPIHandler) deregisterJob(w http.ResponseWriter, r *http.Request, j
 	evalID, _, err := client.Jobs().Deregister(jobName, purge, jobWriteOptions(r, namespace))
 	if err != nil {
 		h.handler.logger.Error("failed to "+action+" job", "error", err, "jobID", jobName, "namespace", namespace)
-		setToast(w, "Failed to "+action+" job: "+err.Error(), "error")
-		status := http.StatusInternalServerError
-		if purge {
-			status = http.StatusBadGateway
-		}
-		w.WriteHeader(status)
+		writeJobActionFailure(w, action+" the job", err)
 		return
 	}
 
@@ -136,22 +131,20 @@ func (h *JobsAPIHandler) registerExistingJob(w http.ResponseWriter, r *http.Requ
 	}
 
 	token := GetTokenFromRequest(r)
-	queryOpts := &api.QueryOptions{Namespace: namespace, AuthToken: token}
+	queryOpts := &api.QueryOptions{Namespace: namespace, Region: GetRegionFromRequest(r), AuthToken: token}
 	job, _, err := client.Jobs().Info(jobName, queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to load job", "jobID", jobName, "namespace", namespace, "error", err)
-		setToast(w, "Failed to load the job before submission", "error")
-		w.WriteHeader(http.StatusBadGateway)
+		writeJobActionFailure(w, lifecycleOperation(action), err)
 		return
 	}
 
 	stopped := false
 	job.Stop = &stopped
-	response, _, err := client.Jobs().Register(job, &api.WriteOptions{Namespace: namespace, AuthToken: token})
+	response, _, err := client.Jobs().Register(job, jobWriteOptions(r, namespace))
 	if err != nil {
 		h.handler.logger.Error("failed to register job", "jobID", jobName, "namespace", namespace, "error", err)
-		setToast(w, "Failed to submit the job", "error")
-		w.WriteHeader(http.StatusBadGateway)
+		writeJobActionFailure(w, lifecycleOperation(action), err)
 		return
 	}
 
@@ -168,7 +161,29 @@ func splitJobReference(jobID, fallbackNamespace string) (string, string) {
 }
 
 func jobWriteOptions(r *http.Request, namespace string) *api.WriteOptions {
-	return &api.WriteOptions{Namespace: namespace, AuthToken: GetTokenFromRequest(r)}
+	return &api.WriteOptions{Namespace: namespace, Region: GetRegionFromRequest(r), AuthToken: GetTokenFromRequest(r)}
+}
+
+func lifecycleOperation(successAction string) string {
+	if successAction == "started" {
+		return "start the job"
+	}
+	return "run the job"
+}
+
+func writeJobActionFailure(w http.ResponseWriter, operation string, err error) {
+	status := http.StatusBadGateway
+	message := "The cluster rejected the request to " + operation + "."
+	switch {
+	case apiResponseHasStatus(err, http.StatusForbidden):
+		status = http.StatusForbidden
+		message = "Permission denied while trying to " + operation + "."
+	case apiResponseHasStatus(err, http.StatusNotFound):
+		status = http.StatusNotFound
+		message = "The job was not found. Refresh the page and try again."
+	}
+	setToast(w, message, "error")
+	w.WriteHeader(status)
 }
 
 func setToast(w http.ResponseWriter, message, toastType string) {
@@ -217,8 +232,7 @@ func (h *JobsAPIHandler) ForcePeriodicJob(w http.ResponseWriter, r *http.Request
 	evalID, _, err := client.Jobs().PeriodicForce(jobName, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to force periodic job", "error", err, "jobID", jobName, "namespace", namespace)
-		setToast(w, "Failed to force periodic job: "+err.Error(), "error")
-		w.WriteHeader(http.StatusInternalServerError)
+		writeJobActionFailure(w, "force the periodic launch", err)
 		return
 	}
 

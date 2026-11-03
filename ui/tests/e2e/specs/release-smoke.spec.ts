@@ -111,6 +111,32 @@ async function openDialog(page: Page, triggerName: string, dialogName: string) {
   return dialog;
 }
 
+async function expectJobLifecycleFailure(
+  page: Page,
+  jobID: string,
+  triggerName: string,
+  dialogName: string,
+  endpoint: string,
+) {
+  const message = `Simulated ${triggerName.toLowerCase()} failure`;
+  await page.route(`**/api/jobs/${jobID}/${endpoint}*`, async route => {
+    await route.fulfill({
+      status: 502,
+      headers: { 'HX-Trigger': JSON.stringify({ showToast: { message, type: 'error' } }) },
+      body: '',
+    });
+  }, { times: 1 });
+  await page.goto(`/ui/jobs/${jobID}?namespace=default&region=global`);
+  const dialog = await openDialog(page, triggerName, dialogName);
+  const response = page.waitForResponse(candidate => candidate.url().includes(`/api/jobs/${jobID}/${endpoint}`));
+  await dialog.getByRole('button', { name: dialogName, exact: true }).click();
+  expect((await response).status()).toBe(502);
+  await expect(dialog).toBeVisible();
+  const notification = page.getByRole('alert').filter({ hasText: message }).first();
+  await expect(notification).toBeVisible();
+  await expect(notification).toHaveClass(/bg-red-50/);
+}
+
 test.describe('Wander release smoke', () => {
   test('opens CSI volume claims when the cluster has a volume', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
@@ -205,12 +231,29 @@ test.describe('Wander release smoke', () => {
     const forceResponse = page.waitForResponse(response => response.url().includes('/api/jobs/wander-ui-periodic/periodic/force'));
     await forceDialog.getByRole('button', { name: 'Force Launch' }).click();
     expect((await forceResponse).status()).toBe(200);
+    await expect(forceDialog).toBeHidden();
 
     await page.goto('/ui/jobs/wander-ui-parameterized?namespace=dispatch-test&region=global');
     await expect(page.getByRole('button', { name: 'Dispatch', exact: true })).toBeVisible();
     await expect(page.locator('[data-overview-child-jobs]')).toBeVisible();
     await expect(page.locator('[data-overview-scheduling]')).toContainText('Dispatch Payload');
     expect(browserErrors).toEqual([]);
+  });
+
+  test('keeps lifecycle confirmations open and reports safe failures', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await expect.poll(async () => {
+      const response = await page.request.get('/v1/job/wander-ui-batch');
+      return (await response.json()).Status;
+    }).toBe('dead');
+
+    await expectJobLifecycleFailure(page, 'wander-ui-batch', 'Start', 'Start Job', 'start');
+    await expectJobLifecycleFailure(page, 'wander-ui-smoke', 'Stop', 'Stop Job', 'stop');
+    await expectJobLifecycleFailure(page, 'wander-ui-smoke', 'Run', 'Run Job', 'run');
+    await expectJobLifecycleFailure(page, 'wander-ui-periodic', 'Force Launch', 'Force Launch', 'periodic/force');
+    const unexpectedErrors = browserErrors.filter(error =>
+      !error.includes('502 (Bad Gateway)') && !error.includes('Response Status Error Code 502'));
+    expect(unexpectedErrors).toEqual([]);
   });
 
   test('renders and filters the scoped allocation matrix', async ({ page }) => {

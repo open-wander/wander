@@ -618,6 +618,7 @@ document.addEventListener('alpine:init', () => {
          * @returns {number} Toast ID
          */
         add(toast) {
+            toast = normalizeToast(toast);
             const id = ++this.counter;
             const duration = toast.duration || 0;
 
@@ -730,6 +731,13 @@ if (typeof window !== 'undefined') {
     document.addEventListener('alpine:init', () => {
         window.toastStore = Alpine.store('toasts');
     });
+}
+
+function normalizeToast(toast = {}) {
+    return {
+        ...toast,
+        variant: toast.variant || toast.type || 'info'
+    };
 }
 
 // HTMX integration: Listen for showToast events
@@ -2424,6 +2432,11 @@ function modalBridge(property, state = {}) {
 
         init() {
             this.parentState = window.Alpine.$data(this.$root.parentElement);
+            if (this.closeOnSuccess) {
+                this.$root.addEventListener('htmx:afterRequest', event => {
+                    if (event.detail && event.detail.successful) this.close();
+                });
+            }
         },
 
         get isOpen() {
@@ -2643,6 +2656,7 @@ if (typeof window !== 'undefined') {
         drainModalBridge,
         scaleControls,
         autoResizeTextArea,
-        versionDiffModal
+        versionDiffModal,
+        normalizeToast
     };
 }
