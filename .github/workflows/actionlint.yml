@@ -4,12 +4,17 @@ on:
   push:
     paths:
       - '.github/workflows/**'
+      - '.github/actions/**'
+      - 'ci/check-workflow-pins.sh'
+      - 'GNUmakefile'
 permissions:
   contents: read
 jobs:
   actionlint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: "Verify immutable workflow pins"
+        run: bash ci/check-workflow-pins.sh
       - name: "Check workflow files"
-        uses: docker://docker.mirror.hashicorp.services/rhysd/actionlint:latest
+        uses: docker://docker.mirror.hashicorp.services/rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # v1.7.12

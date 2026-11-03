@@ -45,6 +45,7 @@ env:
   GO_TAGS: "release"
   REGISTRY: "ghcr.io"
   IMAGE_NAME: "open-wander/wander"
+  MINIMUM_OS_IMAGE: "registry.access.redhat.com/ubi7/ubi-minimal:7.9-1057@sha256:69b6c994b9a1e69ac31c84a6a6e07345d3af814f3dbf92f646c656283f79c13c"
 
 jobs:
   get-go-version:
@@ -52,7 +53,7 @@ jobs:
     outputs:
       go-version: ${{ steps.get-go-version.outputs.go-version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
       - name: Determine Go version
@@ -67,7 +68,7 @@ jobs:
     outputs:
       product-version: ${{ steps.get-product-version.outputs.product-version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
       - name: get product version
@@ -82,18 +83,18 @@ jobs:
       filepath: ${{ steps.generate-metadata-file.outputs.filepath }}
     steps:
       - name: "Checkout directory"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
       - name: Generate metadata file
         id: generate-metadata-file
-        uses: hashicorp/actions-generate-metadata@v1.1.1
+        uses: hashicorp/actions-generate-metadata@fdbc8803a0e53bcbb912ddeee3808329033d6357 # v1.1.1
         with:
           version: ${{ needs.get-product-version.outputs.product-version }}
           product: ${{ env.PKG_NAME }}
           repositoryOwner: "open-wander"
           sha: ${{ inputs.build-ref || github.sha }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: metadata.json
           path: ${{ steps.generate-metadata-file.outputs.filepath }}
@@ -110,11 +111,11 @@ jobs:
     name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
 
@@ -147,7 +148,7 @@ jobs:
           bash ci/verify-release-archive.sh pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ matrix.goos }}
           mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
           path: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
@@ -164,11 +165,11 @@ jobs:
     name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
 
@@ -220,7 +221,7 @@ jobs:
           make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
           bash ci/verify-release-archive.sh pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ matrix.goos }}
           mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
           path: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
@@ -247,7 +248,7 @@ jobs:
           cp -R "$notice_dir/licenses" "$doc_dir/"
 
       - name: Build native packages
-        uses: hashicorp/actions-packaging-linux@v1
+        uses: hashicorp/actions-packaging-linux@006298649be64cee63e7f94a54dfcf3e14766bf6 # v1
         with:
           name: ${{ env.PKG_NAME }}
           description: "Wander is an easy-to-use, flexible, and performant workload orchestrator that can deploy a mix of microservice, batch, containerized, and non-containerized applications."
@@ -269,12 +270,12 @@ jobs:
           echo "RPM_PACKAGE=$(basename out/*.rpm)" >> "$GITHUB_ENV"
           echo "DEB_PACKAGE=$(basename out/*.deb)" >> "$GITHUB_ENV"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ env.RPM_PACKAGE }}
           path: out/${{ env.RPM_PACKAGE }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ env.DEB_PACKAGE }}
           path: out/${{ env.DEB_PACKAGE }}
@@ -291,12 +292,12 @@ jobs:
     name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
 
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
 
@@ -328,7 +329,7 @@ jobs:
           make pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip
           bash ci/verify-release-archive.sh pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ matrix.goos }}
           mv pkg/${{ matrix.goos }}_${{ matrix.goarch }}.zip ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
           path: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
@@ -349,7 +350,7 @@ jobs:
       version: ${{needs.get-product-version.outputs.product-version}}
       revision: ${{github.sha}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
       - name: Set revision
@@ -361,13 +362,13 @@ jobs:
 
       - name: Download Linux amd64 artifact
         if: matrix.arch == 'amd64'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ${{ env.PKG_NAME }}_${{ env.version }}_linux_amd64.zip
 
       - name: Download Linux arm64 artifact
         if: matrix.arch == 'arm64'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ${{ env.PKG_NAME }}_${{ env.version }}_linux_arm64.zip
 
@@ -376,10 +377,10 @@ jobs:
           unzip ${{ env.PKG_NAME }}_${{ env.version }}_linux_${{ matrix.arch }}.zip -d dist/
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -387,7 +388,7 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ghcr.io/${{ env.IMAGE_NAME }}
           tags: |
@@ -395,7 +396,7 @@ jobs:
             type=raw,value=latest,enable=${{ !contains(env.version, '-') }}
 
       - name: Build and Push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: ./Dockerfile
@@ -414,13 +415,13 @@ jobs:
       - build-linux
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_linux_amd64.zip
       - name: Verify archive and embedded UI runtime
@@ -448,10 +449,10 @@ jobs:
         goos: [linux]
         goarch: [amd64]
     steps:
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{needs.get-go-version.outputs.go-version}}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
       - name: Test binary
@@ -459,7 +460,7 @@ jobs:
           artifact_name: ${{ env.PKG_NAME }}_${{ needs.get-product-version.outputs.product-version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
         run: |
           echo "::group::Unpack and Prep"
-          docker pull registry.access.redhat.com/ubi7/ubi-minimal:7.9-1057
+          docker pull "${MINIMUM_OS_IMAGE}"
           unzip "$artifact_name"
           echo "::group::Diagnostics"
           echo "CGO related build information:"
@@ -467,7 +468,7 @@ jobs:
           echo "GLIBC links:"
           go tool nm ./wander | grep -i glibc | cut -d @ -f 2-3 | sort --version-sort | uniq
           echo "::group::Smoke test binary"
-          docker run --rm -v "$PWD:/src" registry.access.redhat.com/ubi7/ubi-minimal:7.9-1057 /src/wander version
+          docker run --rm -v "$PWD:/src" "${MINIMUM_OS_IMAGE}" /src/wander version
 
   publish-release:
     name: Publish GitHub release
@@ -486,10 +487,10 @@ jobs:
       actions: read
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: dist
           merge-multiple: true

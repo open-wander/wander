@@ -18,7 +18,7 @@ runs:
     - name: Retrieve Vault-hosted Secrets
       if: endsWith(github.repository, '-enterprise')
       id: vault
-      uses: hashicorp/vault-action@v2.4.3
+      uses: hashicorp/vault-action@8fa61e909919a3f94952e9e07ace6b5a1114440b # v2.4.3
       with:
         url: ${{ steps.vault-auth.outputs.addr }}
         caCertificate: ${{ steps.vault-auth.outputs.ca_certificate }}

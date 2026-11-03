@@ -36,7 +36,7 @@ jobs:
             echo "::error::Version ${RELEASE_VERSION} is invalid"
             exit 1
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Git config user/name
         run: |-
           git config --global user.email "github-team-wander-core@openwander.org"
@@ -51,7 +51,7 @@ jobs:
           echo "go-version=$(cat .go-version)" >> "$GITHUB_OUTPUT"
 
       - name: Setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ steps.get-go-version.outputs.go-version }}
 
