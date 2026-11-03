@@ -64,5 +64,24 @@ job "wander-ui-smoke" {
         memory = 32
       }
     }
+
+    task "rotation" {
+      driver = "raw_exec"
+
+      config {
+        command = "/bin/sh"
+        args    = ["-c", "echo ROTATION-PURGED-MARKER; i=1; while [ $i -le 50000 ]; do printf 'rotation-bulk-%06d-abcdefghijklmnopqrstuvwxyz-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ\\n' $i; i=$((i + 1)); done; i=1; while true; do echo rotation-live-$i; i=$((i + 1)); sleep 1; done"]
+      }
+
+      logs {
+        max_files     = 2
+        max_file_size = 1
+      }
+
+      resources {
+        cpu    = 10
+        memory = 10
+      }
+    }
   }
 }

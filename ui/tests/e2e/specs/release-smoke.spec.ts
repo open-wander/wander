@@ -948,6 +948,25 @@ test.describe('Wander release smoke', () => {
     expect(layout.maxHeight).toBeGreaterThanOrEqual(550);
     expect(layout.paddingBottom).toBe('32px');
 
+    await page.getByRole('button', { name: 'stdout', exact: true }).click();
+    await page.getByLabel('Select Task').selectOption('rotation');
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('connected');
+    await expect(logOutput).toContainText('rotation-live-');
+
+    await page.locator('[data-log-action="head"]').click();
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('complete');
+    await expect(logOutput).toContainText('rotation-bulk-');
+    await expect(logOutput).not.toContainText('ROTATION-PURGED-MARKER');
+
+    await page.locator('[data-log-action="tail"]').click();
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('complete');
+    await expect(logOutput).toContainText('rotation-live-');
+
+    await page.locator('[data-log-action="live"]').click();
+    await expect(logViewer.locator('[data-log-connection-state]')).toHaveText('connected');
+    const rotatedOutput = await logOutput.innerText();
+    await expect.poll(() => logOutput.innerText(), { timeout: 10_000 }).not.toBe(rotatedOutput);
+
     await openAllocationView(page, href!, 'exec', /exec|terminal/i);
     const terminal = page.locator('[data-exec-terminal]');
     await expect(terminal.locator('.xterm')).toHaveCount(1);

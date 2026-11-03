@@ -85,6 +85,9 @@ func startTestCluster(t *testing.T) (string, func()) {
 		waitForCluster(t, address)
 		binary := os.Getenv("WANDER_UI_E2E_BINARY")
 		registerSmokeJob(t, binary, address, "", nil)
+		requestClient := &http.Client{Timeout: 5 * time.Second}
+		smokeAllocationID := waitForRunningAllocation(t, requestClient, address, "", smokeJobID)
+		waitForRotatedTaskLogs(t, address, "", smokeAllocationID)
 		registerJobKindFixtures(t, binary, address)
 		registerNamespaceSmokeJob(t, binary, address)
 		registerParameterizedSmokeJob(t, binary, address)
@@ -104,6 +107,8 @@ func startTestCluster(t *testing.T) (string, func()) {
 	runCommand(t, join, "federate disposable Wander regions")
 	waitForRegion(t, address, regionSmokeName)
 	registerSmokeJob(t, binary, address, "", nil)
+	smokeAllocationID := waitForRunningAllocation(t, &http.Client{Timeout: 5 * time.Second}, address, "", smokeJobID)
+	waitForRotatedTaskLogs(t, address, "", smokeAllocationID)
 	registerJobKindFixtures(t, binary, address)
 	registerNamespaceSmokeJob(t, binary, address)
 	registerParameterizedSmokeJob(t, binary, address)
@@ -871,6 +876,40 @@ func waitForRunningAllocation(t *testing.T, client *http.Client, address, token,
 		return false
 	})
 	return allocationID
+}
+
+func waitForRotatedTaskLogs(t *testing.T, address, token, allocationID string) {
+	t.Helper()
+	config := api.DefaultConfig()
+	config.Address = address
+	config.SecretID = token
+	client, err := api.NewClient(config)
+	if err != nil {
+		t.Fatalf("create rotated-log API client: %v", err)
+	}
+
+	waitForHTTP(t, "rotation task did not produce and purge indexed log files", func(_ *http.Client) bool {
+		allocation, _, infoErr := client.Allocations().Info(allocationID, &api.QueryOptions{Namespace: "default", AuthToken: token})
+		if infoErr != nil {
+			return false
+		}
+		entries, _, listErr := client.AllocFS().List(allocation, "alloc/logs", &api.QueryOptions{Namespace: "default", AuthToken: token})
+		if listErr != nil {
+			return false
+		}
+		retained := 0
+		oldestPurged := true
+		for _, entry := range entries {
+			if !strings.HasPrefix(entry.Name, "rotation.stdout.") {
+				continue
+			}
+			retained++
+			if entry.Name == "rotation.stdout.0" {
+				oldestPurged = false
+			}
+		}
+		return retained == 2 && oldestPurged
+	})
 }
 
 func waitForDeployment(t *testing.T, client *http.Client, address, token string, version uint64, status string) string {
