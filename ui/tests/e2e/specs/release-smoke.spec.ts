@@ -60,6 +60,13 @@ async function expectURLParams(page: Page, expected: Record<string, string>) {
   }).toEqual(expected);
 }
 
+async function expectNoDocumentOverflow(page: Page) {
+  await expect.poll(() => page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+  }))).toEqual(await page.evaluate(() => ({ viewport: window.innerWidth, document: window.innerWidth })));
+}
+
 async function openJobTab(page: Page, name: string, expectedText: string) {
   await page.getByRole('tab', { name }).click();
   await expect(page.locator('#job-detail-panel')).toContainText(expectedText);
@@ -850,6 +857,8 @@ test.describe('Wander release smoke', () => {
     await expect(page.locator('[data-server-version]').first()).not.toBeEmpty();
 
     await page.locator('a[href^="/ui/servers/"]').first().click();
+    await expect(page).toHaveURL(/\/ui\/servers\/[^/]+/);
+    await expect(page.getByRole('heading', { name: 'Server Information' })).toBeVisible();
     const tagNames = await page.locator('[data-server-tag] dt').allTextContents();
     if (tagNames.length === 0) {
       await expect(page.getByText('No tags available', { exact: true })).toBeVisible();
@@ -1194,6 +1203,81 @@ test.describe('Wander release smoke', () => {
     expect(reachedJobs).toBe(true);
     await expect(page).toHaveURL(/\/ui\/jobs/);
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+    expect(browserErrors).toEqual([]);
+  });
+
+  test('keeps navigation, tables, dialogs, and workspaces reachable across viewport sizes', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    const viewports = [
+      { name: 'phone', width: 390, height: 844 },
+      { name: 'tablet', width: 768, height: 1024 },
+      { name: 'laptop', width: 1366, height: 768 },
+      { name: 'wide', width: 1920, height: 1080 },
+    ];
+
+    for (const viewport of viewports) {
+      await test.step(viewport.name, async () => {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await page.goto('/ui/jobs?namespace=default&region=global');
+        await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
+        await expectNoDocumentOverflow(page);
+
+        const sidebar = page.locator('#sidebar');
+        if (viewport.width < 1024) {
+          await expect.poll(async () => (await sidebar.boundingBox())?.x).toBeLessThan(0);
+          await page.getByRole('button', { name: 'Toggle sidebar' }).click();
+          await expect.poll(async () => (await sidebar.boundingBox())?.x).toBeGreaterThanOrEqual(0);
+          await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+          await page.keyboard.press('Escape');
+          await expect.poll(async () => (await sidebar.boundingBox())?.x).toBeLessThan(0);
+        } else {
+          await expect.poll(async () => (await sidebar.boundingBox())?.x).toBeGreaterThanOrEqual(0);
+        }
+
+        const search = page.locator('[data-global-search]');
+        if (viewport.width >= 1280) await expect(search).toBeVisible();
+        else await expect(search).toBeHidden();
+
+        const tableScroller = page.locator('#jobs-table-container .overflow-x-auto').first();
+        await expect(tableScroller).toBeVisible();
+        const tableGeometry = await tableScroller.evaluate(element => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          right: element.getBoundingClientRect().right,
+        }));
+        expect(tableGeometry.scrollWidth).toBeGreaterThanOrEqual(tableGeometry.clientWidth);
+        expect(tableGeometry.right).toBeLessThanOrEqual(viewport.width + 1);
+
+        const footerBox = await page.locator('footer').boundingBox();
+        expect(footerBox?.x).toBeGreaterThanOrEqual(0);
+        expect(footerBox?.width).toBeLessThanOrEqual(viewport.width);
+
+        await page.goto('/ui/jobs/wander-ui-smoke/taskgroups/web?namespace=default&region=global');
+        await page.getByLabel('Instance count').fill('2');
+        await page.getByRole('button', { name: 'Scale', exact: true }).click();
+        const dialog = page.getByRole('dialog', { name: 'Confirm Scale Operation' });
+        await expect(dialog).toBeVisible();
+        const dialogBox = await dialog.locator(':scope > div:nth-child(2) > div').boundingBox();
+        expect(dialogBox?.x).toBeGreaterThanOrEqual(0);
+        expect((dialogBox?.x || 0) + (dialogBox?.width || 0)).toBeLessThanOrEqual(viewport.width);
+        expect(dialogBox?.y).toBeGreaterThanOrEqual(0);
+        expect((dialogBox?.y || 0) + (dialogBox?.height || 0)).toBeLessThanOrEqual(viewport.height);
+        await dialog.getByRole('button', { name: 'Cancel' }).click();
+        await expectNoDocumentOverflow(page);
+
+        if (viewport.name === 'phone' || viewport.name === 'wide') {
+          await page.goto('/ui/allocations?namespace=default&region=global');
+          const allocationHref = await page.locator('[data-alloc-id]').filter({ hasText: 'wander-ui-smoke' }).first()
+            .locator('a[href^="/ui/allocations/"]').first().getAttribute('href');
+          expect(allocationHref).toBeTruthy();
+          for (const workspace of ['logs', 'files', 'exec'] as const) {
+            await openAllocationView(page, allocationHref!, workspace, /logs|files|exec|terminal/i);
+            await expectNoDocumentOverflow(page);
+            await expect(page.getByRole('main')).toBeVisible();
+          }
+        }
+      });
+    }
     expect(browserErrors).toEqual([]);
   });
 
