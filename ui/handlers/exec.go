@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -104,7 +105,7 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queryOpts := &api.QueryOptions{}
+	queryOpts := &api.QueryOptions{Region: GetRegionFromRequest(r)}
 	if token != "" {
 		queryOpts.AuthToken = token
 	}
@@ -210,6 +211,10 @@ func (h *ExecHandler) handleSession(r *http.Request, clientWS *websocket.Conn, a
 
 	// Wait for all output to be delivered before reporting command completion.
 	outputWG.Wait()
+	if execSessionCanceled(ctx, err) {
+		h.handler.logger.Info("exec session canceled by client", "allocID", alloc.ID, "task", task)
+		return
+	}
 
 	// Send exit message to client
 	exitMsg := &ExecMessage{
@@ -219,11 +224,11 @@ func (h *ExecHandler) handleSession(r *http.Request, clientWS *websocket.Conn, a
 
 	if err != nil {
 		h.handler.logger.Error("exec command failed", "allocID", alloc.ID, "task", task, "error", err)
-		exitMsg.Message = err.Error()
+		exitMsg.Message = "Exec session failed."
 		// If there's an error, also send an error message
 		errMsg := &ExecMessage{
 			Type:    MsgTypeError,
-			Message: err.Error(),
+			Message: "Exec session failed.",
 		}
 		h.sendMessageToClient(clientWS, errMsg)
 	}
@@ -235,6 +240,10 @@ func (h *ExecHandler) handleSession(r *http.Request, clientWS *websocket.Conn, a
 		"task", task,
 		"exitCode", exitCode,
 	)
+}
+
+func execSessionCanceled(ctx context.Context, err error) bool {
+	return err != nil && (errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled))
 }
 
 func (h *ExecHandler) startExecOutputReader(wg *sync.WaitGroup, ws *websocket.Conn, reader io.Reader, cancel context.CancelFunc) {

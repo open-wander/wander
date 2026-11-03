@@ -944,6 +944,15 @@ test.describe('Wander release smoke', () => {
     await page.keyboard.type('echo wander-browser-exec');
     await page.keyboard.press('Enter');
     await expect(terminal.locator('.xterm-rows')).toContainText('wander-browser-exec');
+    await page.keyboard.type('exit');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-exec-connection-state]')).toHaveText('complete');
+    await expect(page.locator('[data-exec-exit-code]')).toHaveText('0');
+
+    await page.getByRole('button', { name: 'Connect', exact: true }).first().click();
+    await expect(page.locator('[data-exec-connection-state]')).toHaveText('connected');
+    await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await expect(page.locator('[data-exec-connection-state]')).toHaveText('disconnected');
 
     const allocationURL = new URL(href!, 'http://wander.test');
     await page.goto(`${allocationURL.pathname}/fs${allocationURL.search}`);

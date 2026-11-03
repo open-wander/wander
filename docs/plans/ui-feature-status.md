@@ -31,7 +31,10 @@ scope and parity work list is the
   object, task-group, and task changes with available old/new values and
   annotations.
 - Allocations: live detail, files, logs, raw API data, restart/stop actions,
-  and same-origin WebSocket exec.
+  and same-origin WebSocket exec. Exec preserves scoped `alloc-exec` denial,
+  forwards terminal resize, distinguishes task completion, intentional
+  disconnect, and connection loss, retains zero and non-zero exit codes, and
+  reconnects without duplicating terminal input or exposing upstream errors.
 - Task groups: live scaling controls and task resources plus deterministically
   ordered volume requests and explicit normal/prestart/poststart/poststop and
   sidecar lifecycle states. Exact-group allocation history, validated status

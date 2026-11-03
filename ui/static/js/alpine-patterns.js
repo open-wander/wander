@@ -1338,10 +1338,12 @@ function execTerminal(allocId, initialTask, initialCommand) {
         terminal: null,
         fitAddon: null,
         websocket: null,
-        connectionState: 'disconnected', // disconnected, connecting, connected, error
+        connectionState: 'disconnected', // disconnected, connecting, connected, complete, error
         resizeObserver: null,
         resizeTimeout: null, // For debouncing resize events
         lastSentDims: { cols: 0, rows: 0 }, // Track last sent dimensions to avoid duplicates
+        lastExitCode: null,
+        inputDisposable: null,
 
         // Initialize xterm.js terminal
         init() {
@@ -1412,8 +1414,15 @@ function execTerminal(allocId, initialTask, initialCommand) {
             }
 
             // Handle window resize
-            window.addEventListener('resize', () => {
-                this.fit();
+            this._resizeHandler = () => this.fit();
+            window.addEventListener('resize', this._resizeHandler);
+
+            // Register terminal input once for the component lifetime. Registering
+            // inside connect() duplicates input after every reconnect.
+            this.inputDisposable = this.terminal.onData(data => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send(JSON.stringify({ type: 'input', data: data }));
+                }
             });
 
             // Write welcome message
@@ -1466,9 +1475,15 @@ function execTerminal(allocId, initialTask, initialCommand) {
         toggleConnection() {
             if (this.connectionState === 'connected') {
                 this.disconnect();
-            } else if (this.connectionState === 'disconnected' || this.connectionState === 'error') {
+            } else if (this.connectionState === 'disconnected' || this.connectionState === 'complete' || this.connectionState === 'error') {
                 this.connect();
             }
+        },
+
+        connectionMessage() {
+            if (this.connectionState === 'error') return 'Connection lost. Click Connect to reconnect.';
+            if (this.connectionState === 'complete') return `Session ended (exit code: ${this.lastExitCode ?? 0}). Click Connect to start another session.`;
+            return 'Click Connect to start an exec session';
         },
 
         // Build WebSocket URL for exec
@@ -1486,6 +1501,7 @@ function execTerminal(allocId, initialTask, initialCommand) {
             }
 
             this.connectionState = 'connecting';
+            this.lastExitCode = null;
             this.terminal.clear();
             this.terminal.writeln('\x1b[33mConnecting to exec session...\x1b[0m');
             this.terminal.writeln(`\x1b[90mTask: ${this.selectedTask}\x1b[0m`);
@@ -1494,9 +1510,12 @@ function execTerminal(allocId, initialTask, initialCommand) {
 
             try {
                 const url = this.buildWebSocketUrl();
-                this.websocket = new WebSocket(url);
+                const socket = new WebSocket(url);
+                socket.wanderExpectedClosure = false;
+                this.websocket = socket;
 
-                this.websocket.onopen = () => {
+                socket.onopen = () => {
+                    if (this.websocket !== socket) return;
                     this.connectionState = 'connected';
                     this.terminal.writeln('\x1b[32mConnected!\x1b[0m');
                     this.terminal.writeln('');
@@ -1515,7 +1534,8 @@ function execTerminal(allocId, initialTask, initialCommand) {
                     this.lastSentDims = initialDims;
                 };
 
-                this.websocket.onmessage = (event) => {
+                socket.onmessage = (event) => {
+                    if (this.websocket !== socket) return;
                     // Handle incoming data from exec session
                     if (event.data instanceof Blob) {
                         // Binary data
@@ -1531,9 +1551,15 @@ function execTerminal(allocId, initialTask, initialCommand) {
                             } else if (msg.type === 'error') {
                                 this.terminal.writeln(`\x1b[31mError: ${msg.message}\x1b[0m`);
                             } else if (msg.type === 'exit') {
+                                const exitCode = Number.isInteger(msg.code) ? msg.code : 0;
                                 this.terminal.writeln('');
-                                this.terminal.writeln(`\x1b[33mSession ended (exit code: ${msg.code || 0})\x1b[0m`);
-                                this.disconnect();
+                                this.terminal.writeln(`\x1b[33mSession ended (exit code: ${exitCode})\x1b[0m`);
+                                this.lastExitCode = exitCode;
+                                this.connectionState = 'complete';
+                                socket.wanderExpectedClosure = true;
+                                if (socket.readyState === WebSocket.OPEN) {
+                                    socket.close();
+                                }
                             }
                         } catch (e) {
                             // Not JSON, treat as raw terminal output
@@ -1542,7 +1568,8 @@ function execTerminal(allocId, initialTask, initialCommand) {
                     }
                 };
 
-                this.websocket.onerror = (error) => {
+                socket.onerror = (error) => {
+                    if (this.websocket !== socket || socket.wanderExpectedClosure) return;
                     console.error('WebSocket error:', error);
                     this.terminal.writeln('');
                     this.terminal.writeln('\x1b[31mConnection error occurred.\x1b[0m');
@@ -1554,12 +1581,13 @@ function execTerminal(allocId, initialTask, initialCommand) {
                     }));
                 };
 
-                this.websocket.onclose = (event) => {
-                    if (this.connectionState === 'connected') {
+                socket.onclose = (event) => {
+                    if (this.websocket !== socket) return;
+                    if (!socket.wanderExpectedClosure && (this.connectionState === 'connected' || this.connectionState === 'connecting')) {
                         this.terminal.writeln('');
-                        this.terminal.writeln('\x1b[33mConnection closed.\x1b[0m');
+                        this.terminal.writeln('\x1b[31mConnection lost.\x1b[0m');
+                        this.connectionState = 'error';
                     }
-                    this.connectionState = 'disconnected';
                     this.websocket = null;
 
                     // Dispatch global WebSocket disconnect event
@@ -1567,14 +1595,6 @@ function execTerminal(allocId, initialTask, initialCommand) {
                         detail: { id: url, url: url }
                     }));
                 };
-
-                // Handle terminal input - send to WebSocket
-                this.terminal.onData(data => {
-                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                        // Send as JSON message with type 'input'
-                        this.websocket.send(JSON.stringify({ type: 'input', data: data }));
-                    }
-                });
 
             } catch (e) {
                 console.error('Failed to connect:', e);
@@ -1602,20 +1622,26 @@ function execTerminal(allocId, initialTask, initialCommand) {
                 this.resizeTimeout = null;
             }
 
+            this.connectionState = 'disconnected';
             if (this.websocket) {
+                const socket = this.websocket;
+                socket.wanderExpectedClosure = true;
                 // Send close message if possible
-                if (this.websocket.readyState === WebSocket.OPEN) {
+                if (socket.readyState === WebSocket.OPEN) {
                     try {
-                        this.websocket.send(JSON.stringify({ type: 'close' }));
+                        socket.send(JSON.stringify({ type: 'close' }));
                     } catch (e) {
                         // Ignore send errors during close
                     }
                 }
-                this.websocket.close();
+                socket.close();
                 this.websocket = null;
+                window.dispatchEvent(new CustomEvent('ws:disconnect', {
+                    detail: { id: socket.url, url: socket.url }
+                }));
             }
-            this.connectionState = 'disconnected';
             this.lastSentDims = { cols: 0, rows: 0 };
+            this.lastExitCode = null;
         },
 
         // Cleanup on destroy
@@ -1626,6 +1652,16 @@ function execTerminal(allocId, initialTask, initialCommand) {
             if (this._reconnectHandler) {
                 window.removeEventListener('connection:reconnect-requested', this._reconnectHandler);
                 this._reconnectHandler = null;
+            }
+
+            if (this._resizeHandler) {
+                window.removeEventListener('resize', this._resizeHandler);
+                this._resizeHandler = null;
+            }
+
+            if (this.inputDisposable) {
+                this.inputDisposable.dispose();
+                this.inputDisposable = null;
             }
 
             if (this.resizeObserver) {
