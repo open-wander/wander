@@ -6,6 +6,10 @@ THIS_ARCH := $(shell uname -m)
 GO_MODULE = github.com/open-wander/wander
 TEMPL_VERSION = v0.3.977
 
+empty :=
+space := $(empty) $(empty)
+comma := ,
+
 GIT_COMMIT := $(shell git rev-parse HEAD)
 GIT_DIRTY := $(if $(shell git status --porcelain),+CHANGES)
 GIT_COMMIT_FLAG = $(GO_MODULE)/version.GitCommit=$(GIT_COMMIT)$(GIT_DIRTY)
@@ -120,7 +124,7 @@ pkg/$(1)/.release-notices/THIRD_PARTY_NOTICES.md: ci/prepare-release-notices.sh 
 	@GOOS=$(firstword $(subst _, ,$(1))) \
 		GOARCH=$(lastword $(subst _, ,$(1))) \
 		CGO_ENABLED=$(CGO_ENABLED) \
-		GOFLAGS="-tags=$(GO_TAGS)" \
+		GOFLAGS="-tags=$(subst $(space),$(comma),$(strip $(GO_TAGS)))" \
 		./ci/prepare-release-notices.sh pkg/$(1)
 
 pkg/$(1).zip: pkg/$(1)/wander pkg/$(1)/.release-notices/THIRD_PARTY_NOTICES.md
