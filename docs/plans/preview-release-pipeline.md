@@ -15,8 +15,11 @@ and compatibility testing without presenting them as the stable 0.1.0 release.
   license, and third-party notices.
 - Linux amd64 must pass the packaged UI smoke test and the clean-install,
   rolling-restart, 1.6.5 upgrade, and 1.6.5 rollback rehearsal.
-- GitHub release assets include all archives and native packages plus one
-  SHA-256 checksum manifest.
+- GitHub release assets include all archives and native packages, an SPDX JSON
+  SBOM for the canonical Linux amd64 archive, and one SHA-256 checksum
+  manifest covering every published asset.
+- GitHub artifact attestations provide signed build provenance for every
+  published asset and bind the Linux amd64 archive to its SPDX SBOM.
 - Versions containing a prerelease identifier are marked as GitHub
   prereleases. Stable versions are not.
 - A preview release clearly states that final 0.1.0 parity work is still in
@@ -47,15 +50,14 @@ and compatibility testing without presenting them as the stable 0.1.0 release.
 5. Verify the GitHub prerelease assets and checksum manifest from a clean
    download before inviting testers.
 
-## Stable-release gates not supplied by previews
+## Stable-release gates still requiring preview evidence
 
-- Choose and document a Wander-owned signing or artifact-attestation identity.
-- Generate and publish the approved SBOM and provenance evidence for the exact
-  release commit.
-- Pin or formally approve every third-party release action before stable
-  0.1.0.
+- Verify the GitHub artifact-attestation identity against the published
+  preview assets.
+- Confirm the SBOM and provenance attestations refer to the exact release
+  commit and asset digests.
 - Establish durable package-repository and support/security contact details.
 
-Preview releases deliberately provide SHA-256 integrity manifests without
-claiming that these stable-release authenticity and supply-chain gates are
-complete.
+Preview releases provide the same checksum, SBOM, provenance, and attestation
+path intended for stable 0.1.0. The first preview validates that path before
+the checklist can mark it complete.

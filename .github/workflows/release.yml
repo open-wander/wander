@@ -187,6 +187,8 @@ jobs:
     secrets: inherit
     permissions:
       actions: read
+      artifact-metadata: write
+      attestations: write
       contents: write
       id-token: write
       packages: write
