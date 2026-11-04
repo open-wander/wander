@@ -129,7 +129,7 @@ jobs:
         run: |
           cd ui
           npm ci
-          make build-css
+          make install-tailwind build-css
           templ generate
 
       - name: Build prerelease
@@ -183,7 +183,7 @@ jobs:
         run: |
           cd ui
           npm ci
-          make build-css
+          make install-tailwind build-css
           templ generate
 
       - name: Build prerelease
@@ -311,7 +311,7 @@ jobs:
         run: |
           cd ui
           npm ci
-          make build-css
+          make install-tailwind build-css
           templ generate
 
       - name: Build prerelease
