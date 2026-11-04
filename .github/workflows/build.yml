@@ -141,7 +141,9 @@ jobs:
 
   build-linux:
     needs: [get-go-version, get-product-version]
-    runs-on: ubuntu-latest
+    # Keep the cross-compiler package set stable; ubuntu-latest moved to 26.04
+    # and no longer provides gcc-multilib-arm-linux-gnueabihf.
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         goos: [linux]
@@ -181,8 +183,7 @@ jobs:
             binutils-aarch64-linux-gnu \
             binutils-arm-linux-gnueabihf \
             gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabihf \
-            gcc-multilib-arm-linux-gnueabihf
+            gcc-arm-linux-gnueabihf
 
       - name: Set gcc
         run: |
