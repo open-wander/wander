@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -557,20 +558,30 @@ func TestACLMutations(t *testing.T) {
 	}
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/variables", root.SecretID, "application/x-www-form-urlencoded", variableForm.Encode(), http.StatusCreated)
 	var variable struct {
-		Items map[string]string
+		Items       map[string]string
+		ModifyIndex uint64
 	}
 	getJSON(t, client, address+"/v1/var/acl-audit/test?namespace=default", root.SecretID, &variable)
 	if variable.Items["answer"] != "forty-two" || variable.Items["spacing"] != " preserved " {
 		t.Fatalf("variable create lost form items: %#v", variable.Items)
 	}
-	updateForm := url.Values{"namespace": {"default"}, "key_0": {"answer"}, "value_0": {"updated"}}
+	updateForm := url.Values{
+		"namespace":    {"default"},
+		"modify_index": {strconv.FormatUint(variable.ModifyIndex, 10)},
+		"key_0":        {"answer"},
+		"value_0":      {"updated"},
+	}
 	assertRequestStatus(t, client, http.MethodPost, address+"/ui/variables/acl-audit/test?namespace=default", root.SecretID, "application/x-www-form-urlencoded", updateForm.Encode(), http.StatusOK)
 	variable.Items = nil
 	getJSON(t, client, address+"/v1/var/acl-audit/test?namespace=default", root.SecretID, &variable)
 	if len(variable.Items) != 1 || variable.Items["answer"] != "updated" {
 		t.Fatalf("variable update stored unexpected items: %#v", variable.Items)
 	}
-	assertRequestStatus(t, client, http.MethodDelete, address+"/ui/variables/acl-audit/test?namespace=default", root.SecretID, "", "", http.StatusOK)
+	deleteQuery := url.Values{
+		"namespace":    {"default"},
+		"modify_index": {strconv.FormatUint(variable.ModifyIndex, 10)},
+	}
+	assertRequestStatus(t, client, http.MethodDelete, address+"/ui/variables/acl-audit/test?"+deleteQuery.Encode(), root.SecretID, "", "", http.StatusOK)
 
 	policyCreateForm := url.Values{
 		"name":        {"wander-ui-audit"},
