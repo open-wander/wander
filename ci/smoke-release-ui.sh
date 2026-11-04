@@ -43,7 +43,7 @@ start_agent "${smoke_dir}/enabled"
 
 headers=$(curl --silent --dump-header - --output /dev/null 'http://127.0.0.1:4646/?region=global')
 grep -Eq '^HTTP/[^ ]+ 307' <<<"${headers}"
-grep -Eiq '^location: /ui/\?region=global\r?$' <<<"${headers}"
+grep -Eiq '^location: /ui/\?region=global[[:space:]]*$' <<<"${headers}"
 
 ui_headers=$(curl --fail --location --silent --dump-header - --output "${smoke_dir}/ui.html" http://127.0.0.1:4646/ui/)
 grep -q 'Wander' "${smoke_dir}/ui.html"
