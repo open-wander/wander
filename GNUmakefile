@@ -285,7 +285,10 @@ dev: hclfmt ## Build for the current development platform
 
 .PHONY: prerelease
 prerelease: GO_TAGS=ui codegen_generated release
-prerelease: generate-all ## Generate all the static assets for a Wander release
+# Compatibility-sensitive codec outputs are reviewed, version-controlled
+# source. Do not regenerate them as a side effect of packaging: their legacy
+# generators are not compatible with the supported Go toolchain.
+prerelease: ui-generate release ## Generate UI assets and build release packages
 
 .PHONY: release
 release: GO_TAGS=ui codegen_generated release

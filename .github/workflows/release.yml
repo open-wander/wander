@@ -106,11 +106,6 @@ jobs:
           fi
           git diff --color=always CHANGELOG.md
 
-      - name: Generate static assets
-        id: generate-static-assets
-        run: |
-          make prerelease
-
       - name: Commit and push changes
         id: commit-change-push
         run: |
@@ -157,18 +152,9 @@ jobs:
             echo "Version ${RELEASE_VERSION} is a prerelease, skipping update of LAST_RELEASE"
           fi
 
-      - name: Remove generated files
-        run: |
-          # These generated files are only needed when building the final
-          # binary and should be not be present in the repository afterwards.
-          find . -name '*.generated.go' -print0 | xargs -0 git rm
-          git status
-
       - name: Commit post-release changes
         run: |
-          # Display staged and unstaged diffs, skipping deleted files to avoid
-          # cluttering the output with the generated files.
-          git diff --diff-filter=d --color=always HEAD
+          git diff --color=always HEAD
           git add -A .
           if ! git diff-index --quiet HEAD --; then
             git commit --message 'Prepare for next release'
@@ -182,7 +168,6 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       build-ref: ${{ needs.prepare-release.outputs.build-ref }}
-      make-prerelease: false
       publish-release: true
     secrets: inherit
     permissions:

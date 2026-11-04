@@ -13,6 +13,9 @@ and compatibility testing without presenting them as the stable 0.1.0 release.
   Linux amd64/arm/arm64, macOS amd64/arm64, and Windows amd64.
 - Release archives contain one Wander binary, the embedded UI, the project
   license, and third-party notices.
+- Release builds consume the reviewed, version-controlled codec sources. The
+  packaging workflow does not rerun compatibility-era generators or delete
+  their tracked outputs after publication.
 - Linux amd64 must pass the packaged UI smoke test and the clean-install,
   rolling-restart, 1.6.5 upgrade, and 1.6.5 rollback rehearsal.
 - GitHub release assets include all archives and native packages, an SPDX JSON
