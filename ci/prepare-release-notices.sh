@@ -22,11 +22,26 @@ esac
 readonly notice_dir="${package_dir}/.release-notices"
 staging_dir=$(mktemp -d "${package_dir}/.release-notices.XXXXXX")
 readonly staging_dir
-trap 'rm -rf "${staging_dir}"' EXIT
+tool_dir=$(mktemp -d "${package_dir}/.release-tools.XXXXXX")
+readonly tool_dir
+trap 'rm -rf "${staging_dir}" "${tool_dir}"' EXIT
 
 mkdir -p "${staging_dir}/licenses/go" "${staging_dir}/licenses/browser"
 
-go run github.com/google/go-licenses@v1.6.0 save . \
+host_os=$(go env GOHOSTOS)
+readonly host_os
+host_arch=$(go env GOHOSTARCH)
+readonly host_arch
+GOOS="${host_os}" GOARCH="${host_arch}" CGO_ENABLED=0 GOFLAGS='' \
+  GOBIN="${tool_dir}" go install github.com/google/go-licenses@v1.6.0
+
+license_tool="${tool_dir}/go-licenses"
+if [[ "${host_os}" == "windows" ]]; then
+  license_tool+=".exe"
+fi
+readonly license_tool
+
+"${license_tool}" save . \
   --save_path "${staging_dir}/licenses/go" \
   --force \
   --ignore github.com/open-wander/wander \

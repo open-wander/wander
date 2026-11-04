@@ -102,11 +102,11 @@ endif
 		go build -trimpath -ldflags "$(GO_LDFLAGS)" -tags "$(GO_TAGS)" -o $(GO_OUT)
 
 ifneq (armv7l,$(THIS_ARCH))
-pkg/linux_arm/wander: CC = arm-linux-gnueabihf-gcc
+pkg/linux_arm/wander pkg/linux_arm/.release-notices/THIRD_PARTY_NOTICES.md: CC = arm-linux-gnueabihf-gcc
 endif
 
 ifneq (aarch64,$(THIS_ARCH))
-pkg/linux_arm64/wander: CC = aarch64-linux-gnu-gcc
+pkg/linux_arm64/wander pkg/linux_arm64/.release-notices/THIRD_PARTY_NOTICES.md: CC = aarch64-linux-gnu-gcc
 endif
 
 ifeq (Darwin,$(THIS_OS))
@@ -124,6 +124,7 @@ pkg/$(1)/.release-notices/THIRD_PARTY_NOTICES.md: ci/prepare-release-notices.sh 
 	@GOOS=$(firstword $(subst _, ,$(1))) \
 		GOARCH=$(lastword $(subst _, ,$(1))) \
 		CGO_ENABLED=$(CGO_ENABLED) \
+		CC=$$(CC) \
 		GOFLAGS="-tags=$(subst $(space),$(comma),$(strip $(GO_TAGS)))" \
 		./ci/prepare-release-notices.sh pkg/$(1)
 
