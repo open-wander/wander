@@ -24,12 +24,12 @@ var (
 	// ClusterCompatibilityVersion is advertised to other Wander agents for
 	// legacy feature gates. It is deliberately independent from the public
 	// product version and must remain semver-compatible with those gates.
-	ClusterCompatibilityVersion = "1.9.0"
+	ClusterCompatibilityVersion = "0.1.0"
 
 	// A pre-release marker for the version. If this is "" (empty string)
 	// then it means that it is a final release. Otherwise, this is a pre-release
 	// such as "dev" (in development), "beta", "rc1", etc.
-	VersionPrerelease = "dev"
+	VersionPrerelease = "preview.1"
 
 	// VersionMetadata is metadata further describing the build type.
 	VersionMetadata = ""
