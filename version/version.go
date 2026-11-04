@@ -22,9 +22,9 @@ var (
 	Version = "0.1.0"
 
 	// ClusterCompatibilityVersion is advertised to other Wander agents for
-	// legacy feature gates. It is deliberately independent from the public
-	// product version and must remain semver-compatible with those gates.
-	ClusterCompatibilityVersion = "0.1.0"
+	// inherited Nomad feature gates. It is deliberately independent from the
+	// public product version and records the approved compatibility baseline.
+	ClusterCompatibilityVersion = "1.6.5"
 
 	// A pre-release marker for the version. If this is "" (empty string)
 	// then it means that it is a final release. Otherwise, this is a pre-release

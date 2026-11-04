@@ -234,16 +234,20 @@ start_cluster() {
 
 put_marker() {
   local marker=$1
-  curl --connect-timeout 1 --max-time 5 --fail --silent \
+  local response
+  if ! response=$(curl --connect-timeout 1 --max-time 5 --fail-with-body --silent --show-error \
     --request PUT \
     --header 'Content-Type: application/json' \
     --data "{\"Items\":{\"marker\":\"${marker}\"}}" \
-    "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state" >/dev/null
+    "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state"); then
+    echo "failed to write rehearsal marker: ${response}" >&2
+    return 1
+  fi
 }
 
 require_marker() {
   local marker=$1
-  curl --connect-timeout 1 --max-time 5 --fail --silent \
+  curl --connect-timeout 1 --max-time 5 --fail-with-body --silent --show-error \
     "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state" | \
     grep -q "\"marker\":\"${marker}\""
 }

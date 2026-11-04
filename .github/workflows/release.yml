@@ -80,8 +80,8 @@ jobs:
 
           echo "updating version to ${WANDER_MAIN_VERSION}-${WANDER_PRERELEASE_VERSION}"
 
-          sed -i.bak -e "s|\(Version * = *\"\)[^\"]*|\1${WANDER_MAIN_VERSION}|g" version/version.go
-          sed -i.bak -e "s|\(VersionPrerelease * = *\"\)[^\"]*|\1${WANDER_PRERELEASE_VERSION}|g" version/version.go
+          sed -i.bak -e "s|^\([[:space:]]*Version[[:space:]]*=[[:space:]]*\"\)[^\"]*|\1${WANDER_MAIN_VERSION}|" version/version.go
+          sed -i.bak -e "s|^\([[:space:]]*VersionPrerelease[[:space:]]*=[[:space:]]*\"\)[^\"]*|\1${WANDER_PRERELEASE_VERSION}|" version/version.go
           rm -rf version/version.go.bak
           git diff --color=always version/version.go
 
@@ -128,10 +128,10 @@ jobs:
           if [[ ${RELEASE_VERSION} != *-* ]]; then
             IFS=. read -r major minor patch <<<"${RELEASE_VERSION}"
             next_version="${major}.${minor}.$((patch + 1))"
-            sed -i.bak -e "s|\(Version * = *\"\)[^\"]*|\1${next_version}|g" version/version.go
+            sed -i.bak -e "s|^\([[:space:]]*Version[[:space:]]*=[[:space:]]*\"\)[^\"]*|\1${next_version}|" version/version.go
           fi
           # Set the VersionPrerelease variable back to dev.
-          sed -i.bak -e "s|\(VersionPrerelease * = *\"\)[^\"]*|\1dev|g" version/version.go
+          sed -i.bak -e "s|^\([[:space:]]*VersionPrerelease[[:space:]]*=[[:space:]]*\"\)[^\"]*|\1dev|" version/version.go
           rm -rf version/version.go.bak
           git diff --color=always version/version.go
 
