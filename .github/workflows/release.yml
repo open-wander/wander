@@ -106,14 +106,13 @@ jobs:
           fi
           git diff --color=always CHANGELOG.md
 
-      - name: Commit and push changes
+      - name: Commit release changes
         id: commit-change-push
         run: |
           git add -A .
           find . -name '*.generated.go' -not -path './vendor/*' -exec git add -f '{}' \;
           if ! git diff-index --quiet HEAD --; then
             git commit --message "Generate files for ${RELEASE_VERSION} release"
-            git push origin "$(git rev-parse --abbrev-ref HEAD)"
             echo "committing generated files"
           else
             echo "no files were updated"
@@ -158,10 +157,10 @@ jobs:
           git add -A .
           if ! git diff-index --quiet HEAD --; then
             git commit --message 'Prepare for next release'
-            git push origin "$(git rev-parse --abbrev-ref HEAD)"
           else
             echo "no files were updated"
           fi
+          git push origin "$(git rev-parse --abbrev-ref HEAD)"
 
   build-release:
     needs: prepare-release
