@@ -141,9 +141,10 @@ jobs:
 
   build-linux:
     needs: [get-go-version, get-product-version]
-    # Keep the cross-compiler package set stable instead of following
-    # ubuntu-latest migrations.
+    # Compile against the inherited release baseline's pre-glibc-2.34 ABI so
+    # cgo-enabled binaries remain runnable on the minimum supported OS.
     runs-on: ubuntu-22.04
+    container: ubuntu:20.04@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214
     strategy:
       matrix:
         goos: [linux]
@@ -153,6 +154,22 @@ jobs:
     name: Go ${{ needs.get-go-version.outputs.go-version }} ${{ matrix.goos }} ${{ matrix.goarch }} build
 
     steps:
+      - name: Install Linux build utilities
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y \
+            ca-certificates \
+            curl \
+            gcc \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf \
+            git \
+            make \
+            unzip \
+            zip
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.build-ref }}
@@ -160,30 +177,6 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
-
-      - name: Build dependencies
-        run: make deps
-
-      - name: Install templ
-        run: go install github.com/a-h/templ/cmd/templ@v0.3.977
-
-      - name: Generate UI assets
-        run: |
-          cd ui
-          npm ci
-          make install-tailwind build-css
-          templ generate
-
-      - name: Install Linux build utilties
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo apt-get update
-          sudo apt-get install -y \
-            binutils-aarch64-linux-gnu \
-            binutils-arm-linux-gnueabihf \
-            gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabihf
 
       - name: Set gcc
         run: |
