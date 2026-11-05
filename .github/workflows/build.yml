@@ -178,6 +178,11 @@ jobs:
         with:
           go-version: ${{ needs.get-go-version.outputs.go-version }}
 
+      - name: Generate UI templates
+        run: |
+          make templ-deps
+          make ui-generate
+
       - name: Set gcc
         run: |
           if [ "${{ matrix.goarch }}" == "arm" ]; then
