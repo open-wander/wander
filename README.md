@@ -7,7 +7,13 @@ Wander is a simple and flexible workload orchestrator to deploy and manage conta
 
 Wander is supported on Linux, Windows, and macOS.
 
-> **Note for Nomad users:** Wander is forked from an earlier version of HashiCorp Nomad. Direct migration from an existing Nomad installation is not supported. To use Wander, you'll need to deploy fresh clusters and redeploy your workloads.
+> **Note for Nomad users:** Wander 0.1.0 is intended to be a drop-in
+> replacement for the open-source HashiCorp Nomad 1.6.5 server and client
+> binaries. The release process tests clean installation, rolling server
+> replacement, state preservation, rollback, and workload continuity from that
+> exact version. Back up cluster state before migrating. Clusters using newer
+> Nomad versions, Enterprise-only features, or behavior outside the documented
+> 1.6.5 compatibility boundary are not supported migration sources.
 
 * Website: https://openwander.org
 * Tutorials: [Wander Tutorials](https://openwander.org/wander/tutorials)
