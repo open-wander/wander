@@ -150,6 +150,7 @@ func TestStateStore_UpsertPlanResults_AllocationsCreated_Denormalized(t *testing
 	out, err := state.AllocByID(ws, alloc.ID)
 	assert.Nil(err)
 	assert.Equal(alloc, out)
+	assert.NotSame(job, out.Job)
 
 	index, err := state.Index("allocs")
 	assert.Nil(err)

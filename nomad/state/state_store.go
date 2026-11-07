@@ -467,6 +467,7 @@ func (s *StateStore) UpsertPlanResults(msgType structs.MessageType, index uint64
 
 	// handle upgrade path
 	for _, alloc := range allocsToUpsert {
+		alloc.Job = alloc.Job.Copy()
 		alloc.Canonicalize()
 	}
 
