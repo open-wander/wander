@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -116,7 +117,7 @@ func startTestCluster(t *testing.T) (string, func()) {
 	binary := buildTestBinary(t)
 	requireAgentPortsAvailable(t)
 
-	dataDir := filepath.Join(t.TempDir(), "cluster")
+	dataDir := testClusterDataDir(t, "cluster")
 	startTestAgent(t, binary, "-dev", "-bind=127.0.0.1", "-data-dir="+dataDir, "-log-level=WARN")
 
 	address := "http://127.0.0.1:4646"
@@ -144,6 +145,24 @@ func startTestCluster(t *testing.T) (string, func()) {
 	return address, func() {}
 }
 
+func testClusterDataDir(t *testing.T, name string) string {
+	t.Helper()
+
+	if runtime.GOOS != "darwin" {
+		return filepath.Join(t.TempDir(), name)
+	}
+
+	// Darwin limits Unix socket paths to 104 bytes. Allocation task API
+	// sockets exceed that limit when the cluster uses the default macOS test
+	// directory under /var/folders.
+	root, err := os.MkdirTemp("/tmp", "we-")
+	if err != nil {
+		t.Fatalf("create short E2E data directory: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	return root
+}
+
 func registerJobKindFixtures(t *testing.T, binary, address string) {
 	t.Helper()
 	for _, fixture := range []string{
@@ -167,7 +186,7 @@ ports {
   rpc  = 5647
   serf = 5648
 }
-`, regionSmokeName, filepath.Join(t.TempDir(), "region-cluster"))
+`, regionSmokeName, testClusterDataDir(t, "region-cluster"))
 	configPath := filepath.Join(t.TempDir(), "region.hcl")
 	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		t.Fatalf("write disposable region configuration: %v", err)
@@ -446,7 +465,7 @@ func TestACLMutations(t *testing.T) {
 
 	binary := buildTestBinary(t)
 	address := "http://127.0.0.1:4646"
-	startTestAgent(t, binary, "-dev", "-acl-enabled", "-bind=127.0.0.1", "-data-dir="+filepath.Join(t.TempDir(), "acl-cluster"), "-log-level=WARN")
+	startTestAgent(t, binary, "-dev", "-acl-enabled", "-bind=127.0.0.1", "-data-dir="+testClusterDataDir(t, "acl-cluster"), "-log-level=WARN")
 	waitForCluster(t, address)
 
 	bootstrap := exec.Command(binary, "acl", "bootstrap", "-json")
@@ -761,7 +780,7 @@ func TestTLSTransports(t *testing.T) {
 	t.Setenv("WANDER_ADDR", address)
 	t.Setenv("WANDER_CACERT", caFile)
 	binary := buildTestBinary(t)
-	startTestAgent(t, binary, "-dev", "-bind=127.0.0.1", "-config="+configPath, "-data-dir="+filepath.Join(t.TempDir(), "tls-cluster"), "-log-level=WARN")
+	startTestAgent(t, binary, "-dev", "-bind=127.0.0.1", "-config="+configPath, "-data-dir="+testClusterDataDir(t, "tls-cluster"), "-log-level=WARN")
 	waitForClusterWithClient(t, address, client)
 
 	registerSmokeJob(t, binary, address, "", client)
