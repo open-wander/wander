@@ -200,7 +200,7 @@ func (h *AllocationLogsHandler) StreamLogs(w http.ResponseWriter, r *http.Reques
 	sse, err := NewSSEHandler(w, r)
 	if err != nil {
 		h.handler.logger.Error("failed to create SSE handler", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Unable to start the log stream", http.StatusInternalServerError)
 		return
 	}
 	defer sse.Close()
@@ -285,7 +285,7 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 	if err != nil {
 		h.handler.logger.Error("failed to fetch allocation for log streaming", "allocID", allocID, "error", err)
 		sse.WriteJSON("error", map[string]string{
-			"message": "Failed to fetch allocation: " + err.Error(),
+			"message": "Unable to fetch the allocation for log streaming",
 		})
 		return
 	}
@@ -363,7 +363,7 @@ func (h *AllocationLogsHandler) streamLogsFromNomad(sse *SSEHandler, r *http.Req
 			if event.err != nil {
 				h.handler.logger.Error("log stream error from Wander", "allocID", allocID, "type", event.logType, "error", event.err)
 				sse.WriteJSON("error", map[string]string{
-					"message": event.err.Error(),
+					"message": "The allocation log stream ended unexpectedly",
 				})
 				return
 			}

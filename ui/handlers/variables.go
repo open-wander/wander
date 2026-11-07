@@ -434,7 +434,7 @@ func (h *VariablesHandler) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Variable already exists; reload the variable list before continuing", http.StatusConflict)
 			return
 		}
-		http.Error(w, "Failed to create variable: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "The cluster rejected the variable creation", http.StatusBadRequest)
 		return
 	}
 
@@ -592,7 +592,7 @@ func (h *VariablesHandler) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Variable changed since this page was loaded; reload and review the latest version before saving", http.StatusConflict)
 			return
 		}
-		http.Error(w, "Failed to update variable: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "The cluster rejected the variable update", http.StatusBadRequest)
 		return
 	}
 
@@ -663,7 +663,7 @@ func (h *VariablesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Variable changed since this page was loaded; reload and review the latest version before deleting", http.StatusConflict)
 			return
 		}
-		http.Error(w, "Failed to delete variable: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "The cluster rejected the variable deletion", http.StatusBadRequest)
 		return
 	}
 

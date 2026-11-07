@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultUIContentSecurityPolicy = "default-src 'none'; connect-src *; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; form-action 'none'; frame-ancestors 'none'"
+const defaultUIContentSecurityPolicy = "default-src 'none'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; form-action 'none'; frame-ancestors 'none'"
 
 func TestUIRuntimeContract(t *testing.T) {
 	t.Run("enabled by default with embedded assets", func(t *testing.T) {

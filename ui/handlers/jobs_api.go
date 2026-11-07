@@ -313,7 +313,7 @@ func (h *JobsAPIHandler) ScaleTaskGroup(w http.ResponseWriter, r *http.Request, 
 	resp, _, err := client.Jobs().Scale(jobName, taskGroup, req.Count, req.Message, req.Error, req.Meta, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to scale task group", "error", err, "jobID", jobName, "namespace", namespace, "taskGroup", taskGroup)
-		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Failed to scale task group: `+err.Error()+`", "type": "error"}}`)
+		setToast(w, "The cluster rejected the task-group scale request", "error")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

@@ -294,7 +294,7 @@ func (h *JobsHandler) RunPage(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.handler.logger.Warn("failed to load job template", "error", err, "template", selectedTemplate, "namespace", namespace)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, "Unable to load the selected job template", http.StatusBadRequest)
 			return
 		}
 		initialDefinition = definition
@@ -2101,7 +2101,7 @@ func (h *JobsHandler) RunJob(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(RunJobResponse{
-			Error: fmt.Sprintf("Failed to register job: %s", err.Error()),
+			Error: "The cluster rejected the job registration request",
 		})
 		return
 	}

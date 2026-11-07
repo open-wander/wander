@@ -108,7 +108,7 @@ func (h *ClientsAPIHandler) ToggleEligibility(w http.ResponseWriter, r *http.Req
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(ToggleEligibilityResponse{
-			Error: err.Error(),
+			Error: "The cluster rejected the eligibility update",
 		})
 		return
 	}

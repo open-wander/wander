@@ -340,7 +340,7 @@ func (h *PoliciesHandler) updatePolicy(w http.ResponseWriter, r *http.Request, p
 	_, err := client.ACLPolicies().Upsert(policy, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to upsert policy", "error", err, "policy", policyName)
-		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Failed to update policy: `+err.Error()+`", "type": "error"}}`)
+		setToast(w, "The cluster rejected the policy update", "error")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -390,7 +390,7 @@ func (h *PoliciesHandler) deletePolicy(w http.ResponseWriter, r *http.Request, p
 	_, err := client.ACLPolicies().Delete(policyName, writeOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to delete policy", "error", err, "policy", policyName)
-		w.Header().Set("HX-Trigger", `{"showToast": {"message": "Failed to delete policy: `+err.Error()+`", "type": "error"}}`)
+		setToast(w, "The cluster rejected the policy deletion", "error")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

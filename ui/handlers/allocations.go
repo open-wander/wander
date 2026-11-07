@@ -1481,7 +1481,8 @@ func (h *AllocationsHandler) FilesStreamHandler(w http.ResponseWriter, r *http.R
 
 	sse, err := NewSSEHandler(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.handler.logger.Error("failed to create allocation file stream", "allocID", allocID, "path", path, "error", err)
+		http.Error(w, "Unable to start the file stream", http.StatusInternalServerError)
 		return
 	}
 	defer sse.Close()
@@ -1985,7 +1986,7 @@ func (h *AllocationsHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	stopResp, err := client.Allocations().Stop(alloc, queryOpts)
 	if err != nil {
 		h.handler.logger.Error("failed to stop allocation", "allocID", allocID, "error", err)
-		w.Header().Set("HX-Trigger", `{"showToast": {"variant": "error", "title": "Stop Failed", "message": "Failed to stop allocation: `+err.Error()+`", "duration": 5000}}`)
+		setToast(w, "The cluster rejected the allocation stop request", "error")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

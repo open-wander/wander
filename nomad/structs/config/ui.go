@@ -102,7 +102,7 @@ func (csp *ContentSecurityPolicy) Merge(other *ContentSecurityPolicy) *ContentSe
 
 func DefaultCSPConfig() *ContentSecurityPolicy {
 	return &ContentSecurityPolicy{
-		ConnectSrc:     []string{"*"},
+		ConnectSrc:     []string{"'self'"},
 		DefaultSrc:     []string{"'none'"},
 		FormAction:     []string{"'none'"},
 		FrameAncestors: []string{"'none'"},

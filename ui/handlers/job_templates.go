@@ -67,7 +67,8 @@ func (h *JobTemplatesHandler) list(w http.ResponseWriter, r *http.Request, manag
 		if h.handler.CheckClusterError(w, r, err) {
 			return
 		}
-		http.Error(w, "Failed to fetch job templates: "+err.Error(), http.StatusInternalServerError)
+		h.handler.logger.Error("failed to fetch job templates", "namespace", namespace, "error", err)
+		http.Error(w, "Unable to fetch job templates", http.StatusInternalServerError)
 		return
 	}
 
@@ -136,7 +137,8 @@ func (h *JobTemplatesHandler) create(w http.ResponseWriter, r *http.Request) {
 		Items:     api.VariableItems{"template": definition},
 	}, &api.WriteOptions{Namespace: namespace, AuthToken: GetTokenFromRequest(r)})
 	if err != nil {
-		http.Error(w, "Failed to create job template: "+err.Error(), http.StatusBadRequest)
+		h.handler.logger.Error("failed to create job template", "namespace", namespace, "path", path, "error", err)
+		http.Error(w, "The cluster rejected the job template creation", http.StatusBadRequest)
 		return
 	}
 	h.redirect(w, r, namespaceURL("/ui/jobs/run?template="+url.QueryEscape(templateName(created.Path)), created.Namespace), http.StatusCreated)
@@ -172,7 +174,8 @@ func (h *JobTemplatesHandler) update(w http.ResponseWriter, r *http.Request) {
 	query := &api.QueryOptions{Namespace: namespace, AuthToken: GetTokenFromRequest(r)}
 	existing, _, err := client.Variables().Read(path, query)
 	if err != nil {
-		http.Error(w, "Failed to read job template: "+err.Error(), http.StatusNotFound)
+		h.handler.logger.Error("failed to read job template", "namespace", namespace, "path", path, "error", err)
+		http.Error(w, "The job template was not found", http.StatusNotFound)
 		return
 	}
 	items := existing.Items
@@ -184,7 +187,8 @@ func (h *JobTemplatesHandler) update(w http.ResponseWriter, r *http.Request) {
 		Namespace: namespace, Path: path, Items: items, ModifyIndex: existing.ModifyIndex,
 	}, &api.WriteOptions{Namespace: namespace, AuthToken: GetTokenFromRequest(r)})
 	if err != nil {
-		http.Error(w, "Failed to update job template: "+err.Error(), http.StatusBadRequest)
+		h.handler.logger.Error("failed to update job template", "namespace", namespace, "path", path, "error", err)
+		http.Error(w, "The cluster rejected the job template update", http.StatusBadRequest)
 		return
 	}
 	h.redirect(w, r, namespaceURL("/ui/jobs/run/templates/manage", namespace), http.StatusOK)
@@ -209,7 +213,8 @@ func (h *JobTemplatesHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := client.Variables().Delete(path, &api.WriteOptions{Namespace: namespace, AuthToken: GetTokenFromRequest(r)}); err != nil {
-		http.Error(w, "Failed to delete job template: "+err.Error(), http.StatusBadRequest)
+		h.handler.logger.Error("failed to delete job template", "namespace", namespace, "path", path, "error", err)
+		http.Error(w, "The cluster rejected the job template deletion", http.StatusBadRequest)
 		return
 	}
 	h.redirect(w, r, namespaceURL("/ui/jobs/run/templates/manage", namespace), http.StatusOK)

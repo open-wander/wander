@@ -511,7 +511,7 @@ func (h *ClientsHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) 
 		h.handler.logger.Error("failed to update client metadata", "clientID", clientID, "operation", operation, "key", key, "error", err)
 		switch {
 		case apiResponseHasStatus(err, http.StatusBadRequest):
-			http.Error(w, "Invalid metadata: "+err.Error(), http.StatusBadRequest)
+			http.Error(w, "The metadata update was invalid", http.StatusBadRequest)
 		case apiResponseHasStatus(err, http.StatusForbidden):
 			http.Error(w, "Permission denied: node:write is required", http.StatusForbidden)
 		case apiResponseHasStatus(err, http.StatusNotFound):

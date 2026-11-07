@@ -200,7 +200,8 @@ func (h *Handler) streamAgentMonitor(w http.ResponseWriter, r *http.Request, cli
 
 	sse, err := NewSSEHandler(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.logger.Error("failed to create agent monitor stream", "targetType", targetType, "targetID", targetID, "error", err)
+		http.Error(w, "Unable to start the agent monitor", http.StatusInternalServerError)
 		return
 	}
 	defer sse.Close()
@@ -230,7 +231,8 @@ func (h *Handler) streamAgentMonitor(w http.ResponseWriter, r *http.Request, cli
 			if streamErr == nil || streamErr == io.EOF || r.Context().Err() != nil {
 				return
 			}
-			_ = sse.WriteJSON("error", map[string]string{"message": streamErr.Error()})
+			h.logger.Error("agent monitor stream failed", "targetType", targetType, "targetID", targetID, "error", streamErr)
+			_ = sse.WriteJSON("error", map[string]string{"message": "The agent monitor stream ended unexpectedly"})
 			return
 		}
 	}
