@@ -176,11 +176,23 @@ func skip(p string) bool {
 	return false
 }
 
+func generatedReleaseNoticePath(path string) bool {
+	parts := strings.Split(filepath.ToSlash(filepath.Clean(path)), "/")
+	return len(parts) >= 3 && parts[0] == "pkg" && parts[2] == ".release-notices"
+}
+
 func inCode(root string) ([]string, error) {
 	pkgs := set.NewTreeSet[string, set.Compare[string]](set.Cmp[string])
 
 	err := filepath.Walk(root, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if info.IsDir() {
+			if generatedReleaseNoticePath(path) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
