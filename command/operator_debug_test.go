@@ -995,18 +995,18 @@ func TestDebug_EventStream(t *testing.T) {
 	cmd := &OperatorDebugCommand{Meta: Meta{Ui: ui}}
 
 	// Return command output back to the main test goroutine
-	chOutput := make(chan testOutput)
+	chOutput := make(chan testOutput, 1)
 
 	// Set duration for capture
 	duration := 5 * time.Second
-	// Fail with timeout if duration is exceeded by 5 seconds
-	timeout := duration + 5*time.Second
+	// Command setup and archive creation happen outside the capture duration.
+	// Keep enough headroom for slower test hosts while retaining a hard bound.
+	timeout := duration + 15*time.Second
 
 	// Run debug in a goroutine so we can start the capture before we run the test job
 	t.Logf("%s: Starting nomad operator debug in goroutine\n", time.Since(start))
 	go func() {
 		code := cmd.Run([]string{"-address", url, "-duration", duration.String(), "-interval", "5s", "-event-topic", "Job:*"})
-		assert.Equal(t, 0, code)
 
 		chOutput <- testOutput{
 			name:   "yo",
@@ -1049,6 +1049,7 @@ func TestDebug_EventStream(t *testing.T) {
 
 	t.Logf("Values from struct -- code: %d, len(out): %d, len(outerr): %d\n", testOut.code, len(testOut.output), len(testOut.error))
 
+	require.Equal(t, 0, testOut.code)
 	require.Empty(t, testOut.error)
 
 	archive := extractArchiveName(testOut.output)

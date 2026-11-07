@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -62,6 +63,7 @@ type OperatorDebugCommand struct {
 	verbose            bool
 	members            *api.ServerMembers
 	nodes              []*api.NodeListStub
+	background         sync.WaitGroup
 }
 
 const (
@@ -472,7 +474,8 @@ func (c *OperatorDebugCommand) Run(args []string) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.ctx = ctx
 	c.cancel = cancel
-	c.trap()
+	stopTrap := c.trap()
+	defer stopTrap()
 
 	// Generate timestamped file name
 	format := "2006-01-02-150405Z"
@@ -728,6 +731,7 @@ func (c *OperatorDebugCommand) collect(client *api.Client) error {
 	c.collectPeriodicPprofs(client)
 
 	c.collectPeriodic(client)
+	c.background.Wait()
 
 	return nil
 }
@@ -755,11 +759,19 @@ func (c *OperatorDebugCommand) mkdir(paths ...string) error {
 // startMonitors starts go routines for each node and client
 func (c *OperatorDebugCommand) startMonitors(client *api.Client) {
 	for _, id := range c.nodeIDs {
-		go c.startMonitor(clientDir, "node_id", id, client)
+		c.background.Add(1)
+		go func() {
+			defer c.background.Done()
+			c.startMonitor(clientDir, "node_id", id, client)
+		}()
 	}
 
 	for _, id := range c.serverIDs {
-		go c.startMonitor(serverDir, "server_id", id, client)
+		c.background.Add(1)
+		go func() {
+			defer c.background.Done()
+			c.startMonitor(serverDir, "server_id", id, client)
+		}()
 	}
 }
 
@@ -786,13 +798,19 @@ func (c *OperatorDebugCommand) startMonitor(path, idKey, nodeID string, client *
 	outCh, errCh := client.Agent().Monitor(c.ctx.Done(), &qo)
 	for {
 		select {
-		case out := <-outCh:
+		case out, ok := <-outCh:
+			if !ok {
+				return
+			}
 			if out == nil {
 				continue
 			}
 			fh.Write(out.Data)
 
-		case err := <-errCh:
+		case err, ok := <-errCh:
+			if !ok {
+				return
+			}
 			fh.WriteString(fmt.Sprintf("monitor: %s\n", err.Error()))
 			return
 
@@ -806,7 +824,9 @@ func (c *OperatorDebugCommand) startMonitor(path, idKey, nodeID string, client *
 func (c *OperatorDebugCommand) startEventStream(client *api.Client) {
 	c.verboseOut("Launching eventstream goroutine...")
 
+	c.background.Add(1)
 	go func() {
+		defer c.background.Done()
 		if err := c.captureEventStream(client); err != nil {
 			var es string
 			if mErr, ok := err.(*multierror.Error); ok {
@@ -856,7 +876,10 @@ func (c *OperatorDebugCommand) captureEventStream(client *api.Client) error {
 
 	for {
 		select {
-		case event := <-eventCh:
+		case event, ok := <-eventCh:
+			if !ok {
+				return mErrs.ErrorOrNil()
+			}
 			channelEventCount++
 			if event.Err != nil {
 				errCount++
@@ -971,7 +994,9 @@ func (c *OperatorDebugCommand) collectPeriodicPprofs(client *api.Client) {
 	}
 
 	// ... and then move the rest off into a goroutine
+	c.background.Add(1)
 	go func() {
+		defer c.background.Done()
 		ctx, cancel := context.WithTimeout(c.ctx, c.duration)
 		defer cancel()
 		timer, stop := helper.NewSafeTimer(c.pprofInterval)
@@ -1579,8 +1604,9 @@ func (c *OperatorDebugCommand) writeManifest() error {
 }
 
 // trap captures signals, and closes stopCh
-func (c *OperatorDebugCommand) trap() {
+func (c *OperatorDebugCommand) trap() func() {
 	sigCh := make(chan os.Signal, 1)
+	done := make(chan struct{})
 	signal.Notify(sigCh,
 		syscall.SIGHUP,
 		syscall.SIGINT,
@@ -1588,9 +1614,17 @@ func (c *OperatorDebugCommand) trap() {
 		syscall.SIGQUIT)
 
 	go func() {
-		<-sigCh
-		c.cancel()
+		select {
+		case <-sigCh:
+			c.cancel()
+		case <-done:
+		}
 	}()
+
+	return func() {
+		signal.Stop(sigCh)
+		close(done)
+	}
 }
 
 func (c *OperatorDebugCommand) verboseOut(out string) {
