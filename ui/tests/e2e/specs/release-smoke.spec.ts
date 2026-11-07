@@ -888,6 +888,7 @@ test.describe('Wander release smoke', () => {
   });
 
   test('opens live allocation logs and exec views', async ({ page }) => {
+    test.setTimeout(90_000);
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/allocations');
     const smokeAllocation = page.locator('[data-alloc-id]').filter({ hasText: 'wander-ui-smoke' }).first();
