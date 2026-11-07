@@ -50,7 +50,7 @@ PROTO_COMPARE_TAG ?= fork-point
 
 # LAST_RELEASE is the git sha of the latest release corresponding to this branch. main should have the latest
 # published release, and release branches should point to the latest published release in the X.Y release line.
-LAST_RELEASE ?= v1.6.5
+LAST_RELEASE ?= v0.1.0
 
 default: help
 
