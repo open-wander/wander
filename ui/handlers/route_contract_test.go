@@ -268,6 +268,16 @@ func TestUnknownRoutesReturnNotFound(t *testing.T) {
 	})
 }
 
+func TestEditionOnlyRoutesRemainAbsent(t *testing.T) {
+	router := NewRouter(NewHandler(nil))
+	assertRoutesHaveStatus(t, router, http.MethodGet, http.StatusNotFound, []string{
+		"/ui/optimize",
+		"/ui/recommendations",
+		"/ui/namespaces/new",
+		"/ui/namespaces/default/edit",
+	})
+}
+
 func TestMissingDynamicResourcesHaveTruthfulStatus(t *testing.T) {
 	router, closeBackend := newRouteContractRouter(t)
 	defer closeBackend()
