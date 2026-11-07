@@ -509,6 +509,22 @@ jobs:
           name: metadata.json
           path: dist
           merge-multiple: true
+      - name: Normalize release asset names
+        shell: bash
+        run: |
+          while IFS= read -r -d '' source; do
+            target=${source//\~/.}
+            if [[ -e "$target" ]]; then
+              echo "::error::Cannot normalize $source because $target already exists"
+              exit 1
+            fi
+            mv -- "$source" "$target"
+          done < <(find dist -type f -name '*~*' -print0)
+
+          if find dist -type f -name '*~*' -print -quit | grep -q .; then
+            echo "::error::Release asset names still contain unsupported '~' characters"
+            exit 1
+          fi
       - name: Generate release SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
