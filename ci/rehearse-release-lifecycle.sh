@@ -14,6 +14,10 @@ fi
 rehearsal_dir=$(mktemp -d)
 base_port=${WANDER_REHEARSAL_BASE_PORT:-$((20000 + ($$ % 10000)))}
 declare -a agent_pids=("" "" "")
+curl_fail_flag=--fail
+if curl --help all 2>/dev/null | grep -q -- '--fail-with-body'; then
+  curl_fail_flag=--fail-with-body
+fi
 
 stop_node() {
   local index=$1
@@ -235,7 +239,7 @@ start_cluster() {
 put_marker() {
   local marker=$1
   local response
-  if ! response=$(curl --connect-timeout 1 --max-time 5 --fail-with-body --silent --show-error \
+  if ! response=$(curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
     --request PUT \
     --header 'Content-Type: application/json' \
     --data "{\"Items\":{\"marker\":\"${marker}\"}}" \
@@ -247,7 +251,7 @@ put_marker() {
 
 require_marker() {
   local marker=$1
-  curl --connect-timeout 1 --max-time 5 --fail-with-body --silent --show-error \
+  curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
     "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state" | \
     grep -q "\"marker\":\"${marker}\""
 }
