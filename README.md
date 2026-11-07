@@ -49,6 +49,9 @@ See [Wander Reference Architecture](https://openwander.org/wander/docs/operation
 
 Full, comprehensive documentation is available on the Wander website: https://openwander.org/wander/docs
 
+Operators preparing a 0.1.x installation or Nomad 1.6.5 migration should also
+read the [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md).
+
 ## Companion Tools
 
 * **Ramble** - Package manager for Wander, providing templated job definitions. Works with both Wander and HashiCorp Nomad. See [github.com/open-wander/ramble](https://github.com/open-wander/ramble).
