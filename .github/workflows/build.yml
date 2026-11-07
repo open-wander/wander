@@ -501,6 +501,12 @@ jobs:
           ref: ${{ inputs.build-ref }}
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
+          pattern: wander*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: metadata.json
           path: dist
           merge-multiple: true
       - name: Generate release SBOM
