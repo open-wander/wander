@@ -240,6 +240,22 @@ jobs:
           cp "$notice_dir/THIRD_PARTY_NOTICES.md" "$doc_dir/"
           cp -R "$notice_dir/licenses" "$doc_dir/"
 
+      - name: Install GitHub CLI for native packaging
+        env:
+          GH_CLI_VERSION: 2.103.3
+          GH_CLI_SHA256: 4c806978ffce1cec70853302a56d70ac6da4f19bae7adca4e1a8ab00633dd91d
+        run: |
+          archive="gh_${GH_CLI_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "/tmp/${archive}" \
+            "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/${archive}"
+          echo "${GH_CLI_SHA256}  /tmp/${archive}" | sha256sum --check
+          tar -xzf "/tmp/${archive}" -C /tmp
+          install -m 0755 \
+            "/tmp/gh_${GH_CLI_VERSION}_linux_amd64/bin/gh" \
+            /usr/local/bin/gh
+          gh --version
+
       - name: Build native packages
         uses: hashicorp/actions-packaging-linux@006298649be64cee63e7f94a54dfcf3e14766bf6 # v1
         with:
