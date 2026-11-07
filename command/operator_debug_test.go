@@ -4,6 +4,8 @@
 package command
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -1071,4 +1073,36 @@ func extractArchiveName(captureOutput string) string {
 	}
 
 	return file
+}
+
+func TestTarCZF_RootScopedFiles(t *testing.T) {
+	src := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(src, "nested"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "nested", "capture.txt"), []byte("capture"), 0o600))
+
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("outside"), 0o600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(src, "outside-link")))
+
+	archive := filepath.Join(t.TempDir(), "debug.tar.gz")
+	require.NoError(t, TarCZF(archive, src, "debug"))
+
+	f, err := os.Open(archive)
+	require.NoError(t, err)
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	require.NoError(t, err)
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	header, err := tr.Next()
+	require.NoError(t, err)
+	require.Equal(t, "debug/nested/capture.txt", header.Name)
+	contents, err := io.ReadAll(tr)
+	require.NoError(t, err)
+	require.Equal(t, "capture", string(contents))
+
+	_, err = tr.Next()
+	require.ErrorIs(t, err, io.EOF)
 }

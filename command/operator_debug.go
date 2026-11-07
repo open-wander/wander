@@ -1641,10 +1641,11 @@ func (c *OperatorDebugCommand) verboseOutf(format string, a ...interface{}) {
 // archive from a directory. If not empty, all files in the bundle are prefixed
 // with the target path.
 func TarCZF(archive string, src, target string) error {
-	// ensure the src actually exists before trying to tar it
-	if _, err := os.Stat(src); err != nil {
+	root, err := os.OpenRoot(src)
+	if err != nil {
 		return fmt.Errorf("Unable to tar files - %v", err.Error())
 	}
+	defer root.Close()
 
 	// create the archive
 	fh, err := os.Create(archive)
@@ -1676,32 +1677,36 @@ func TarCZF(archive string, src, target string) error {
 			return err
 		}
 
-		// remove leading path to the src, so files are relative to the archive
-		path := strings.ReplaceAll(file, src, "")
+		// Remove the source prefix so files are relative to the archive. Open the
+		// file through the source root so a concurrent symlink swap cannot escape
+		// the capture directory.
+		path, err := filepath.Rel(src, file)
+		if err != nil {
+			return err
+		}
+		rootPath := path
 		if target != "" {
 			path = filepath.Join([]string{target, path}...)
 		}
-		path = strings.TrimPrefix(path, string(filepath.Separator))
 
-		header.Name = path
+		header.Name = filepath.ToSlash(path)
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
 		}
 
 		// copy the file contents
-		f, err := os.Open(file)
+		f, err := root.Open(rootPath)
 		if err != nil {
 			return err
 		}
 
-		if _, err := io.Copy(tw, f); err != nil {
-			return err
+		_, copyErr := io.Copy(tw, f)
+		closeErr := f.Close()
+		if copyErr != nil {
+			return copyErr
 		}
-
-		f.Close()
-
-		return nil
+		return closeErr
 	})
 }
 

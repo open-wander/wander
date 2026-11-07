@@ -138,6 +138,15 @@ topology_request {
 		},
 		err: "",
 	}, {
+		name: "capacity exceeds int64",
+		hcl: `
+id           = "too-large"
+type         = "csi"
+capacity_min = "9223372036854775808 B"
+`,
+		expected: nil,
+		err:      "capacity exceeds maximum supported size",
+	}, {
 		name: "volume registration",
 		hcl: `
 id              = "testvolume"

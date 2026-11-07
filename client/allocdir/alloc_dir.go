@@ -145,6 +145,11 @@ func (d *AllocDir) NewTaskDir(name string) *TaskDir {
 func (d *AllocDir) Snapshot(w io.Writer) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	root, err := os.OpenRoot(d.AllocDir)
+	if err != nil {
+		return fmt.Errorf("failed to open allocation directory: %v", err)
+	}
+	defer root.Close()
 
 	allocDataDir := filepath.Join(d.SharedDir, SharedDataDir)
 	rootPaths := []string{allocDataDir}
@@ -189,16 +194,17 @@ func (d *AllocDir) Snapshot(w io.Writer) error {
 		}
 
 		// Write the file into the archive
-		file, err := os.Open(path)
+		file, err := root.Open(relPath)
 		if err != nil {
 			return err
 		}
-		defer file.Close()
 
-		if _, err := io.Copy(tw, file); err != nil {
-			return err
+		_, copyErr := io.Copy(tw, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
 		}
-		return nil
+		return closeErr
 	}
 
 	// Walk through all the top level directories and add the files and

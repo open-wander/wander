@@ -156,7 +156,7 @@ func getClaim(all map[string]interface{}, claim string) interface{} {
 // - bool         => "true" / "false"
 // - json.Number  => String()
 // - float32/64   => truncated to int64 and then formatted as an ascii string
-// - intXX/uintXX => casted to int64 and then formatted as an ascii string
+// - intXX/uintXX => formatted as an ascii string without changing signedness
 //
 // If successful the string value and true are returned. otherwise an empty
 // string and false are returned.
@@ -195,9 +195,9 @@ func stringifyClaimValue(rawValue interface{}) (string, bool) {
 	case uint32:
 		return strconv.FormatInt(int64(v), 10), true
 	case uint64:
-		return strconv.FormatInt(int64(v), 10), true
+		return strconv.FormatUint(v, 10), true
 	case uint:
-		return strconv.FormatInt(int64(v), 10), true
+		return strconv.FormatUint(uint64(v), 10), true
 	default:
 		return "", false
 	}

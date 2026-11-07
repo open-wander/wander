@@ -4,12 +4,28 @@
 package auth
 
 import (
+	"math"
+	"strconv"
 	"testing"
 
 	"github.com/shoenig/test/must"
 
 	"github.com/open-wander/wander/nomad/structs"
 )
+
+func TestStringifyClaimValue_Unsigned(t *testing.T) {
+	t.Run("uint64", func(t *testing.T) {
+		got, ok := stringifyClaimValue(uint64(math.MaxUint64))
+		must.True(t, ok)
+		must.Eq(t, strconv.FormatUint(math.MaxUint64, 10), got)
+	})
+
+	t.Run("uint", func(t *testing.T) {
+		got, ok := stringifyClaimValue(^uint(0))
+		must.True(t, ok)
+		must.Eq(t, strconv.FormatUint(uint64(^uint(0)), 10), got)
+	})
+}
 
 func TestSelectorData(t *testing.T) {
 	cases := []struct {

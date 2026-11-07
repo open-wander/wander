@@ -103,6 +103,23 @@ job "example" {
 	}, job.Constraints)
 }
 
+func TestParse_AffinityWeightDoesNotOverflow(t *testing.T) {
+	ci.Parallel(t)
+
+	hcl := `
+job "example" {
+  affinity {
+    attribute = "${node.datacenter}"
+    value     = "dc1"
+    weight    = 156
+  }
+}
+`
+
+	_, err := Parse("input.hcl", strings.NewReader(hcl))
+	require.ErrorContains(t, err, "Affinity weight must be within the range [-100,100]")
+}
+
 func TestParse_VarsAndFunctions(t *testing.T) {
 	ci.Parallel(t)
 

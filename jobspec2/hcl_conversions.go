@@ -120,6 +120,14 @@ func decodeAffinity(body hcl.Body, ctx *hcl.EvalContext, val interface{}) hcl.Di
 	weight := v.GetAttr("weight")
 	if !weight.IsNull() {
 		w, _ := weight.AsBigFloat().Int64()
+		if w < -100 || w > 100 {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid affinity weight",
+				Detail:   "Affinity weight must be within the range [-100,100].",
+			})
+			return diags
+		}
 		a.Weight = pointer.Of(int8(w))
 	}
 

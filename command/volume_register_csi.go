@@ -5,6 +5,7 @@ package command
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	humanize "github.com/dustin/go-humanize"
@@ -181,7 +182,10 @@ func parseCapacityBytes(cap *ast.ObjectList) (int64, error) {
 			if err != nil {
 				return 0, fmt.Errorf("could not parse value as bytes: %v", err)
 			}
-			return int64(b), err
+			if b > math.MaxInt64 {
+				return 0, fmt.Errorf("capacity exceeds maximum supported size of %d bytes", int64(math.MaxInt64))
+			}
+			return int64(b), nil
 		}
 	}
 	return 0, nil
