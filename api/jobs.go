@@ -6,6 +6,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -217,6 +218,9 @@ func (j *Jobs) Info(jobID string, q *QueryOptions) (*Job, *QueryMeta, error) {
 // job given its unique ID.
 func (j *Jobs) Scale(jobID, group string, count *int, message string, error bool, meta map[string]interface{},
 	q *WriteOptions) (*JobRegisterResponse, *WriteMeta, error) {
+	if jobID == "" {
+		return nil, nil, newUnexpectedResponseError(fromStatusCode(http.StatusNotFound))
+	}
 
 	var count64 *int64
 	if count != nil {
