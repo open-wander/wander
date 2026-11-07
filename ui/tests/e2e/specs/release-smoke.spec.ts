@@ -118,6 +118,28 @@ async function openDialog(page: Page, triggerName: string, dialogName: string) {
   return dialog;
 }
 
+async function exerciseAgentMonitor(page: Page, route: RegExp, level: string, resume = false) {
+  await page.getByRole('link', { name: 'Monitor', exact: true }).click();
+  await expect(page).toHaveURL(route);
+  await expect(page.locator('[data-agent-monitor]')).toBeVisible();
+
+  const monitorState = page.locator('[data-monitor-state]');
+  const monitorToggle = page.locator('[data-monitor-toggle]');
+  await expect(monitorState).toHaveText('connected');
+  await expect(page.locator('[data-monitor-level]')).toHaveValue('info');
+  await page.locator('[data-monitor-level]').selectOption(level);
+  await expect(page).toHaveURL(new RegExp(`level=${level}`));
+  await expect(monitorState).toHaveText('connected');
+  await monitorToggle.click();
+  await expect(monitorState).toHaveText('paused');
+
+  if (resume) {
+    await expect(monitorToggle).toHaveText('Resume');
+    await monitorToggle.click();
+    await expect(monitorState).toHaveText('connected');
+  }
+}
+
 async function expectJobLifecycleFailure(
   page: Page,
   jobID: string,
@@ -828,24 +850,7 @@ test.describe('Wander release smoke', () => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/clients?region=global');
     await page.locator('[data-client-id] a[href^="/ui/clients/"]').first().click();
-    await page.getByRole('link', { name: 'Monitor', exact: true }).click();
-
-    await expect(page).toHaveURL(/\/ui\/clients\/[0-9a-f-]+\/monitor/);
-    await expect(page.locator('[data-agent-monitor]')).toBeVisible();
-    const monitorState = page.locator('[data-monitor-state]');
-    await expect(monitorState).toHaveText('connected');
-    await expect(page.locator('[data-monitor-level]')).toHaveValue('info');
-
-    await page.locator('[data-monitor-level]').selectOption('debug');
-    await expect(page).toHaveURL(/level=debug/);
-    await expect(monitorState).toHaveText('connected');
-
-    await page.locator('[data-monitor-toggle]').click();
-    await expect(monitorState).toHaveText('paused');
-    await expect(page.locator('[data-monitor-toggle]')).toHaveText('Resume');
-
-    await page.locator('[data-monitor-toggle]').click();
-    await expect(monitorState).toHaveText('connected');
+    await exerciseAgentMonitor(page, /\/ui\/clients\/[0-9a-f-]+\/monitor/, 'debug', true);
     expect(browserErrors).toEqual([]);
   });
 
@@ -870,20 +875,7 @@ test.describe('Wander release smoke', () => {
       await expect(copyButton).toContainText('Copied');
     }
 
-    await page.getByRole('link', { name: 'Monitor', exact: true }).click();
-
-    await expect(page).toHaveURL(/\/ui\/servers\/[^/]+\/monitor/);
-    await expect(page.locator('[data-agent-monitor]')).toBeVisible();
-    const monitorState = page.locator('[data-monitor-state]');
-    await expect(monitorState).toHaveText('connected');
-    await expect(page.locator('[data-monitor-level]')).toHaveValue('info');
-
-    await page.locator('[data-monitor-level]').selectOption('warn');
-    await expect(page).toHaveURL(/level=warn/);
-    await expect(monitorState).toHaveText('connected');
-
-    await page.locator('[data-monitor-toggle]').click();
-    await expect(monitorState).toHaveText('paused');
+    await exerciseAgentMonitor(page, /\/ui\/servers\/[^/]+\/monitor/, 'warn');
     expect(browserErrors).toEqual([]);
   });
 
