@@ -6959,13 +6959,15 @@ func TestServiceSched_CSIVolumesPerAlloc(t *testing.T) {
 	job.TaskGroups[0].Count = 5
 	require.NoError(h.State.UpsertJob(structs.MsgTypeTestSetup, h.NextIndex(), nil, job))
 
-	// Create a new eval and process it. It should not create a new plan.
+	// Create a new eval and process it. The existing allocations are updated
+	// in-place to the latest job version, while the two new allocations remain
+	// blocked until their per-allocation volumes exist.
 	eval.ID = uuid.Generate()
 	require.NoError(h.State.UpsertEvals(structs.MsgTypeTestSetup,
 		h.NextIndex(), []*structs.Evaluation{eval}))
 	err = h.Process(NewServiceScheduler, eval)
 	require.NoError(err)
-	require.Len(h.Plans, 1, "expected one plan")
+	require.Len(h.Plans, 2, "expected an in-place update plan")
 
 	// Expect the eval to have failed
 	require.NotEqual("", h.Evals[1].BlockedEval,
@@ -6982,21 +6984,21 @@ func TestServiceSched_CSIVolumesPerAlloc(t *testing.T) {
 	require.NoError(h.State.UpsertCSIVolume(
 		h.NextIndex(), []*structs.CSIVolume{vol4, vol5}))
 
-	// Process again with failure fixed. It should create a new plan
+	// Process again with failure fixed. It should create a new placement plan.
 	eval.ID = uuid.Generate()
 	require.NoError(h.State.UpsertEvals(structs.MsgTypeTestSetup,
 		h.NextIndex(), []*structs.Evaluation{eval}))
 	err = h.Process(NewServiceScheduler, eval)
 	require.NoError(err)
-	require.Len(h.Plans, 2, "expected two plans")
-	require.Nil(h.Plans[1].Annotations, "expected no annotations")
+	require.Len(h.Plans, 3, "expected three plans")
+	require.Nil(h.Plans[2].Annotations, "expected no annotations")
 
 	require.Equal("", h.Evals[2].BlockedEval, "did not expect a blocked eval")
 	require.Len(h.Evals[2].FailedTGAllocs, 0)
 
 	// Ensure the plan allocated and we got expected placements
 	planned = []*structs.Allocation{}
-	for _, allocList := range h.Plans[1].NodeAllocation {
+	for _, allocList := range h.Plans[2].NodeAllocation {
 		planned = append(planned, allocList...)
 	}
 	require.Len(planned, 2, "expected 2 new planned allocations")
