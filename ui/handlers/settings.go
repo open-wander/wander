@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/open-wander/wander/ui/templates/components"
@@ -196,7 +197,11 @@ func (h *SettingsHandler) UpdateToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func requestUsesTLS(r *http.Request) bool {
-	return r.TLS != nil
+	if r.TLS != nil {
+		return true
+	}
+	forwardedProto, _, _ := strings.Cut(r.Header.Get("X-Forwarded-Proto"), ",")
+	return strings.EqualFold(strings.TrimSpace(forwardedProto), "https")
 }
 
 func browserCookie(r *http.Request, name, value string, maxAge int, sameSite http.SameSite) *http.Cookie {

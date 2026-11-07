@@ -21,6 +21,10 @@ func TestRequestUsesTLS(t *testing.T) {
 		httpsRequest.TLS = &tls.ConnectionState{}
 	}
 	must.True(t, requestUsesTLS(httpsRequest))
+
+	forwardedRequest := httptest.NewRequest("GET", "http://wander.test/ui/settings", nil)
+	forwardedRequest.Header.Set("X-Forwarded-Proto", "https, http")
+	must.True(t, requestUsesTLS(forwardedRequest))
 }
 
 func TestBrowserCookieSecurityAttributes(t *testing.T) {
@@ -31,9 +35,13 @@ func TestBrowserCookieSecurityAttributes(t *testing.T) {
 	}{
 		{name: "http development", target: "http://wander.test/ui/settings"},
 		{name: "https", target: "https://wander.test/ui/settings", secure: true},
+		{name: "forwarded https", target: "http://wander.test/ui/settings", secure: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, test.target, nil)
+			if test.name == "forwarded https" {
+				request.Header.Set("X-Forwarded-Proto", "https")
+			}
 			cookie := browserCookie(request, WanderTokenCookie, "value", 60, http.SameSiteStrictMode)
 			must.Eq(t, test.secure, cookie.Secure)
 			must.True(t, cookie.HttpOnly)
