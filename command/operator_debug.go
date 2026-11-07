@@ -758,20 +758,20 @@ func (c *OperatorDebugCommand) mkdir(paths ...string) error {
 
 // startMonitors starts go routines for each node and client
 func (c *OperatorDebugCommand) startMonitors(client *api.Client) {
-	for _, id := range c.nodeIDs {
+	start := func(path, idKey, id string) {
 		c.background.Add(1)
 		go func() {
 			defer c.background.Done()
-			c.startMonitor(clientDir, "node_id", id, client)
+			c.startMonitor(path, idKey, id, client)
 		}()
 	}
 
+	for _, id := range c.nodeIDs {
+		start(clientDir, "node_id", id)
+	}
+
 	for _, id := range c.serverIDs {
-		c.background.Add(1)
-		go func() {
-			defer c.background.Done()
-			c.startMonitor(serverDir, "server_id", id, client)
-		}()
+		start(serverDir, "server_id", id)
 	}
 }
 
