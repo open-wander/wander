@@ -162,6 +162,7 @@ jobs:
           apt-get install -y \
             ca-certificates \
             curl \
+            file \
             gcc \
             gcc-aarch64-linux-gnu \
             gcc-arm-linux-gnueabihf \
