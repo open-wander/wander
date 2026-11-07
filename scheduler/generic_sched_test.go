@@ -3014,9 +3014,7 @@ func TestServiceSched_JobModify_InPlace(t *testing.T) {
 		t.Fatalf("bad: %#v", plan)
 	}
 	for _, p := range planned {
-		if p.Job != job2 {
-			t.Fatalf("should update job")
-		}
+		require.Equal(t, job2, p.Job, "should update job")
 	}
 
 	// Lookup the allocations by JobID
