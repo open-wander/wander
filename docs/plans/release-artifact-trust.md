@@ -33,6 +33,13 @@ The GitHub attestation record is the approved signing equivalent for preview
 releases. A detached-key signing scheme can be added later without replacing
 the checksum, SBOM, or provenance contract.
 
+The same GitHub/Sigstore identity is approved for 0.1.0. macOS archives are
+not yet signed with an Apple Developer ID or submitted for notarization, so
+operators may encounter the platform's unsigned-download warning. Developer
+ID signing and notarization can be added after the project can enroll its
+registered company in the Apple Developer Program; this will complement, not
+replace, the cross-platform attestations.
+
 ## Release Gate
 
 Preview `v0.1.0-preview.2`, produced by release workflow run `42356326274` on

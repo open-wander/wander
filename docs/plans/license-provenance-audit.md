@@ -55,15 +55,16 @@ removed before the current UI was created, and there is no path continuity or
 Git-detectable file copy into the rewrite. No current repository source file
 needs deletion solely because it retains one of those files or headers.
 
-The compiled BUSL dependency blocker has been remediated. That does not clear
-the release: the candidate source baseline still needs owner approval and the
-remaining actions below still apply.
+The compiled BUSL dependency blocker has been remediated. On 2026-11-07 the
+project owner approved the candidate source baseline, the 45-path exclusion
+manifest, the clean-room rules, and the recorded non-Git provenance of the
+initial HTMX/Templ rewrite. The final release-commit review remains a separate
+release gate.
 
-This does not prove legal ownership of every line in a large rewrite. Before
-release, the project owner must still confirm the allowed source baseline and
-review the rewrite's provenance. If that review finds unapproved derivation,
-the affected implementation must be removed and independently rewritten or
-documented as an intentional omission.
+This engineering record does not prove legal ownership of every line in a
+large rewrite or substitute for legal advice. If the final release review
+finds unapproved derivation, the affected implementation must be removed and
+independently rewritten or documented as an intentional omission.
 
 ## Rules for remaining parity work
 
@@ -79,9 +80,9 @@ documented as an intentional omission.
 
 ## Remaining actions
 
-- [ ] Project owner confirms the exact candidate source baseline, the 45-path
+- [x] Project owner confirms the exact candidate source baseline, the 45-path
       exclusion manifest, and clean-room rules.
-- [ ] Project owner reviews the initial HTMX/Templ commits and confirms their
+- [x] Project owner reviews the initial HTMX/Templ commits and confirms their
       non-Git provenance.
 - [x] Generate the release source/dependency engineering inventory.
 - [x] Review and hash third-party browser assets and UI build dependencies.
@@ -91,4 +92,6 @@ documented as an intentional omission.
 - [x] Generate required Go dependency material per release target and ship it,
       the retained browser notices, and the Wander license in archives,
       containers, and native Linux packages.
-- [ ] Approve this audit as part of the 0.1.0 release record.
+- [x] Approve this audit as part of the 0.1.0 release record. Project-owner
+      approval was recorded on 2026-11-07; the exact final release commit must
+      still pass the separate release review.

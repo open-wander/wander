@@ -18,6 +18,8 @@ Wander is supported on Linux, Windows, and macOS.
 * Website: https://openwander.org
 * Tutorials: [Wander Tutorials](https://openwander.org/wander/tutorials)
 * Forum: [GitHub Discussions](https://github.com/open-wander/wander/discussions)
+* Downloads and native packages: [GitHub Releases](https://github.com/open-wander/wander/releases)
+* Container images: [`ghcr.io/open-wander/wander`](https://github.com/open-wander/wander/pkgs/container/wander)
 
 ## Features
 
@@ -59,3 +61,9 @@ read the [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md).
 ## Contributing
 
 See the [`contributing`](contributing/) directory for more developer documentation.
+
+## Security
+
+Report suspected vulnerabilities privately as described in the
+[Wander security policy](SECURITY.md). Do not disclose vulnerability details
+in a public issue or discussion.

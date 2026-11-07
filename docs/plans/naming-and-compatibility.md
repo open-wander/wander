@@ -17,8 +17,10 @@ The authoritative release and UI work lists are:
 - [x] The executable and release archive contain a `wander` binary.
 - [x] Container and release artifact names use Wander.
 - [x] The rewritten UI uses Wander titles and user-facing branding.
-- [ ] Finish the release documentation, download links, signing identity, and
-      Wander-owned support/security contacts before 0.1.0.
+- [x] Finish the release documentation, download links, signing identity, and
+      Wander-owned support/security contacts before 0.1.0. GitHub Releases,
+      GHCR, GitHub/Sigstore attestations, Issues/Discussions, and private
+      vulnerability reporting are the approved 0.1.0 channels.
 - [x] Review current user-facing help and error text for accidental Nomad
       product branding. Historical attribution and compatibility terminology
       are excluded from this check.
@@ -49,9 +51,10 @@ jobs, plugins, and automation must continue to work with Wander 0.1.0.
 - [x] The UI is enabled by default and retains `ui { enabled = false }`.
 - [x] `/` returns the inherited 307 redirect to `/ui/` and preserves queries.
 - [x] `/ui/` and its static assets are served by the Wander agent process.
-- [ ] Verify every packaged platform archive contains one Wander executable
+- [x] Verify every packaged platform archive contains one Wander executable
       with the UI build tag and embedded assets.
-- [ ] Smoke-test the extracted Linux release executable in CI.
+- [x] Smoke-test the extracted Linux release executable in CI. Preview
+      `v0.1.0-preview.2` passed both gates in release run `42356326274`.
 
 ## Historical material
 

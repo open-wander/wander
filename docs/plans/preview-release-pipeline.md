@@ -53,14 +53,17 @@ and compatibility testing without presenting them as the stable 0.1.0 release.
 5. Verify the GitHub prerelease assets and checksum manifest from a clean
    download before inviting testers.
 
-## Stable-release gates still requiring preview evidence
+## Stable publication channels
 
-- Verify the GitHub artifact-attestation identity against the published
-  preview assets.
-- Confirm the SBOM and provenance attestations refer to the exact release
-  commit and asset digests.
-- Establish durable package-repository and support/security contact details.
+- Archives and native `.deb`/`.rpm` packages are published through
+  [GitHub Releases](https://github.com/open-wander/wander/releases).
+- Container images are published as `ghcr.io/open-wander/wander`.
+- GitHub's keyless Sigstore attestations are the 0.1.0 signing identity.
+- GitHub Issues and Discussions are the public support channels.
+- GitHub private vulnerability reporting is the confidential security channel.
+- Dedicated APT/YUM repositories and Apple Developer ID signing/notarization
+  are distribution improvements planned after 0.1.0.
 
 Preview releases provide the same checksum, SBOM, provenance, and attestation
-path intended for stable 0.1.0. The first preview validates that path before
-the checklist can mark it complete.
+path intended for stable 0.1.0. Preview `v0.1.0-preview.2` verified the
+attestation identity, exact asset digests, and release-commit binding.
