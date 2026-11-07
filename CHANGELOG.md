@@ -7,26 +7,35 @@ BREAKING CHANGES:
 
 FEATURES:
 
-* ui: Add live cluster views for jobs, allocations, clients, servers, deployments, evaluations, CSI resources, namespaces, variables, policies, and topology.
-* ui: Add allocation file browsing, log streaming, and same-origin WebSocket exec.
-* ui: Add API-backed job, allocation, client, variable, policy, and namespace actions.
+* ui: Add live, scoped cluster views for jobs, allocations, clients, servers, services, deployments, evaluations, CSI resources, namespaces, variables, access control, and topology.
+* ui: Restore job submission and planning, stored templates, HCL2 variables, existing-job editing, structured version diffs and reverts, dispatch and purge, periodic launches, bounded task-group scaling, and job-linked runtime history.
+* ui: Add allocation file browsing and previews, rotated log streaming with Head/Live/Tail controls, and same-origin WebSocket exec with reconnect and exit-state handling.
+* ui: Add client drain, eligibility, and dynamic-metadata controls; client and server log monitors; deployment promotion/failure; variable CRUD; and ACL policy, token, and role management.
+* ui: Restore configured OIDC browser sign-in, scoped global search, inherited keyboard shortcuts, responsive layouts, and keyboard and screen-reader semantics for complex controls.
 
 SECURITY:
 
 * ui: Isolate namespace and region selection per request and browser so one user's selection cannot redirect another user's reads or mutations.
 * ui: Populate the variable creation namespace selector from the live cluster and preserve namespace scope after creation.
 * ui: Preserve explicit namespace and region scope through links, HTMX requests, mutations, fetches, log streams, and exec sessions.
+* ui: Use Wander-owned, HTTP-only browser cookies; require secure cookies for HTTPS and trusted forwarded HTTPS requests; enforce same-origin WebSocket and browser mutation boundaries; and sanitize backend failures before rendering them.
+* ui: Enforce anonymous, namespace-restricted client-token, and management-token capabilities across reads, mutations, monitors, logs, files, and exec.
+* core: Harden archive and allocation-file reads against path and symlink races, validate numeric conversions at API boundaries, and update vulnerable dependencies so `govulncheck` reports no reachable vulnerabilities.
 
 IMPROVEMENTS:
 
 * build: Embed the Wander UI in release binaries by default and verify the UI build tag in every release archive.
+* build: Produce checksummed cross-platform archives, native packages, containers, SBOMs, provenance attestations, and third-party notices from pinned release tooling.
 * ui: Preserve the inherited default enablement, `ui { enabled = false }` configuration, root redirect, and content-security-policy behavior.
 * ui: Vendor CSP-compatible Alpine assets and prohibit evaluated HTMX expressions and inline scripts.
 * ui: Keep Node.js and npm as build/test dependencies only; production requires only the Wander binary.
+* ui: Distinguish successful empty results from forbidden, missing, degraded, and unavailable cluster states instead of fabricating data.
 * ui: Let allocation logs grow from five visible lines to a viewport-sized maximum, and size terminal, file, and code-editor workspaces consistently from the available viewport.
 * ui: Place global search below the breadcrumb row so long allocation paths cannot overlap it.
 * ui: Add a persistent version footer that remains outside the scrollable page content.
 * ui: Make the footer span the viewport and show the application version in one place.
+* compatibility: Retain inherited `NOMAD_*` environment variables, `/v1/...` APIs, protocol headers, configuration, job syntax, plugin identifiers, state, ports, and scheduler fingerprints while adding isolated Wander-owned aliases and browser state.
+* docs: Add a 0.1.0 operator runbook covering installation, configuration, Nomad 1.6.5 migration, backup, restore, upgrade, rollback, limitations, and troubleshooting.
 
 BUG FIXES:
 
@@ -38,11 +47,18 @@ BUG FIXES:
 * ui: Keep deeply expanded allocation file trees scrollable within the workspace while preserving access to file previews and the page footer.
 * ui: Stop allocation-log SSE heartbeats cleanly without racing concurrent stream writes.
 * ui: Render namespace and region selection success toasts without Alpine expression errors.
+* ui: Preserve job source and variables through edit/plan/run workflows, keep lifecycle dialogs open on failed mutations, and retain namespace and region scope through dispatch, purge, scaling, deployment, and evaluation actions.
+* ui: Report live client and allocation resource data, service registrations, placement failures, and partial API failures truthfully instead of displaying fabricated zeros or empty states.
+* core: Prevent plan application from mutating a shared state-snapshot job while retaining the inherited allocation-update contract.
+* debug: Wait for event, monitor, and profile capture workers before archiving operator-debug output, and stop signal watchers when capture completes.
 
 MIGRATION NOTES:
 
 * The UI remains at `/ui/` and is delivered from the same executable as the server.
 * Existing integrations that customize or automate the inherited Ember DOM must be updated for the Wander UI.
+* Migration is supported from open-source Nomad 1.6.5 with a tested backup and rollback path. State from later Nomad or Enterprise-only releases is outside the 0.1.0 compatibility contract.
+* The executable, packages, containers, services, documentation, module path, browser cookies, and visible product identity use Wander names. Inherited operational interfaces retain their Nomad-compatible names, and Wander environment aliases do not replace `NOMAD_*` compatibility variables.
+* Dark mode is intentionally deferred until the complete interface can switch themes consistently. Enterprise optimization/recommendation UI and namespace CRUD are not part of the Nomad 1.6.5 OSS baseline and are not exposed.
 * Historical entries below 0.1.0 describe the inherited Nomad codebase through v1.6.5; later Nomad code is not part of Wander.
 
 ## 1.6.5 (December 13, 2023)
