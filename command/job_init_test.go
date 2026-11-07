@@ -22,7 +22,6 @@ func TestInitCommand_Implements(t *testing.T) {
 }
 
 func TestInitCommand_Run(t *testing.T) {
-	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &JobInitCommand{Meta: Meta{Ui: ui}}
 
@@ -119,7 +118,6 @@ func TestInitCommand_listTemplates(t *testing.T) {
 }
 
 func TestInitCommand_fromJobTemplate(t *testing.T) {
-	ci.Parallel(t)
 	srv, _, url := testServer(t, true, nil)
 	defer srv.Shutdown()
 
@@ -170,7 +168,6 @@ func TestInitCommand_fromJobTemplate(t *testing.T) {
 }
 
 func TestInitCommand_customFilename(t *testing.T) {
-	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &JobInitCommand{Meta: Meta{Ui: ui}}
 	filename := "custom.nomad"

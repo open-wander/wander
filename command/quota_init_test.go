@@ -18,7 +18,6 @@ func TestQuotaInitCommand_Implements(t *testing.T) {
 }
 
 func TestQuotaInitCommand_Run_HCL(t *testing.T) {
-	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &QuotaInitCommand{Meta: Meta{Ui: ui}}
 
@@ -65,7 +64,6 @@ func TestQuotaInitCommand_Run_HCL(t *testing.T) {
 }
 
 func TestQuotaInitCommand_Run_JSON(t *testing.T) {
-	ci.Parallel(t)
 	ui := cli.NewMockUi()
 	cmd := &QuotaInitCommand{Meta: Meta{Ui: ui}}
 

@@ -8,7 +8,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -157,7 +159,13 @@ func TestConsulGRPCSocketHook_Prerun_Error(t *testing.T) {
 func TestConsulGRPCSocketHook_proxy_Unix(t *testing.T) {
 	ci.Parallel(t)
 
-	dir := t.TempDir()
+	tempRoot := ""
+	if runtime.GOOS == "darwin" {
+		tempRoot = "/tmp"
+	}
+	dir, err := os.MkdirTemp(tempRoot, "wander-consul-")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(dir)) })
 
 	// Setup fake listener that would be inside the netns (normally a unix
 	// socket, but it doesn't matter for this test).

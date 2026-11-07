@@ -8,154 +8,97 @@ import (
 
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/client/config"
+	"github.com/open-wander/wander/nomad/structs"
 	"github.com/stretchr/testify/require"
 )
 
+func runFingerprintManager(t *testing.T, options map[string]string) *structs.Node {
+	t.Helper()
+
+	testClient, cleanup := TestClient(t, func(c *config.Config) {
+		c.Options = options
+	})
+	t.Cleanup(func() { require.NoError(t, cleanup()) })
+
+	fm := NewFingerprintManager(
+		testClient.config.PluginSingletonLoader,
+		testClient.GetConfig,
+		testClient.config.Node,
+		testClient.shutdownCh,
+		testClient.updateNodeFromFingerprint,
+		testClient.logger,
+	)
+	require.NoError(t, fm.Run())
+
+	return testClient.config.Node
+}
+
 func TestFingerprintManager_Run_ResourcesFingerprint(t *testing.T) {
 	ci.Parallel(t)
-	require := require.New(t)
+	node := runFingerprintManager(t, nil)
 
-	testClient, cleanup := TestClient(t, nil)
-	defer cleanup()
-
-	fm := NewFingerprintManager(
-		testClient.config.PluginSingletonLoader,
-		testClient.GetConfig,
-		testClient.config.Node,
-		testClient.shutdownCh,
-		testClient.updateNodeFromFingerprint,
-		testClient.logger,
-	)
-
-	err := fm.Run()
-	require.Nil(err)
-
-	node := testClient.config.Node
-
-	require.NotEqual(0, node.Resources.CPU)
-	require.NotEqual(0, node.Resources.MemoryMB)
-	require.NotZero(node.Resources.DiskMB)
+	require.NotEqual(t, 0, node.Resources.CPU)
+	require.NotEqual(t, 0, node.Resources.MemoryMB)
+	require.NotZero(t, node.Resources.DiskMB)
 }
 
-func TestFimgerprintManager_Run_InWhitelist(t *testing.T) {
+func TestFingerprintManager_Run_FilterLists(t *testing.T) {
 	ci.Parallel(t)
-	require := require.New(t)
 
-	testClient, cleanup := TestClient(t, func(c *config.Config) {
-		c.Options = map[string]string{
-			"test.shutdown_periodic_after":    "true",
-			"test.shutdown_periodic_duration": "2",
-		}
-	})
-	defer cleanup()
+	testCases := []struct {
+		name    string
+		options map[string]string
+		present []string
+		absent  []string
+	}{
+		{
+			name: "default allowlist",
+			options: map[string]string{
+				"test.shutdown_periodic_after":    "true",
+				"test.shutdown_periodic_duration": "2",
+			},
+			present: []string{"cpu.totalcompute"},
+		},
+		{
+			name: "denylist",
+			options: map[string]string{
+				"fingerprint.allowlist": "  arch,memory,foo,bar\t",
+				"fingerprint.denylist":  "  cpu\t",
+			},
+			present: []string{"memory.totalbytes"},
+			absent:  []string{"cpu.totalcompute"},
+		},
+		{
+			name: "allowlist and denylist",
+			options: map[string]string{
+				"fingerprint.allowlist": "  arch,cpu,memory,foo,bar\t",
+				"fingerprint.denylist":  "  memory,host\t",
+			},
+			present: []string{"cpu.totalcompute", "cpu.arch"},
+			absent:  []string{"memory.totalbytes", "os.name"},
+		},
+		{
+			name: "legacy whitelist and blacklist",
+			options: map[string]string{
+				"fingerprint.whitelist": "  arch,cpu,memory,foo,bar\t",
+				"fingerprint.blacklist": "  memory,host\t",
+			},
+			present: []string{"cpu.totalcompute", "cpu.arch"},
+			absent:  []string{"memory.totalbytes", "os.name"},
+		},
+	}
 
-	fm := NewFingerprintManager(
-		testClient.config.PluginSingletonLoader,
-		testClient.GetConfig,
-		testClient.config.Node,
-		testClient.shutdownCh,
-		testClient.updateNodeFromFingerprint,
-		testClient.logger,
-	)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ci.Parallel(t)
+			node := runFingerprintManager(t, testCase.options)
 
-	err := fm.Run()
-	require.Nil(err)
-
-	node := testClient.config.Node
-
-	require.NotEqual(node.Attributes["cpu.frequency"], "")
-}
-
-func TestFingerprintManager_Run_InDenylist(t *testing.T) {
-	ci.Parallel(t)
-	require := require.New(t)
-
-	testClient, cleanup := TestClient(t, func(c *config.Config) {
-		c.Options = map[string]string{
-			"fingerprint.allowlist": "  arch,memory,foo,bar	",
-			"fingerprint.denylist":  "  cpu	",
-		}
-	})
-	defer cleanup()
-
-	fm := NewFingerprintManager(
-		testClient.config.PluginSingletonLoader,
-		testClient.GetConfig,
-		testClient.config.Node,
-		testClient.shutdownCh,
-		testClient.updateNodeFromFingerprint,
-		testClient.logger,
-	)
-
-	err := fm.Run()
-	require.Nil(err)
-
-	node := testClient.config.Node
-
-	require.NotContains(node.Attributes, "cpu.frequency")
-	require.NotEqual(node.Attributes["memory.totalbytes"], "")
-}
-
-func TestFingerprintManager_Run_Combination(t *testing.T) {
-	ci.Parallel(t)
-	require := require.New(t)
-
-	testClient, cleanup := TestClient(t, func(c *config.Config) {
-		c.Options = map[string]string{
-			"fingerprint.allowlist": "  arch,cpu,memory,foo,bar	",
-			"fingerprint.denylist":  "  memory,host	",
-		}
-	})
-	defer cleanup()
-
-	fm := NewFingerprintManager(
-		testClient.config.PluginSingletonLoader,
-		testClient.GetConfig,
-		testClient.config.Node,
-		testClient.shutdownCh,
-		testClient.updateNodeFromFingerprint,
-		testClient.logger,
-	)
-
-	err := fm.Run()
-	require.Nil(err)
-
-	node := testClient.config.Node
-
-	require.NotEqual(node.Attributes["cpu.frequency"], "")
-	require.NotEqual(node.Attributes["cpu.arch"], "")
-	require.NotContains(node.Attributes, "memory.totalbytes")
-	require.NotContains(node.Attributes, "os.name")
-}
-
-func TestFingerprintManager_Run_CombinationLegacyNames(t *testing.T) {
-	ci.Parallel(t)
-	require := require.New(t)
-
-	testClient, cleanup := TestClient(t, func(c *config.Config) {
-		c.Options = map[string]string{
-			"fingerprint.whitelist": "  arch,cpu,memory,foo,bar	",
-			"fingerprint.blacklist": "  memory,host	",
-		}
-	})
-	defer cleanup()
-
-	fm := NewFingerprintManager(
-		testClient.config.PluginSingletonLoader,
-		testClient.GetConfig,
-		testClient.config.Node,
-		testClient.shutdownCh,
-		testClient.updateNodeFromFingerprint,
-		testClient.logger,
-	)
-
-	err := fm.Run()
-	require.Nil(err)
-
-	node := testClient.config.Node
-
-	require.NotEqual(node.Attributes["cpu.frequency"], "")
-	require.NotEqual(node.Attributes["cpu.arch"], "")
-	require.NotContains(node.Attributes, "memory.totalbytes")
-	require.NotContains(node.Attributes, "os.name")
+			for _, attribute := range testCase.present {
+				require.NotEmpty(t, node.Attributes[attribute], attribute)
+			}
+			for _, attribute := range testCase.absent {
+				require.NotContains(t, node.Attributes, attribute)
+			}
+		})
+	}
 }

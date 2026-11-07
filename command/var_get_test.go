@@ -67,8 +67,7 @@ func TestVarGetCommand(t *testing.T) {
 	ci.Parallel(t)
 
 	// Create a server
-	srv, client, url := testServer(t, true, nil)
-	defer srv.Shutdown()
+	_, client, url := testServer(t, true, nil)
 
 	testCases := []struct {
 		name     string
