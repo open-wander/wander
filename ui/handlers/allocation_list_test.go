@@ -53,6 +53,20 @@ func TestAllocationListSortsAndPaginatesDeterministically(t *testing.T) {
 	}
 }
 
+func TestAllocationListUsesEachAllocationsActualNamespace(t *testing.T) {
+	handler := newAllocationListTestHandler(t, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []*api.AllocationListStub{{
+			ID: "alloc-default", Namespace: "default", JobID: "default-job", NodeID: "node-a",
+		}})
+	})
+
+	body := serveAllocationListRequest(t, handler, "/ui/allocations?namespace=team-a&region=west", http.StatusOK)
+	assertContainsAll(t, body,
+		"/ui/allocations/alloc-default?namespace=default&amp;region=west",
+		"/ui/jobs/default-job?namespace=default&amp;region=west",
+	)
+}
+
 func TestAllocationListPreservesEmptyDeniedAndUnavailableStates(t *testing.T) {
 	for _, test := range []struct {
 		name       string

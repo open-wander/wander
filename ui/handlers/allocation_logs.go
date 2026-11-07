@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -137,8 +138,8 @@ func (h *AllocationLogsHandler) LogsTab(w http.ResponseWriter, r *http.Request, 
 	}
 	if allocDetail.JobID != "" {
 		breadcrumbs = append(breadcrumbs,
-			components.Breadcrumb{Label: "Jobs", URL: "/ui/jobs"},
-			components.Breadcrumb{Label: allocDetail.JobID, URL: "/ui/jobs/" + allocDetail.JobID},
+			components.Breadcrumb{Label: "Jobs", URL: scopedUIURL("/ui/jobs", GetNamespaceFromRequest(r), GetRegionFromRequest(r))},
+			components.Breadcrumb{Label: allocDetail.JobID, URL: allocDetail.JobURL},
 			components.Breadcrumb{Label: shortID, URL: "/ui/allocations/" + allocID},
 			components.Breadcrumb{Label: "Logs", URL: ""},
 		)
@@ -504,6 +505,8 @@ func (h *AllocationLogsHandler) getAllocationDetailForLogs(r *http.Request, allo
 		NodeName:  alloc.NodeName,
 		Status:    alloc.ClientStatus,
 		Tasks:     tasks,
+		JobURL:    scopedUIURL("/ui/jobs/"+url.PathEscape(alloc.JobID), alloc.Namespace, queryOpts.Region),
+		NodeURL:   scopedUIURL("/ui/clients/"+url.PathEscape(alloc.NodeID), alloc.Namespace, queryOpts.Region),
 	}
 }
 

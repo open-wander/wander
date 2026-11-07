@@ -4,6 +4,7 @@ package components
 type SidebarProps struct {
 	CurrentPath      string
 	ExpandedSections []string // List of section IDs that should be expanded by default
+	ShowAccessControl bool
 }
 
 // NavItem represents a navigation menu item
@@ -124,11 +125,7 @@ templ sidebarNav(props SidebarProps) {
 			NavSection{
 				ID:    "cluster",
 				Label: "Cluster",
-				Items: []NavItem{
-					{Label: "Namespaces", Path: "/ui/namespaces", Icon: "folder"},
-					{Label: "Access Control", Path: "/ui/access-control", Icon: "key"},
-					{Label: "Variables", Path: "/ui/variables", Icon: "variable"},
-				},
+				Items: clusterNavItems(props.ShowAccessControl),
 			},
 			props,
 		)
@@ -144,6 +141,14 @@ templ sidebarNav(props SidebarProps) {
 			props,
 		)
 	</div>
+}
+
+func clusterNavItems(showAccessControl bool) []NavItem {
+	items := []NavItem{{Label: "Namespaces", Path: "/ui/namespaces", Icon: "folder"}}
+	if showAccessControl {
+		items = append(items, NavItem{Label: "Access Control", Path: "/ui/access-control", Icon: "key"})
+	}
+	return append(items, NavItem{Label: "Variables", Path: "/ui/variables", Icon: "variable"})
 }
 
 // navItem renders a single navigation item with HTMX support

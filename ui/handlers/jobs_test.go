@@ -15,6 +15,7 @@ import (
 func TestGetJobOverviewProjectsLiveSummaryAllocationsAndMetadata(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertMonitorQueryValue(t, r, "namespace", "team-a")
+		assertMonitorQueryValue(t, r, "region", "west")
 		assertRequestHeaderValue(t, r, "X-Nomad-Token", "browser-token")
 		switch r.URL.Path {
 		case "/v1/job/example":
@@ -51,7 +52,7 @@ func TestGetJobOverviewProjectsLiveSummaryAllocationsAndMetadata(t *testing.T) {
 
 	handler := NewJobsHandler(newJobsTestHandler(t, backend.URL))
 	detail, err := handler.getJobOverview(
-		httptest.NewRequest(http.MethodGet, "/ui/jobs/example?namespace=team-a", nil),
+		httptest.NewRequest(http.MethodGet, "/ui/jobs/example?namespace=team-a&region=west", nil),
 		"example", "team-a", "browser-token",
 	)
 	if err != nil {
@@ -59,6 +60,9 @@ func TestGetJobOverviewProjectsLiveSummaryAllocationsAndMetadata(t *testing.T) {
 	}
 	if detail.Allocations.Total() != 4 || detail.Allocations.Running != 1 || detail.Allocations.Unhealthy() != 1 {
 		t.Fatalf("unexpected allocation summary: %#v", detail.Allocations)
+	}
+	if detail.Namespace != "team-a" || detail.Region != "west" {
+		t.Fatalf("job detail lost request scope: %#v", detail)
 	}
 	if len(detail.Metadata) != 2 || detail.Metadata[0].Key != "alpha" || detail.Metadata[1].Key != "zeta" {
 		t.Fatalf("metadata is not sorted: %#v", detail.Metadata)

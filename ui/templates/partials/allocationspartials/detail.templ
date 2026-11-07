@@ -28,6 +28,8 @@ type AllocationDetail struct {
 	Events           []AllocationEvent
 	ActiveTab        string // Which tab to show as active (default: "tasks")
 	ActiveTabContent templ.Component
+	JobURL           string
+	NodeURL          string
 }
 
 // TaskStatus represents the status of a task within an allocation
@@ -145,7 +147,7 @@ templ DetailContent(alloc AllocationDetail) {
 					<div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
 						<div>
 							<span class="text-neutral-600">Job:</span>
-							<a href={ templ.URL("/ui/jobs/" + alloc.JobID) } class="font-medium text-primary-600 hover:text-primary-700 ml-2">
+							<a href={ templ.SafeURL(alloc.JobURL) } class="font-medium text-primary-600 hover:text-primary-700 ml-2">
 								{ alloc.JobID }
 							</a>
 						</div>
@@ -155,7 +157,7 @@ templ DetailContent(alloc AllocationDetail) {
 						</div>
 						<div>
 							<span class="text-neutral-600">Node:</span>
-							<a href={ templ.URL("/ui/clients/" + alloc.NodeID) } class="font-medium text-primary-600 hover:text-primary-700 ml-2">
+							<a href={ templ.SafeURL(alloc.NodeURL) } class="font-medium text-primary-600 hover:text-primary-700 ml-2">
 								{ alloc.NodeName }
 							</a>
 						</div>

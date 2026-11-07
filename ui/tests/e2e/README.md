@@ -56,6 +56,11 @@ and browser lifecycles:
 WANDER_UI_E2E=1 go test ./ui/tests/e2e -run '^TestE2E$' -count=1 -v
 ```
 
+Add `WANDER_UI_LINK_CHECK=1` to run the read-only link and asset crawler against
+the same seeded cluster after the Chromium suite passes. Its report is written
+to the test's temporary directory so a release check cannot modify tracked
+files.
+
 The older specifications in `specs/` and the prototype page objects in
 `pages/` are retired and retained only as historical implementation notes.
 They use stale selectors, mock-era assumptions, and obsolete visual baselines;

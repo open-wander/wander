@@ -166,6 +166,7 @@ func (h *Handler) NomadClientForRequest(r *http.Request) *api.Client {
 // BaseLayoutProps returns PageLayoutProps with common request-scoped fields.
 func (h *Handler) BaseLayoutProps(r *http.Request, title, description, currentPath string, breadcrumbs []components.Breadcrumb) layouts.PageLayoutProps {
 	client := h.NomadClientForRequest(r)
+	permissions := GetPermissionsFromRequest(r)
 	return layouts.PageLayoutProps{
 		Title:               title,
 		Description:         description,
@@ -177,6 +178,7 @@ func (h *Handler) BaseLayoutProps(r *http.Request, title, description, currentPa
 		CurrentRegion:       GetRegionFromRequest(r),
 		AvailableRegions:    h.availableRegions(client),
 		Version:             "v" + version.GetVersion().VersionNumber(),
+		ShowAccessControl:   permissions != nil && permissions.IsManagement(),
 	}
 }
 

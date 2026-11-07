@@ -31,6 +31,8 @@ The following tests cover the security contract:
 - `TestAllocationFilePathScopesTaskAndRejectsTraversal`
 - release E2E `TestACLMutations` and `TestTLSTransports`
 
-The final live browser link/console audit remains a separate release gate; it
-checks the assembled UI rather than changing the conclusions of this code and
-transport review.
+The assembled embedded UI passed the final live gate on 2026-11-07. The seeded
+crawler reached 94 pages, checked 93 unique links and 12 assets, and found no
+failures. Chromium passed all 24 applicable release-smoke cases (the two CSI
+cases were skipped because the disposable cluster has no CSI plugin or volume)
+without console or CSP errors.

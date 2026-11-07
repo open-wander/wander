@@ -2,6 +2,7 @@ package taskgrouppartials
 
 import (
 	"fmt"
+	"net/url"
 	"github.com/open-wander/wander/ui/templates/components"
 	"time"
 )
@@ -176,7 +177,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 		<div class="bg-white shadow rounded-lg p-6 mb-6" data-task-group-allocations>
 			<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
 				<h3 class="text-lg font-semibold text-neutral-900">Allocations</h3>
-				<form method="get" action={ templ.SafeURL("/ui/jobs/" + jobID + "/taskgroups/" + tg.Name) } class="flex flex-wrap items-end gap-3">
+				<form method="get" action={ templ.SafeURL(scopedTaskGroupURL(jobID, tg, "")) } class="flex flex-wrap items-end gap-3">
 					if tg.Namespace != "" {
 						<input type="hidden" name="namespace" value={ tg.Namespace }/>
 					}
@@ -537,12 +538,12 @@ templ ScalingControls(jobID string, tg TaskGroupDetail) {
 			</template>
 		</div>
 		<!-- Scale Confirmation Modal -->
-		@ScaleConfirmModal(jobID, tg.Name)
+		@ScaleConfirmModal(jobID, tg)
 	</div>
 }
 
 // ScaleConfirmModal renders the confirmation modal for scaling operations
-templ ScaleConfirmModal(jobID string, taskGroupName string) {
+templ ScaleConfirmModal(jobID string, tg TaskGroupDetail) {
 	<!-- Modal Backdrop and Container -->
 	<div
 		x-show="showConfirmModal"
@@ -607,7 +608,7 @@ templ ScaleConfirmModal(jobID string, taskGroupName string) {
 						</div>
 						<div class="flex-1">
 							<p class="text-sm text-neutral-600 mb-4">
-								You are about to scale the task group <span class="font-semibold text-neutral-900">{ taskGroupName }</span>.
+								You are about to scale the task group <span class="font-semibold text-neutral-900">{ tg.Name }</span>.
 							</p>
 							<div class="bg-neutral-50 rounded-lg p-4 space-y-2">
 								<div class="flex justify-between text-sm">
@@ -644,7 +645,7 @@ templ ScaleConfirmModal(jobID string, taskGroupName string) {
 							Cancel
 						</button>
 						<form
-							hx-post={ fmt.Sprintf("/ui/jobs/%s/taskgroups/%s/scale", jobID, taskGroupName) }
+							hx-post={ scopedTaskGroupURL(jobID, tg, "/scale") }
 							hx-target="#scale-result"
 							hx-swap="innerHTML"
 							@htmx:after-request="handleScaleResponse(event)"
@@ -680,4 +681,9 @@ func getMaxCount(scaling *ScalingConfig) int {
 		return scaling.Max
 	}
 	return 999
+}
+
+func scopedTaskGroupURL(jobID string, tg TaskGroupDetail, suffix string) string {
+	path := "/ui/jobs/" + url.PathEscape(jobID) + "/taskgroups/" + url.PathEscape(tg.Name) + suffix
+	return components.ScopedURL(path, tg.Namespace, tg.Region)
 }

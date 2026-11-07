@@ -496,6 +496,7 @@ func (h *JobsHandler) getJobsList(r *http.Request, namespace, token string) ([]j
 			PackName:    job.Meta["pack.name"],
 			PackVersion: job.Meta["pack.version"],
 			Allocations: summarizeJobAllocations(job.JobSummary),
+			DetailURL:   scopedUIURL("/ui/jobs/"+url.PathEscape(job.ID), job.Namespace, GetRegionFromRequest(r)),
 		})
 	}
 
@@ -711,6 +712,8 @@ func (h *JobsHandler) getJobDetail(r *http.Request, jobID, namespace, token stri
 		Metadata:       make([]jobspartials.JobMetadata, 0, len(job.Meta)),
 		Volumes:        make([]jobspartials.JobVolume, 0),
 		LifecycleTasks: make([]jobspartials.JobLifecycleTask, 0),
+		Namespace:      namespace,
+		Region:         GetRegionFromRequest(r),
 	}
 	if job.Periodic != nil {
 		specs := append([]string(nil), job.Periodic.Specs...)
@@ -1523,10 +1526,21 @@ func (h *JobsHandler) TaskGroup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to fetch task group", http.StatusBadGateway)
 		return
 	}
+	layoutProps := h.handler.BaseLayoutProps(r,
+		taskGroup.Name+" - Task Group - Wander",
+		"Task group detail for "+taskGroup.Name,
+		scopedUIURL("/ui/jobs/"+url.PathEscape(jobID)+"/taskgroups/"+url.PathEscape(taskGroup.Name), taskGroup.Namespace, taskGroup.Region),
+		[]components.Breadcrumb{
+			{Label: "Home", URL: scopedUIURL("/ui/", taskGroup.Namespace, taskGroup.Region)},
+			{Label: "Jobs", URL: scopedUIURL("/ui/jobs", taskGroup.Namespace, taskGroup.Region)},
+			{Label: jobID, URL: scopedUIURL("/ui/jobs/"+url.PathEscape(jobID), taskGroup.Namespace, taskGroup.Region)},
+			{Label: taskGroup.Name},
+		},
+	)
 
 	// Render full page or partial based on HTMX request
 	err = Render(w, r,
-		jobs.TaskGroup(jobID, taskGroup),                  // Full page with layout
+		jobs.TaskGroup(layoutProps, jobID, taskGroup),     // Full page with layout
 		taskgrouppartials.DetailContent(jobID, taskGroup), // Partial content for HTMX requests
 	)
 

@@ -69,6 +69,24 @@ func TestE2E(t *testing.T) {
 	t.Logf("Testing embedded UI at %s", clusterAddress)
 	t.Setenv("BASE_URL", clusterAddress)
 
+	if os.Getenv("WANDER_UI_LINK_CHECK") == "1" {
+		reportPath := filepath.Join(t.TempDir(), "LINK_CHECK_RESULTS.md")
+		linkCheck := exec.Command(
+			"go", "run", "../../scripts/check-links.go",
+			"--base-url", clusterAddress,
+			"--output", reportPath,
+		)
+		linkCheck.Stdout = os.Stdout
+		linkCheck.Stderr = os.Stderr
+		linkCheck.Dir = "."
+		if err := linkCheck.Run(); err != nil {
+			if report, readErr := os.ReadFile(reportPath); readErr == nil {
+				t.Logf("live UI link report:\n%s", report)
+			}
+			t.Fatalf("live UI link check failed: %v (report: %s)", err, reportPath)
+		}
+	}
+
 	cmd := exec.Command("npx", "playwright", "test", "--project=chromium")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

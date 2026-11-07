@@ -24,6 +24,7 @@ type LinkChecker struct {
 	baseURL     string
 	client      *http.Client
 	visited     map[string]bool
+	checked     map[string]bool
 	mu          sync.Mutex
 	brokenLinks []BrokenLink
 	results     CheckResults
@@ -65,6 +66,7 @@ func NewLinkChecker(baseURL string, logger hclog.Logger) *LinkChecker {
 			},
 		},
 		visited: make(map[string]bool),
+		checked: make(map[string]bool),
 		logger:  logger,
 	}
 }
@@ -290,10 +292,12 @@ func (lc *LinkChecker) checkLink(link, sourcePage string) {
 	// Determine if it's an asset or a page
 	isAsset := strings.HasPrefix(checkPath, "/ui/static/")
 
-	// Check if already visited
-	if lc.visited[checkPath] {
+	// Count and validate each unique destination once, even when a shared
+	// navigation item appears on every page.
+	if lc.visited[checkPath] || lc.checked[checkPath] {
 		return
 	}
+	lc.checked[checkPath] = true
 
 	// Increment counters
 	if isAsset {
@@ -304,7 +308,9 @@ func (lc *LinkChecker) checkLink(link, sourcePage string) {
 
 	// Check the link
 	lc.mu.Unlock() // Unlock before making HTTP request
-	resp, err := lc.client.Head(linkURL.String())
+	// UI routes intentionally support browser navigation with GET and may reject
+	// HEAD, so validate links with the same read-only method a browser uses.
+	resp, err := lc.client.Get(linkURL.String())
 	lc.mu.Lock() // Re-lock for result recording
 
 	if err != nil {
@@ -329,7 +335,7 @@ func (lc *LinkChecker) checkLink(link, sourcePage string) {
 	// If it's a page link and not an asset, crawl it
 	if !isAsset && strings.HasPrefix(checkPath, "/ui/") {
 		lc.mu.Unlock()
-		go lc.crawlPage(checkPath)
+		lc.crawlPage(checkPath)
 		lc.mu.Lock()
 	}
 }

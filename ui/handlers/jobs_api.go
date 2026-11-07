@@ -9,6 +9,7 @@ import (
 
 	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/api"
+	"github.com/open-wander/wander/ui/templates/components"
 )
 
 const (
@@ -478,15 +479,5 @@ func writeDispatchError(w http.ResponseWriter, status int, message string) {
 }
 
 func scopedUIURL(path, namespace, region string) string {
-	query := url.Values{}
-	if namespace != "" {
-		query.Set("namespace", namespace)
-	}
-	if region != "" {
-		query.Set("region", region)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		return path + "?" + encoded
-	}
-	return path
+	return components.ScopedURL(path, namespace, region)
 }

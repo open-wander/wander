@@ -29,6 +29,7 @@ import (
 // sorting, and projection into the rendered list.
 type AllocationSummary struct {
 	ID                 string
+	Namespace          string
 	JobID              string
 	JobType            string
 	JobVersion         uint64
@@ -216,6 +217,10 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	allocationsList := make([]allocationspartials.AllocationSummary, len(paginatedAllocations))
 	for i, a := range paginatedAllocations {
 		idPrefixMatch, matchedPrefix := h.isIDPrefixMatch(a.ID, searchNormalized)
+		allocationNamespace := a.Namespace
+		if allocationNamespace == "" {
+			allocationNamespace = namespace
+		}
 		allocationsList[i] = allocationspartials.AllocationSummary{
 			ID:                 a.ID,
 			JobID:              a.JobID,
@@ -230,10 +235,10 @@ func (h *AllocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 			Created:            a.Created,
 			IDPrefixMatch:      idPrefixMatch,
 			MatchedPrefix:      matchedPrefix,
-			DetailURL:          scopedUIURL("/ui/allocations/"+url.PathEscape(a.ID), namespace, region),
-			JobURL:             scopedUIURL("/ui/jobs/"+url.PathEscape(a.JobID), namespace, region),
-			ClientURL:          scopedUIURL("/ui/clients/"+url.PathEscape(a.NodeID), namespace, region),
-			LogsURL:            scopedUIURL("/ui/allocations/"+url.PathEscape(a.ID)+"/logs", namespace, region),
+			DetailURL:          scopedUIURL("/ui/allocations/"+url.PathEscape(a.ID), allocationNamespace, region),
+			JobURL:             scopedUIURL("/ui/jobs/"+url.PathEscape(a.JobID), allocationNamespace, region),
+			ClientURL:          scopedUIURL("/ui/clients/"+url.PathEscape(a.NodeID), allocationNamespace, region),
+			LogsURL:            scopedUIURL("/ui/allocations/"+url.PathEscape(a.ID)+"/logs", allocationNamespace, region),
 		}
 	}
 
@@ -573,6 +578,7 @@ func (h *AllocationsHandler) getAllocationsList(r *http.Request, namespace, toke
 
 		result = append(result, AllocationSummary{
 			ID:                 alloc.ID,
+			Namespace:          alloc.Namespace,
 			JobID:              alloc.JobID,
 			JobType:            alloc.JobType,
 			JobVersion:         alloc.JobVersion,
@@ -710,8 +716,8 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 	}
 	if allocDetail.JobID != "" {
 		breadcrumbs = append(breadcrumbs,
-			components.Breadcrumb{Label: "Jobs", URL: "/ui/jobs"},
-			components.Breadcrumb{Label: allocDetail.JobID, URL: "/ui/jobs/" + allocDetail.JobID},
+			components.Breadcrumb{Label: "Jobs", URL: scopedUIURL("/ui/jobs", GetNamespaceFromRequest(r), GetRegionFromRequest(r))},
+			components.Breadcrumb{Label: allocDetail.JobID, URL: allocDetail.JobURL},
 			components.Breadcrumb{Label: shortID, URL: ""},
 		)
 	} else {
@@ -763,6 +769,9 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 	alloc, _, err := client.Allocations().Info(allocID, queryOpts)
 	if err != nil {
 		return allocationspartials.AllocationDetail{}, err
+	}
+	if alloc.Namespace != "" {
+		queryOpts.Namespace = alloc.Namespace
 	}
 
 	h.handler.logger.Debug("fetched allocation from API", "allocID", allocID, "status", alloc.ClientStatus)
@@ -931,6 +940,8 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 		History:   allocationHistory(alloc, queryOpts.Namespace, queryOpts.Region),
 		Resources: resources,
 		Events:    allocEvents,
+		JobURL:    scopedUIURL("/ui/jobs/"+url.PathEscape(alloc.JobID), alloc.Namespace, queryOpts.Region),
+		NodeURL:   scopedUIURL("/ui/clients/"+url.PathEscape(alloc.NodeID), alloc.Namespace, queryOpts.Region),
 	}
 	if loadTaskRuntime {
 		h.enrichAllocationTaskRuntime(client, alloc, queryOpts, &detail)

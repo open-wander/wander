@@ -118,6 +118,25 @@ func TestParameterizedJobRendersDispatchContract(t *testing.T) {
 	}
 }
 
+func TestJobDetailPreservesNamespaceAndRegionInNavigationAndActions(t *testing.T) {
+	job := JobDetail{
+		ID: "example", Name: "example", Status: "running",
+		Namespace: "team-a", Region: "west",
+		TaskGroups: []TaskGroupSummary{{Name: "web"}},
+	}
+	html := renderJobDetail(t, job)
+	for _, expected := range []string{
+		`/ui/jobs/example/allocations?namespace=team-a&amp;region=west`,
+		`/ui/jobs/example/taskgroups/web?namespace=team-a&amp;region=west`,
+		`/api/jobs/example/stop?namespace=team-a&amp;region=west`,
+		`/api/jobs/example/purge?namespace=team-a&amp;region=west`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("rendered detail lost scope from %q: %s", expected, html)
+		}
+	}
+}
+
 func TestForbiddenPayloadOmitsPayloadField(t *testing.T) {
 	job := JobDetail{
 		ID:            "example",

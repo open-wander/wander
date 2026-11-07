@@ -2,6 +2,7 @@ package jobspartials
 
 import (
 	"fmt"
+	"net/url"
 	"github.com/open-wander/wander/ui/templates/components"
 )
 
@@ -33,6 +34,8 @@ type JobDetail struct {
 	PlacementFailuresAvailable bool
 	ActiveTab                  string
 	ActiveTabContent           templ.Component
+	Namespace                  string
+	Region                     string
 }
 
 // JobMetadata is a deterministic key/value projection of live job metadata.
@@ -181,7 +184,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "overview",
 						Label:   "Overview",
 						Icon:    "home",
-						URL:     "/ui/jobs/" + job.ID + "/overview",
+						URL:     scopedJobUIURL(job, "/overview"),
 						Content: OverviewTab(job),
 						Active:  getActiveJobTab(job.ActiveTab) == "overview",
 					},
@@ -189,7 +192,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "definition",
 						Label:   "Definition",
 						Icon:    "document",
-						URL:     "/ui/jobs/" + job.ID + "/definition",
+						URL:     scopedJobUIURL(job, "/definition"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "definition",
 					},
@@ -197,7 +200,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "versions",
 						Label:   "Versions",
 						Icon:    "clock",
-						URL:     "/ui/jobs/" + job.ID + "/versions",
+						URL:     scopedJobUIURL(job, "/versions"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "versions",
 					},
@@ -205,7 +208,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "allocations",
 						Label:   "Allocations",
 						Icon:    "user",
-						URL:     "/ui/jobs/" + job.ID + "/allocations",
+						URL:     scopedJobUIURL(job, "/allocations"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "allocations",
 					},
@@ -213,7 +216,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "clients",
 						Label:   "Clients",
 						Icon:    "user",
-						URL:     "/ui/jobs/" + job.ID + "/clients",
+						URL:     scopedJobUIURL(job, "/clients"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "clients",
 					},
@@ -221,7 +224,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "services",
 						Label:   "Services",
 						Icon:    "cube",
-						URL:     "/ui/jobs/" + job.ID + "/services",
+						URL:     scopedJobUIURL(job, "/services"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "services",
 					},
@@ -229,7 +232,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "deployments",
 						Label:   "Deployments",
 						Icon:    "cube",
-						URL:     "/ui/jobs/" + job.ID + "/deployments",
+						URL:     scopedJobUIURL(job, "/deployments"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "deployments",
 					},
@@ -237,7 +240,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "evaluations",
 						Label:   "Evaluations",
 						Icon:    "chart",
-						URL:     "/ui/jobs/" + job.ID + "/evaluations",
+						URL:     scopedJobUIURL(job, "/evaluations"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "evaluations",
 					},
@@ -245,7 +248,7 @@ templ DetailContent(job JobDetail) {
 						ID:      "variables",
 						Label:   "Variables",
 						Icon:    "folder",
-						URL:     "/ui/jobs/" + job.ID + "/variables",
+						URL:     scopedJobUIURL(job, "/variables"),
 						Content: job.ActiveTabContent,
 						Active:  getActiveJobTab(job.ActiveTab) == "variables",
 					},
@@ -294,7 +297,7 @@ templ ForcePeriodicJobModal(job JobDetail) {
 			}
 			@components.ModalFooter() {
 				<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
-				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/periodic/force" } hx-swap="none" class="btn btn-primary btn-sm">Force Launch</button>
+				<button type="button" hx-post={ scopedJobAPIURL(job, "/periodic/force") } hx-swap="none" class="btn btn-primary btn-sm">Force Launch</button>
 			}
 		}
 	</div>
@@ -343,7 +346,7 @@ templ StartJobModal(job JobDetail) {
 				</button>
 				<button
 					type="button"
-					hx-post={ "/api/jobs/" + job.ID + "/start" }
+					hx-post={ scopedJobAPIURL(job, "/start") }
 					hx-swap="none"
 					class="btn btn-success btn-sm"
 				>
@@ -383,7 +386,7 @@ templ StopJobModal(job JobDetail) {
 				</button>
 				<button
 					type="button"
-					hx-post={ "/api/jobs/" + job.ID + "/stop" }
+					hx-post={ scopedJobAPIURL(job, "/stop") }
 					hx-swap="none"
 					class="btn btn-danger btn-sm"
 				>
@@ -423,7 +426,7 @@ templ RunJobModal(job JobDetail) {
 				</button>
 				<button
 					type="button"
-					hx-post={ "/api/jobs/" + job.ID + "/run" }
+					hx-post={ scopedJobAPIURL(job, "/run") }
 					hx-swap="none"
 					class="btn btn-primary btn-sm"
 				>
@@ -443,7 +446,7 @@ templ DispatchJobModal(job JobDetail) {
 			Size:     "lg",
 			Closable: true,
 		}) {
-			<form hx-post={ "/api/jobs/" + job.ID + "/dispatch" } hx-swap="none">
+			<form hx-post={ scopedJobAPIURL(job, "/dispatch") } hx-swap="none">
 				@components.ModalBody() {
 					<div class="space-y-4">
 						<p class="text-sm text-neutral-600">
@@ -512,8 +515,20 @@ templ PurgeJobModal(job JobDetail) {
 			}
 			@components.ModalFooter() {
 				<button type="button" @click="close" class="btn btn-secondary btn-sm">Cancel</button>
-				<button type="button" hx-post={ "/api/jobs/" + job.ID + "/purge" } hx-swap="none" class="btn btn-danger btn-sm">Purge Job</button>
+				<button type="button" hx-post={ scopedJobAPIURL(job, "/purge") } hx-swap="none" class="btn btn-danger btn-sm">Purge Job</button>
 			}
 		}
 	</div>
+}
+
+func scopedJobUIURL(job JobDetail, suffix string) string {
+	return scopedJobURL("/ui/jobs/"+url.PathEscape(job.ID)+suffix, job)
+}
+
+func scopedJobAPIURL(job JobDetail, suffix string) string {
+	return scopedJobURL("/api/jobs/"+url.PathEscape(job.ID)+suffix, job)
+}
+
+func scopedJobURL(path string, job JobDetail) string {
+	return components.ScopedURL(path, job.Namespace, job.Region)
 }

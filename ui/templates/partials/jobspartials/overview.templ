@@ -2,6 +2,7 @@ package jobspartials
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/open-wander/wander/ui/templates/components"
@@ -63,7 +64,7 @@ templ OverviewTab(job JobDetail) {
 		<section data-overview-recent-allocations>
 			<div class="mb-4 flex items-center justify-between gap-4">
 				<h3 class="text-lg font-semibold text-neutral-900">Recent Allocations</h3>
-				<a href={ templ.SafeURL("/ui/jobs/" + job.ID + "/allocations") } hx-get={ "/ui/jobs/" + job.ID + "/allocations" } hx-target="#job-detail-panel" class="text-sm font-medium text-primary-600 hover:text-primary-800">View all</a>
+				<a href={ templ.SafeURL(scopedJobUIURL(job, "/allocations")) } hx-get={ scopedJobUIURL(job, "/allocations") } hx-target="#job-detail-panel" class="text-sm font-medium text-primary-600 hover:text-primary-800">View all</a>
 			</div>
 			if !job.RecentAllocationsAvailable {
 				<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">Recent allocations are temporarily unavailable.</div>
@@ -175,8 +176,8 @@ templ OverviewTab(job JobDetail) {
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 				for _, tg := range job.TaskGroups {
 					<a
-						href={ templ.SafeURL("/ui/jobs/" + job.ID + "/taskgroups/" + tg.Name) }
-						hx-get={ "/ui/jobs/" + job.ID + "/taskgroups/" + tg.Name }
+						href={ templ.SafeURL(scopedJobUIURL(job, "/taskgroups/" + url.PathEscape(tg.Name))) }
+						hx-get={ scopedJobUIURL(job, "/taskgroups/" + url.PathEscape(tg.Name)) }
 						hx-target="#main-content"
 						hx-push-url="true"
 						class="bg-neutral-50 border border-neutral-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all duration-150 cursor-pointer block"
