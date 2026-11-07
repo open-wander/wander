@@ -45,8 +45,10 @@ The complete and authoritative release work list is the
 are the original release-engineering summary and must not be read as the full
 UI parity inventory.
 
-- [ ] Build the release artifacts with the `ui` build tag and verify each
+- [x] Build the release artifacts with the `ui` build tag and verify each
   supported archive contains one Wander binary with the HTMX UI embedded.
+  Preview `v0.1.0-preview.2` verified Linux AMD64/ARM/ARM64, Darwin
+  AMD64/ARM64, and Windows AMD64 archives in release run `42356326274`.
 - [x] Smoke-test an extracted release binary: `/` redirects to `/ui/`, and
   `/ui/` serves the current Wander UI without a separate web process. The
   Darwin ARM64 release-format archive passed locally on 2026-10-18; CI applies

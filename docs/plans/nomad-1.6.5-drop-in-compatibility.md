@@ -73,11 +73,13 @@ incompatibility.
 - [x] Unit tests cover `/` redirect and query retention.
 - [x] UI-tagged tests cover default enablement, embedded static assets,
       configured disablement, and the inherited CSP header.
-- [ ] Every supported archive contains exactly one `wander` executable and its
-      Go build metadata contains the `ui` tag.
-- [ ] An extracted Linux archive starts without a separate UI process and
+- [x] Every supported archive contains exactly one `wander` executable and its
+      Go build metadata contains the `ui` tag. Preview `v0.1.0-preview.2`
+      verified all six supported archives in release run `42356326274`.
+- [x] An extracted Linux archive starts without a separate UI process and
       serves `/`, `/ui/`, a static asset, and `/v1/agent/self` as expected.
-- [ ] The same smoke test proves `ui { enabled = false }` returns the disabled
+      The packaged Linux AMD64 smoke passed in release run `42356326274`.
+- [x] The same smoke test proves `ui { enabled = false }` returns the disabled
       UI response while the server API remains available.
 - [x] A clean install and three-server rolling restart preserve cluster state.
       `ci/rehearse-release-lifecycle.sh` verifies the cluster after every

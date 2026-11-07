@@ -35,11 +35,17 @@ the checksum, SBOM, or provenance contract.
 
 ## Release Gate
 
-The implementation is present, but the 0.1.0 checklist remains open until a
-preview release proves that:
+Preview `v0.1.0-preview.2`, produced by release workflow run `42356326274` on
+November 7, 2026, proves the release-artifact trust contract:
 
 - the SPDX file is a downloadable asset and is listed in the checksum manifest;
-- both provenance and SBOM attestations verify for at least the Linux amd64
-  archive;
+- all 14 checksum subjects verify after downloading the published assets;
+- both provenance and SBOM attestations verify for the Linux amd64 archive;
 - attestation subjects match the published asset digests; and
 - the release job retains only the permissions documented by the workflow.
+
+The first preview exposed GitHub's normalization of `~` in native-package asset
+names. Publication now normalizes those names before generating checksums,
+SBOMs, attestations, and release assets. The second preview independently
+verified that every published archive and native package matches the manifest
+using its downloadable filename.
