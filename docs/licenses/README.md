@@ -1,6 +1,6 @@
 # Wander 0.1.0 license and provenance inventory
 
-Audit date: 2026-10-23
+Audit date: 2026-11-07
 
 This is an engineering inventory, not legal advice. It records the evidence
 available in this repository and identifies decisions that still require the
@@ -20,15 +20,15 @@ dependencies are repository tooling and are not part of the release binary.
 
 ## Status
 
-**The repository is not ready for a 0.1.0 release on licensing evidence yet.**
+**The 0.1.0 engineering license and provenance review is complete.**
 
 | Area | Result | Release effect |
 | --- | --- | --- |
-| Project source | Root license is MPL-2.0; 2,249 tracked files carry an explicit MPL-2.0 SPDX marker. | Candidate baseline still needs project-owner approval. |
+| Project source | Root license is MPL-2.0; 2,249 tracked files carry an explicit MPL-2.0 SPDX marker. The project owner approved the exact source baseline, exclusions, and independently developed UI provenance on 2026-11-07. | Approved for the 0.1.0 release record. |
 | Historical boundary | `v1.6.5` is the exact ancestor at `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f`. It contains 45 BUSL-1.1 files: 37 in the former UI and 8 elsewhere. All were removed by explicit reverts before the replacement UI began. | Exact excluded paths are recorded in `baseline-busl-exclusions.txt`. |
 | Current tree | No current implementation file contains a BUSL marker. | Marker check passes, but marker absence alone is not provenance proof. |
 | Go release dependencies | Representative scans cover the identical module closures for all release architectures: 293 third-party modules, 305 scanner records, and 1 manually classified omission across Linux, macOS, and Windows. The requested BUSL-1.1 Vault Kubernetes auth module is replaced by its source-identical MPL-2.0 predecessor. | The CI boundary check pins the resolved replacement. |
-| Browser runtime assets | Alpine CSP 3.15.4, htmx 2.0.8, xterm 5.5.0, and xterm addon-fit 0.10.0 have exact version/hash evidence. | Notices are now retained in this directory, but the release must still define how recipients receive them. |
+| Browser runtime assets | Alpine CSP 3.15.4, htmx 2.0.8, xterm 5.5.0, and xterm addon-fit 0.10.0 have exact version/hash evidence. | Notices are retained here and shipped in archives, containers, and native packages. |
 | UI build dependencies | Ten locked packages, all declaring MIT. | They build embedded Alpine/Tailwind output; see `npm-release-packages.csv`. |
 | Test-only UI dependencies | Seven locked packages: four Apache-2.0 and three MIT. | Not shipped; recorded below for repository hygiene. |
 | Website and legacy tooling | Separate and not shipped in the executable. Several inherited lockfiles are too old to carry reliable license metadata. | Audit separately before publishing those artifacts; not a Wander binary blocker. |
@@ -38,7 +38,7 @@ dependencies are repository tooling and are not part of the release binary.
 The candidate inherited source set is defined reproducibly as all 5,299 paths
 and Git blobs in commit `a7cfff372cd52b02232a02bd3ffb5e5d35f88a0f`
 (`v1.6.5`) **minus** the 45 paths in `baseline-busl-exclusions.txt`. This leaves
-5,254 baseline paths as candidates, not automatically approved files. The
+5,254 approved baseline paths. The
 commit object fixes the exact content and the exclusion file fixes the exact
 mixed-license removals without duplicating thousands of Git blob identifiers
 in documentation.
@@ -144,9 +144,11 @@ generated tree, `LICENSE.txt`, and `THIRD_PARTY_NOTICES.md` alongside the single
 Wander executable. The same material is copied into OCI images at
 `/licenses/wander` and native Linux packages at `/usr/share/doc/wander`.
 
-## Required next decisions
+## Release review result
 
-1. Have the project owner approve the exact source baseline, the 45 exclusions,
-   and the independently developed UI provenance record.
-2. Repeat the inventory against the final release commit and attach the output
-   to the 0.1.0 release record/SBOM.
+The project owner approved the exact source baseline, the 45 exclusions, and
+the independently developed UI provenance record on 2026-11-07. Stable release
+commit `171040d011081e9a76d274bca0356ccf748acbff` descends from the approved
+preview commit and differs only in the changelog heading and version marker.
+Release workflow run `42393367488` rebuilt all targets, shipped the notice
+bundle and SBOM, and published verifiable GitHub/Sigstore attestations.

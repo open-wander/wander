@@ -56,3 +56,12 @@ names. Publication now normalizes those names before generating checksums,
 SBOMs, attestations, and release assets. The second preview independently
 verified that every published archive and native package matches the manifest
 using its downloadable filename.
+
+Stable `v0.1.0` was published on November 7, 2026 from commit
+`171040d011081e9a76d274bca0356ccf748acbff` by workflow run `42393367488`.
+All 14 checksum subjects matched GitHub's published asset digests, and
+independent verification passed for the metadata provenance, Linux amd64
+archive provenance, and SPDX SBOM attestation. The first Linux lifecycle
+attempt encountered one transient HTTP 500 after clean-install and rolling
+restart checks had passed; the same commit passed the complete rehearsal on
+the workflow's failed-job retry before publication.

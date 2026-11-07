@@ -38,8 +38,16 @@ For files added or materially rewritten since the last approved release:
 
 ## Sign-off record
 
-- Release commit: pending
-- Engineering reviewer/date: pending
-- Project-owner provenance approval/date: pending
-- Legal review, if requested/date: pending
-- Exceptions and remediation references: pending
+- Release commit: `171040d011081e9a76d274bca0356ccf748acbff`
+- Engineering reviewer/date: Codex engineering review, 2026-11-07
+- Project-owner provenance approval/date: 2026-11-07. The project owner
+  explicitly approved preview commit
+  `0c8147faf18e47ed5cc67e9f3a62f1ade0d0ba03`, the Nomad 1.6.5 source
+  baseline, the 45-file BUSL exclusion manifest, and the independently
+  developed Wander UI provenance for 0.1.0. The stable commit descends from
+  that commit and changes only `CHANGELOG.md` and `version/version.go`.
+- Legal review, if requested/date: not requested; this remains an engineering
+  inventory and is not legal advice.
+- Exceptions and remediation references: the manually classified dependency
+  records and retained notices in this directory; no release exception was
+  required.
