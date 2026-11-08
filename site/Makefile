@@ -1,6 +1,6 @@
 .PHONY: all build generate css render check test serve clean
 
-TAILWIND := ../ui/bin/tailwindcss
+TAILWIND := ../ui/node_modules/.bin/tailwindcss
 
 all: build
 

@@ -45,7 +45,7 @@ The following files are auto-generated and should not be committed:
 - Go 1.27.3
 - Templ CLI: `go install github.com/a-h/templ/cmd/templ@v0.3.977`
 - Air (for hot-reload): `go install github.com/air-verse/air@latest`
-- Node.js 18+ (for Tailwind CSS plugins)
+- Node.js 24 LTS (for the locked Tailwind CSS toolchain)
 
 ## Setup
 
