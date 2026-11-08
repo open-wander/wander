@@ -23,6 +23,8 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 				<meta name="description" content={ props.Description }/>
 			}
 			<title>{ props.Title }</title>
+			<!-- Theme bootstrap runs before CSS to avoid a light-theme flash. -->
+			<script src="/ui/static/js/theme.js"></script>
 			<!-- Tailwind CSS -->
 			<link rel="stylesheet" href="/ui/static/css/output.css"/>
 			<!-- xterm.js CSS - Terminal emulator styles -->
@@ -46,7 +48,7 @@ templ BaseLayout(props BaseLayoutProps, content templ.Component) {
 			<script src="/ui/static/js/xterm-addon-fit.min.js"></script>
 		</head>
 		<body
-			class="h-full bg-neutral-50 text-neutral-900 antialiased"
+			class="h-full bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-900 dark:text-neutral-100"
 			data-wander-namespace={ props.CurrentNamespace }
 			data-wander-region={ props.CurrentRegion }
 			hx-ext="head-support"

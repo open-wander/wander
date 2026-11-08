@@ -1,5 +1,7 @@
 package settingspartials
 
+import "github.com/open-wander/wander/ui/templates/components"
+
 // SettingsContent renders the main content for the settings page.
 templ SettingsContent(tokenInfo TokenInfo, oidcMethods []OIDCAuthMethod, authError string) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -9,6 +11,10 @@ templ SettingsContent(tokenInfo TokenInfo, oidcMethods []OIDCAuthMethod, authErr
 			<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
 				Configure authorization and access control for Wander
 			</p>
+		</div>
+
+		<div class="mb-6">
+			@components.ThemeSettings()
 		</div>
 
 		<!-- Token Section -->

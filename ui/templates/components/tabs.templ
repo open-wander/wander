@@ -127,7 +127,7 @@ templ htmxTabs(props TabsProps) {
 templ tabList(props TabsProps, mode string) {
 	<div
 		role="tablist"
-		class="border-b border-neutral-200"
+		class="border-b border-neutral-200 dark:border-neutral-700"
 	>
 		<nav class="-mb-px flex space-x-4" aria-label="Tabs">
 			for _, tab := range props.Tabs {
@@ -242,7 +242,7 @@ templ tabIcon(iconName string, tabID string) {
 templ loadingIndicator() {
 	<div class="flex items-center justify-center py-8">
 		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-		<span class="ml-3 text-sm text-neutral-600">Loading...</span>
+		<span class="ml-3 text-sm text-neutral-600 dark:text-neutral-400">Loading...</span>
 	</div>
 }
 
