@@ -19,7 +19,7 @@ var (
 	GitDescribe string
 
 	// Version is the public Wander product version.
-	Version = "0.1.1"
+	Version = "0.1.2"
 
 	// ClusterCompatibilityVersion is advertised to other Wander agents for
 	// inherited Nomad feature gates. It is deliberately independent from the
@@ -29,7 +29,7 @@ var (
 	// A pre-release marker for the version. If this is "" (empty string)
 	// then it means that it is a final release. Otherwise, this is a pre-release
 	// such as "dev" (in development), "beta", "rc1", etc.
-	VersionPrerelease = ""
+	VersionPrerelease = "dev"
 
 	// VersionMetadata is metadata further describing the build type.
 	VersionMetadata = ""
