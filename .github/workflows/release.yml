@@ -139,7 +139,7 @@ jobs:
           # LAST_RELEASE is used to generate the new CHANGELOG entries, so it's
           # only updated for final releases.
           if [[ ${RELEASE_VERSION} != *-* ]]; then
-            sed -i.bak -re "s|^(LAST_RELEASE\s+\?=\s+v).*$|\1${RELEASE_VERSION}|g" GNUmakefile
+            sed -i.bak -E "s|^(LAST_RELEASE[[:space:]]*\?=[[:space:]]*).*$|\1wander-v${RELEASE_VERSION}|" GNUmakefile
             rm -fr GNUmakefile.bak
             changelog_tmp=$(mktemp)
             printf '## UNRELEASED\n\n' >"${changelog_tmp}"
