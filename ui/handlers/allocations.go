@@ -628,7 +628,7 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if tabName != "" && tabName != "tasks" && tabName != "exec" && tabName != "files" && tabName != "raw" {
+	if tabName != "" && tabName != "tasks" && tabName != "exec" && tabName != "files" && tabName != "raw" && tabName != "stats" {
 		h.handler.RenderNotFound(w, r, NotFoundError{
 			Message:     "The allocation tab you requested could not be found.",
 			RequestPath: r.URL.Path,
@@ -655,6 +655,17 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.authorizeAllocationTab(w, r, tabName) {
+		return
+	}
+	if tabName == "stats" {
+		if !IsHTMXFromRequest(r) {
+			h.handler.RenderNotFound(w, r, NotFoundError{
+				Message:     "The allocation page you requested could not be found.",
+				RequestPath: r.URL.Path,
+			})
+			return
+		}
+		h.renderLiveStats(w, r, actualAllocID)
 		return
 	}
 
@@ -751,6 +762,10 @@ func (h *AllocationsHandler) Detail(w http.ResponseWriter, r *http.Request) {
 // getAllocationDetail fetches allocation details from the Nomad API.
 // Returns allocation detail structure for template rendering.
 func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token string, loadTaskRuntime bool) (allocationspartials.AllocationDetail, error) {
+	return h.getAllocationDetailWithRuntime(r, allocID, token, loadTaskRuntime, loadTaskRuntime)
+}
+
+func (h *AllocationsHandler) getAllocationDetailWithRuntime(r *http.Request, allocID, token string, loadServices, loadStats bool) (allocationspartials.AllocationDetail, error) {
 	client := h.handler.NomadClientForRequest(r)
 	if client == nil {
 		return allocationspartials.AllocationDetail{}, fmt.Errorf("Wander API client is unavailable")
@@ -942,14 +957,18 @@ func (h *AllocationsHandler) getAllocationDetail(r *http.Request, allocID, token
 		Events:    allocEvents,
 		JobURL:    scopedUIURL("/ui/jobs/"+url.PathEscape(alloc.JobID), alloc.Namespace, queryOpts.Region),
 		NodeURL:   scopedUIURL("/ui/clients/"+url.PathEscape(alloc.NodeID), alloc.Namespace, queryOpts.Region),
+		StatsURL:  scopedUIURL("/ui/allocations/"+url.PathEscape(alloc.ID)+"/stats", queryOpts.Namespace, queryOpts.Region),
 	}
-	if loadTaskRuntime {
-		h.enrichAllocationTaskRuntime(client, alloc, queryOpts, &detail)
+	if loadServices {
+		h.enrichAllocationServices(client, alloc, queryOpts, &detail)
+	}
+	if loadStats {
+		h.enrichAllocationStats(client, alloc, queryOpts, &detail)
 	}
 	return detail, nil
 }
 
-func (h *AllocationsHandler) enrichAllocationTaskRuntime(client *api.Client, alloc *api.Allocation, queryOpts *api.QueryOptions, detail *allocationspartials.AllocationDetail) {
+func (h *AllocationsHandler) enrichAllocationServices(client *api.Client, alloc *api.Allocation, queryOpts *api.QueryOptions, detail *allocationspartials.AllocationDetail) {
 	detail.ServicesReady = true
 	registrations, _, err := client.Allocations().Services(alloc.ID, queryOpts)
 	if err != nil {
@@ -957,7 +976,9 @@ func (h *AllocationsHandler) enrichAllocationTaskRuntime(client *api.Client, all
 	} else {
 		detail.Services = projectAllocationServices(registrations, queryOpts.Namespace, queryOpts.Region)
 	}
+}
 
+func (h *AllocationsHandler) enrichAllocationStats(client *api.Client, alloc *api.Allocation, queryOpts *api.QueryOptions, detail *allocationspartials.AllocationDetail) {
 	detail.StatsReady = true
 	stats, err := client.Allocations().Stats(alloc, queryOpts)
 	if err != nil {
@@ -982,6 +1003,18 @@ func (h *AllocationsHandler) enrichAllocationTaskRuntime(client *api.Client, all
 			timestamp = stats.Timestamp
 		}
 		detail.Tasks[index].Resources.LiveStats = projectLiveResourceStats(taskStats.ResourceUsage, timestamp)
+	}
+}
+
+func (h *AllocationsHandler) renderLiveStats(w http.ResponseWriter, r *http.Request, allocID string) {
+	detail, err := h.getAllocationDetailWithRuntime(r, allocID, GetTokenFromRequest(r), false, true)
+	if err != nil {
+		h.renderAllocationFetchError(w, r, allocID, err)
+		return
+	}
+	if err := RenderPartial(w, r, allocationspartials.LiveResourcePanel(detail)); err != nil {
+		h.handler.logger.Error("failed to render allocation live statistics", "allocID", allocID, "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
