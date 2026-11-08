@@ -933,7 +933,7 @@ func TestDockerDriver_ForcePull_RepoDigest(t *testing.T) {
 
 	cfg.LoadImage = ""
 	cfg.Image = "library/busybox@sha256:58ac43b2cc92c687a32c8be6278e50a063579655fe3090125dcb2af0ff9e1a64"
-	_, localDigest, found := strings.Cut(cfg.Image, "@")
+	_, requestedDigest, found := strings.Cut(cfg.Image, "@")
 	require.True(t, found)
 	cfg.ForcePull = true
 	cfg.Command = busyboxLongRunningCmd[0]
@@ -946,7 +946,19 @@ func TestDockerDriver_ForcePull_RepoDigest(t *testing.T) {
 
 	container, err := client.InspectContainer(handle.containerID)
 	require.NoError(t, err)
-	require.Equal(t, localDigest, container.Image)
+
+	image, err := client.InspectImage(cfg.Image)
+	require.NoError(t, err)
+	require.Equal(t, image.ID, container.Image)
+
+	var resolvedRequestedDigest bool
+	for _, repoDigest := range image.RepoDigests {
+		if strings.HasSuffix(repoDigest, "@"+requestedDigest) {
+			resolvedRequestedDigest = true
+			break
+		}
+	}
+	require.True(t, resolvedRequestedDigest, "pulled image does not contain requested digest: %v", image.RepoDigests)
 }
 
 func TestDockerDriver_SecurityOptUnconfined(t *testing.T) {
