@@ -191,7 +191,7 @@ jobs:
           GOTEST_GROUP: ${{matrix.groups}}
         run: |
           make bootstrap
-          make ui-generate
+          make templ-generate
           make -C ui install-tailwind build-css
           make dev
           hc-install install -version ${{env.VAULT_VERSION}} -path "$(go env GOPATH)/bin" vault
