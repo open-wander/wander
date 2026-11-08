@@ -74,7 +74,7 @@ prose, screenshots, and layouts are not copied automatically.
 - [x] Install and run a local development agent.
 - [x] Submit, inspect, follow, and stop a first job.
 - [x] Explore the job and allocation workflows in the embedded Wander UI.
-- [ ] Build a disposable multi-node development cluster.
+- [x] Build a disposable multi-node development cluster.
 - [ ] Plan a production server/client topology.
 - [ ] Migrate a Nomad 1.6.5 cluster with backup and rollback checkpoints.
 - [ ] Bootstrap ACLs and manage policies, roles, and tokens.
@@ -121,7 +121,7 @@ prose, screenshots, and layouts are not copied automatically.
 ## Publication and operations
 
 - [ ] Confirm the canonical hosting repository, provider, and base path.
-- [ ] Add CI that builds the site and checks internal links on relevant changes.
+- [x] Add CI that builds the site and checks internal links on relevant changes.
 - [ ] Publish a preview and verify every canonical route over HTTPS.
 - [ ] Record rollback steps for the currently deployed homepage.
 - [ ] Restore website links in README only after production verification.

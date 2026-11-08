@@ -13,6 +13,7 @@ func Pages() []Page {
 		{Output: "wander/tutorials/getting-started/index.html", Component: GettingStartedPage()},
 		{Output: "wander/tutorials/run-first-job/index.html", Component: RunFirstJobPage()},
 		{Output: "wander/tutorials/explore-ui/index.html", Component: ExploreUIPage()},
+		{Output: "wander/tutorials/multi-node-development/index.html", Component: MultiNodeDevelopmentPage()},
 	}
 }
 
@@ -137,15 +138,16 @@ templ TutorialsPage() {
 		<section class="border-b border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-950"><div class="site-shell"><p class="eyebrow">Tutorials</p><h1 class="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Learn Wander by running it.</h1><p class="mt-5 max-w-3xl text-xl leading-8 text-neutral-600 dark:text-neutral-300">Each tutorial is tied to a supported release workflow and states when a development shortcut is not appropriate for production.</p></div></section>
 		<section class="py-16">
 			<div class="site-shell">
-				<div class="grid gap-6 lg:grid-cols-3">
+				<div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
 					<a href="/wander/tutorials/getting-started/" class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline"><span class="eyebrow">01 · 10 minutes</span><h2 class="mt-4 text-2xl font-bold text-neutral-950 group-hover:text-primary-700 dark:text-white">Run Wander locally</h2><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Verify a release, start a development agent, confirm the API, and open the embedded UI.</p><span class="mt-6 inline-flex font-semibold text-primary-600 dark:text-primary-400">Start tutorial →</span></a>
 					<a href="/wander/tutorials/run-first-job/" class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline"><span class="eyebrow">02 · 15 minutes</span><h2 class="mt-4 text-2xl font-bold text-neutral-950 group-hover:text-primary-700 dark:text-white">Run your first job</h2><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Write, validate, submit, inspect, follow, and safely remove a service job.</p><span class="mt-6 inline-flex font-semibold text-primary-600 dark:text-primary-400">Start tutorial →</span></a>
 					<a href="/wander/tutorials/explore-ui/" class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline"><span class="eyebrow">03 · 10 minutes</span><h2 class="mt-4 text-2xl font-bold text-neutral-950 group-hover:text-primary-700 dark:text-white">Explore the Wander UI</h2><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Follow a workload through its job, allocation, logs, exec session, and files.</p><span class="mt-6 inline-flex font-semibold text-primary-600 dark:text-primary-400">Start tutorial →</span></a>
+					<a href="/wander/tutorials/multi-node-development/" class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline"><span class="eyebrow">04 · 20 minutes</span><h2 class="mt-4 text-2xl font-bold text-neutral-950 group-hover:text-primary-700 dark:text-white">Build a multi-node lab</h2><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Run one server and two clients on one machine, then verify scheduling across both nodes.</p><span class="mt-6 inline-flex font-semibold text-primary-600 dark:text-primary-400">Start tutorial →</span></a>
 				</div>
 			</div>
 		</section>
 		<section class="border-t border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-950">
-			<div class="site-shell grid gap-8 lg:grid-cols-[.7fr_1.3fr]"><div><p class="eyebrow">Roadmap</p><h2 class="mt-3 text-3xl font-bold">Planned tutorials</h2><p class="mt-4 leading-7 text-neutral-600 dark:text-neutral-300">These will be written and tested against Wander's supported 1.6.5 compatibility boundary before publication.</p></div><ul class="grid gap-x-8 gap-y-3 text-neutral-700 sm:grid-cols-2 dark:text-neutral-300"><li>Multi-node development cluster</li><li>Production topology</li><li>Nomad 1.6.5 migration</li><li>ACL bootstrap and policies</li><li>Namespaces and variables</li><li>Services and Consul</li><li>Secrets and future OpenBao support</li><li>Host and CSI volumes</li><li>Backup, restore, and upgrades</li><li>Multi-region federation</li></ul></div>
+			<div class="site-shell grid gap-8 lg:grid-cols-[.7fr_1.3fr]"><div><p class="eyebrow">Roadmap</p><h2 class="mt-3 text-3xl font-bold">Planned tutorials</h2><p class="mt-4 leading-7 text-neutral-600 dark:text-neutral-300">These will be written and tested against Wander's supported 1.6.5 compatibility boundary before publication.</p></div><ul class="grid gap-x-8 gap-y-3 text-neutral-700 sm:grid-cols-2 dark:text-neutral-300"><li>Production topology</li><li>Nomad 1.6.5 migration</li><li>ACL bootstrap and policies</li><li>Namespaces and variables</li><li>Services and Consul</li><li>Secrets and future OpenBao support</li><li>Host and CSI volumes</li><li>Backup, restore, and upgrades</li><li>Multi-region federation</li></ul></div>
 		</section>
 	}
 }
