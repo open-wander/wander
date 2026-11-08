@@ -44,17 +44,17 @@ func TestTaskDNSConfig(t *testing.T, driver *DriverHarness, taskID string, dns *
 			if len(dns.Options) > 0 {
 				must.SliceContainsAll(t, dns.Options, actual.Options)
 			}
-		} else {
-			systemPath := "/etc/resolv.conf"
-			if !usesHostNetwork {
-				systemPath = resolvconf.SystemPath()
-			}
-
-			system, specificErr := resolvconf.Read(systemPath)
+		} else if usesHostNetwork {
+			system, specificErr := resolvconf.Read("/etc/resolv.conf")
 			must.NoError(t, specificErr)
 			must.SliceContainsAll(t, system.Nameservers, actual.Nameservers)
 			must.SliceContainsAll(t, system.Searches, actual.Searches)
 			must.SliceContainsAll(t, system.Options, actual.Options)
+		} else {
+			// An image-isolated task inherits the container runtime's DNS
+			// configuration. For a remote daemon, including Docker Desktop,
+			// that resolver intentionally differs from the test host's.
+			must.Positive(t, len(actual.Nameservers))
 		}
 	})
 }

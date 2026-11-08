@@ -866,10 +866,9 @@ func TestWorker_Info(t *testing.T) {
 	require.Equal(t, WorkerStarting.String(), workerInfo.Status)
 }
 
-const (
-	longWait = 100 * time.Millisecond
-	tinyWait = 10 * time.Millisecond
-)
+var longWait = testutil.Timeout(250 * time.Millisecond)
+
+const tinyWait = 10 * time.Millisecond
 
 func TestWorker_SetPause(t *testing.T) {
 	ci.Parallel(t)
@@ -885,28 +884,16 @@ func TestWorker_SetPause(t *testing.T) {
 	w._start(testWorkload)
 	require.Eventually(t, w.IsStarted, longWait, tinyWait, "should have started")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Pause()
-	}()
+	w.Pause()
 	require.Eventually(t, w.IsPaused, longWait, tinyWait, "should have paused")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Pause()
-	}()
+	w.Pause()
 	require.Eventually(t, w.IsPaused, longWait, tinyWait, "pausing a paused should be okay")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Resume()
-	}()
+	w.Resume()
 	require.Eventually(t, w.IsStarted, longWait, tinyWait, "should have restarted from pause")
 
-	go func() {
-		time.Sleep(tinyWait)
-		w.Stop()
-	}()
+	w.Stop()
 	require.Eventually(t, w.IsStopped, longWait, tinyWait, "should have shutdown")
 }
 

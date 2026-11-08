@@ -3,7 +3,7 @@
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](LICENSE)
 [![Discuss](https://img.shields.io/badge/discuss-wander-2563EB?style=flat)](https://github.com/open-wander/wander/discussions)
 
-Wander is a simple and flexible workload orchestrator to deploy and manage containers ([docker](https://openwander.org/wander/docs/drivers/docker), [podman](https://openwander.org/wander/docs/drivers/podman)), non-containerized applications ([executable](https://openwander.org/wander/docs/drivers/exec), [Java](https://openwander.org/wander/docs/drivers/java)), and virtual machines ([qemu](https://openwander.org/wander/docs/drivers/qemu)) across on-prem and clouds at scale.
+Wander is a simple and flexible workload orchestrator to deploy and manage containers (Docker and Podman), non-containerized applications (executables and Java), and virtual machines (QEMU) across on-prem and clouds at scale.
 
 Wander is supported on Linux, Windows, and macOS.
 
@@ -16,7 +16,7 @@ Wander is supported on Linux, Windows, and macOS.
 > 1.6.5 compatibility boundary are not supported migration sources.
 
 * Website: https://openwander.org
-* Tutorials: [Wander Tutorials](https://openwander.org/wander/tutorials)
+* Getting started and migration: [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md)
 * Forum: [GitHub Discussions](https://github.com/open-wander/wander/discussions)
 * Downloads and native packages: [GitHub Releases](https://github.com/open-wander/wander/releases)
 * Container images: [`ghcr.io/open-wander/wander`](https://github.com/open-wander/wander/pkgs/container/wander)
@@ -39,17 +39,21 @@ Wander is supported on Linux, Windows, and macOS.
 
 ### Testing
 
-See [Getting Started](https://openwander.org/wander/tutorials/getting-started) for instructions on setting up a local Wander cluster for non-production use.
+See the [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md) for installation, local validation, and Nomad 1.6.5 migration instructions.
 
 Optionally, find Terraform manifests for bringing up a development Wander cluster on a public cloud in the [`terraform`](terraform/) directory.
 
 ### Production
 
-See [Wander Reference Architecture](https://openwander.org/wander/docs/operations/reference-architecture) for recommended practices and a reference architecture for production deployments.
+Start with the [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md). Test backup, migration, rollback, and workload continuity in a representative environment before a production deployment.
 
 ## Documentation
 
-Full, comprehensive documentation is available on the Wander website: https://openwander.org/wander/docs
+The 0.1.x operator documentation is maintained in this repository, starting
+with the [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md).
+The clean replacement website is being built in [`site/`](site/README.md) and
+is not yet published. The inherited `website/` tree remains reference-only
+while its text undergoes licensing, provenance, and content review.
 
 Operators preparing a 0.1.x installation or Nomad 1.6.5 migration should also
 read the [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md).

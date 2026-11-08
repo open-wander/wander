@@ -56,10 +56,10 @@ func (b *BlockedStats) Unblock(eval *structs.Evaluation) {
 	b.BlockedResources = b.BlockedResources.Subtract(resourceStats)
 }
 
-// prune deletes any key zero metric values older than the cutoff.
+// prune deletes zero metric values at or before the cutoff.
 func (b *BlockedStats) prune(cutoff time.Time) {
 	shouldPrune := func(s BlockedResourcesSummary) bool {
-		return s.Timestamp.Before(cutoff) && s.IsZero()
+		return !s.Timestamp.After(cutoff) && s.IsZero()
 	}
 
 	for k, v := range b.BlockedResources.ByJob {

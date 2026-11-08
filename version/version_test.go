@@ -10,6 +10,6 @@ import (
 )
 
 func TestPublicAndCompatibilityVersionsAreIndependent(t *testing.T) {
-	must.Eq(t, "0.1.0-dev", GetVersion().VersionNumber())
+	must.Eq(t, "0.1.1-dev", GetVersion().VersionNumber())
 	must.Eq(t, "1.6.5", ClusterCompatibilityVersion)
 }

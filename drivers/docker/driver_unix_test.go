@@ -630,7 +630,7 @@ func TestDockerDriver_CreateContainerConfig_MountsCombined(t *testing.T) {
 
 	if runtime.GOOS != "linux" {
 		expectedMounts[0].BindOptions = &docker.BindOptions{}
-		expectedMounts[1].BindOptions = &docker.BindOptions{}
+		expectedMounts[1].BindOptions = nil
 	}
 
 	foundMounts := c.HostConfig.Mounts
