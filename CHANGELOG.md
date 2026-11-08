@@ -1,5 +1,16 @@
 ## UNRELEASED
 
+IMPROVEMENTS:
+
+* ui: Add an allocation reservation map to topology clients so CPU and memory reservations can be compared directly with full schedulable node capacity.
+
+BUG FIXES:
+
+* ui: Refresh aggregate and per-task allocation resource statistics automatically while an allocation is running instead of requiring a full browser refresh.
+* docker: Apply configured container MAC addresses to Docker endpoint networking while retaining compatibility with Docker API versions before 1.44.
+* scheduler: Prune zero-value blocked-evaluation statistics whose timestamp is exactly at the retention cutoff.
+* site: Confine generated-site link validation to the output root when checking internal references.
+
 ## 0.1.0 (November 07, 2026)
 
 BREAKING CHANGES:

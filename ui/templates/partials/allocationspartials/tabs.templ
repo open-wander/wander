@@ -8,6 +8,107 @@ import (
 	"github.com/open-wander/wander/ui/templates/components"
 )
 
+// LiveResourcePanel renders the independently refreshed aggregate and task
+// samples. Keeping polling inside this panel preserves the active tab, focus,
+// and scroll position on the surrounding allocation page.
+templ LiveResourcePanel(alloc AllocationDetail) {
+	<section
+		id="allocation-live-stats"
+		data-testid="allocation-live-stats"
+		class="mb-8"
+		aria-live="polite"
+		if alloc.Status == "running" && alloc.StatsURL != "" {
+			hx-get={ templ.SafeURL(alloc.StatsURL) }
+			hx-trigger="every 3s"
+			hx-swap="outerHTML"
+		}
+	>
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+			<h3 class="text-lg font-medium text-neutral-900">Live Resource Statistics</h3>
+			if alloc.Status == "running" {
+				<span class="inline-flex items-center gap-2 text-xs text-neutral-500">
+					<span class="h-2 w-2 rounded-full bg-success-500"></span>
+					Updates every 3 seconds
+				</span>
+			}
+		</div>
+		if !alloc.StatsReady {
+			<div class="rounded-lg bg-warning-50 p-4 text-sm text-warning-800">
+				<p class="font-medium">Statistics unavailable</p>
+				<p class="mt-1">{ alloc.StatsError }</p>
+			</div>
+		} else if alloc.Stats == nil {
+			<p class="rounded-lg border border-neutral-200 p-4 text-sm text-neutral-500">No live resource sample is available.</p>
+		} else {
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+				<div class="rounded-lg bg-neutral-50 p-4">
+					<div class="mb-1 text-sm text-neutral-600">CPU</div>
+					<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%.1f%%", alloc.Stats.CPUPercent) }</div>
+				</div>
+				<div class="rounded-lg bg-neutral-50 p-4">
+					<div class="mb-1 text-sm text-neutral-600">Memory usage</div>
+					<div class="text-2xl font-bold text-neutral-900">{ formatAllocationBytes(alloc.Stats.MemoryUsage) }</div>
+					<div class="mt-1 text-xs text-neutral-500">RSS { formatAllocationBytes(alloc.Stats.MemoryRSS) }</div>
+				</div>
+				<div
+					class="rounded-lg bg-neutral-50 p-4"
+					if !alloc.Stats.Timestamp.IsZero() {
+						data-live-stats-sampled-at={ fmt.Sprintf("%d", alloc.Stats.Timestamp.UnixNano()) }
+					}
+				>
+					<div class="mb-1 text-sm text-neutral-600">Sampled</div>
+					<div class="text-base font-semibold text-neutral-900">
+						if !alloc.Stats.Timestamp.IsZero() {
+							{ alloc.Stats.Timestamp.Format("Jan 2, 15:04:05") }
+						} else {
+							Unknown
+						}
+					</div>
+				</div>
+			</div>
+			if hasTaskLiveStats(alloc.Tasks) {
+				<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2" aria-label="Live task resource usage">
+					for _, task := range alloc.Tasks {
+						if task.Resources.LiveStats != nil {
+							<div data-live-resource-task={ task.Name } class="rounded-lg border border-neutral-200 p-4">
+								<h4 class="mb-3 text-sm font-semibold text-neutral-900">{ task.Name } <span class="font-normal text-neutral-500">Live Resource Usage</span></h4>
+								<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+									<div>
+										<div class="mb-1 flex items-center justify-between text-xs">
+											<span class="text-neutral-600">CPU</span>
+											<span class="font-medium text-neutral-900">{ fmt.Sprintf("%.1f%%", task.Resources.LiveStats.CPUPercent) } <span class="text-neutral-500">({ fmt.Sprintf("%d MHz reserved", task.Resources.CPU) })</span></span>
+										</div>
+										<div class="h-2 w-full rounded-full bg-neutral-200"><div class={ resourceBarClasses(task.Resources.LiveStats.CPUPercent) } style={ fmt.Sprintf("width: %.1f%%", resourceBarWidth(task.Resources.LiveStats.CPUPercent)) }></div></div>
+									</div>
+									<div>
+										<div class="mb-1 flex items-center justify-between text-xs">
+											<span class="text-neutral-600">Memory</span>
+											<span class="font-medium text-neutral-900">{ formatAllocationBytes(task.Resources.LiveStats.MemoryUsage) } <span class="text-neutral-500">of { fmt.Sprintf("%d MB", task.Resources.Memory) }</span></span>
+										</div>
+										<div class="h-2 w-full rounded-full bg-neutral-200"><div class={ resourceBarClasses(memoryUsagePercent(task.Resources.LiveStats.MemoryUsage, task.Resources.Memory)) } style={ fmt.Sprintf("width: %.1f%%", resourceBarWidth(memoryUsagePercent(task.Resources.LiveStats.MemoryUsage, task.Resources.Memory))) }></div></div>
+									</div>
+								</div>
+								if !task.Resources.LiveStats.Timestamp.IsZero() {
+									<p class="mt-2 text-xs text-neutral-500">Sampled { task.Resources.LiveStats.Timestamp.Format("Jan 2, 15:04:05") }</p>
+								}
+							</div>
+						}
+					}
+				</div>
+			}
+		}
+	</section>
+}
+
+func hasTaskLiveStats(tasks []TaskStatus) bool {
+	for _, task := range tasks {
+		if task.Resources.LiveStats != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // TasksTab renders the tasks tab content with detailed task information
 // including status, resource usage, events timeline, and links to logs
 templ TasksTab(alloc AllocationDetail) {
@@ -90,39 +191,7 @@ templ TasksTab(alloc AllocationDetail) {
 				</div>
 			</section>
 		</div>
-		<section data-testid="allocation-live-stats" class="mb-8">
-			<h3 class="text-lg font-medium text-neutral-900 mb-3">Live Resource Statistics</h3>
-			if !alloc.StatsReady {
-				<div class="p-4 rounded-lg bg-warning-50 text-sm text-warning-800">
-					<p class="font-medium">Statistics unavailable</p>
-					<p class="mt-1">{ alloc.StatsError }</p>
-				</div>
-			} else if alloc.Stats == nil {
-				<p class="p-4 border border-neutral-200 rounded-lg text-sm text-neutral-500">No live resource sample is available.</p>
-			} else {
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<div class="bg-neutral-50 rounded-lg p-4">
-						<div class="text-sm text-neutral-600 mb-1">CPU</div>
-						<div class="text-2xl font-bold text-neutral-900">{ fmt.Sprintf("%.1f%%", alloc.Stats.CPUPercent) }</div>
-					</div>
-					<div class="bg-neutral-50 rounded-lg p-4">
-						<div class="text-sm text-neutral-600 mb-1">Memory usage</div>
-						<div class="text-2xl font-bold text-neutral-900">{ formatAllocationBytes(alloc.Stats.MemoryUsage) }</div>
-						<div class="text-xs text-neutral-500 mt-1">RSS { formatAllocationBytes(alloc.Stats.MemoryRSS) }</div>
-					</div>
-					<div class="bg-neutral-50 rounded-lg p-4">
-						<div class="text-sm text-neutral-600 mb-1">Sampled</div>
-						<div class="text-base font-semibold text-neutral-900">
-							if !alloc.Stats.Timestamp.IsZero() {
-								{ alloc.Stats.Timestamp.Format("Jan 2, 15:04:05") }
-							} else {
-								Unknown
-							}
-						</div>
-					</div>
-				</div>
-			}
-		</section>
+		@LiveResourcePanel(alloc)
 		<div class="flex items-center justify-between mb-6">
 			<h3 class="text-lg font-medium text-neutral-900">Tasks ({ fmt.Sprintf("%d", len(alloc.Tasks)) })</h3>
 		</div>
@@ -246,36 +315,13 @@ templ TasksTab(alloc AllocationDetail) {
 							</div>
 						</div>
 						<!-- Task Resources -->
-						if task.Resources.CPU > 0 || task.Resources.Memory > 0 || task.Resources.LiveStats != nil {
+						if task.Resources.CPU > 0 || task.Resources.Memory > 0 {
 							<div class="mb-4">
-								if task.Resources.LiveStats == nil {
-									<h5 class="text-sm font-medium text-neutral-700 mb-2">Reserved Resources</h5>
-									<div class="grid grid-cols-2 gap-4 text-sm">
-										<div class="bg-neutral-50 rounded p-3"><span class="text-neutral-600">CPU</span><span class="float-right font-medium">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</span></div>
-										<div class="bg-neutral-50 rounded p-3"><span class="text-neutral-600">Memory</span><span class="float-right font-medium">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</span></div>
-									</div>
-								} else {
-									<h5 class="text-sm font-medium text-neutral-700 mb-2">Live Resource Usage</h5>
-									<div class="grid grid-cols-2 gap-4">
-										<div>
-											<div class="flex items-center justify-between text-xs mb-1">
-												<span class="text-neutral-600">CPU</span>
-												<span class="font-medium text-neutral-900">{ fmt.Sprintf("%.1f%%", task.Resources.LiveStats.CPUPercent) } <span class="text-neutral-500">({ fmt.Sprintf("%d MHz reserved", task.Resources.CPU) })</span></span>
-											</div>
-											<div class="w-full bg-neutral-200 rounded-full h-2"><div class={ resourceBarClasses(task.Resources.LiveStats.CPUPercent) } style={ fmt.Sprintf("width: %.1f%%", resourceBarWidth(task.Resources.LiveStats.CPUPercent)) }></div></div>
-										</div>
-										<div>
-											<div class="flex items-center justify-between text-xs mb-1">
-												<span class="text-neutral-600">Memory</span>
-												<span class="font-medium text-neutral-900">{ formatAllocationBytes(task.Resources.LiveStats.MemoryUsage) } <span class="text-neutral-500">of { fmt.Sprintf("%d MB", task.Resources.Memory) }</span></span>
-											</div>
-											<div class="w-full bg-neutral-200 rounded-full h-2"><div class={ resourceBarClasses(memoryUsagePercent(task.Resources.LiveStats.MemoryUsage, task.Resources.Memory)) } style={ fmt.Sprintf("width: %.1f%%", resourceBarWidth(memoryUsagePercent(task.Resources.LiveStats.MemoryUsage, task.Resources.Memory))) }></div></div>
-										</div>
-									</div>
-									if !task.Resources.LiveStats.Timestamp.IsZero() {
-										<p class="mt-2 text-xs text-neutral-500">Sampled { task.Resources.LiveStats.Timestamp.Format("Jan 2, 15:04:05") }</p>
-									}
-								}
+								<h5 class="text-sm font-medium text-neutral-700 mb-2">Reserved Resources</h5>
+								<div class="grid grid-cols-2 gap-4 text-sm">
+									<div class="bg-neutral-50 rounded p-3"><span class="text-neutral-600">CPU</span><span class="float-right font-medium">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</span></div>
+									<div class="bg-neutral-50 rounded p-3"><span class="text-neutral-600">Memory</span><span class="float-right font-medium">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</span></div>
+								</div>
 							</div>
 						}
 						<!-- Events Timeline -->

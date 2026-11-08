@@ -696,6 +696,10 @@ test.describe('Wander release smoke', () => {
     await expect(topologyNode).toContainText('Allocations');
     await expect(topologyNode).toContainText('Memory allocated');
     await expect(topologyNode).not.toContainText('CPU allocated');
+	await expect(topologyNode.locator('[data-topology-capacity-map]')).toContainText('Allocation reservation map');
+	await expect(topologyNode.locator('[data-topology-resource="memory"]')).toBeVisible();
+	await expect(topologyNode.locator('[data-topology-resource="cpu"]')).toHaveCount(0);
+	await expect(topologyNode.locator('[data-topology-resource-segment]').first()).toHaveAttribute('href', /\/ui\/allocations\//);
     await topologyNode.getByRole('link', { name: 'Select client' }).click();
     await expect(page.locator('[data-topology-node-id][data-selected="true"]')).toHaveCount(1);
     const topologyAllocation = page.locator('[data-topology-allocation-id]').first();
@@ -897,6 +901,13 @@ test.describe('Wander release smoke', () => {
 	await expect(liveStats).toContainText('Sampled');
 	await expect(liveStats).not.toContainText('Statistics unavailable');
 	await expect(page.getByText('Live Resource Usage', { exact: true }).first()).toBeVisible();
+	const sampledAt = liveStats.locator('[data-live-stats-sampled-at]');
+	await expect(sampledAt).toHaveAttribute('data-live-stats-sampled-at', /\d+/);
+	const firstSample = await sampledAt.getAttribute('data-live-stats-sampled-at');
+	await expect.poll(
+		() => page.locator('[data-testid="allocation-live-stats"] [data-live-stats-sampled-at]').getAttribute('data-live-stats-sampled-at'),
+		{ timeout: 15_000 },
+	).not.toBe(firstSample);
 
     await openAllocationView(page, href!, 'logs', /stdout|logs/i);
     const logViewer = page.locator('[data-log-viewer]');

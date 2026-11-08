@@ -31,7 +31,10 @@ scope and parity work list is the
   object, task-group, and task changes with available old/new values and
   annotations.
 - Allocations: live detail, files, logs, raw API data, restart/stop actions,
-  and same-origin WebSocket exec. Exec preserves scoped `alloc-exec` denial,
+  and same-origin WebSocket exec. Aggregate and per-task resource samples
+  refresh every three seconds while an allocation is running, preserve scope,
+  stop at terminal state, and leave the rest of the Tasks view undisturbed.
+  Exec preserves scoped `alloc-exec` denial,
   forwards terminal resize, distinguishes task completion, intentional
   disconnect, and connection loss, retains zero and non-zero exit codes, and
   reconnects without duplicating terminal input or exposing upstream errors.
@@ -87,7 +90,9 @@ scope and parity work list is the
   Allocation Status, Node Pool, Datacenter, Class, State, and Version controls;
   deterministic multi-datacenter/client ordering; scoped client/allocation
   selection; and accessible node-to-allocation edges with allocation-level
-  job, task-group, status, and reservation detail.
+  job, task-group, status, and reservation detail. CPU and memory capacity
+  tracks map visible allocation reservations proportionally against each
+  client's full schedulable capacity without presenting reservations as load.
 - CSI volumes: live controller/node health, complete capability constraints,
   separate read and read/write allocation claim tables, and truthful denied,
   missing, and unavailable responses. CSI mutations remain inherited API/CLI
@@ -161,8 +166,7 @@ These are unimplemented capabilities. The
 an inherited 0.1.0 requirement or a post-0.1 enhancement; this list must not
 be used to defer baseline behavior without explicit approval:
 
-- Richer job allocation filtering, sorting, task expansion, and live resource
-  statistics.
+- Richer job allocation filtering, sorting, and task expansion.
 - Additional job/client filters, columns, charts, eligibility analysis, and
   detail panels.
 - Consistent copy controls and improved relative time display. The applicable
