@@ -125,7 +125,10 @@ prose, screenshots, and layouts are not copied automatically.
 
 ## Publication and operations
 
-- [ ] Confirm the canonical hosting repository, provider, and base path.
+- [x] Confirm the canonical hosting repository, provider, and base path.
+      `open-wander/wander-website` owns the nginx image deployed to the Hetzner
+      Nomad cluster; Wander content is published beneath `/wander/` with its
+      shared assets included in the same image.
 - [x] Add CI that builds the site and checks internal links on relevant changes.
 - [ ] Publish a preview and verify every canonical route over HTTPS.
 - [ ] Record rollback steps for the currently deployed homepage.

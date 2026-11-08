@@ -8,6 +8,7 @@ type Page struct {
 func Pages() []Page {
 	return []Page{
 		{Output: "index.html", Component: HomePage()},
+		{Output: "wander/index.html", Component: HomePage()},
 		{Output: "wander/docs/index.html", Component: DocsPage()},
 		{Output: "wander/tutorials/index.html", Component: TutorialsPage()},
 		{Output: "wander/tutorials/getting-started/index.html", Component: GettingStartedPage()},
