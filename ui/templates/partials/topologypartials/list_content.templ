@@ -332,6 +332,9 @@ templ nodeCard(node Node, data TopologyData) {
 		} else if !node.ResourcesAvailable && data.Filters.Metric != "allocations" {
 			<p class="text-xs text-neutral-500 dark:text-neutral-400">Resource data unavailable</p>
 		}
+		if len(node.AllocationItems) > 0 && (node.ResourcesAvailable || data.Filters.Metric == "allocations") {
+			@topologyCapacityMap(node, data.Filters.Metric)
+		}
 		<div class="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-700">
 			<div class="flex items-center justify-between gap-2">
 				<p class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Allocation overlay</p>
@@ -345,6 +348,69 @@ templ nodeCard(node Node, data TopologyData) {
 						@topologyAllocation(allocation, data, node.ID)
 					}
 				</div>
+			}
+		</div>
+	</div>
+}
+
+templ topologyCapacityMap(node Node, metric string) {
+	<div data-topology-capacity-map={ node.ID } class="mt-4 rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-800/50">
+		<p class="text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-300">Allocation reservation map</p>
+		<p class="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Segments show scheduler reservations against this client's full capacity, not live utilization.</p>
+		<div class="mt-3 space-y-3">
+			if metric == "all" || metric == "cpu" {
+				@topologyCapacityTrack(node, "cpu")
+			}
+			if metric == "all" || metric == "memory" {
+				@topologyCapacityTrack(node, "memory")
+			}
+			if metric == "allocations" {
+				@topologyPlacementTrack(node)
+			}
+		</div>
+	</div>
+}
+
+templ topologyCapacityTrack(node Node, resource string) {
+	<div data-topology-resource={ resource }>
+		<div class="mb-1 flex items-center justify-between gap-2 text-[11px]">
+			<span class="font-medium text-neutral-700 dark:text-neutral-300">{ topologyResourceLabel(resource) }</span>
+			<span class="text-neutral-500 dark:text-neutral-400">{ topologyCapacityLabel(node, resource) }</span>
+		</div>
+		<div class="flex h-7 overflow-hidden rounded border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-900" role="list" aria-label={ topologyTrackAriaLabel(node, resource) }>
+			for _, allocation := range node.AllocationItems {
+				if topologyReservationPercent(allocation, node, resource) > 0 {
+					<a
+						data-topology-resource-segment={ allocation.ID }
+						href={ templ.SafeURL(allocation.DetailURL) }
+						class={ topologyReservationSegmentClasses(allocation.ClientStatus) }
+						style={ fmt.Sprintf("width: %.2f%%", topologyReservationPercent(allocation, node, resource)) }
+						aria-label={ topologyReservationAriaLabel(allocation, resource) }
+						title={ topologyReservationAriaLabel(allocation, resource) }
+						role="listitem"
+					></a>
+				}
+			}
+		</div>
+	</div>
+}
+
+templ topologyPlacementTrack(node Node) {
+	<div data-topology-resource="allocations">
+		<div class="mb-1 flex items-center justify-between gap-2 text-[11px]">
+			<span class="font-medium text-neutral-700 dark:text-neutral-300">Allocation placement</span>
+			<span class="text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("%d visible", len(node.AllocationItems)) }</span>
+		</div>
+		<div class="grid h-7 gap-1" style={ fmt.Sprintf("grid-template-columns: repeat(%d, minmax(0, 1fr))", len(node.AllocationItems)) } role="list" aria-label={ "Allocations placed on " + node.Name }>
+			for _, allocation := range node.AllocationItems {
+				<a
+					data-topology-resource-segment={ allocation.ID }
+					href={ templ.SafeURL(allocation.DetailURL) }
+					class={ topologyPlacementSegmentClasses(allocation.ClientStatus) }
+					aria-label={ topologyReservationAriaLabel(allocation, "allocations") }
+					title={ topologyReservationAriaLabel(allocation, "allocations") }
+					role="listitem"
+				></a>
 			}
 		</div>
 	</div>
@@ -418,6 +484,86 @@ func calculateCPUPercentage(used int, total int) int {
 		return 0
 	}
 	return (used * 100) / total
+}
+
+func topologyResourceLabel(resource string) string {
+	if resource == "memory" {
+		return "Memory capacity"
+	}
+	return "CPU capacity"
+}
+
+func topologyCapacityLabel(node Node, resource string) string {
+	if resource == "memory" {
+		return fmt.Sprintf("%s visible reservations of %s", formatMemory(topologyVisibleMemory(node)), formatMemory(node.MemoryTotal))
+	}
+	return fmt.Sprintf("%d visible reservations of %d MHz", topologyVisibleCPU(node), node.CPUTotal)
+}
+
+func topologyVisibleCPU(node Node) int64 {
+	var total int64
+	for _, allocation := range node.AllocationItems {
+		total += allocation.CPU
+	}
+	return total
+}
+
+func topologyVisibleMemory(node Node) int64 {
+	var total int64
+	for _, allocation := range node.AllocationItems {
+		total += allocation.MemoryBytes
+	}
+	return total
+}
+
+func topologyTrackAriaLabel(node Node, resource string) string {
+	return fmt.Sprintf("%s reservations against full capacity for %s", topologyResourceLabel(resource), node.Name)
+}
+
+func topologyReservationPercent(allocation Allocation, node Node, resource string) float64 {
+	var reserved, capacity float64
+	if resource == "memory" {
+		reserved, capacity = float64(allocation.MemoryBytes), float64(node.MemoryTotal)
+	} else {
+		reserved, capacity = float64(allocation.CPU), float64(node.CPUTotal)
+	}
+	if reserved <= 0 || capacity <= 0 {
+		return 0
+	}
+	percentage := reserved * 100 / capacity
+	if percentage > 100 {
+		return 100
+	}
+	return percentage
+}
+
+func topologyReservationAriaLabel(allocation Allocation, resource string) string {
+	switch resource {
+	case "memory":
+		return fmt.Sprintf("%s, %s, %s memory reserved", allocation.JobID, allocation.TaskGroup, formatMemory(allocation.MemoryBytes))
+	case "cpu":
+		return fmt.Sprintf("%s, %s, %d MHz CPU reserved", allocation.JobID, allocation.TaskGroup, allocation.CPU)
+	default:
+		return fmt.Sprintf("%s, %s, %s allocation", allocation.JobID, allocation.TaskGroup, allocation.ClientStatus)
+	}
+}
+
+func topologyReservationSegmentClasses(status string) string {
+	classes := "block h-full min-w-px border-r border-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary-900 dark:border-neutral-900/70"
+	switch status {
+	case "running":
+		return classes + " bg-success-500 hover:bg-success-600"
+	case "pending":
+		return classes + " bg-warning-400 hover:bg-warning-500"
+	case "failed", "lost":
+		return classes + " bg-error-500 hover:bg-error-600"
+	default:
+		return classes + " bg-neutral-400 hover:bg-neutral-500"
+	}
+}
+
+func topologyPlacementSegmentClasses(status string) string {
+	return topologyReservationSegmentClasses(status) + " rounded border-0"
 }
 
 // truncateID truncates a node ID to first 8 characters.

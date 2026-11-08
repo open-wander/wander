@@ -65,6 +65,9 @@ func TestTopologyFiltersAndSelectsNodeAllocationRelationship(t *testing.T) {
 		`data-topology-node-id="node-beta"`, `data-topology-allocation-id="alloc-running"`,
 		`data-selected="true"`, `aria-label="Allocations connected to beta"`,
 		"beta-job", "web", "100 MHz", "32.0 MB", "Showing 1 client(s) and 1 allocation(s)",
+		`data-topology-capacity-map="node-beta"`, `data-topology-resource="memory"`,
+		`data-topology-resource-segment="alloc-running"`, "Allocation reservation map",
+		"Segments show scheduler reservations", "32.0 MB memory reserved",
 	} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("topology body missing %q: %s", expected, body)
@@ -77,6 +80,9 @@ func TestTopologyFiltersAndSelectsNodeAllocationRelationship(t *testing.T) {
 	}
 	if strings.Contains(body, "CPU allocated") || !strings.Contains(body, "Memory allocated") {
 		t.Fatalf("metric selection did not control resource presentation: %s", body)
+	}
+	if strings.Contains(body, `data-topology-resource="cpu"`) {
+		t.Fatalf("memory metric rendered a CPU capacity track: %s", body)
 	}
 }
 

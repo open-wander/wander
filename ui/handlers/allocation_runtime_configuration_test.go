@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -38,6 +39,9 @@ func TestAllocationDetailProjectsPortsServicesAndLifecycle(t *testing.T) {
 	if detail.Tasks[0].Resources.LiveStats == nil || detail.Tasks[0].Resources.LiveStats.CPUPercent != 7.5 || detail.Tasks[1].Resources.LiveStats != nil {
 		t.Fatalf("task statistics were not projected truthfully: %#v", detail.Tasks)
 	}
+	if detail.StatsURL != "/ui/allocations/alloc-1/stats?namespace=team-a&region=west" {
+		t.Fatalf("statistics polling URL lost scope: %q", detail.StatsURL)
+	}
 	if detail.History.Previous.ID != "alloc-previous" || detail.History.Next.ID != "alloc-next" || detail.History.PreemptedBy.ID != "alloc-preemptor" {
 		t.Fatalf("allocation relationships were not projected: %#v", detail.History)
 	}
@@ -60,6 +64,74 @@ func TestAllocationDetailProjectsPortsServicesAndLifecycle(t *testing.T) {
 		t.Fatalf("aggregate and task sample timestamps were not rendered: %s", html)
 	}
 	assertOrderedHTML(t, html, "admin", "http")
+}
+
+func TestAllocationLiveStatisticsPollWithoutUnrelatedRuntimeReads(t *testing.T) {
+	statsReads := 0
+	serviceReads := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertScopedBrowserRequest(t, r)
+		switch r.URL.Path {
+		case "/v1/allocation/alloc-1":
+			writeJSON(t, w, json.RawMessage(`{
+				"ID":"alloc-1","Namespace":"team-a","ClientStatus":"running",
+				"AllocatedResources":{"Tasks":{"app":{"Cpu":{"CpuShares":50},"Memory":{"MemoryMB":32}}}},
+				"TaskStates":{"app":{"State":"running"}}
+			}`))
+		case "/v1/client/allocation/alloc-1/stats":
+			statsReads++
+			writeJSON(t, w, json.RawMessage(fmt.Sprintf(
+				`{"ResourceUsage":{"CpuStats":{"Percent":%d},"MemoryStats":{"Usage":16777216}},"Tasks":{"app":{"ResourceUsage":{"CpuStats":{"Percent":7.5},"MemoryStats":{"Usage":8388608}},"Timestamp":%d}},"Timestamp":%d}`,
+				statsReads, statsReads*int(1e9), statsReads*int(1e9),
+			)))
+		case "/v1/allocation/alloc-1/services":
+			serviceReads++
+			http.Error(w, "statistics polling must not read services", http.StatusInternalServerError)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(backend.Close)
+	handler := NewAllocationsHandler(newJobsTestHandler(t, backend.URL))
+
+	render := func() string {
+		request := requestWithToken(http.MethodGet, "/ui/allocations/alloc-1/stats?namespace=team-a&region=west")
+		request.Header.Set(HXRequest, "true")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("statistics poll status = %d, body: %s", response.Code, response.Body.String())
+		}
+		return response.Body.String()
+	}
+
+	first := render()
+	assertContainsAll(t, first,
+		`hx-get="/ui/allocations/alloc-1/stats?namespace=team-a&amp;region=west"`,
+		`hx-trigger="every 3s"`, `data-live-stats-sampled-at="1000000000"`,
+		`data-live-resource-task="app"`, "Live Resource Usage",
+	)
+	second := render()
+	if !strings.Contains(second, `data-live-stats-sampled-at="2000000000"`) || first == second {
+		t.Fatalf("statistics poll did not render the newer sample: %s", second)
+	}
+	if statsReads != 2 || serviceReads != 0 {
+		t.Fatalf("statistics polls = %d, service reads = %d", statsReads, serviceReads)
+	}
+}
+
+func TestAllocationLiveStatisticsStopPollingAfterTerminalState(t *testing.T) {
+	detail := allocationspartials.AllocationDetail{
+		ID: "alloc-1", Status: "complete", StatsURL: "/ui/allocations/alloc-1/stats",
+		StatsReady: true, Stats: &allocationspartials.AllocationStats{},
+	}
+	var output strings.Builder
+	if err := allocationspartials.LiveResourcePanel(detail).Render(context.Background(), &output); err != nil {
+		t.Fatalf("render terminal live statistics: %v", err)
+	}
+	if strings.Contains(output.String(), "hx-trigger") || strings.Contains(output.String(), "Updates every") {
+		t.Fatalf("terminal allocation continued polling: %s", output.String())
+	}
 }
 
 func TestAllocationDetailPreservesServiceFailureState(t *testing.T) {
