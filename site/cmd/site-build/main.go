@@ -54,6 +54,12 @@ func copyTree(source, destination string) error {
 }
 
 func validateInternalReferences(outputDir string) error {
+	root, err := os.OpenRoot(outputDir)
+	if err != nil {
+		return fmt.Errorf("open output root: %w", err)
+	}
+	defer root.Close()
+
 	return filepath.Walk(outputDir, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil || info.IsDir() || filepath.Ext(path) != ".html" {
 			return walkErr
@@ -71,11 +77,14 @@ func validateInternalReferences(outputDir string) error {
 			if reference == "" {
 				continue
 			}
-			target := filepath.Join(outputDir, filepath.FromSlash(strings.TrimPrefix(reference, "/")))
+			target := filepath.FromSlash(strings.TrimPrefix(reference, "/"))
 			if strings.HasSuffix(reference, "/") {
 				target = filepath.Join(target, "index.html")
 			}
-			if _, err := os.Stat(target); err != nil {
+			if !filepath.IsLocal(target) {
+				return fmt.Errorf("%s references path outside the site: %s", path, reference)
+			}
+			if _, err := root.Stat(target); err != nil {
 				return fmt.Errorf("%s references missing %s", path, reference)
 			}
 		}
