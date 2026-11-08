@@ -1,16 +1,19 @@
 # Tailwind CSS Build System
 
-This document describes the Tailwind CSS build pipeline integration for the Wander UI-HTMX project.
+This document describes the Tailwind CSS build pipeline integration for the Wander UI.
 
 ## Overview
 
-The Tailwind CSS build system uses the standalone Tailwind CLI (no Node.js required for the CLI itself), with npm only used for installing Tailwind plugins (`@tailwindcss/forms` and `@tailwindcss/typography`).
+The Tailwind CSS build system uses the CLI package pinned in the existing npm
+lockfile alongside `@tailwindcss/forms` and `@tailwindcss/typography`. A clean
+`npm ci` installs the complete build-only toolchain without a separate binary
+download.
 
 ## Build Pipeline
 
 ### Input
-- **Source**: `ui-htmx/static/css/input.css`
-- **Config**: `ui-htmx/tailwind.config.js`
+- **Source**: `ui/static/css/input.css`
+- **Config**: `ui/tailwind.config.js`
 - **Content**: Scans for classes in:
   - `./templates/**/*.templ` - Templ template files
   - `./templates/**/*.go` - Generated Templ Go files
@@ -18,30 +21,30 @@ The Tailwind CSS build system uses the standalone Tailwind CLI (no Node.js requi
   - `./static/js/**/*.js` - JavaScript files (Alpine.js patterns)
 
 ### Output
-- **Production**: `ui-htmx/static/css/output.css` (minified, ~17KB)
-- **Development**: `ui-htmx/static/css/output.css` (not minified, ~23KB)
+- **Production**: `ui/static/css/output.css` (minified)
+- **Development**: `ui/static/css/output.css` (not minified)
 
 ### Tailwind CLI
-- **Location**: `ui-htmx/bin/tailwindcss`
-- **Version**: Latest standalone CLI (auto-detected for platform)
-- **Installation**: Via `ui-htmx/install-tailwind.sh`
+- **Location**: `ui/node_modules/.bin/tailwindcss`
+- **Version**: Pinned in `ui/package.json` and `ui/package-lock.json`
+- **Installation**: Via `npm ci` with the existing UI build dependencies
 
 ## Build Targets
 
 ### Root Makefile Targets (run from project root)
 
 ```bash
-make ui-setup         # Setup UI dependencies (Tailwind CLI + npm packages)
+make ui-setup         # Install pinned UI npm build dependencies
 make ui-css           # Build production CSS (minified)
 make ui-css-dev       # Build development CSS (not minified)
 make ui-css-watch     # Watch and rebuild CSS on changes
 ```
 
-### ui-htmx/Makefile Targets (run from ui-htmx directory)
+### ui/Makefile Targets (run from the ui directory)
 
 ```bash
-make setup            # Complete setup: install CLI, check deps, build CSS
-make install-tailwind # Install Tailwind CSS CLI
+make setup            # Install pinned dependencies and build CSS
+make install-tailwind # Verify the Tailwind CLI installed by npm ci
 make build-css        # Build production CSS (minified)
 make build-css-dev    # Build development CSS (not minified)
 make watch-css        # Watch and rebuild on changes
@@ -127,7 +130,7 @@ Automated tests verify the build pipeline:
 
 Run tests:
 ```bash
-cd ui-htmx/tests
+cd ui/tests
 go test -v -run TestTailwind
 ```
 
@@ -164,17 +167,16 @@ make dev
 # Build minified CSS
 make ui-css
 
-# Or from ui-htmx directory
-cd ui-htmx && make build-css
+# Or from the ui directory
+cd ui && make build-css
 ```
 
 ## Generated Files (.gitignore)
 
 The following files are generated and should not be committed:
 
-- `ui-htmx/static/css/output.css` - Generated CSS output
-- `ui-htmx/bin/tailwindcss` - Tailwind CLI binary
-- `ui-htmx/node_modules/` - npm packages
+- `ui/static/css/output.css` - Generated CSS output
+- `ui/node_modules/` - npm packages, including the Tailwind CLI
 
 ## Patterns Discovered
 
@@ -185,9 +187,9 @@ The following files are generated and should not be committed:
 - Comments are stripped in production builds
 
 ### Plugin Requirements
-- Plugins MUST be installed via npm even though we use the standalone CLI
-- The standalone CLI reads `node_modules/` for plugin resolution
-- Without npm install, plugins in config will cause build errors
+- The CLI and plugins are all installed by `npm ci`
+- The pinned CLI reads `node_modules/` for plugin resolution
+- Without the locked npm install, plugins in config will cause build errors
 
 ### Content Path Best Practices
 - Include both `.templ` and `*_templ.go` files to catch all class usage
@@ -222,7 +224,7 @@ The following files are generated and should not be committed:
 ### Build fails with plugin errors
 ```bash
 # Reinstall npm packages
-cd ui-htmx && npm install
+cd ui && npm ci
 ```
 
 ### CSS not rebuilding in watch mode
