@@ -108,3 +108,57 @@ templ ExploreUIPage() {
 		<div class="not-prose mt-10 flex flex-col gap-3 border-t border-neutral-200 pt-8 sm:flex-row dark:border-neutral-800"><a class="button-primary" href="/wander/tutorials/">View the tutorial roadmap</a><a class="button-secondary" href="/wander/docs/">Read the docs</a></div>
 	}
 }
+
+templ MultiNodeDevelopmentPage() {
+	@TutorialFrame(
+		"Build a disposable multi-node cluster",
+		"Run one Wander server and two clients on a single development machine.",
+		"20 minutes",
+		[]TutorialSection{
+			{ID: "boundary", Label: "Understand the boundary"},
+			{ID: "configure", Label: "Create configurations"},
+			{ID: "start", Label: "Start the agents"},
+			{ID: "verify", Label: "Verify the cluster"},
+			{ID: "schedule", Label: "Schedule work"},
+			{ID: "cleanup", Label: "Clean up"},
+		},
+	) {
+		<p class="lead">Move beyond the all-in-one development agent by running a server and two independently registered clients on one machine.</p>
+		<div class="not-prose my-8 rounded-2xl border border-warning-200 bg-warning-50 p-5 text-neutral-800 dark:border-warning-900 dark:bg-warning-950/40 dark:text-neutral-200"><strong>Disposable lab only.</strong> This cluster has one server, loopback networking, no TLS, and no ACLs. It is intentionally unsuitable for production or durability testing.</div>
+		<h2 id="boundary">1. Understand the boundary</h2>
+		<p>This lab demonstrates server/client membership and scheduling across two nodes. A production cluster normally has three or five servers on separate machines, persistent storage, TLS, ACLs, service discovery, backups, and monitored failure domains.</p>
+		<p>Stop any <code>wander agent -dev</code> process first so its default ports are available. You need three terminal windows and a Docker-compatible daemon if you want to submit the example job.</p>
+		<h2 id="configure">2. Create the configurations</h2>
+		<p>Create an empty working directory, then save these files inside it. The data directories are supplied on the command line so the configurations remain portable.</p>
+		<p><code>server.hcl</code>:</p>
+		@CodeBlock(MultiNodeServerConfig)
+		<p><code>client-1.hcl</code>:</p>
+		@CodeBlock(MultiNodeClientOneConfig)
+		<p><code>client-2.hcl</code>:</p>
+		@CodeBlock(MultiNodeClientTwoConfig)
+		<p>The clients use different HTTP ports but share the server's RPC endpoint. Docker dangling-container cleanup is disabled because two local clients must not mistake each other's containers for abandoned work.</p>
+		<h2 id="start">3. Start the agents</h2>
+		<p>From the working directory, create isolated data directories:</p>
+		@CodeBlock("mkdir -p data/server data/client-1 data/client-2")
+		<p>Start the server in the first terminal:</p>
+		@CodeBlock("wander agent -config=server.hcl -data-dir=\"$PWD/data/server\"")
+		<p>Start one client in each remaining terminal:</p>
+		@CodeBlock("wander agent -config=client-1.hcl -data-dir=\"$PWD/data/client-1\"\n\nwander agent -config=client-2.hcl -data-dir=\"$PWD/data/client-2\"")
+		<p>Each client should report that it registered with the server. If either process exits, read that terminal's error before continuing; the most common cause is another local agent already using a configured port.</p>
+		<h2 id="verify">4. Verify the cluster</h2>
+		<p>In a fourth terminal, point the CLI at the server and confirm that it is the elected leader:</p>
+		@CodeBlock("export NOMAD_ADDR=http://127.0.0.1:4646\nwander server members")
+		<p>Both clients should appear as ready:</p>
+		@CodeBlock("wander node status")
+		<p>You can also open <a href="http://127.0.0.1:4646/ui/clients">http://127.0.0.1:4646/ui/clients</a> to inspect both live nodes in the embedded interface.</p>
+		<h2 id="schedule">5. Schedule work across the clients</h2>
+		<p>Use the job from <a href="/wander/tutorials/run-first-job/">Run your first job</a>, change the task-group count from <code>1</code> to <code>2</code>, and submit it:</p>
+		@CodeBlock("wander job run hello-wander.nomad.hcl\nwander job status hello-wander")
+		<p>The job should have two running allocations. Wander may place one allocation on each client when both nodes satisfy the same constraints and capacity, but placement is a scheduler decision rather than a promise of this unconstrained job.</p>
+		<h2 id="cleanup">6. Clean up</h2>
+		<p>Stop and purge the example job, then press <code>Ctrl-C</code> once in each agent terminal:</p>
+		@CodeBlock("wander job stop -purge hello-wander")
+		<p>After all three agents have stopped, remove the tutorial's working directory if you no longer need its disposable state. Do not reuse this single-server layout as a production design.</p>
+		<div class="not-prose mt-10 flex flex-col gap-3 border-t border-neutral-200 pt-8 sm:flex-row dark:border-neutral-800"><a class="button-primary" href="/wander/tutorials/">View the tutorial roadmap</a><a class="button-secondary" href="/wander/docs/">Read the operator docs</a></div>
+	}
+}
