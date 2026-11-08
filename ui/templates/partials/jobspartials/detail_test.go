@@ -155,7 +155,7 @@ func TestPeriodicJobRendersForceLaunchContract(t *testing.T) {
 	for _, expected := range []string{
 		`>Force Launch<`,
 		`hx-post="/api/jobs/periodic/periodic/force"`,
-		`Launch <strong class="text-neutral-900">periodic</strong> immediately`,
+		`Launch <strong class="text-neutral-900 dark:text-neutral-100">periodic</strong> immediately`,
 	} {
 		if !strings.Contains(html, expected) {
 			t.Fatalf("rendered periodic detail does not contain %q: %s", expected, html)

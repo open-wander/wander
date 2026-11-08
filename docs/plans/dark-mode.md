@@ -78,7 +78,7 @@ interface.
 - [x] Theme controller, first-paint bootstrap, and unit tests
 - [x] Accessible global and settings selectors
 - [ ] Shell and shared component dark variants
-- [ ] Jobs, task groups, allocations, logs, exec, and files
+- [x] Jobs, task groups, allocations, logs, exec, and files
 - [ ] Clients, servers, services, topology, CSI, and evaluations
 - [ ] Namespaces, variables, access control, settings, dialogs, and errors
 - [ ] Browser route/interaction coverage in light and dark modes

@@ -29,15 +29,15 @@ templ FilesTabFull(props FilesTabProps) {
 	<div class="p-6" x-data="fileExplorer()">
 		<!-- Header with Task Selector -->
 		<div class="flex items-center justify-between mb-6">
-			<h3 class="text-lg font-medium text-neutral-900">Files</h3>
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Files</h3>
 			<div class="flex items-center space-x-4">
 				<!-- Task Selector -->
 				<div class="flex items-center space-x-2">
-					<label for="task-select" class="text-sm font-medium text-neutral-700">Task:</label>
+					<label for="task-select" class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Task:</label>
 					<select
 						id="task-select"
 						name="task"
-						class="block w-48 pl-3 pr-10 py-2 text-sm border-neutral-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 rounded-md"
+						class="block w-48 pl-3 pr-10 py-2 text-sm border-neutral-300 dark:border-neutral-600 focus:outline-none focus:ring-primary-500 focus:border-primary-500 rounded-md"
 						hx-get={ "/ui/allocations/" + props.AllocID + "/files" }
 						hx-target="#files-container"
 						hx-include="[name='task']"
@@ -58,7 +58,7 @@ templ FilesTabFull(props FilesTabProps) {
 				<!-- Refresh Button -->
 				<button
 					type="button"
-					class="inline-flex items-center px-3 py-2 border border-neutral-300 shadow-sm text-sm font-medium rounded-md text-neutral-700 bg-white hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					class="inline-flex items-center px-3 py-2 border border-neutral-300 dark:border-neutral-600 shadow-sm text-sm font-medium rounded-md text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 					hx-get={ "/ui/allocations/" + props.AllocID + "/files?task=" + props.SelectedTask }
 					hx-target="#files-container"
 					hx-swap="innerHTML"
@@ -74,10 +74,10 @@ templ FilesTabFull(props FilesTabProps) {
 		<div id="files-container" class="workspace-surface flex gap-6">
 			<!-- File Tree Panel -->
 			<div class="flex-1 min-w-0">
-				<div data-file-tree-scroll class="border border-neutral-200 rounded-lg bg-white overflow-auto h-full">
+				<div data-file-tree-scroll class="border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 overflow-auto h-full">
 					<!-- Tree Header -->
-					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200">
-						<div class="flex items-center justify-between text-xs font-medium text-neutral-500 uppercase tracking-wide">
+					<div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-700">
+						<div class="flex items-center justify-between text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
 							<span>Name</span>
 							<div class="flex items-center space-x-8">
 								<span class="w-20 text-right">Size</span>
@@ -93,7 +93,7 @@ templ FilesTabFull(props FilesTabProps) {
 								<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
 								</svg>
-								<p class="mt-2 text-sm text-neutral-600">No files found for this task</p>
+								<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">No files found for this task</p>
 							</div>
 						} else {
 							for _, entry := range props.Files {
@@ -110,14 +110,14 @@ templ FilesTabFull(props FilesTabProps) {
 				x-show="previewOpen"
 				x-cloak
 			>
-				<div class="border border-neutral-200 rounded-lg bg-white overflow-hidden h-full flex flex-col">
+				<div class="border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 overflow-hidden h-full flex flex-col">
 					<!-- Preview Header -->
-					<div class="px-4 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+					<div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
 						<div class="flex items-center space-x-2 min-w-0">
 							<svg class="h-4 w-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
 							</svg>
-							<span class="text-sm font-medium text-neutral-900 truncate" x-text="previewFileName">file.txt</span>
+							<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate" x-text="previewFileName">file.txt</span>
 						</div>
 						<div class="flex items-center space-x-2">
 							<a
@@ -132,7 +132,7 @@ templ FilesTabFull(props FilesTabProps) {
 							</a>
 							<button
 								type="button"
-								class="text-neutral-400 hover:text-neutral-500"
+								class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-200"
 								@click="closePreview()"
 								aria-label="Close file preview"
 							>
@@ -144,7 +144,7 @@ templ FilesTabFull(props FilesTabProps) {
 					</div>
 					<!-- Preview Content -->
 					<div id="file-preview-content" class="p-4 overflow-auto flex-1 min-h-0">
-						<div class="text-sm text-neutral-500 text-center py-8">
+						<div class="text-sm text-neutral-500 dark:text-neutral-400 text-center py-8">
 							Select a file to preview
 						</div>
 					</div>
@@ -168,7 +168,7 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 	<div class="file-tree-node" x-data="{ expanded: false }">
 		<!-- Directory Row -->
 		<div
-			class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
+			class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group dark:hover:bg-neutral-800"
 			style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20) }
 			@click="expanded = !expanded"
 			hx-get={ FileActionURL(allocID, "list", task, entry.Path) }
@@ -192,9 +192,9 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
 				</svg>
 				<!-- Directory Name -->
-				<span class="text-sm font-medium text-neutral-900 truncate">{ entry.Name }</span>
+				<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">{ entry.Name }</span>
 			</div>
-			<div class="flex items-center space-x-8 text-xs text-neutral-500">
+			<div class="flex items-center space-x-8 text-xs text-neutral-500 dark:text-neutral-400">
 				<span class="w-20 text-right">--</span>
 				<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
 				<span class="w-8"></span>
@@ -204,11 +204,11 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 		<div
 			x-ref="dirContent"
 			x-show="expanded"
-			class="directory-contents border-l border-neutral-200"
+			class="directory-contents border-l border-neutral-200 dark:border-neutral-700"
 			style={ fmt.Sprintf("margin-left: %dpx", 16+depth*20+8) }
 		>
 			<!-- Loading placeholder -->
-			<div class="px-4 py-2 text-sm text-neutral-500">
+			<div class="px-4 py-2 text-sm text-neutral-500 dark:text-neutral-400">
 				<div class="flex items-center space-x-2">
 					<svg class="animate-spin h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24">
 						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -224,7 +224,7 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 // fileNode renders a file entry in the tree
 templ fileNode(entry FileEntry, allocID, task string, depth int) {
 	<div
-		class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group"
+		class="flex items-center justify-between px-4 py-2 hover:bg-neutral-50 cursor-pointer group dark:hover:bg-neutral-800"
 		style={ fmt.Sprintf("padding-left: %dpx", 16+depth*20+24) }
 		hx-get={ FileActionURL(allocID, "preview", task, entry.Path) }
 		hx-target="#file-preview-content"
@@ -237,9 +237,9 @@ templ fileNode(entry FileEntry, allocID, task string, depth int) {
 			<!-- File Icon -->
 			@fileIcon(entry.Name)
 			<!-- File Name -->
-			<span class="text-sm text-neutral-700 truncate group-hover:text-neutral-900">{ entry.Name }</span>
+			<span class="text-sm text-neutral-700 dark:text-neutral-300 truncate group-hover:text-neutral-900">{ entry.Name }</span>
 		</div>
-		<div class="flex items-center space-x-8 text-xs text-neutral-500">
+		<div class="flex items-center space-x-8 text-xs text-neutral-500 dark:text-neutral-400">
 			<span class="w-20 text-right">{ formatFileSize(entry.Size) }</span>
 			<span class="w-32 text-right">{ formatFileTime(entry.ModTime) }</span>
 			<a
@@ -267,7 +267,7 @@ func FileActionURL(allocID, action, task, path string) string {
 // DirectoryListing renders the children of a directory (for HTMX lazy loading)
 templ DirectoryListing(entries []FileEntry, allocID, task string, depth int) {
 	if len(entries) == 0 {
-		<div class="px-4 py-2 text-sm text-neutral-500 italic">
+		<div class="px-4 py-2 text-sm text-neutral-500 dark:text-neutral-400 italic">
 			Empty directory
 		</div>
 	} else {
@@ -313,9 +313,9 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 			<img
 				src={ templ.SafeURL(props.ImageURL) }
 				alt={ props.FileName }
-				class="max-w-full max-h-[32rem] mx-auto object-contain rounded border border-neutral-200"
+				class="max-w-full max-h-[32rem] mx-auto object-contain rounded border border-neutral-200 dark:border-neutral-700"
 			/>
-			<figcaption class="mt-2 text-xs text-neutral-500">{ props.FileName } ({ formatFileSize(props.Size) })</figcaption>
+			<figcaption class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{ props.FileName } ({ formatFileSize(props.Size) })</figcaption>
 		</figure>
 	} else if !props.IsText {
 		<!-- Binary file display -->
@@ -323,8 +323,8 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 			<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
 			</svg>
-			<p class="mt-2 text-sm text-neutral-600">Binary file ({ formatFileSize(props.Size) })</p>
-			<p class="mt-1 text-xs text-neutral-500">Preview not available for binary files</p>
+			<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">Binary file ({ formatFileSize(props.Size) })</p>
+			<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Preview not available for binary files</p>
 		</div>
 	} else {
 		<!-- Text file with syntax highlighting -->
@@ -335,8 +335,8 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 		>
 			<!-- File info header -->
 			<div class="flex items-center justify-between mb-2 px-1">
-				<span class="text-xs text-neutral-500">{ formatFileSize(props.Size) }</span>
-				<span class="text-xs px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded">{ getLanguageLabel(props.FileName) }</span>
+				<span class="text-xs text-neutral-500 dark:text-neutral-400">{ formatFileSize(props.Size) }</span>
+				<span class="text-xs px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded">{ getLanguageLabel(props.FileName) }</span>
 			</div>
 			if props.Size > props.MaxSize {
 				<div class="mb-2 inline-flex rounded-md shadow-sm" role="group" aria-label="File preview position">
@@ -359,7 +359,7 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 					<button
 						type="button"
 						@click="toggleStream()"
-						:class="isStreaming ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+						:class="isStreaming ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50'"
 						class="-ml-px px-3 py-1.5 text-xs font-medium border rounded-r-md"
 						data-file-preview-mode="live"
 					><span x-text="isStreaming ? 'Stop Live' : 'Live'"></span></button>
@@ -421,7 +421,7 @@ func filePreviewModeClass(active bool) string {
 	if active {
 		return "bg-primary-600 text-white border-primary-600"
 	}
-	return "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+	return "bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50"
 }
 
 // renderLineNumbers generates line number divs for the content
@@ -1074,7 +1074,7 @@ templ fileIcon(fileName string) {
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
 			</svg>
 		case "binary":
-			<svg class="h-5 w-5 text-neutral-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<svg class="h-5 w-5 text-neutral-500 dark:text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
 			</svg>
 		default:
