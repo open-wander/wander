@@ -18,11 +18,18 @@ func TestValidateInternalReferences(t *testing.T) {
 	}
 }
 
-func TestValidateInternalReferencesRejectsMissingRoute(t *testing.T) {
-	testDir := t.TempDir()
-	writeTestPage(t, filepath.Join(testDir, "index.html"), `<a href="/missing/">Missing</a>`)
-	if err := validateInternalReferences(testDir); err == nil {
-		t.Fatal("expected missing route error")
+func TestValidateInternalReferencesRejectsInvalidRoute(t *testing.T) {
+	for name, reference := range map[string]string{
+		"missing":   "/missing/",
+		"traversal": "/../../outside",
+	} {
+		t.Run(name, func(t *testing.T) {
+			testDir := t.TempDir()
+			writeTestPage(t, filepath.Join(testDir, "index.html"), `<a href="`+reference+`">Invalid</a>`)
+			if err := validateInternalReferences(testDir); err == nil {
+				t.Fatalf("expected %s reference error", name)
+			}
+		})
 	}
 }
 
