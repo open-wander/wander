@@ -47,6 +47,11 @@ source of truth. Initial content is written from the Wander release/runbook
 facts already reviewed in this repository. No inherited website content is
 migrated implicitly.
 
+Published configuration examples live in `site/examples` so their owning
+Wander packages can validate them without importing generated presentation
+code. Repository-wide CI uses the aggregate `templ-generate` target before
+commands such as `go mod tidy` and `govulncheck ./...` inspect every package.
+
 ### Historical tutorial research
 
 The repository contains a pre-1.6.5 getting-started history that is useful as a

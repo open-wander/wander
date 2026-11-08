@@ -231,7 +231,7 @@ checkproto: ## Lint protobuf files
 	@buf check breaking --config tools/buf/buf.yaml --against-config tools/buf/buf.yaml --against .git#tag=$(PROTO_COMPARE_TAG)
 
 .PHONY: generate-all
-generate-all: ui-generate generate-structs proto ## Generate UI, structs, and protobufs
+generate-all: templ-generate generate-structs proto ## Generate templates, structs, and protobufs
 
 .PHONY: generate-structs
 generate-structs: LOCAL_PACKAGES = $(shell go list ./...)
@@ -403,6 +403,14 @@ ui-screenshots-local: ## Collect UI screenshots (local)
 ui-generate: ## Generate Go code from templ templates
 	@echo "==> Generating templ templates..."
 	@cd ui && templ generate
+
+.PHONY: site-generate
+site-generate: ## Generate Go code from website templ templates
+	@echo "==> Generating website templ templates..."
+	@$(MAKE) -C site generate
+
+.PHONY: templ-generate
+templ-generate: ui-generate site-generate ## Generate all Go code from templ templates
 
 .PHONY: ui-watch
 ui-watch: ## Watch and regenerate templ templates on changes

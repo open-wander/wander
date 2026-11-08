@@ -3,12 +3,9 @@ package templates
 import (
 	"bytes"
 	"context"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	commandagent "github.com/open-wander/wander/command/agent"
 	"github.com/open-wander/wander/jobspec2"
 )
 
@@ -36,25 +33,5 @@ func TestHelloWanderJobParses(t *testing.T) {
 	}
 	if job.ID == nil || *job.ID != "hello-wander" {
 		t.Fatalf("unexpected job ID: %#v", job.ID)
-	}
-}
-
-func TestMultiNodeTutorialConfigsParse(t *testing.T) {
-	configs := map[string]string{
-		"server.hcl":   MultiNodeServerConfig,
-		"client-1.hcl": MultiNodeClientOneConfig,
-		"client-2.hcl": MultiNodeClientTwoConfig,
-	}
-
-	for name, content := range configs {
-		t.Run(name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), name)
-			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := commandagent.ParseConfigFile(path); err != nil {
-				t.Fatalf("parse tutorial configuration: %v", err)
-			}
-		})
 	}
 }
