@@ -112,7 +112,7 @@ jobs:
           git add -A .
           find . -name '*.generated.go' -not -path './vendor/*' -exec git add -f '{}' \;
           if ! git diff-index --quiet HEAD --; then
-            git commit --message "Generate files for ${RELEASE_VERSION} release"
+            git commit --signoff --message "Generate files for ${RELEASE_VERSION} release"
             echo "committing generated files"
           else
             echo "no files were updated"
@@ -128,11 +128,13 @@ jobs:
             IFS=. read -r major minor patch <<<"${RELEASE_VERSION}"
             next_version="${major}.${minor}.$((patch + 1))"
             sed -i.bak -e "s|^\([[:space:]]*Version[[:space:]]*=[[:space:]]*\"\)[^\"]*|\1${next_version}|" version/version.go
+            sed -i.bak -E "s|\"[0-9]+\.[0-9]+\.[0-9]+-dev\"|\"${next_version}-dev\"|" version/version_test.go
+            sed -i.bak -E "s|v[0-9]+\.[0-9]+\.[0-9]+-dev|v${next_version}-dev|g" ui/tests/e2e/specs/release-smoke.spec.ts
           fi
           # Set the VersionPrerelease variable back to dev.
           sed -i.bak -e "s|^\([[:space:]]*VersionPrerelease[[:space:]]*=[[:space:]]*\"\)[^\"]*|\1dev|" version/version.go
-          rm -rf version/version.go.bak
-          git diff --color=always version/version.go
+          rm -f version/version.go.bak version/version_test.go.bak ui/tests/e2e/specs/release-smoke.spec.ts.bak
+          git diff --color=always version/version.go version/version_test.go ui/tests/e2e/specs/release-smoke.spec.ts
 
       - name: Update LAST_RELEASE
         run: |
@@ -156,7 +158,7 @@ jobs:
           git diff --color=always HEAD
           git add -A .
           if ! git diff-index --quiet HEAD --; then
-            git commit --message 'Prepare for next release'
+            git commit --signoff --message 'Prepare for next release'
           else
             echo "no files were updated"
           fi
