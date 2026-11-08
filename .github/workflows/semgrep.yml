@@ -15,7 +15,7 @@ jobs:
     if: (github.actor != 'dependabot[bot]')
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: returntocorp/semgrep-action@245bf11ddb2f3d4e35f116608cf6e27ae0f9aa04 # v1
+      - uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
 permissions:
   contents: read
 
