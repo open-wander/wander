@@ -20,13 +20,6 @@ updates:
     labels:
       - "theme/dependencies"
       - "theme/ui"
-  - package-ecosystem: npm
-    directory: "/website"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "theme/dependencies"
-      - "theme/website"
   - package-ecosystem: "github-actions"
     directories:
       - "/"

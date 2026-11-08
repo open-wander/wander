@@ -434,6 +434,14 @@ ui-setup: ## Setup UI dependencies (Tailwind CLI + npm packages)
 	@echo "==> Setting up UI dependencies..."
 	@cd ui && $(MAKE) setup
 
+.PHONY: site-build
+site-build: ## Build the static Wander website
+	@$(MAKE) -C site build
+
+.PHONY: site-check
+site-check: ## Build and test the static Wander website
+	@$(MAKE) -C site check
+
 .PHONY: ui-dev
 ui-dev: ## Run UI development server with hot-reload (air)
 	@echo "==> Starting UI development server with hot-reload..."

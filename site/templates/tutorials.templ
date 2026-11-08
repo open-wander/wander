@@ -1,0 +1,110 @@
+package templates
+
+type TutorialSection struct {
+	ID    string
+	Label string
+}
+
+templ TutorialFrame(title string, description string, duration string, sections []TutorialSection) {
+	@Layout(title+" — Wander tutorials", description) {
+		<div class="site-shell py-12 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-14">
+			<aside class="mb-10 lg:mb-0">
+				<nav class="sticky top-24 rounded-2xl border border-neutral-200 p-5 text-sm dark:border-neutral-800" aria-label="On this page">
+					<p class="font-semibold">On this page</p>
+					<ol class="mt-4 space-y-3 text-neutral-600 dark:text-neutral-400">
+						for _, section := range sections {
+							<li><a href={ "#" + section.ID }>{ section.Label }</a></li>
+						}
+					</ol>
+				</nav>
+			</aside>
+			<article class="prose-wander min-w-0">
+				<p class="eyebrow">Tutorial · { duration }</p>
+				<h1>{ title }</h1>
+				{ children... }
+			</article>
+		</div>
+	}
+}
+
+templ RunFirstJobPage() {
+	@TutorialFrame(
+		"Run your first job",
+		"Submit a service job, inspect its allocation and logs, then remove it safely.",
+		"15 minutes",
+		[]TutorialSection{
+			{ID: "prerequisites", Label: "Prerequisites"},
+			{ID: "write", Label: "Write the job"},
+			{ID: "validate", Label: "Validate and plan"},
+			{ID: "submit", Label: "Submit and inspect"},
+			{ID: "logs", Label: "Follow logs"},
+			{ID: "cleanup", Label: "Clean up"},
+		},
+	) {
+		<p class="lead">Create a small service job that emits a timestamped message, watch Wander place it, and inspect the running allocation from the CLI.</p>
+		<div class="not-prose my-8 rounded-2xl border border-info-200 bg-info-50 p-5 text-neutral-800 dark:border-info-900 dark:bg-info-950/40 dark:text-neutral-200"><strong>Compatibility:</strong> this tutorial uses job, allocation, Docker-driver, and log behavior available in the Nomad 1.6.5 open-source baseline.</div>
+		<h2 id="prerequisites">Prerequisites</h2>
+		<p>Complete <a href="/wander/tutorials/getting-started/">Run Wander locally</a> and leave the development agent running. You also need a working Docker-compatible daemon because this example uses the built-in Docker task driver.</p>
+		<h2 id="write">1. Write the job</h2>
+		<p>Create a file named <code>hello-wander.nomad.hcl</code> with this example:</p>
+		@CodeBlock(HelloWanderJob)
+		<p>The service job asks Wander to keep one allocation running. The task uses a fixed BusyBox image and writes a line every five seconds.</p>
+		<h2 id="validate">2. Validate and plan</h2>
+		<p>Check the file locally before changing cluster state:</p>
+		@CodeBlock("wander job validate hello-wander.nomad.hcl\nwander job plan hello-wander.nomad.hcl")
+		<p>A successful plan describes the proposed allocation without registering the job.</p>
+		<h2 id="submit">3. Submit and inspect</h2>
+		<p>Register the job and wait for the evaluation and deployment monitor:</p>
+		@CodeBlock("wander job run hello-wander.nomad.hcl")
+		<p>Then inspect the job. Its allocation should move to <code>running</code> after the image is available and the task starts.</p>
+		@CodeBlock("wander job status hello-wander")
+		<h2 id="logs">4. Follow the logs</h2>
+		<p>Wander can select a running allocation by job ID, so this example does not require copying an allocation identifier:</p>
+		@CodeBlock("wander alloc logs -job -f hello-wander messages")
+		<p>Wait for several messages, then press <code>Ctrl-C</code>. This stops following the stream; it does not stop the allocation.</p>
+		<h2 id="cleanup">5. Clean up</h2>
+		<p>Stop the service and purge its job registration from this disposable development cluster:</p>
+		@CodeBlock("wander job stop -purge hello-wander")
+		<p>For production workloads, omit <code>-purge</code> until you no longer need the stopped job's history.</p>
+		<div class="not-prose mt-10 flex flex-col gap-3 border-t border-neutral-200 pt-8 sm:flex-row dark:border-neutral-800"><a class="button-primary" href="/wander/tutorials/explore-ui/">Next: explore the UI</a><a class="button-secondary" href="/wander/tutorials/">All tutorials</a></div>
+	}
+}
+
+templ ExploreUIPage() {
+	@TutorialFrame(
+		"Explore a job in the Wander UI",
+		"Inspect a running job, allocation, logs, files, and an exec session in the embedded UI.",
+		"10 minutes",
+		[]TutorialSection{
+			{ID: "prepare", Label: "Prepare the job"},
+			{ID: "job", Label: "Inspect the job"},
+			{ID: "allocation", Label: "Open an allocation"},
+			{ID: "logs", Label: "Follow logs"},
+			{ID: "exec-files", Label: "Exec and files"},
+			{ID: "finish", Label: "Finish"},
+		},
+	) {
+		<p class="lead">Use the interface embedded in the Wander binary to follow the same job-to-allocation path you inspected from the CLI.</p>
+		<div class="not-prose my-8 rounded-2xl border border-warning-200 bg-warning-50 p-5 text-neutral-800 dark:border-warning-900 dark:bg-warning-950/40 dark:text-neutral-200"><strong>Theme note:</strong> the documentation site supports dark mode, but the Wander 0.1.0 application UI itself is light-only.</div>
+		<h2 id="prepare">1. Prepare the job</h2>
+		<p>Complete <a href="/wander/tutorials/run-first-job/">Run your first job</a>, but leave <code>hello-wander</code> running until this tutorial is finished.</p>
+		<p>Open <a href="http://127.0.0.1:4646/ui/">http://127.0.0.1:4646/ui/</a>. The connection indicator should be green and the namespace selector should show <code>default</code>.</p>
+		<h2 id="job">2. Inspect the job</h2>
+		<p>Select <strong>Jobs</strong>, then open <strong>hello-wander</strong>. The overview connects the job's desired state to its task group, deployment, evaluation, and allocation state.</p>
+		<ul><li><strong>Definition</strong> shows the registered HCL or JSON representation.</li><li><strong>Versions</strong> records changes after subsequent submissions.</li><li><strong>Allocations</strong> lists placements created for the task groups.</li><li><strong>Deployments</strong> and <strong>Evaluations</strong> show the scheduler's progress.</li></ul>
+		<h2 id="allocation">3. Open an allocation</h2>
+		<p>Choose the running allocation from the job's <strong>Allocations</strong> tab. The allocation page identifies its client node, task group, task state, recent events, and resource usage.</p>
+		<p>If an allocation is not running, read its recent events before retrying. A missing Docker driver or an unavailable image should be treated as an environment problem rather than hidden.</p>
+		<h2 id="logs">4. Follow logs</h2>
+		<p>Open <strong>Logs</strong> and select the <strong>messages</strong> task. New timestamps and <code>hello from Wander</code> messages should appear as the task writes them. Use <strong>Pause</strong> to stop following without stopping the task; stdout and stderr filters only change the displayed streams.</p>
+		<h2 id="exec-files">5. Use exec and files</h2>
+		<p>Open <strong>Exec</strong>, keep <code>/bin/sh</code> as the command, and connect. Run a harmless command such as:</p>
+		@CodeBlock("pwd\nprintf 'connected to %s\\n' \"$NOMAD_ALLOC_ID\"")
+		<p>Disconnect when finished. Then open <strong>Files</strong> to browse the allocation directory exposed by the client. File visibility and downloads are constrained by the allocation and the selected task.</p>
+		<h2 id="finish">6. Finish</h2>
+		<p>Return to a terminal and remove the disposable job:</p>
+		@CodeBlock("wander job stop -purge hello-wander")
+		<p>You have now followed one workload through definition, scheduling, placement, logs, execution, and allocation storage using both supported interfaces.</p>
+		<div class="not-prose mt-10 flex flex-col gap-3 border-t border-neutral-200 pt-8 sm:flex-row dark:border-neutral-800"><a class="button-primary" href="/wander/tutorials/">View the tutorial roadmap</a><a class="button-secondary" href="/wander/docs/">Read the docs</a></div>
+	}
+}

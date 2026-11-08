@@ -117,3 +117,8 @@ vault
 # UI-HTMX generated files
 ui-htmx/templates/**/*_templ.go
 ui-htmx/static/css/output.css
+
+# Wander documentation site build artifacts
+site/dist/
+site/templates/**/*_templ.go
+site/static/css/output.css

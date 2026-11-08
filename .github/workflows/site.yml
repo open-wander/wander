@@ -1,0 +1,51 @@
+name: Website
+
+on:
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'ui/package-lock.json'
+      - 'ui/package.json'
+      - 'ui/tailwind.config.js'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/site.yml'
+  push:
+    branches:
+      - main
+      - release/**
+    paths:
+      - 'site/**'
+      - 'ui/package-lock.json'
+      - 'ui/package.json'
+      - 'ui/tailwind.config.js'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/site.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: '.go-version'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install existing UI theme dependencies
+        working-directory: ui
+        run: npm ci
+      - name: Install pinned generators
+        run: make templ-deps
+      - name: Install pinned Tailwind CLI
+        run: make -C ui install-tailwind
+      - name: Build and test site
+        run: make site-check

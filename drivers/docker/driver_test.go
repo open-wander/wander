@@ -933,7 +933,8 @@ func TestDockerDriver_ForcePull_RepoDigest(t *testing.T) {
 
 	cfg.LoadImage = ""
 	cfg.Image = "library/busybox@sha256:58ac43b2cc92c687a32c8be6278e50a063579655fe3090125dcb2af0ff9e1a64"
-	localDigest := "sha256:8ac48589692a53a9b8c2d1ceaa6b402665aa7fe667ba51ccc03002300856d8c7"
+	_, localDigest, found := strings.Cut(cfg.Image, "@")
+	require.True(t, found)
 	cfg.ForcePull = true
 	cfg.Command = busyboxLongRunningCmd[0]
 	cfg.Args = busyboxLongRunningCmd[1:]
@@ -1639,7 +1640,16 @@ func TestDockerDriver_MACAddress(t *testing.T) {
 	container, err := client.InspectContainer(handle.containerID)
 	require.NoError(t, err)
 
-	require.Equal(t, cfg.MacAddress, container.NetworkSettings.MacAddress)
+	macAddress := container.NetworkSettings.MacAddress
+	if macAddress == "" {
+		for _, network := range container.NetworkSettings.Networks {
+			if network.MacAddress != "" {
+				macAddress = network.MacAddress
+				break
+			}
+		}
+	}
+	require.Equal(t, cfg.MacAddress, macAddress)
 }
 
 func TestDockerWorkDir(t *testing.T) {

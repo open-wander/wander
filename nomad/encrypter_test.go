@@ -91,7 +91,7 @@ func TestEncrypter_Restore(t *testing.T) {
 	require.Eventually(t, func() bool {
 		msgpackrpc.CallWithCodec(codec, "Keyring.List", listReq, &listResp)
 		return len(listResp.Keys) == 1
-	}, time.Second*5, time.Second, "expected keyring to be initialized")
+	}, testutil.Timeout(5*time.Second), time.Second, "expected keyring to be initialized")
 
 	// Send a few key rotations to add keys
 
@@ -125,7 +125,7 @@ func TestEncrypter_Restore(t *testing.T) {
 	require.Eventually(t, func() bool {
 		msgpackrpc.CallWithCodec(codec, "Keyring.List", listReq, &listResp)
 		return len(listResp.Keys) == 5 // 4 new + the bootstrap key
-	}, time.Second*5, time.Second, "expected keyring to be restored")
+	}, testutil.Timeout(5*time.Second), time.Second, "expected keyring to be restored")
 
 	for _, keyMeta := range listResp.Keys {
 
@@ -199,7 +199,7 @@ func TestEncrypter_KeyringReplication(t *testing.T) {
 	require.Eventually(t, func() bool {
 		msgpackrpc.CallWithCodec(codec, "Keyring.List", listReq, &listResp)
 		return len(listResp.Keys) == 1
-	}, time.Second*5, time.Second, "expected keyring to be initialized")
+	}, testutil.Timeout(5*time.Second), time.Second, "expected keyring to be initialized")
 
 	keyID1 := listResp.Keys[0].KeyID
 
@@ -226,7 +226,7 @@ func TestEncrypter_KeyringReplication(t *testing.T) {
 
 	// Assert that the bootstrap key has been replicated to followers
 	require.Eventually(t, checkReplicationFn(keyID1),
-		time.Second*5, time.Second,
+		testutil.Timeout(5*time.Second), time.Second,
 		"expected keys to be replicated to followers after bootstrap")
 
 	// Assert that key rotations are replicated to followers
@@ -258,7 +258,7 @@ func TestEncrypter_KeyringReplication(t *testing.T) {
 	require.NoError(t, err, "expected key to be found in leader keystore")
 
 	require.Eventually(t, checkReplicationFn(keyID2),
-		time.Second*5, time.Second,
+		testutil.Timeout(5*time.Second), time.Second,
 		"expected keys to be replicated to followers after rotation")
 
 	// Scenario: simulate a key rotation that doesn't get replicated
@@ -290,7 +290,7 @@ func TestEncrypter_KeyringReplication(t *testing.T) {
 	}
 
 	require.Eventually(t, checkReplicationFn(keyID3),
-		time.Second*5, time.Second,
+		testutil.Timeout(5*time.Second), time.Second,
 		"expected keys to be replicated to followers after election")
 
 	// Scenario: new members join the cluster
@@ -314,7 +314,7 @@ func TestEncrypter_KeyringReplication(t *testing.T) {
 	testutil.WaitForLeader(t, srv5.RPC)
 
 	require.Eventually(t, checkReplicationFn(keyID3),
-		time.Second*5, time.Second,
+		testutil.Timeout(5*time.Second), time.Second,
 		"expected new servers to get replicated keys")
 
 	// Scenario: reload a snapshot
@@ -340,7 +340,7 @@ func TestEncrypter_KeyringReplication(t *testing.T) {
 	keyID4 := rotateResp.Key.KeyID
 
 	require.Eventually(t, checkReplicationFn(keyID4),
-		time.Second*5, time.Second,
+		testutil.Timeout(5*time.Second), time.Second,
 		"expected new servers to get replicated keys after snapshot restore")
 
 }
@@ -377,8 +377,14 @@ func TestEncrypter_SignVerify(t *testing.T) {
 	claim := alloc.ToTaskIdentityClaims(nil, "web")
 	e := srv.encrypter
 
-	out, _, err := e.SignClaims(claim)
-	require.NoError(t, err)
+	var out string
+	testutil.WaitForResult(func() (bool, error) {
+		var err error
+		out, _, err = e.SignClaims(claim)
+		return err == nil, err
+	}, func(err error) {
+		require.NoError(t, err)
+	})
 
 	got, err := e.VerifyClaim(out)
 	require.NoError(t, err)

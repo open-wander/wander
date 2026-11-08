@@ -6,13 +6,14 @@ package testutil
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	vapi "github.com/hashicorp/vault/api"
 	testing "github.com/mitchellh/go-testing-interface"
-	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/useragent"
 	"github.com/open-wander/wander/helper/uuid"
@@ -40,14 +41,19 @@ type TestVault struct {
 	Client    *vapi.Client
 }
 
+var (
+	vaultDevPortMu   sync.Mutex
+	vaultDevPortNext = 20000
+)
+
 func NewTestVaultFromPath(t testing.T, binary string) *TestVault {
-	port := ci.PortAllocator.Grab(1)[0]
+	port := vaultDevPort(t)
 	token := uuid.Generate()
 	bind := fmt.Sprintf("-dev-listen-address=127.0.0.1:%d", port)
 	http := fmt.Sprintf("http://127.0.0.1:%d", port)
 	root := fmt.Sprintf("-dev-root-token-id=%s", token)
 
-	cmd := exec.Command(binary, "server", "-dev", bind, root)
+	cmd := exec.Command(binary, "server", "-dev", "-dev-no-store-token", bind, root)
 	cmd.Stdout = testlog.NewWriter(t)
 	cmd.Stderr = testlog.NewWriter(t)
 
@@ -118,13 +124,13 @@ func NewTestVault(t testing.T) *TestVault {
 // Start must be called and it is the callers responsibility to deal with any
 // port conflicts that may occur and retry accordingly.
 func NewTestVaultDelayed(t testing.T) *TestVault {
-	port := ci.PortAllocator.Grab(1)[0]
+	port := vaultDevPort(t)
 	token := uuid.Generate()
 	bind := fmt.Sprintf("-dev-listen-address=127.0.0.1:%d", port)
 	http := fmt.Sprintf("http://127.0.0.1:%d", port)
 	root := fmt.Sprintf("-dev-root-token-id=%s", token)
 
-	cmd := exec.Command("vault", "server", "-dev", bind, root)
+	cmd := exec.Command("vault", "server", "-dev", "-dev-no-store-token", bind, root)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -156,6 +162,49 @@ func NewTestVaultDelayed(t testing.T) *TestVault {
 	}
 
 	return tv
+}
+
+// vaultDevPort reserves both ports used by a Vault dev server. Vault binds its
+// API listener to the requested port and implicitly binds its cluster listener
+// to the following port.
+func vaultDevPort(t testing.T) int {
+	vaultDevPortMu.Lock()
+	defer vaultDevPortMu.Unlock()
+
+	for range 5000 {
+		port := vaultDevPortNext
+		vaultDevPortNext += 2
+		if vaultDevPortNext >= 30000 {
+			vaultDevPortNext = 20000
+		}
+
+		apiListener, err := net.ListenTCP("tcp", &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: port,
+		})
+		if err != nil {
+			continue
+		}
+
+		clusterListener, err := net.ListenTCP("tcp", &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: port + 1,
+		})
+		if err != nil {
+			_ = apiListener.Close()
+			continue
+		}
+
+		apiCloseErr := apiListener.Close()
+		clusterCloseErr := clusterListener.Close()
+		if apiCloseErr != nil || clusterCloseErr != nil {
+			t.Fatalf("failed to release Vault dev ports: API: %v; cluster: %v", apiCloseErr, clusterCloseErr)
+		}
+		return port
+	}
+
+	t.Fatalf("failed to reserve ports for Vault dev server")
+	return 0
 }
 
 // Start starts the test Vault server and waits for it to respond to its HTTP

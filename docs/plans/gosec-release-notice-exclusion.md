@@ -14,18 +14,26 @@ scan discovers them and reports both dependency findings and type-check errors.
   `-exclude-dir=.release-notices`.
 - A high-severity verification scan with that option reported no paths below
   `.release-notices`, while retaining findings in Wander source.
-- `.loop/config.md` is the repository's existing source for local validation
-  commands.
+- The release-notice exclusion must remain documented independently of local
+  agent-session state.
 
 ## Technical approach
 
-Record the repository-wide gosec command in `.loop/config.md` with the exact
-directory-name exclusion. Do not exclude all of `pkg/`, and do not suppress
-any gosec rules or findings in Wander source.
+Use this repository-wide gosec command with the exact directory-name
+exclusion:
+
+```sh
+gosec -quiet -severity high -confidence high \
+  -exclude-dir=.release-notices \
+  -nosec-require-rules -nosec-require-justification ./...
+```
+
+Do not exclude all of `pkg/`, and do not suppress any gosec rules or findings
+in Wander source.
 
 ## Acceptance criteria
 
-- [x] The documented security command contains
+- [x] The documented repository-wide security command contains
       `-exclude-dir=.release-notices`.
 - [x] A verification scan reports no `.release-notices` paths.
 - [x] Genuine Wander-source findings remain visible.

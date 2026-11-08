@@ -195,6 +195,17 @@ func TestExecFSIsolation(t *testing.T, driver *DriverHarness, taskID string) {
 			"cat /proc/self/cgroup",
 			false, "")
 		require.Zero(t, r.exitCode)
+		cgroup := strings.TrimSpace(r.stdout)
+
+		// Docker can expose a unified cgroup namespace to the container even
+		// when the test host itself does not use cgroups (for example Docker
+		// Desktop on macOS). In that namespace the isolated container sees only
+		// its own root, so the path cannot identify the host-side cgroup.
+		info, err := driver.PluginInfo()
+		require.NoError(t, err)
+		if info.Name == "docker" && strings.HasPrefix(cgroup, "0::/") {
+			return
+		}
 
 		if !cgutil.UseV2 {
 			acceptable := []string{
@@ -216,15 +227,11 @@ func TestExecFSIsolation(t *testing.T, driver *DriverHarness, taskID string) {
 				require.Fail(t, "unexpected freezer cgroup", "expected freezer to be /nomad/ or /docker/, but found:\n%s", r.stdout)
 			}
 		} else {
-			info, _ := driver.PluginInfo()
 			if info.Name == "docker" {
-				// Note: docker on cgroups v2 now returns nothing
-				// root@97b4d3d33035:/# cat /proc/self/cgroup
-				// 0::/
-				t.Skip("/proc/self/cgroup not useful in docker cgroups.v2")
+				require.Fail(t, "unexpected Docker cgroup", "expected unified Docker cgroup root 0::/, but found:\n%s", r.stdout)
 			}
 			// e.g. 0::/testing.slice/5bdbd6c2-8aba-3ab2-728b-0ff3a81727a9.sleep.scope
-			require.True(t, strings.HasSuffix(strings.TrimSpace(r.stdout), ".scope"), "actual stdout %q", r.stdout)
+			require.True(t, strings.HasSuffix(cgroup, ".scope"), "actual stdout %q", r.stdout)
 		}
 	})
 }

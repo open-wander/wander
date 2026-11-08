@@ -103,70 +103,57 @@ func TestDriver_parseJavaVersionOutput(t *testing.T) {
 }
 
 func TestDriver_javaVersionInfo(t *testing.T) {
-	ci.Parallel(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("test requires bash to run")
 	}
 
-	initCmd := javaVersionCommand
-	defer func() {
-		javaVersionCommand = initCmd
-	}()
-
-	javaVersionCommand = []string{
-		"/bin/sh", "-c",
-		fmt.Sprintf("printf '%%s\n' '%s' >/dev/stderr",
-			`java version "1.7.0_80"
+	tests := []struct {
+		name    string
+		output  string
+		version string
+		runtime string
+		vm      string
+	}{
+		{
+			name: "valid output",
+			output: `java version "1.7.0_80"
 			Java(TM) SE Runtime Environment (build 1.7.0_80-b15)
-			Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)`),
+			Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)`,
+			version: "1.7.0_80",
+			runtime: "Java(TM) SE Runtime Environment (build 1.7.0_80-b15)",
+			vm:      "Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)",
+		},
+		{
+			name:   "unexpected output",
+			output: "unexpected java -version output",
+		},
 	}
 
-	version, jdkJRE, vm, err := javaVersionInfo()
-	require.NoError(t, err)
-	require.Equal(t, "1.7.0_80", version)
-	require.Equal(t, "Java(TM) SE Runtime Environment (build 1.7.0_80-b15)", jdkJRE)
-	require.Equal(t, "Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)", vm)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stubJavaVersionCommand(t, []string{
+				"/bin/sh", "-c",
+				fmt.Sprintf("printf '%%s\n' '%s' >/dev/stderr", test.output),
+			})
 
-}
-
-func TestDriver_javaVersionInfo_UnexpectedOutput(t *testing.T) {
-	ci.Parallel(t)
-	if runtime.GOOS == "windows" {
-		t.Skip("test requires bash to run")
+			version, jdkJRE, vm, err := javaVersionInfo()
+			require.NoError(t, err)
+			require.Equal(t, test.version, version)
+			require.Equal(t, test.runtime, jdkJRE)
+			require.Equal(t, test.vm, vm)
+		})
 	}
-
-	initCmd := javaVersionCommand
-	defer func() {
-		javaVersionCommand = initCmd
-	}()
-
-	javaVersionCommand = []string{
-		"/bin/sh", "-c",
-		fmt.Sprintf("printf '%%s\n' '%s' >/dev/stderr", "unexpected java -version output"),
-	}
-
-	version, jdkJRE, vm, err := javaVersionInfo()
-	require.NoError(t, err)
-	require.Equal(t, "", version)
-	require.Equal(t, "", jdkJRE)
-	require.Equal(t, "", vm)
 }
 
 func TestDriver_javaVersionInfo_JavaVersionFails(t *testing.T) {
-	ci.Parallel(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("test requires bash to run")
 	}
 
-	initCmd := javaVersionCommand
-	defer func() {
-		javaVersionCommand = initCmd
-	}()
-
-	javaVersionCommand = []string{
+	stubJavaVersionCommand(t, []string{
 		"/bin/sh", "-c",
 		"exit 127",
-	}
+	})
 
 	version, jdkJRE, vm, err := javaVersionInfo()
 	require.Error(t, err)
@@ -175,4 +162,17 @@ func TestDriver_javaVersionInfo_JavaVersionFails(t *testing.T) {
 	require.Equal(t, "", version)
 	require.Equal(t, "", jdkJRE)
 	require.Equal(t, "", vm)
+}
+
+func stubJavaVersionCommand(t *testing.T, command []string) {
+	initialCommand := javaVersionCommand
+	initialMacOSCommand := macOSJavaTestCommand
+	javaVersionCommand = command
+	if runtime.GOOS == "darwin" {
+		macOSJavaTestCommand = "/usr/bin/true"
+	}
+	t.Cleanup(func() {
+		javaVersionCommand = initialCommand
+		macOSJavaTestCommand = initialMacOSCommand
+	})
 }

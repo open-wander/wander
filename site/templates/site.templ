@@ -1,0 +1,191 @@
+package templates
+
+type Page struct {
+	Output    string
+	Component templ.Component
+}
+
+func Pages() []Page {
+	return []Page{
+		{Output: "index.html", Component: HomePage()},
+		{Output: "wander/docs/index.html", Component: DocsPage()},
+		{Output: "wander/tutorials/index.html", Component: TutorialsPage()},
+		{Output: "wander/tutorials/getting-started/index.html", Component: GettingStartedPage()},
+		{Output: "wander/tutorials/run-first-job/index.html", Component: RunFirstJobPage()},
+		{Output: "wander/tutorials/explore-ui/index.html", Component: ExploreUIPage()},
+	}
+}
+
+templ BrandMark(classes string) {
+	<svg class={ classes } viewBox="0 0 48 48" fill="none" aria-hidden="true">
+		<path d="M24 4 5 14l19 10 19-10L24 4Z" fill="currentColor"></path>
+		<path d="m5 23 19 10 19-10v8L24 41 5 31v-8Z" fill="currentColor" opacity=".72"></path>
+	</svg>
+}
+
+templ CodeBlock(code string) {
+	<pre><code>{ code }</code></pre>
+}
+
+templ Layout(title string, description string) {
+	<!doctype html>
+	<html lang="en" class="h-full">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="description" content={ description }/>
+			<meta name="color-scheme" content="light dark"/>
+			<title>{ title }</title>
+			<link rel="stylesheet" href="/assets/css/output.css"/>
+			<script src="/assets/js/site.js"></script>
+		</head>
+		<body class="min-h-full bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+			<a href="#main" class="sr-only z-50 rounded-lg bg-white p-3 text-primary-700 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+			<header class="sticky top-0 z-40 border-b border-neutral-200/80 bg-white/90 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
+				<div class="site-shell flex min-h-16 items-center justify-between gap-4">
+					<a href="/" class="flex items-center gap-2 text-neutral-950 no-underline hover:no-underline dark:text-white" aria-label="Wander home">
+						@BrandMark("h-9 w-9 text-primary-600")
+						<span class="text-xl font-bold tracking-tight">Wander</span>
+					</a>
+					<button data-menu-button type="button" class="rounded-lg border border-neutral-300 p-2 text-neutral-700 md:hidden dark:border-neutral-700 dark:text-neutral-200" aria-expanded="false" aria-controls="site-navigation">
+						<span class="sr-only">Toggle navigation</span>
+						<svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M4 12h16M4 17h16" stroke-width="2" stroke-linecap="round"></path></svg>
+					</button>
+					<nav id="site-navigation" data-menu class="absolute left-0 top-16 hidden w-full border-b border-neutral-200 bg-white px-5 py-4 md:static md:flex md:w-auto md:items-center md:gap-7 md:border-0 md:bg-transparent md:p-0 dark:border-neutral-800 dark:bg-neutral-950 md:dark:bg-transparent" aria-label="Primary navigation">
+						<a href="/wander/docs/" class="block py-2 font-medium text-neutral-700 no-underline hover:text-primary-600 hover:no-underline dark:text-neutral-200">Docs</a>
+						<a href="/wander/tutorials/" class="block py-2 font-medium text-neutral-700 no-underline hover:text-primary-600 hover:no-underline dark:text-neutral-200">Tutorials</a>
+						<a href="https://github.com/open-wander/wander/releases" class="block py-2 font-medium text-neutral-700 no-underline hover:text-primary-600 hover:no-underline dark:text-neutral-200">Releases</a>
+						<a href="https://github.com/open-wander/wander" class="block py-2 font-medium text-neutral-700 no-underline hover:text-primary-600 hover:no-underline dark:text-neutral-200">GitHub</a>
+						<button data-theme type="button" class="mt-2 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-300 text-neutral-700 md:mt-0 dark:border-neutral-700 dark:text-neutral-200">
+							<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42m0-12.72-1.42 1.42M7.06 16.94l-1.42 1.42" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="12" r="4" stroke-width="1.8"></circle></svg>
+						</button>
+					</nav>
+				</div>
+			</header>
+			<main id="main">{ children... }</main>
+			<footer class="border-t border-neutral-200 bg-neutral-50 py-10 dark:border-neutral-800 dark:bg-neutral-950">
+				<div class="site-shell grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+					<div class="sm:col-span-2">
+						<div class="flex items-center gap-2 font-bold">@BrandMark("h-7 w-7 text-primary-600") Wander</div>
+						<p class="mt-3 max-w-xl text-sm leading-6 text-neutral-600 dark:text-neutral-400">An open workload orchestrator revived from the Nomad 1.6.5 open-source baseline, with a new independently developed interface.</p>
+					</div>
+					<div><h2 class="font-semibold">Project</h2><ul class="mt-3 space-y-2 text-sm text-neutral-600 dark:text-neutral-400"><li><a href="https://github.com/open-wander/wander">Source</a></li><li><a href="https://github.com/open-wander/wander/releases">Releases</a></li><li><a href="https://github.com/open-wander/wander/discussions">Discussions</a></li></ul></div>
+					<div><h2 class="font-semibold">Help</h2><ul class="mt-3 space-y-2 text-sm text-neutral-600 dark:text-neutral-400"><li><a href="/wander/docs/">Documentation</a></li><li><a href="https://github.com/open-wander/wander/security">Security</a></li><li><a href="https://github.com/open-wander/wander/issues">Issues</a></li></ul></div>
+				</div>
+			</footer>
+		</body>
+	</html>
+}
+
+templ HomePage() {
+	@Layout("Wander — open workload orchestration", "Run and operate workloads with Wander, a clean continuation of the Nomad 1.6.5 open-source baseline.") {
+		<section class="relative overflow-hidden border-b border-neutral-200 bg-neutral-50 py-20 sm:py-28 dark:border-neutral-800 dark:bg-neutral-950">
+			<div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.16),_transparent_42%)]"></div>
+			<div class="site-shell relative grid items-center gap-14 lg:grid-cols-[1.1fr_.9fr]">
+				<div>
+					<p class="eyebrow">Open workload orchestration</p>
+					<h1 class="mt-5 max-w-3xl text-5xl font-bold tracking-tight text-neutral-950 sm:text-6xl dark:text-white">Keep proven scheduling. Move forward openly.</h1>
+					<p class="mt-6 max-w-2xl text-xl leading-8 text-neutral-600 dark:text-neutral-300">Wander revives the open-source Nomad 1.6.5 foundation, modernises its security and build chain, and ships a clean web interface in one downloadable binary.</p>
+					<div class="mt-9 flex flex-col gap-3 sm:flex-row"><a class="button-primary" href="/wander/tutorials/getting-started/">Run Wander locally</a><a class="button-secondary" href="https://github.com/open-wander/wander/releases">Download 0.1.x</a></div>
+					<p class="mt-5 text-sm text-neutral-500 dark:text-neutral-400">Existing Nomad 1.6.5 users can follow the tested rolling migration boundary.</p>
+				</div>
+				<div class="surface relative overflow-hidden p-6 sm:p-8" aria-label="Illustration of workloads scheduled across a Wander cluster">
+					<div class="flex items-center justify-between"><span class="text-sm font-semibold">wander cluster</span><span class="rounded-full bg-success-100 px-3 py-1 text-xs font-semibold text-success-700 dark:bg-success-950 dark:text-success-300">healthy</span></div>
+					<div class="mt-8 grid grid-cols-3 gap-3">
+						<div class="col-span-3 rounded-2xl bg-primary-600 p-5 text-white"><span class="text-xs uppercase tracking-widest text-primary-100">Scheduler</span><div class="mt-2 font-mono text-sm">job → evaluation → allocation</div></div>
+						<div class="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-700"><span class="block h-2 w-2 rounded-full bg-success-500"></span><strong class="mt-4 block">client-01</strong><small>2 allocs</small></div>
+						<div class="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-700"><span class="block h-2 w-2 rounded-full bg-success-500"></span><strong class="mt-4 block">client-02</strong><small>3 allocs</small></div>
+						<div class="rounded-2xl border border-neutral-200 p-4 dark:border-neutral-700"><span class="block h-2 w-2 rounded-full bg-success-500"></span><strong class="mt-4 block">client-03</strong><small>1 alloc</small></div>
+					</div>
+				</div>
+			</div>
+		</section>
+		<section class="py-20 sm:py-24">
+			<div class="site-shell">
+				<p class="eyebrow">A deliberate continuation</p>
+				<h2 class="mt-3 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">Compatibility where operators need it, clean ownership where the project needs it.</h2>
+				<div class="mt-12 grid gap-6 md:grid-cols-3">
+					<article class="surface p-7"><h3 class="text-xl font-semibold">One operational binary</h3><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">The API, scheduler, client, CLI, and embedded UI arrive together. Running the interface requires no Node.js service.</p></article>
+					<article class="surface p-7"><h3 class="text-xl font-semibold">A tested migration line</h3><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Wander preserves the open Nomad 1.6.5 state, API, job, plugin, and configuration contracts needed for a controlled rolling replacement.</p></article>
+					<article class="surface p-7"><h3 class="text-xl font-semibold">Independent new work</h3><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">The Wander brand, web UI, release process, and this site are independently developed rather than copied from later licensed releases.</p></article>
+				</div>
+			</div>
+		</section>
+		<section class="border-y border-neutral-200 bg-neutral-950 py-20 text-white dark:border-neutral-800">
+			<div class="site-shell grid gap-10 lg:grid-cols-[.8fr_1.2fr]"><div><p class="eyebrow">Start small</p><h2 class="mt-3 text-3xl font-bold">A local cluster in one command.</h2><p class="mt-4 text-neutral-300">Use development mode to explore. Production clusters still require persistent storage, TLS, ACLs, backups, and an intentional server/client topology.</p></div><pre><code>$ wander agent -dev<br/><br/># API: http://127.0.0.1:4646<br/># UI:  http://127.0.0.1:4646/ui/</code></pre></div>
+		</section>
+	}
+}
+
+templ DocsPage() {
+	@Layout("Documentation — Wander", "Install, migrate, operate, and contribute to Wander.") {
+		<section class="border-b border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-950"><div class="site-shell"><p class="eyebrow">Documentation</p><h1 class="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Operate Wander with a clear boundary.</h1><p class="mt-5 max-w-3xl text-xl leading-8 text-neutral-600 dark:text-neutral-300">Start with the supported 0.1.x path. The repository runbook remains the detailed source for migration, rollback, backup, and troubleshooting.</p></div></section>
+		<section class="py-16">
+			<div class="site-shell grid gap-6 md:grid-cols-2">
+				<a class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline" href="/wander/tutorials/getting-started/"><span class="eyebrow">First run</span><h2 class="mt-3 text-2xl font-semibold text-neutral-900 group-hover:text-primary-700 dark:text-white">Getting started</h2><p class="mt-3 text-neutral-600 dark:text-neutral-300">Verify a release, start a development agent, and open the embedded UI.</p></a>
+				<a class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline" href="https://github.com/open-wander/wander/blob/main/docs/operations/0.1.0-runbook.md"><span class="eyebrow">Operations</span><h2 class="mt-3 text-2xl font-semibold text-neutral-900 group-hover:text-primary-700 dark:text-white">0.1.x operator runbook</h2><p class="mt-3 text-neutral-600 dark:text-neutral-300">Migration, upgrades, rollback, snapshots, known limitations, and troubleshooting.</p></a>
+				<a class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline" href="https://github.com/open-wander/wander/releases"><span class="eyebrow">Install</span><h2 class="mt-3 text-2xl font-semibold text-neutral-900 group-hover:text-primary-700 dark:text-white">Release archives</h2><p class="mt-3 text-neutral-600 dark:text-neutral-300">Download checksummed binaries and packages for supported operating systems.</p></a>
+				<a class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline" href="https://github.com/open-wander/wander/blob/main/CONTRIBUTING.md"><span class="eyebrow">Project</span><h2 class="mt-3 text-2xl font-semibold text-neutral-900 group-hover:text-primary-700 dark:text-white">Contribute</h2><p class="mt-3 text-neutral-600 dark:text-neutral-300">Build, test, report problems, and help extend the clean Wander codebase.</p></a>
+			</div>
+		</section>
+		<section class="pb-20"><div class="site-shell"><div class="rounded-3xl border border-warning-200 bg-warning-50 p-7 dark:border-warning-900 dark:bg-warning-950/40"><h2 class="text-xl font-semibold">Compatibility note</h2><p class="mt-3 max-w-4xl leading-7 text-neutral-700 dark:text-neutral-300">Wander 0.1.x supports new clusters and rolling migration from open-source Nomad 1.6.5. Newer Nomad state formats and Enterprise-only features are not supported migration sources.</p></div></div></section>
+	}
+}
+
+templ TutorialsPage() {
+	@Layout("Tutorials — Wander", "Hands-on Wander tutorials based on supported release workflows.") {
+		<section class="border-b border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-950"><div class="site-shell"><p class="eyebrow">Tutorials</p><h1 class="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">Learn Wander by running it.</h1><p class="mt-5 max-w-3xl text-xl leading-8 text-neutral-600 dark:text-neutral-300">Each tutorial is tied to a supported release workflow and states when a development shortcut is not appropriate for production.</p></div></section>
+		<section class="py-16">
+			<div class="site-shell">
+				<div class="grid gap-6 lg:grid-cols-3">
+					<a href="/wander/tutorials/getting-started/" class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline"><span class="eyebrow">01 · 10 minutes</span><h2 class="mt-4 text-2xl font-bold text-neutral-950 group-hover:text-primary-700 dark:text-white">Run Wander locally</h2><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Verify a release, start a development agent, confirm the API, and open the embedded UI.</p><span class="mt-6 inline-flex font-semibold text-primary-600 dark:text-primary-400">Start tutorial →</span></a>
+					<a href="/wander/tutorials/run-first-job/" class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline"><span class="eyebrow">02 · 15 minutes</span><h2 class="mt-4 text-2xl font-bold text-neutral-950 group-hover:text-primary-700 dark:text-white">Run your first job</h2><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Write, validate, submit, inspect, follow, and safely remove a service job.</p><span class="mt-6 inline-flex font-semibold text-primary-600 dark:text-primary-400">Start tutorial →</span></a>
+					<a href="/wander/tutorials/explore-ui/" class="surface group p-7 no-underline hover:border-primary-400 hover:no-underline"><span class="eyebrow">03 · 10 minutes</span><h2 class="mt-4 text-2xl font-bold text-neutral-950 group-hover:text-primary-700 dark:text-white">Explore the Wander UI</h2><p class="mt-3 leading-7 text-neutral-600 dark:text-neutral-300">Follow a workload through its job, allocation, logs, exec session, and files.</p><span class="mt-6 inline-flex font-semibold text-primary-600 dark:text-primary-400">Start tutorial →</span></a>
+				</div>
+			</div>
+		</section>
+		<section class="border-t border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-950">
+			<div class="site-shell grid gap-8 lg:grid-cols-[.7fr_1.3fr]"><div><p class="eyebrow">Roadmap</p><h2 class="mt-3 text-3xl font-bold">Planned tutorials</h2><p class="mt-4 leading-7 text-neutral-600 dark:text-neutral-300">These will be written and tested against Wander's supported 1.6.5 compatibility boundary before publication.</p></div><ul class="grid gap-x-8 gap-y-3 text-neutral-700 sm:grid-cols-2 dark:text-neutral-300"><li>Multi-node development cluster</li><li>Production topology</li><li>Nomad 1.6.5 migration</li><li>ACL bootstrap and policies</li><li>Namespaces and variables</li><li>Services and Consul</li><li>Secrets and future OpenBao support</li><li>Host and CSI volumes</li><li>Backup, restore, and upgrades</li><li>Multi-region federation</li></ul></div>
+		</section>
+	}
+}
+
+templ GettingStartedPage() {
+	@Layout("Getting started — Wander tutorials", "Download, verify, and run Wander locally with its embedded web UI.") {
+		<div class="site-shell py-12 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-14">
+			<aside class="mb-10 lg:mb-0">
+				<nav class="sticky top-24 rounded-2xl border border-neutral-200 p-5 text-sm dark:border-neutral-800" aria-label="On this page">
+					<p class="font-semibold">On this page</p>
+					<ol class="mt-4 space-y-3 text-neutral-600 dark:text-neutral-400"><li><a href="#before-you-start">Before you start</a></li><li><a href="#download">Download</a></li><li><a href="#verify">Verify</a></li><li><a href="#run">Run locally</a></li><li><a href="#next">Next steps</a></li></ol>
+				</nav>
+			</aside>
+			<article class="prose-wander min-w-0">
+				<p class="eyebrow">Tutorial · 10 minutes</p>
+				<h1>Run Wander locally</h1>
+				<p class="lead">Start a single-node development agent and explore the API and web UI shipped inside the Wander binary.</p>
+				<div class="not-prose my-8 rounded-2xl border border-warning-200 bg-warning-50 p-5 text-neutral-800 dark:border-warning-900 dark:bg-warning-950/40 dark:text-neutral-200"><strong>Development only.</strong> The <code>-dev</code> agent uses ephemeral local state and relaxed settings. Do not use it for production workloads.</div>
+				<h2 id="before-you-start">Before you start</h2>
+				<p>You need a supported Linux, macOS, or Windows machine and a Wander 0.1.x release archive for its architecture. No Node.js runtime or separate UI server is needed.</p>
+				<h2 id="download">1. Download a release</h2>
+				<p>Open <a href="https://github.com/open-wander/wander/releases">Wander releases</a> and download both the archive for your operating system and the matching <code>SHA256SUMS</code> file. The archive name follows this pattern:</p>
+				<pre><code>wander_VERSION_OS_ARCH.zip</code></pre>
+				<h2 id="verify">2. Verify and install it</h2>
+				<p>On Linux, verify the selected archive before extracting it:</p>
+				<pre><code>grep "wander_VERSION_OS_ARCH.zip" wander_VERSION_SHA256SUMS | sha256sum -c -</code></pre>
+				<p>On macOS, use:</p>
+				<pre><code>grep "wander_VERSION_OS_ARCH.zip" wander_VERSION_SHA256SUMS | shasum -a 256 -c -</code></pre>
+				<p>Extract the archive, move the executable to a directory on your <code>PATH</code>, then confirm it starts:</p>
+				<pre><code>wander version<br/>wander -help</code></pre>
+				<h2 id="run">3. Run a local agent</h2>
+				<p>Start Wander in a terminal and leave that process running:</p>
+				<pre><code>wander agent -dev</code></pre>
+				<p>In another terminal, verify the HTTP API:</p>
+				<pre><code>curl --fail http://127.0.0.1:4646/v1/agent/self</code></pre>
+				<p>Open <a href="http://127.0.0.1:4646/ui/">http://127.0.0.1:4646/ui/</a>. The root address redirects to the same embedded interface.</p>
+				<h2 id="next">Next steps</h2>
+				<p>Leave the development agent running and continue with <a href="/wander/tutorials/run-first-job/">Run your first job</a>. When you are finished exploring, stop the agent with <code>Ctrl-C</code>.</p>
+				<p>Before building a persistent cluster, read the <a href="https://github.com/open-wander/wander/blob/main/docs/operations/0.1.0-runbook.md">0.1.x operator runbook</a>. It covers TLS, ACLs, storage, snapshots, rolling migration from Nomad 1.6.5, upgrades, and rollback.</p>
+			</article>
+		</div>
+	}
+}

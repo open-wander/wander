@@ -1354,7 +1354,7 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	logger.Debug("setting container name", "container_name", containerName)
 
 	var networkingConfig *docker.NetworkingConfig
-	if len(driverConfig.NetworkAliases) > 0 || driverConfig.IPv4Address != "" || driverConfig.IPv6Address != "" {
+	if len(driverConfig.NetworkAliases) > 0 || driverConfig.IPv4Address != "" || driverConfig.IPv6Address != "" || driverConfig.MacAddress != "" {
 		networkingConfig = &docker.NetworkingConfig{
 			EndpointsConfig: map[string]*docker.EndpointConfig{
 				hostConfig.NetworkMode: {},
@@ -1378,6 +1378,8 @@ func (d *Driver) createContainerConfig(task *drivers.TaskConfig, driverConfig *T
 	}
 
 	if driverConfig.MacAddress != "" {
+		networkingConfig.EndpointsConfig[hostConfig.NetworkMode].MacAddress = driverConfig.MacAddress
+		// Retain the container-wide field for Docker API versions before 1.44.
 		config.MacAddress = driverConfig.MacAddress
 		logger.Debug("setting container mac address", "mac_address", config.MacAddress)
 	}
