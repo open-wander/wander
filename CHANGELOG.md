@@ -1,4 +1,4 @@
-## UNRELEASED
+## 0.1.1 (November 08, 2026)
 
 IMPROVEMENTS:
 
