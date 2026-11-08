@@ -6,6 +6,7 @@ IMPROVEMENTS:
 
 BUG FIXES:
 
+* build: Install the pinned Tailwind CLI from the locked UI npm toolchain so release builds do not depend on a separate GitHub release-asset download.
 * ui: Refresh aggregate and per-task allocation resource statistics automatically while an allocation is running instead of requiring a full browser refresh.
 * docker: Apply configured container MAC addresses to Docker endpoint networking while retaining compatibility with Docker API versions before 1.44.
 * scheduler: Prune zero-value blocked-evaluation statistics whose timestamp is exactly at the retention cutoff.
