@@ -77,12 +77,12 @@ interface.
 
 - [x] Theme controller, first-paint bootstrap, and unit tests
 - [x] Accessible global and settings selectors
-- [ ] Shell and shared component dark variants
+- [x] Shell and shared component dark variants
 - [x] Jobs, task groups, allocations, logs, exec, and files
-- [ ] Clients, servers, services, topology, CSI, and evaluations
-- [ ] Namespaces, variables, access control, settings, dialogs, and errors
-- [ ] Browser route/interaction coverage in light and dark modes
-- [ ] Documentation and final static-analysis pass
+- [x] Clients, servers, services, topology, CSI, and evaluations
+- [x] Namespaces, variables, access control, settings, dialogs, and errors
+- [x] Browser route/interaction coverage in light and dark modes
+- [x] Documentation and final static-analysis pass
 
 ## Risks and Mitigations
 

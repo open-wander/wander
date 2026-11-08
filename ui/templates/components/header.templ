@@ -39,7 +39,7 @@ type RegionInfo struct {
 templ Header(props HeaderProps) {
 	<header
 		id="header"
-		class="flex-shrink-0 border-b border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900"
+		class="flex-shrink-0 border-b border-neutral-200 dark:border-neutral-700 bg-white shadow-sm dark:bg-neutral-900"
 		aria-label="Page header"
 		x-data="{ mobileMenuOpen: false }"
 	>
@@ -50,7 +50,7 @@ templ Header(props HeaderProps) {
 				<button
 					type="button"
 					@click="$dispatch('toggle-sidebar')"
-					class="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+					class="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
 					aria-label="Toggle sidebar"
 				>
 					<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -71,12 +71,12 @@ templ Header(props HeaderProps) {
 									if crumb.URL != "" {
 										<a
 											href={ templ.SafeURL(crumb.URL) }
-											class="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors truncate dark:text-neutral-400 dark:hover:text-neutral-100"
+											class="text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 transition-colors truncate dark:hover:text-neutral-100"
 										>
 											{ crumb.Label }
 										</a>
 									} else {
-									<span class="text-sm font-medium text-neutral-900 truncate dark:text-neutral-100">
+									<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
 											{ crumb.Label }
 										</span>
 									}
@@ -98,10 +98,10 @@ templ Header(props HeaderProps) {
 						@DropdownTrigger() {
 							<button
 								type="button"
-								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 dark:hover:bg-neutral-700"
 								aria-label="Select region"
 							>
-								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+								<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 								</svg>
 								<span class="text-neutral-700 font-medium dark:text-neutral-200">
@@ -111,7 +111,7 @@ templ Header(props HeaderProps) {
 										global
 									}
 								</span>
-								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+								<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
 								</svg>
 							</button>
@@ -134,10 +134,10 @@ templ Header(props HeaderProps) {
 						@DropdownTrigger() {
 							<button
 								type="button"
-								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 dark:hover:bg-neutral-700"
 								aria-label="Select namespace"
 							>
-								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+								<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
 								</svg>
 								<span class="text-neutral-700 font-medium dark:text-neutral-200">
@@ -147,7 +147,7 @@ templ Header(props HeaderProps) {
 										default
 									}
 								</span>
-								<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+								<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
 								</svg>
 							</button>
@@ -165,8 +165,8 @@ templ Header(props HeaderProps) {
 					}
 				} else {
 					<!-- Fallback: Static namespace badge when no namespaces configured -->
-					<div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 text-sm dark:bg-neutral-800">
-						<svg class="h-4 w-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+					<div class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-sm">
+						<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
 						</svg>
 						<span class="text-neutral-700 font-medium dark:text-neutral-200">default</span>
@@ -185,7 +185,7 @@ templ Header(props HeaderProps) {
 								<div class="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm">
 									{ string(props.User.Name[0]) }
 								</div>
-								<svg class="h-4 w-4 text-neutral-500 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+								<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
 								</svg>
 							</button>
@@ -193,7 +193,7 @@ templ Header(props HeaderProps) {
 						@DropdownMenu(DropdownProps{Position: "right", Width: "md"}) {
 							<div class="px-4 py-3 border-b border-neutral-100 dark:border-neutral-700">
 								<p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">{ props.User.Name }</p>
-								<p class="text-sm text-neutral-500 truncate">{ props.User.Email }</p>
+								<p class="text-sm text-neutral-500 dark:text-neutral-400 truncate">{ props.User.Email }</p>
 							</div>
 							@DropdownItemComponent(DropdownItem{
 								Label: "Settings",
@@ -205,8 +205,8 @@ templ Header(props HeaderProps) {
 				} else {
 					<!-- Not logged in: show placeholder user icon -->
 					<div class="flex items-center space-x-2">
-						<div class="h-8 w-8 rounded-full bg-neutral-200 flex items-center justify-center">
-							<svg class="h-5 w-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+						<div class="h-8 w-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+							<svg class="h-5 w-5 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
 							</svg>
 						</div>

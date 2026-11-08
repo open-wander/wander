@@ -78,7 +78,7 @@ templ breadcrumbLink(item BreadcrumbItem, index int) {
 		hx-get={ item.Href }
 		hx-target="#main-content"
 		hx-push-url="true"
-		class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 hover:text-primary-600 transition-colors duration-150"
+		class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-primary-600 transition-colors duration-150"
 	>
 		if item.Icon != "" {
 			@Icon(IconProps{Name: item.Icon, Size: "sm", Class: "flex-shrink-0"})
@@ -90,7 +90,7 @@ templ breadcrumbLink(item BreadcrumbItem, index int) {
 // breadcrumbCurrent renders the current page breadcrumb (last item, not clickable)
 templ breadcrumbCurrent(item BreadcrumbItem) {
 	<span
-		class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-900"
+		class="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-900 dark:text-neutral-100"
 		aria-current="page"
 	>
 		if item.Icon != "" {

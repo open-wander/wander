@@ -52,8 +52,8 @@ templ ListContent(deploymentsList []DeploymentSummary) {
 								d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
 							></path>
 						</svg>
-						<h3 class="mt-2 text-sm font-medium text-neutral-900">No deployments</h3>
-						<p class="mt-1 text-sm text-neutral-500">No recent deployments to display.</p>
+						<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No deployments</h3>
+						<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">No recent deployments to display.</p>
 					</div>
 				} else {
 					for _, deploy := range deploymentsList {
@@ -84,8 +84,8 @@ templ List(deploymentsList []DeploymentSummary) {
 						d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
 					></path>
 				</svg>
-				<h3 class="mt-2 text-sm font-medium text-neutral-900">No deployments</h3>
-				<p class="mt-1 text-sm text-neutral-500">No recent deployments to display.</p>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No deployments</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">No recent deployments to display.</p>
 			</div>
 		} else {
 			for _, deploy := range deploymentsList {
@@ -99,19 +99,19 @@ templ List(deploymentsList []DeploymentSummary) {
 templ deploymentCard(deploy DeploymentSummary) {
 	<a
 		href={ templ.SafeURL(deploy.DetailURL) }
-		class="block bg-white rounded-lg border border-neutral-200 p-4 hover:border-primary-500 hover:shadow-md transition-all duration-150 cursor-pointer"
+		class="block bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4 hover:border-primary-500 hover:shadow-md transition-all duration-150 cursor-pointer"
 	>
 		<div class="flex items-start justify-between">
 			<div class="flex-1 min-w-0">
 				<!-- Job Name, Version and Short ID -->
 				<div class="flex items-center gap-2 mb-2">
-					<h3 class="text-sm font-semibold text-neutral-900 truncate">
+					<h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
 						{ deploy.JobName }
 					</h3>
-					<span class="text-xs text-neutral-600">
+					<span class="text-xs text-neutral-600 dark:text-neutral-400">
 						v{ templ.EscapeString(formatUint64(deploy.JobVersion)) }
 					</span>
-					<span class="text-xs font-mono text-neutral-500">
+					<span class="text-xs font-mono text-neutral-500 dark:text-neutral-400">
 						{ deploy.ShortID }
 					</span>
 					if deploy.IsMultiregion {
@@ -130,13 +130,13 @@ templ deploymentCard(deploy DeploymentSummary) {
 						{ deploy.Status }
 					}
 					if deploy.StatusDescription != "" {
-						<span class="text-xs text-neutral-600 truncate">
+						<span class="text-xs text-neutral-600 dark:text-neutral-400 truncate">
 							{ deploy.StatusDescription }
 						</span>
 					}
 				</div>
 				<!-- Allocation Progress -->
-				<div class="flex items-center gap-3 text-xs text-neutral-600">
+				<div class="flex items-center gap-3 text-xs text-neutral-600 dark:text-neutral-400">
 					<div class="flex items-center gap-1">
 						<svg class="h-3.5 w-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -163,7 +163,7 @@ templ deploymentCard(deploy DeploymentSummary) {
 			</div>
 			<!-- Time Ago -->
 			<div class="flex-shrink-0 ml-4">
-				<span class="text-xs text-neutral-500 whitespace-nowrap">
+				<span class="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
 					{ deploy.TimeAgo }
 				</span>
 			</div>

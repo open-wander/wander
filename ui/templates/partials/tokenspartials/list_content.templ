@@ -57,7 +57,7 @@ templ ListContent(items []TokenSummary, search string) {
 											{ item.Name }
 										}
 									</a>
-									<div class="mt-1 font-mono text-xs text-neutral-500">{ item.AccessorID }</div>
+									<div class="mt-1 font-mono text-xs text-neutral-500 dark:text-neutral-400">{ item.AccessorID }</div>
 								}
 								@components.TableCell("left", "") {
 									<span class="capitalize">{ item.Type }</span>
@@ -94,7 +94,7 @@ templ ACLTabs(active string) {
 }
 
 templ aclTab(label, path string, active bool) {
-	<a href={ templ.SafeURL(path) } hx-get={ path } hx-target="#main-content" hx-push-url="true" class={ templ.KV("border-primary-600 text-primary-700", active), "border-b-2 px-3 py-2 text-sm font-medium", templ.KV("border-transparent text-neutral-600 hover:text-neutral-900", !active) }>{ label }</a>
+	<a href={ templ.SafeURL(path) } hx-get={ path } hx-target="#main-content" hx-push-url="true" class={ templ.KV("border-primary-600 text-primary-700", active), "border-b-2 px-3 py-2 text-sm font-medium", templ.KV("border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900", !active) }>{ label }</a>
 }
 
 func tokenExpiration(expiration *time.Time) string {

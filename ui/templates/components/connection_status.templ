@@ -38,12 +38,12 @@ templ ConnectionStatus(props ConnectionStatusProps) {
 		</div>
 		<!-- Connection status text (optional, shown on hover or always) -->
 		<span
-			class="text-xs text-neutral-600 hidden md:inline-block dark:text-neutral-400"
+			class="text-xs text-neutral-600 dark:text-neutral-400 hidden md:inline-block"
 			:class="{
 				'text-green-600': state === 'connected',
 				'text-red-600': state === 'disconnected',
 				'text-yellow-600': state === 'connecting' || state === 'reconnecting',
-				'text-neutral-500': state === 'error'
+				'text-neutral-500 dark:text-neutral-400': state === 'error'
 			}"
 			x-text="statusText"
 		></span>
@@ -57,12 +57,12 @@ templ ConnectionStatus(props ConnectionStatusProps) {
 			x-transition:leave="transition ease-in duration-150"
 			x-transition:leave-start="opacity-100 scale-100"
 			x-transition:leave-end="opacity-0 scale-95"
-			class="absolute right-0 top-8 z-50 w-64 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 p-3 dark:bg-neutral-800 dark:ring-white dark:ring-opacity-10 md:hidden"
+			class="absolute right-0 top-8 z-50 w-64 rounded-md bg-white dark:bg-neutral-800 shadow-lg ring-1 ring-black ring-opacity-5 p-3 dark:ring-white dark:ring-opacity-10 md:hidden"
 		>
 			<div class="text-sm">
-				<div class="font-medium text-neutral-900 mb-1 dark:text-neutral-100" x-text="statusText"></div>
-				<div class="text-neutral-500 text-xs" x-show="lastConnectedAt" x-text="'Last connected: ' + lastConnectedAt"></div>
-				<div class="text-neutral-500 text-xs" x-show="retryCount > 0" x-text="'Retry attempts: ' + retryCount"></div>
+				<div class="font-medium text-neutral-900 dark:text-neutral-100 mb-1" x-text="statusText"></div>
+				<div class="text-neutral-500 dark:text-neutral-400 text-xs" x-show="lastConnectedAt" x-text="'Last connected: ' + lastConnectedAt"></div>
+				<div class="text-neutral-500 dark:text-neutral-400 text-xs" x-show="retryCount > 0" x-text="'Retry attempts: ' + retryCount"></div>
 				<button
 					x-show="state === 'disconnected' || state === 'error'"
 					@click="reconnect()"

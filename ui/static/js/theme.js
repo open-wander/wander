@@ -109,6 +109,7 @@
         }
 
         document.addEventListener('click', handleChoice);
+        document.addEventListener('DOMContentLoaded', syncControls);
         document.addEventListener('htmx:afterSettle', syncControls);
         if (mediaQuery) {
             if (typeof mediaQuery.addEventListener === 'function') {

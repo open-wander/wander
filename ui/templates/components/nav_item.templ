@@ -111,7 +111,7 @@ func navItemClasses(props NavigationItemProps) string {
 		stateClasses = "bg-primary-50 text-primary-700 hover:bg-primary-100"
 	} else {
 		// Default state: subtle hover effect
-		stateClasses = "text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
+		stateClasses = "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 hover:text-neutral-900"
 	}
 
 	classes := baseClasses + " " + stateClasses
@@ -125,7 +125,7 @@ func navItemClasses(props NavigationItemProps) string {
 // navItemDisabledClasses generates CSS classes for disabled navigation items
 func navItemDisabledClasses(props NavigationItemProps) string {
 	baseClasses := "group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md opacity-50 cursor-not-allowed"
-	classes := baseClasses + " text-neutral-500"
+	classes := baseClasses + " text-neutral-500 dark:text-neutral-400"
 
 	if props.Class != "" {
 		classes += " " + props.Class
@@ -149,12 +149,12 @@ func navItemBadgeClasses(colorVariant string) string {
 	case "info":
 		variantClasses = "bg-info-100 text-info-800"
 	case "neutral":
-		variantClasses = "bg-neutral-100 text-neutral-800"
+		variantClasses = "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
 	case "primary":
 		variantClasses = "bg-primary-100 text-primary-800"
 	default:
 		// Default to neutral if no variant specified
-		variantClasses = "bg-neutral-100 text-neutral-800"
+		variantClasses = "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
 	}
 
 	return baseClasses + " " + variantClasses

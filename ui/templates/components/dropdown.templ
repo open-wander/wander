@@ -94,7 +94,7 @@ templ DropdownMenu(props DropdownProps) {
 		x-transition:leave-start="transform opacity-100 scale-100"
 		x-transition:leave-end="transform opacity-0 scale-95"
 		class={
-			"absolute z-50 mt-2 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:bg-neutral-800 dark:ring-white dark:ring-opacity-10",
+			"absolute z-50 mt-2 rounded-md bg-white dark:bg-neutral-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:ring-white dark:ring-opacity-10",
 			dropdownPositionClass(props.Position),
 			dropdownWidthClass(props.Width),
 		}
@@ -212,7 +212,7 @@ templ disabledDropdownItem(item DropdownItem) {
 
 // DropdownDividerItem renders a visual separator between menu items
 templ DropdownDividerItem() {
-	<div class="border-t border-neutral-100 my-1" role="separator"></div>
+	<div class="border-t border-neutral-100 dark:border-neutral-700 my-1" role="separator"></div>
 }
 
 // dropdownItemIcon renders a Heroicon SVG for the dropdown item.
@@ -221,7 +221,7 @@ templ dropdownItemIcon(iconName string, isDanger bool) {
 	<svg
 		class={
 			"mr-3 h-5 w-5 flex-shrink-0",
-			templ.KV("text-neutral-400 group-hover:text-neutral-500", !isDanger),
+			templ.KV("text-neutral-400 group-hover:text-neutral-500 dark:text-neutral-500 dark:group-hover:text-neutral-300", !isDanger),
 			templ.KV("text-red-400 group-hover:text-red-500", isDanger),
 		}
 		xmlns="http://www.w3.org/2000/svg"
@@ -303,5 +303,5 @@ func dropdownItemColorClass(isDanger bool) string {
 	if isDanger {
 		return "text-red-700 hover:bg-red-50 hover:text-red-900"
 	}
-	return "text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
+	return "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
 }

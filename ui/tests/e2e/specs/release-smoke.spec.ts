@@ -67,6 +67,17 @@ async function expectNoDocumentOverflow(page: Page) {
   }))).toEqual(await page.evaluate(() => ({ viewport: window.innerWidth, document: window.innerWidth })));
 }
 
+async function expectNoLightOnlyNeutralSurfaces(page: Page) {
+  const offenders = await page.locator('[class*="bg-white"], [class*="bg-neutral-50"], [class*="bg-neutral-100"]').evaluateAll(elements =>
+    elements.filter(element => {
+      if (!(element instanceof HTMLElement) || element.getClientRects().length === 0) return false;
+      const color = window.getComputedStyle(element).backgroundColor.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+      return color?.every(channel => channel >= 245);
+    }).map(element => `${element.tagName.toLowerCase()}.${element.className}`).slice(0, 10),
+  );
+  expect(offenders).toEqual([]);
+}
+
 async function openJobTab(page: Page, name: string, expectedText: string) {
   await page.getByRole('tab', { name }).click();
   await expect(page.locator('#job-detail-panel')).toContainText(expectedText);
@@ -167,6 +178,68 @@ async function expectJobLifecycleFailure(
 }
 
 test.describe('Wander release smoke', () => {
+
+  test('applies and persists accessible light, dark, and system themes', async ({ page }) => {
+    const browserErrors = captureBrowserErrors(page);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem('wander.theme.test-seeded')) {
+        localStorage.setItem('wander.theme', 'dark');
+        sessionStorage.setItem('wander.theme.test-seeded', 'true');
+      }
+    });
+    await openDesktopPage(page, '/ui/jobs?namespace=default&region=global');
+
+    const root = page.locator('html');
+    await expect(root).toHaveClass(/\bdark\b/);
+    await expect(root).toHaveAttribute('data-theme', 'dark');
+    await expect(root).toHaveAttribute('data-theme-preference', 'dark');
+    await expectNoLightOnlyNeutralSurfaces(page);
+
+    const themeTrigger = page.getByRole('button', { name: 'Choose color theme' });
+    await themeTrigger.click();
+    const darkChoice = page.getByRole('menuitemradio', { name: 'Dark' });
+    await expect(darkChoice).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitemradio', { name: 'System' })).toBeFocused();
+    await page.getByRole('menuitemradio', { name: 'Light' }).click();
+    await expect(root).not.toHaveClass(/\bdark\b/);
+    await expect(root).toHaveAttribute('data-theme', 'light');
+    expect(await page.evaluate(() => localStorage.getItem('wander.theme'))).toBe('light');
+
+    await page.reload();
+    await expect(root).toHaveAttribute('data-theme', 'light');
+    await page.getByRole('link', { name: 'Allocations', exact: true }).first().click();
+    await expect(root).toHaveAttribute('data-theme', 'light');
+
+    await themeTrigger.click();
+    await page.getByRole('menuitemradio', { name: 'System' }).click();
+    await expect(root).toHaveAttribute('data-theme-preference', 'system');
+    await expect(root).toHaveAttribute('data-theme', 'dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect(root).toHaveAttribute('data-theme', 'light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(root).toHaveAttribute('data-theme', 'dark');
+
+    for (const route of [
+      '/ui/jobs/wander-ui-smoke',
+      '/ui/clients?namespace=default&region=global',
+      '/ui/topology',
+      '/ui/evaluations',
+      '/ui/variables',
+      '/ui/settings',
+    ]) {
+      await page.goto(route);
+      await expect(root, route).toHaveAttribute('data-theme', 'dark');
+      await expectNoLightOnlyNeutralSurfaces(page);
+    }
+
+    await page.goto('/ui/jobs/wander-ui-smoke');
+    await page.getByRole('tab', { name: 'Definition' }).click();
+    await expect(page.locator('.wander-editor-wrapper')).toHaveClass(/theme-dark/);
+    expect(browserErrors).toEqual([]);
+  });
+
   test('opens CSI volume claims when the cluster has a volume', async ({ page }) => {
     const browserErrors = captureBrowserErrors(page);
     await openDesktopPage(page, '/ui/csi/volumes?region=global');

@@ -62,9 +62,9 @@ func TestTaskGroupDetailProjectsVolumesLifecycleAndRequestScope(t *testing.T) {
 		"single-node-reader-only",
 		"Read-only, per allocation",
 		`data-task-lifecycle="prepare"`,
-		"Lifecycle:</span> <span class=\"font-medium text-neutral-900\">prestart",
+		"Lifecycle:</span> <span class=\"font-medium text-neutral-900 dark:text-neutral-100\">prestart",
 		`data-task-lifecycle="app"`,
-		"Lifecycle:</span> <span class=\"font-medium text-neutral-900\">Normal",
+		"Lifecycle:</span> <span class=\"font-medium text-neutral-900 dark:text-neutral-100\">Normal",
 	} {
 		if !strings.Contains(html, expected) {
 			t.Errorf("task group detail does not contain %q", expected)

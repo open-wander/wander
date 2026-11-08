@@ -92,7 +92,7 @@ function dropdown(initialOpen = false) {
 
         menuItems() {
             if (!this.root) return [];
-            return Array.from(this.root.querySelectorAll('[role="menuitem"]:not([aria-disabled="true"])'));
+            return Array.from(this.root.querySelectorAll('[role^="menuitem"]:not([aria-disabled="true"])'));
         },
 
         focusItem(index) {

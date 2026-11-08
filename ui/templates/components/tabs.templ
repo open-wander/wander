@@ -153,8 +153,8 @@ templ staticTabButton(tab Tab, panelID string) {
 		:tabindex={ "activeTab === '" + tab.ID + "' ? '0' : '-1'" }
 		aria-controls={ "panel-" + tab.ID }
 		:class={ `{
-				'border-primary-500 text-primary-600': activeTab === '` + tab.ID + `',
-				'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300': activeTab !== '` + tab.ID + `'
+				'border-primary-500 text-primary-600 dark:text-primary-400': activeTab === '` + tab.ID + `',
+				'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 dark:hover:border-neutral-600': activeTab !== '` + tab.ID + `'
 			}` }
 		class="group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 	>
@@ -183,8 +183,8 @@ templ htmxTabButton(tab Tab, panelID string) {
 		:tabindex={ "activeTab === '" + tab.ID + "' ? '0' : '-1'" }
 		aria-controls={ panelID }
 		:class={ `{
-				'border-primary-500 text-primary-600': activeTab === '` + tab.ID + `',
-				'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300': activeTab !== '` + tab.ID + `'
+				'border-primary-500 text-primary-600 dark:text-primary-400': activeTab === '` + tab.ID + `',
+				'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 dark:hover:text-neutral-200 dark:hover:border-neutral-600': activeTab !== '` + tab.ID + `'
 			}` }
 		class="group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 	>
@@ -201,7 +201,7 @@ templ tabIcon(iconName string, tabID string) {
 	<svg
 		:class={ `{
 				'text-primary-500': activeTab === '` + tabID + `',
-				'text-neutral-400 group-hover:text-neutral-500': activeTab !== '` + tabID + `'
+				'text-neutral-400 group-hover:text-neutral-500 dark:text-neutral-500 dark:group-hover:text-neutral-300': activeTab !== '` + tabID + `'
 			}` }
 		class="-ml-0.5 mr-2 h-5 w-5"
 		xmlns="http://www.w3.org/2000/svg"

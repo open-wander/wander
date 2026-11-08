@@ -51,11 +51,11 @@ templ DetailContent(deploy DeploymentDetail) {
 		}
 	>
 		<!-- Deployment Header -->
-		<div class="bg-white shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
 			<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
 				<div class="flex items-center space-x-4">
-					<h1 class="text-3xl font-bold text-neutral-900">Deployment</h1>
-					<span class="text-xl font-mono text-neutral-600">{ deploy.ShortID }</span>
+					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Deployment</h1>
+					<span class="text-xl font-mono text-neutral-600 dark:text-neutral-400">{ deploy.ShortID }</span>
 					@components.Badge(components.BadgeProps{
 						Variant: deploymentStatusVariant(deploy.Status),
 						Dot:     true,
@@ -94,7 +94,7 @@ templ DetailContent(deploy DeploymentDetail) {
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
 				<!-- Job ID -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-500 mb-1">Job</label>
+					<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">Job</label>
 					<a
 						href={ templ.SafeURL(deploymentScopedURL("/ui/jobs/" + url.PathEscape(deploy.JobID), deploy)) }
 						class="text-primary-600 hover:text-primary-700 font-medium"
@@ -105,47 +105,47 @@ templ DetailContent(deploy DeploymentDetail) {
 
 				<!-- Job Version -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-500 mb-1">Job Version</label>
-					<p class="text-neutral-900">{ fmt.Sprintf("%d", deploy.JobVersion) }</p>
+					<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">Job Version</label>
+					<p class="text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", deploy.JobVersion) }</p>
 				</div>
 
 				<!-- Namespace -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-500 mb-1">Namespace</label>
-					<p class="text-neutral-900">{ deploy.Namespace }</p>
+					<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">Namespace</label>
+					<p class="text-neutral-900 dark:text-neutral-100">{ deploy.Namespace }</p>
 				</div>
 
 				<!-- Status Description -->
 				if deploy.StatusDescription != "" {
 					<div class="md:col-span-2 lg:col-span-3">
-						<label class="block text-sm font-medium text-neutral-500 mb-1">Status Description</label>
-						<p class="text-neutral-900">{ deploy.StatusDescription }</p>
+						<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">Status Description</label>
+						<p class="text-neutral-900 dark:text-neutral-100">{ deploy.StatusDescription }</p>
 					</div>
 				}
 
 				<!-- Is Multiregion -->
 				if deploy.IsMultiregion {
 					<div>
-						<label class="block text-sm font-medium text-neutral-500 mb-1">Multi-region</label>
-						<p class="text-neutral-900">Yes</p>
+						<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">Multi-region</label>
+						<p class="text-neutral-900 dark:text-neutral-100">Yes</p>
 					</div>
 				}
 
 				<!-- Created -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-500 mb-1">Created</label>
-					<p class="text-neutral-900">{ deploy.CreateTimeAgo }</p>
+					<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">Created</label>
+					<p class="text-neutral-900 dark:text-neutral-100">{ deploy.CreateTimeAgo }</p>
 					if !deploy.CreateTime.IsZero() {
-						<p class="text-xs text-neutral-500">{ deploy.CreateTime.Format("2006-01-02 15:04:05 MST") }</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">{ deploy.CreateTime.Format("2006-01-02 15:04:05 MST") }</p>
 					}
 				</div>
 
 				<!-- Modified -->
 				<div>
-					<label class="block text-sm font-medium text-neutral-500 mb-1">Modified</label>
-					<p class="text-neutral-900">{ deploy.ModifyTimeAgo }</p>
+					<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-1">Modified</label>
+					<p class="text-neutral-900 dark:text-neutral-100">{ deploy.ModifyTimeAgo }</p>
 					if !deploy.ModifyTime.IsZero() {
-						<p class="text-xs text-neutral-500">{ deploy.ModifyTime.Format("2006-01-02 15:04:05 MST") }</p>
+						<p class="text-xs text-neutral-500 dark:text-neutral-400">{ deploy.ModifyTime.Format("2006-01-02 15:04:05 MST") }</p>
 					}
 				</div>
 			</div>
@@ -153,53 +153,53 @@ templ DetailContent(deploy DeploymentDetail) {
 
 		<!-- Task Groups Status -->
 		if len(deploy.TaskGroups) > 0 {
-			<div class="bg-white shadow rounded-lg p-6 mb-6">
-				<h2 class="text-lg font-semibold text-neutral-900 mb-4">Task Groups</h2>
+			<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Task Groups</h2>
 				<div class="overflow-x-auto">
-					<table class="min-w-full divide-y divide-neutral-200">
+					<table class="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
 						<thead>
 							<tr>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Name</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Promoted</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Auto Revert</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Canaries</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Placed</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Desired</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Healthy</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Unhealthy</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">Progress</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Name</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Promoted</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Auto Revert</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Canaries</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Placed</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Desired</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Healthy</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Unhealthy</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Progress</th>
 							</tr>
 						</thead>
-						<tbody class="divide-y divide-neutral-200">
+						<tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
 							for _, tg := range deploy.TaskGroups {
-								<tr class="hover:bg-neutral-50">
+								<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800">
 									<td class="px-6 py-4 whitespace-nowrap">
-										<span class="text-sm font-medium text-neutral-900">{ tg.Name }</span>
+										<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">{ tg.Name }</span>
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
 										if tg.Promoted {
 											<span class="text-sm text-success-600 font-medium">Yes</span>
 										} else {
-											<span class="text-sm text-neutral-500">No</span>
+											<span class="text-sm text-neutral-500 dark:text-neutral-400">No</span>
 										}
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
 										if tg.AutoRevert {
 											<span class="text-sm text-warning-600 font-medium">Yes</span>
 										} else {
-											<span class="text-sm text-neutral-500">No</span>
+											<span class="text-sm text-neutral-500 dark:text-neutral-400">No</span>
 										}
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
-										<span class="text-sm text-neutral-900">
+										<span class="text-sm text-neutral-900 dark:text-neutral-100">
 											{ fmt.Sprintf("%d / %d", tg.PlacedCanaries, tg.DesiredCanaries) }
 										</span>
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
-										<span class="text-sm text-neutral-900">{ fmt.Sprintf("%d", tg.PlacedAllocs) }</span>
+										<span class="text-sm text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", tg.PlacedAllocs) }</span>
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
-										<span class="text-sm text-neutral-900">{ fmt.Sprintf("%d", tg.DesiredTotal) }</span>
+										<span class="text-sm text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", tg.DesiredTotal) }</span>
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
 										<span class="text-sm text-success-600 font-medium">{ fmt.Sprintf("%d", tg.HealthyAllocs) }</span>
@@ -208,7 +208,7 @@ templ DetailContent(deploy DeploymentDetail) {
 										if tg.UnhealthyAllocs > 0 {
 											<span class="text-sm text-error-600 font-medium">{ fmt.Sprintf("%d", tg.UnhealthyAllocs) }</span>
 										} else {
-											<span class="text-sm text-neutral-500">0</span>
+											<span class="text-sm text-neutral-500 dark:text-neutral-400">0</span>
 										}
 									</td>
 									<td class="px-6 py-4 whitespace-nowrap">
@@ -221,7 +221,7 @@ templ DetailContent(deploy DeploymentDetail) {
 													></div>
 												}
 											</div>
-											<span class="text-xs text-neutral-600 font-medium">
+											<span class="text-xs text-neutral-600 dark:text-neutral-400 font-medium">
 												{ fmt.Sprintf("%d%%", progressPercentage(tg.HealthyAllocs, tg.DesiredTotal)) }
 											</span>
 										</div>
@@ -235,10 +235,10 @@ templ DetailContent(deploy DeploymentDetail) {
 		}
 
 		<!-- Full ID Section -->
-		<div class="bg-white shadow rounded-lg p-6">
-			<h2 class="text-lg font-semibold text-neutral-900 mb-4">Full ID</h2>
-			<div class="bg-neutral-50 rounded p-4">
-				<code class="text-sm font-mono text-neutral-900 break-all">{ deploy.ID }</code>
+		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6">
+			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Full ID</h2>
+			<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-4">
+				<code class="text-sm font-mono text-neutral-900 dark:text-neutral-100 break-all">{ deploy.ID }</code>
 			</div>
 		</div>
 	</div>

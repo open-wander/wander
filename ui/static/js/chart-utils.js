@@ -160,6 +160,11 @@ export function updateChart(chartId, newData) {
     instance.update(newData);
 }
 
+/** Re-render registered charts after a color-theme change. */
+export function refreshChartsForTheme() {
+    chartRegistry.forEach(instance => instance.update());
+}
+
 /**
  * Clear chart content
  *
@@ -415,6 +420,8 @@ export function styleAxis(axis, colors = getChartColors()) {
  * window.renderMyChart = function(container, dimensions) { ... }
  */
 if (typeof document !== 'undefined') {
+    document.addEventListener('wander:theme-change', refreshChartsForTheme);
+
     document.addEventListener('htmx:afterSwap', (event) => {
         // Find all chart containers in the swapped content
         const swappedElement = event.detail.target;
@@ -481,6 +488,7 @@ if (typeof window !== 'undefined') {
         createChartConfig,
         isDarkMode,
         getChartColors,
+        refreshChartsForTheme,
         createScale,
         styleAxis
     };

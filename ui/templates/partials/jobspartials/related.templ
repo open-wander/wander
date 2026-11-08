@@ -35,10 +35,10 @@ type JobVariable struct {
 templ ServicesTab(registrations []*api.ServiceRegistration) {
 	<div class="p-6">
 		<div class="mb-4">
-			<h3 class="text-lg font-medium text-neutral-900">Services</h3>
-			<p class="mt-1 text-sm text-neutral-500">Nomad-native service registrations created by this job</p>
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Services</h3>
+			<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Nomad-native service registrations created by this job</p>
 		</div>
-		<div class="border border-neutral-200 rounded-lg overflow-hidden">
+		<div class="border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
 			@servicespartials.RegistrationTable(registrations)
 		</div>
 	</div>
@@ -47,10 +47,10 @@ templ ServicesTab(registrations []*api.ServiceRegistration) {
 templ ClientsTab(clientList []JobClient) {
 	<div class="p-6">
 		<div class="mb-4">
-			<h3 class="text-lg font-medium text-neutral-900">Clients</h3>
-			<p class="mt-1 text-sm text-neutral-500">Clients observed in this job's allocation history; this is not a scheduler eligibility list</p>
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Clients</h3>
+			<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Clients observed in this job's allocation history; this is not a scheduler eligibility list</p>
 		</div>
-		<div class="border border-neutral-200 rounded-lg overflow-hidden">
+		<div class="border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "client", Label: "Client", Align: "left"},
@@ -65,10 +65,10 @@ templ ClientsTab(clientList []JobClient) {
 						@components.TableEmptyState("No clients found", "This job has no allocation history")
 					} else {
 						for _, client := range clientList {
-							<tr class="hover:bg-neutral-50">
+							<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800">
 								@components.TableCell("left", "") {
 									<a href={ templ.SafeURL("/ui/clients/" + client.ID) } class="text-primary-600 hover:underline">{ jobClientName(client) }</a>
-									<div class="font-mono text-xs text-neutral-500">{ client.ID }</div>
+									<div class="font-mono text-xs text-neutral-500 dark:text-neutral-400">{ client.ID }</div>
 								}
 								@components.TableCell("right", "w-32") { { fmt.Sprintf("%d", client.Allocations) } }
 								@components.TableCell("right", "w-28") { { fmt.Sprintf("%d", client.ActiveAllocations) } }
@@ -89,10 +89,10 @@ templ ClientsTab(clientList []JobClient) {
 templ VariablesTab(variableList []JobVariable) {
 	<div class="p-6">
 		<div class="mb-4">
-			<h3 class="text-lg font-medium text-neutral-900">Variables</h3>
-			<p class="mt-1 text-sm text-neutral-500">Variables linked to this job through the inherited nomad/jobs path</p>
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Variables</h3>
+			<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Variables linked to this job through the inherited nomad/jobs path</p>
 		</div>
-		<div class="border border-neutral-200 rounded-lg overflow-hidden">
+		<div class="border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "path", Label: "Path", Align: "left"},
@@ -107,10 +107,10 @@ templ VariablesTab(variableList []JobVariable) {
 						@components.TableEmptyState("No linked variables", "This job has no variables under its nomad/jobs path")
 					} else {
 						for _, variable := range variableList {
-							<tr class="hover:bg-neutral-50">
+							<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800">
 								@components.TableCell("left", "") {
 									<a href={ templ.SafeURL(variable.DetailURL) } class="font-mono text-sm text-primary-600 hover:underline">{ jobVariableLabel(variable) }</a>
-									<div class="mt-1 font-mono text-xs text-neutral-500">{ variable.Path }</div>
+									<div class="mt-1 font-mono text-xs text-neutral-500 dark:text-neutral-400">{ variable.Path }</div>
 								}
 								@components.TableCell("right", "w-32") { { fmt.Sprintf("%d", variable.CreateIndex) } }
 								@components.TableCell("right", "w-32") { { fmt.Sprintf("%d", variable.ModifyIndex) } }
