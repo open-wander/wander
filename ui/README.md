@@ -59,18 +59,19 @@ make ui-setup
 ```
 
 **From the `ui` directory:**
-1. **Install Tailwind CSS CLI**:
+1. **Install the pinned UI build dependencies**:
    ```bash
    cd ui
+   npm ci
+   ```
+   This installs Alpine, the Tailwind plugins, and the pinned Tailwind CLI from
+   the committed lockfile.
+
+2. **Verify the Tailwind CSS CLI**:
+   ```bash
    make install-tailwind
    ```
-   This downloads the standalone Tailwind CLI binary to `./bin/tailwindcss`.
-
-2. **Install Node Dependencies** (for Tailwind plugins):
-   ```bash
-   npm install
-   ```
-   This installs `@tailwindcss/forms` and `@tailwindcss/typography` plugins.
+   This performs no download; it checks the CLI installed by `npm ci`.
 
 3. **Build CSS**:
    ```bash
@@ -207,7 +208,7 @@ make ui-fmt            # Format Templ template files
 Run `make help` from the `ui` directory to see all available targets:
 ```
 make help              # Show help
-make install-tailwind  # Install Tailwind CSS CLI
+make install-tailwind  # Verify the pinned Tailwind CSS CLI
 make build-css         # Build production CSS (minified)
 make build-css-dev     # Build development CSS
 make watch-css         # Watch and rebuild on changes

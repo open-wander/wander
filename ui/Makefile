@@ -1,6 +1,6 @@
 .PHONY: help install-tailwind build-css watch-css clean ui-generate ui-watch generate all
 
-TAILWIND_BIN := ./bin/tailwindcss
+TAILWIND_BIN := ./node_modules/.bin/tailwindcss
 INPUT_CSS := static/css/input.css
 OUTPUT_CSS := static/css/output.css
 TEMPL_BIN := templ
@@ -11,9 +11,14 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-install-tailwind: ## Install Tailwind CSS CLI
-	@echo "Installing Tailwind CSS CLI..."
-	@./install-tailwind.sh
+install-tailwind: ## Verify the pinned Tailwind CSS CLI installed by npm ci
+	@echo "Verifying Tailwind CSS CLI..."
+	@if [ ! -x "$(TAILWIND_BIN)" ]; then \
+		echo "Tailwind CSS CLI is missing. Run npm ci in the ui directory."; \
+		exit 1; \
+	fi
+	@$(TAILWIND_BIN) --help >/dev/null
+	@echo "✓ Tailwind CSS CLI is available: $(TAILWIND_BIN)"
 
 build-css: ## Build CSS for production (minified)
 	@echo "Building production CSS..."
@@ -57,7 +62,9 @@ ui-watch: ## Watch Templ templates and regenerate on changes
 	@echo "Watching Templ templates for changes..."
 	@$(TEMPL_BIN) generate --watch
 
-setup: install-tailwind check-deps build-css-dev ## Complete setup: install CLI, check deps, build CSS
+setup: ## Install pinned npm dependencies and build development CSS
+	@npm ci
+	@$(MAKE) install-tailwind check-deps build-css-dev
 	@echo ""
 	@echo "✓ Setup complete! You can now run 'make watch-css' for development."
 
