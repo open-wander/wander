@@ -551,7 +551,7 @@ test.describe('Wander release smoke', () => {
       return { breadcrumbBottom: breadcrumb.bottom, searchTop: search.top };
     });
     expect(headerLayout.searchTop).toBeGreaterThanOrEqual(headerLayout.breadcrumbBottom);
-    await expect(page.locator('footer')).toContainText('v0.1.1-dev');
+    await expect(page.locator('footer')).toContainText('v0.1.2-dev');
     const shellLayout = await page.locator('body').evaluate(() => {
       const main = document.querySelector<HTMLElement>('main')!.getBoundingClientRect();
       const footer = document.querySelector<HTMLElement>('footer')!.getBoundingClientRect();
@@ -569,7 +569,7 @@ test.describe('Wander release smoke', () => {
     expect(shellLayout.footerBottom).toBe(shellLayout.viewportHeight);
     expect(shellLayout.footerLeft).toBe(0);
     expect(shellLayout.footerRight).toBe(shellLayout.viewportWidth);
-    await expect(page.getByText('v0.1.1-dev', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('v0.1.2-dev', { exact: true })).toHaveCount(1);
 
     await openResource(page, '/ui/jobs', '[data-job-id="wander-ui-smoke"]', 'a[href^="/ui/jobs/wander-ui-smoke"]', /\/ui\/jobs\/wander-ui-smoke/, 'wander-ui-smoke');
     await expect(page.locator('[data-overview-allocation-summary]')).toContainText('1');
