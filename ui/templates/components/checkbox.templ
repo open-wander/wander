@@ -115,7 +115,7 @@ templ Checkbox(props CheckboxProps) {
 			if props.Disabled {
 				disabled
 			}
-			class="form-checkbox h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-700 dark:checked:bg-primary-600"
+			class="form-checkbox h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-700 dark:checked:bg-primary-600"
 			if props.HxPost != "" {
 				hx-post={ props.HxPost }
 			}
@@ -186,7 +186,7 @@ templ Radio(props RadioProps) {
 			if props.Disabled {
 				disabled
 			}
-			class="form-radio h-4 w-4 border-neutral-300 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-700 dark:checked:bg-primary-600"
+			class="form-radio h-4 w-4 border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-2 focus:ring-primary-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-700 dark:checked:bg-primary-600"
 			if props.HxPost != "" {
 				hx-post={ props.HxPost }
 			}

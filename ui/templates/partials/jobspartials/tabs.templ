@@ -44,15 +44,15 @@ templ DefinitionTab(def JobDefinition) {
 		<!-- Header with controls -->
 		<div class="flex items-center justify-between mb-4">
 			<div class="flex items-center gap-4">
-				<h3 class="text-lg font-medium text-neutral-900">Job Definition</h3>
+				<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Job Definition</h3>
 				<!-- Format Toggle -->
 				<div class="flex items-center gap-2">
-					<span class="text-sm text-neutral-500">Format:</span>
+					<span class="text-sm text-neutral-500 dark:text-neutral-400">Format:</span>
 					<div class="inline-flex rounded-md shadow-sm" role="group">
 						<button
 							type="button"
 							@click="setFormat('hcl')"
-							:class="format === 'hcl' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+							:class="format === 'hcl' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50'"
 							class="px-3 py-1.5 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
 						>
 							Job Spec
@@ -60,7 +60,7 @@ templ DefinitionTab(def JobDefinition) {
 						<button
 							type="button"
 							@click="setFormat('json')"
-							:class="format === 'json' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'"
+							:class="format === 'json' ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50'"
 							class="px-3 py-1.5 text-sm font-medium border border-l-0 rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10"
 						>
 							Full Definition
@@ -74,7 +74,7 @@ templ DefinitionTab(def JobDefinition) {
 				<button
 					type="button"
 					@click="copyToClipboard"
-					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 					title="Copy to clipboard"
 				>
 					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -86,7 +86,7 @@ templ DefinitionTab(def JobDefinition) {
 				<button
 					type="button"
 					@click="downloadDefinition"
-					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 					title="Download definition file"
 				>
 					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,7 +113,7 @@ templ DefinitionTab(def JobDefinition) {
 							<button
 								type="button"
 								@click="cancelEdit"
-								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 							>
 								Cancel
 							</button>
@@ -122,7 +122,7 @@ templ DefinitionTab(def JobDefinition) {
 								type="button"
 								@click="planJob"
 								:disabled="isPlanning || isRunning || !hasChanges"
-								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								<svg x-show="isPlanning" class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24">
 									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -169,7 +169,7 @@ templ DefinitionTab(def JobDefinition) {
 			</div>
 		</template>
 		<!-- Version info -->
-		<div class="mb-4 text-sm text-neutral-500">
+		<div class="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
 			Version: <span class="font-mono">{ fmt.Sprintf("%d", def.Version) }</span>
 		</div>
 		<!-- Error message -->
@@ -186,16 +186,16 @@ templ DefinitionTab(def JobDefinition) {
 		<!-- Editor Container -->
 		<div
 			x-ref="editorContainer"
-			class="border border-neutral-300 rounded-lg overflow-hidden"
+			class="border border-neutral-300 dark:border-neutral-600 rounded-lg overflow-hidden"
 			:class="isEditing ? 'ring-2 ring-primary-500 ring-offset-1' : ''"
 		>
 			<!-- Loading state while editor initializes -->
 		</div>
 		<div x-show="format === 'hcl'" x-cloak class="mt-6">
-			<label for="existing-job-variables" class="block text-sm font-medium text-neutral-900">
+			<label for="existing-job-variables" class="block text-sm font-medium text-neutral-900 dark:text-neutral-100">
 				HCL Variables
 			</label>
-			<p class="mt-1 text-sm text-neutral-500">
+			<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
 				Variable-file content retained with this job submission.
 			</p>
 			<textarea
@@ -205,14 +205,14 @@ templ DefinitionTab(def JobDefinition) {
 				:readonly="!isEditing"
 				rows="6"
 				spellcheck="false"
-				class="mt-3 block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-sm read-only:bg-neutral-50 focus:border-primary-500 focus:ring-primary-500"
+				class="mt-3 block w-full rounded-md border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 font-mono text-sm text-neutral-900 dark:text-neutral-100 shadow-sm read-only:bg-neutral-50 focus:border-primary-500 focus:ring-primary-500"
 			></textarea>
 		</div>
 		<!-- Keyboard shortcuts help -->
-		<div class="mt-4 text-xs text-neutral-500">
+		<div class="mt-4 text-xs text-neutral-500 dark:text-neutral-400">
 			<span class="font-medium">Keyboard shortcuts:</span>
-			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Tab</kbd> Insert spaces</span>
-			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Ctrl+S</kbd> Review changes</span>
+			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded text-xs">Tab</kbd> Insert spaces</span>
+			<span class="ml-2"><kbd class="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded text-xs">Ctrl+S</kbd> Review changes</span>
 		</div>
 		<!-- Plan Result Modal -->
 		<template x-if="showPlanModal">
@@ -222,17 +222,17 @@ templ DefinitionTab(def JobDefinition) {
 				<!-- Modal positioning container -->
 				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
 					<!-- Modal content -->
-					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white dark:bg-neutral-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
 						<!-- Modal Header -->
-						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+						<div class="sticky top-0 z-10 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
 							<div class="flex items-center justify-between">
-								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900 dark:text-neutral-100">
 									Plan Result
 								</h3>
 								<button
 									type="button"
 									@click="closePlanModal"
-									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+									class="rounded-md bg-white dark:bg-neutral-800 text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 								>
 									<span class="sr-only">Close</span>
 									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,9 +259,9 @@ templ DefinitionTab(def JobDefinition) {
 								</div>
 							</div>
 							<!-- Diff Output -->
-							<div class="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
-								<h4 class="text-sm font-medium text-neutral-700 mb-2">Changes</h4>
-								<pre class="text-xs font-mono whitespace-pre-wrap text-neutral-800 max-h-64 overflow-y-auto" x-text="planResult.diff || 'No changes detected'"></pre>
+							<div class="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+								<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Changes</h4>
+								<pre class="text-xs font-mono whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 max-h-64 overflow-y-auto" x-text="planResult.diff || 'No changes detected'"></pre>
 							</div>
 							<!-- Warnings if any -->
 							<template x-if="planResult.warnings.length > 0">
@@ -276,12 +276,12 @@ templ DefinitionTab(def JobDefinition) {
 							</template>
 						</div>
 						<!-- Modal Footer -->
-						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+						<div class="sticky bottom-0 z-10 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700 px-6 py-4">
 							<div class="flex justify-end space-x-3">
 								<button
 									type="button"
 									@click="closePlanModal"
-									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 								>
 									Close
 								</button>
@@ -306,17 +306,17 @@ templ DefinitionTab(def JobDefinition) {
 				<!-- Modal positioning container -->
 				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
 					<!-- Modal content -->
-					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white dark:bg-neutral-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
 						<!-- Modal Header -->
-						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+						<div class="sticky top-0 z-10 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
 							<div class="flex items-center justify-between">
-								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900 dark:text-neutral-100">
 									Run Job
 								</h3>
 								<button
 									type="button"
 									@click="closeRunModal"
-									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+									class="rounded-md bg-white dark:bg-neutral-800 text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 								>
 									<span class="sr-only">Close</span>
 									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -334,22 +334,22 @@ templ DefinitionTab(def JobDefinition) {
 									</svg>
 								</div>
 								<div class="ml-3">
-									<p class="text-sm text-neutral-700">
+									<p class="text-sm text-neutral-700 dark:text-neutral-300">
 										Are you sure you want to run this job? This will submit the current definition and may create or update allocations.
 									</p>
-									<p class="mt-2 text-sm text-neutral-500">
+									<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
 										Job ID: <span class="font-mono font-medium" x-text="jobId"></span>
 									</p>
 								</div>
 							</div>
 						</div>
 						<!-- Modal Footer -->
-						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+						<div class="sticky bottom-0 z-10 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700 px-6 py-4">
 							<div class="flex justify-end space-x-3">
 								<button
 									type="button"
 									@click="closeRunModal"
-									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 								>
 									Cancel
 								</button>
@@ -379,8 +379,8 @@ templ DefinitionTab(def JobDefinition) {
 templ VersionsTab(versions []JobVersion, jobID string) {
 	<div class="p-6" x-data="{ revertModalOpen: false, revertVersion: 0 }">
 		<div class="flex items-center justify-between mb-4">
-			<h3 class="text-lg font-medium text-neutral-900">Version History</h3>
-			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d versions", len(versions)) }</span>
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Version History</h3>
+			<span class="text-sm text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("%d versions", len(versions)) }</span>
 		</div>
 		@components.Table(components.TableProps{
 			Columns: []components.Column{
@@ -413,7 +413,7 @@ templ versionRow(version JobVersion, jobID string) {
 	<tr class={ versionRowClasses(version.Active) }>
 		@components.TableCell("left", "w-24") {
 			<div class="flex items-center gap-2">
-				<span class="font-mono font-medium text-neutral-900">{ fmt.Sprintf("%d", version.Version) }</span>
+				<span class="font-mono font-medium text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", version.Version) }</span>
 				if version.Active {
 					@components.Badge(components.BadgeProps{
 						Variant: "primary",
@@ -439,13 +439,13 @@ templ versionRow(version JobVersion, jobID string) {
 			}
 		}
 		@components.TableCell("left", "") {
-			<span class="text-neutral-700">{ formatSubmitTime(version.SubmitTime) }</span>
+			<span class="text-neutral-700 dark:text-neutral-300">{ formatSubmitTime(version.SubmitTime) }</span>
 		}
 		@components.TableCell("left", "") {
 			if version.Diff != nil {
 				@versionChangeSummary(version.Diff.Counts)
 			} else {
-				<span class="text-sm text-neutral-500">Initial version</span>
+				<span class="text-sm text-neutral-500 dark:text-neutral-400">Initial version</span>
 			}
 		}
 		@components.TableCell("right", "w-48") {
@@ -488,7 +488,7 @@ templ versionRow(version JobVersion, jobID string) {
 
 templ versionChangeSummary(counts VersionChangeCounts) {
 	<div class="flex flex-wrap items-center gap-2 text-xs" aria-label={ counts.AriaLabel() }>
-		<span class="font-medium text-neutral-700">{ fmt.Sprintf("%d changes", counts.Total()) }</span>
+		<span class="font-medium text-neutral-700 dark:text-neutral-300">{ fmt.Sprintf("%d changes", counts.Total()) }</span>
 		if counts.Added > 0 {
 			<span class="text-green-700">+{ fmt.Sprintf("%d", counts.Added) }</span>
 		}
@@ -507,7 +507,7 @@ func versionRowClasses(isActive bool) string {
 	if isActive {
 		return base + " bg-primary-50 hover:bg-primary-100"
 	}
-	return base + " hover:bg-neutral-50"
+	return base + " hover:bg-neutral-50 dark:hover:bg-neutral-800"
 }
 
 // formatSubmitTime formats the version submit time
@@ -567,7 +567,7 @@ templ revertConfirmModal(jobID string) {
 			<!-- Modal content -->
 			<div
 				@click.stop
-				class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md"
+				class="relative transform overflow-hidden rounded-lg bg-white dark:bg-neutral-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md"
 				x-transition:enter="transition ease-out duration-300"
 				x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
 				x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -576,18 +576,18 @@ templ revertConfirmModal(jobID string) {
 				x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
 			>
 				<!-- Modal Header -->
-				<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+				<div class="sticky top-0 z-10 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
 					<div class="flex items-center justify-between">
 						<h3
 							id="revert-modal-title"
-							class="text-lg font-semibold leading-6 text-neutral-900"
+							class="text-lg font-semibold leading-6 text-neutral-900 dark:text-neutral-100"
 						>
 							Revert Job Version
 						</h3>
 						<button
 							type="button"
 							@click="revertModalOpen = false"
-							class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+							class="rounded-md bg-white dark:bg-neutral-800 text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 							aria-label="Close"
 						>
 							<span class="sr-only">Close</span>
@@ -613,26 +613,26 @@ templ revertConfirmModal(jobID string) {
 							</svg>
 						</div>
 						<div class="ml-3">
-							<p class="text-sm text-neutral-700">
+							<p class="text-sm text-neutral-700 dark:text-neutral-300">
 								Are you sure you want to revert this job to version <span class="font-mono font-semibold" x-text="revertVersion"></span>?
 							</p>
-							<p class="mt-2 text-sm text-neutral-500">
+							<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
 								This will create a new job submission using the configuration from version <span class="font-mono" x-text="revertVersion"></span>.
 								The current version will remain in the history.
 							</p>
-							<p class="mt-2 text-sm text-neutral-500">
+							<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
 								Job ID: <span class="font-mono font-medium">{ jobID }</span>
 							</p>
 						</div>
 					</div>
 				</div>
 				<!-- Modal Footer -->
-				<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+				<div class="sticky bottom-0 z-10 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700 px-6 py-4">
 					<div class="flex justify-end space-x-3">
 						<button
 							type="button"
 							@click="revertModalOpen = false"
-							class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+							class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 						>
 							Cancel
 						</button>
@@ -686,16 +686,16 @@ type DeploymentTaskGroupState struct {
 templ DeploymentsTab(deployments []JobDeployment, jobID string) {
 	<div class="p-6">
 		<div class="flex items-center justify-between mb-4">
-			<h3 class="text-lg font-medium text-neutral-900">Deployments</h3>
-			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d deployments", len(deployments)) }</span>
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Deployments</h3>
+			<span class="text-sm text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("%d deployments", len(deployments)) }</span>
 		</div>
 		if len(deployments) == 0 {
 			<div class="text-center py-12">
 				<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
 				</svg>
-				<h3 class="mt-2 text-sm font-medium text-neutral-900">No deployments</h3>
-				<p class="mt-1 text-sm text-neutral-500">This job has no deployment history.</p>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No deployments</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">This job has no deployment history.</p>
 				<p class="mt-1 text-xs text-neutral-400">Jobs require an update stanza to create deployments.</p>
 			</div>
 		} else {
@@ -710,12 +710,12 @@ templ DeploymentsTab(deployments []JobDeployment, jobID string) {
 
 // deploymentCard renders a single deployment card
 templ deploymentCard(deployment JobDeployment, jobID string) {
-	<a href={ templ.SafeURL(deployment.DetailURL) } class="block bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+	<a href={ templ.SafeURL(deployment.DetailURL) } class="block bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 hover:shadow-md transition-shadow">
 		<div class="flex items-start justify-between mb-3">
 			<div class="flex items-center gap-3">
 				<div>
 					<div class="flex items-center gap-2">
-						<span class="text-sm font-mono text-neutral-600">{ deployment.ShortID }</span>
+						<span class="text-sm font-mono text-neutral-600 dark:text-neutral-400">{ deployment.ShortID }</span>
 						@components.Badge(components.BadgeProps{
 							Variant: deploymentStatusToBadgeVariant(deployment.Status),
 							Size:    "sm",
@@ -724,18 +724,18 @@ templ deploymentCard(deployment JobDeployment, jobID string) {
 							{ deployment.Status }
 						}
 					</div>
-					<div class="mt-1 text-xs text-neutral-500">
+					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
 						Version { fmt.Sprintf("%d", deployment.JobVersion) } • { formatDeploymentTime(deployment.Created) }
 					</div>
 				</div>
 			</div>
 		</div>
 		if deployment.StatusDescription != "" {
-			<p class="text-sm text-neutral-600 mb-3">{ deployment.StatusDescription }</p>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">{ deployment.StatusDescription }</p>
 		}
 		if len(deployment.TaskGroups) > 0 {
 			<div class="mt-3 space-y-2">
-				<h4 class="text-xs font-medium text-neutral-700 uppercase tracking-wide">Task Groups</h4>
+				<h4 class="text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wide">Task Groups</h4>
 				for _, tgState := range deployment.TaskGroups {
 					@deploymentTaskGroupRow(tgState)
 				}
@@ -746,9 +746,9 @@ templ deploymentCard(deployment JobDeployment, jobID string) {
 
 // deploymentTaskGroupRow renders the status for a single task group in a deployment
 templ deploymentTaskGroupRow(state DeploymentTaskGroupState) {
-	<div class="bg-neutral-50 rounded p-3">
+	<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3">
 		<div class="flex items-center justify-between mb-2">
-			<span class="text-sm font-medium text-neutral-900">{ state.Name }</span>
+			<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">{ state.Name }</span>
 			<div class="flex items-center gap-2 text-xs">
 				if state.Promoted {
 					@components.Badge(components.BadgeProps{
@@ -770,24 +770,24 @@ templ deploymentTaskGroupRow(state DeploymentTaskGroupState) {
 		</div>
 		<div class="grid grid-cols-4 gap-2 text-xs">
 			<div class="text-center">
-				<div class="font-semibold text-neutral-900">{ fmt.Sprintf("%d", state.DesiredTotal) }</div>
-				<div class="text-neutral-500">Desired</div>
+				<div class="font-semibold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", state.DesiredTotal) }</div>
+				<div class="text-neutral-500 dark:text-neutral-400">Desired</div>
 			</div>
 			<div class="text-center">
-				<div class="font-semibold text-neutral-900">{ fmt.Sprintf("%d", state.PlacedAllocs) }</div>
-				<div class="text-neutral-500">Placed</div>
+				<div class="font-semibold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", state.PlacedAllocs) }</div>
+				<div class="text-neutral-500 dark:text-neutral-400">Placed</div>
 			</div>
 			<div class="text-center">
 				<div class="font-semibold text-success-600">{ fmt.Sprintf("%d", state.HealthyAllocs) }</div>
-				<div class="text-neutral-500">Healthy</div>
+				<div class="text-neutral-500 dark:text-neutral-400">Healthy</div>
 			</div>
 			<div class="text-center">
 				<div class="font-semibold text-danger-600">{ fmt.Sprintf("%d", state.UnhealthyAllocs) }</div>
-				<div class="text-neutral-500">Unhealthy</div>
+				<div class="text-neutral-500 dark:text-neutral-400">Unhealthy</div>
 			</div>
 		</div>
 		if state.DesiredCanaries > 0 {
-			<div class="mt-2 text-xs text-neutral-600">
+			<div class="mt-2 text-xs text-neutral-600 dark:text-neutral-400">
 				<span class="font-medium">Canaries:</span> { fmt.Sprintf("%d", state.DesiredCanaries) }
 			</div>
 		}
@@ -872,16 +872,16 @@ type PlacementFailure struct {
 templ EvaluationsTab(evaluations []JobEvaluation, jobID string) {
 	<div class="p-6">
 		<div class="flex items-center justify-between mb-4">
-			<h3 class="text-lg font-medium text-neutral-900">Evaluations</h3>
-			<span class="text-sm text-neutral-500">{ fmt.Sprintf("%d evaluations", len(evaluations)) }</span>
+			<h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">Evaluations</h3>
+			<span class="text-sm text-neutral-500 dark:text-neutral-400">{ fmt.Sprintf("%d evaluations", len(evaluations)) }</span>
 		</div>
 		if len(evaluations) == 0 {
 			<div class="text-center py-12">
 				<svg class="mx-auto h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
 				</svg>
-				<h3 class="mt-2 text-sm font-medium text-neutral-900">No evaluations</h3>
-				<p class="mt-1 text-sm text-neutral-500">This job has no evaluation history.</p>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No evaluations</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">This job has no evaluation history.</p>
 			</div>
 		} else {
 			<div class="space-y-4">
@@ -895,12 +895,12 @@ templ EvaluationsTab(evaluations []JobEvaluation, jobID string) {
 
 // evaluationCard renders a single evaluation card
 templ evaluationCard(evaluation JobEvaluation, jobID string) {
-	<a href={ templ.SafeURL(evaluation.DetailURL) } class="block bg-white border border-neutral-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+	<a href={ templ.SafeURL(evaluation.DetailURL) } class="block bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 hover:shadow-md transition-shadow">
 		<div class="flex items-start justify-between mb-3">
 			<div class="flex items-center gap-3">
 				<div>
 					<div class="flex items-center gap-2">
-						<span class="text-sm font-mono text-neutral-600">{ evaluation.ShortID }</span>
+						<span class="text-sm font-mono text-neutral-600 dark:text-neutral-400">{ evaluation.ShortID }</span>
 						@components.Badge(components.BadgeProps{
 							Variant: evaluationStatusToBadgeVariant(evaluation.Status),
 							Size:    "sm",
@@ -909,14 +909,14 @@ templ evaluationCard(evaluation JobEvaluation, jobID string) {
 							{ evaluation.Status }
 						}
 					</div>
-					<div class="mt-1 text-xs text-neutral-500">
+					<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
 						Triggered by: <span class="font-medium">{ formatTriggeredBy(evaluation.TriggeredBy) }</span> • Priority: { fmt.Sprintf("%d", evaluation.Priority) } • { formatEvaluationTime(evaluation.Created) }
 					</div>
 				</div>
 			</div>
 		</div>
 		if evaluation.StatusDescription != "" {
-			<p class="text-sm text-neutral-600 mb-3">{ evaluation.StatusDescription }</p>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">{ evaluation.StatusDescription }</p>
 		}
 		if evaluation.HasPlacementFailures && len(evaluation.PlacementFailures) > 0 {
 			<div class="mt-3 bg-danger-50 border border-danger-200 rounded-lg p-3">

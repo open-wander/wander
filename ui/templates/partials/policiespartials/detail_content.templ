@@ -45,8 +45,8 @@ templ DetailContent(policy PolicyDetail) {
 		<div class="mb-6">
 			<div class="flex items-center justify-between mb-4">
 				<div>
-					<h2 class="text-2xl font-bold text-neutral-900">{ policy.Name }</h2>
-					<p class="text-neutral-600 mt-1">{ policy.Description }</p>
+					<h2 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{ policy.Name }</h2>
+					<p class="text-neutral-600 dark:text-neutral-400 mt-1">{ policy.Description }</p>
 				</div>
 				<!-- Action Buttons -->
 				<div class="flex items-center gap-2">
@@ -56,7 +56,7 @@ templ DetailContent(policy PolicyDetail) {
 							<button
 								type="button"
 								@click="copyToClipboard"
-								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 								title="Copy rules to clipboard"
 							>
 								<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,7 +94,7 @@ templ DetailContent(policy PolicyDetail) {
 							<button
 								type="button"
 								@click="cancelEdit"
-								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+								class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 							>
 								Cancel
 							</button>
@@ -144,50 +144,50 @@ templ DetailContent(policy PolicyDetail) {
 			</div>
 		</template>
 		<!-- Metadata Section -->
-		<div class="mb-6 bg-neutral-50 border border-neutral-200 rounded-lg p-4">
-			<h3 class="text-sm font-medium text-neutral-700 mb-3">Policy Metadata</h3>
+		<div class="mb-6 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+			<h3 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">Policy Metadata</h3>
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
 				<div>
-					<span class="text-neutral-500">Name:</span>
-					<span class="ml-2 font-mono font-medium text-neutral-900">{ policy.Name }</span>
+					<span class="text-neutral-500 dark:text-neutral-400">Name:</span>
+					<span class="ml-2 font-mono font-medium text-neutral-900 dark:text-neutral-100">{ policy.Name }</span>
 				</div>
 				<div>
-					<span class="text-neutral-500">Modified:</span>
-					<span class="ml-2 text-neutral-900">{ formatTime(policy.ModifiedAt) }</span>
+					<span class="text-neutral-500 dark:text-neutral-400">Modified:</span>
+					<span class="ml-2 text-neutral-900 dark:text-neutral-100">{ formatTime(policy.ModifiedAt) }</span>
 				</div>
 				<div>
-					<span class="text-neutral-500">Created:</span>
-					<span class="ml-2 text-neutral-900">{ formatTime(policy.CreatedAt) }</span>
+					<span class="text-neutral-500 dark:text-neutral-400">Created:</span>
+					<span class="ml-2 text-neutral-900 dark:text-neutral-100">{ formatTime(policy.CreatedAt) }</span>
 				</div>
 				<div>
-					<span class="text-neutral-500">Modify Index:</span>
-					<span class="ml-2 font-mono text-neutral-900">{ fmt.Sprintf("%d", policy.ModifyIndex) }</span>
+					<span class="text-neutral-500 dark:text-neutral-400">Modify Index:</span>
+					<span class="ml-2 font-mono text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d", policy.ModifyIndex) }</span>
 				</div>
 			</div>
 		</div>
 		<!-- Related ACL resources -->
-		<div class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+		<div class="mb-6 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white p-4 dark:bg-neutral-900">
 			<h3 class="text-sm font-medium text-neutral-700 dark:text-neutral-300">Used by</h3>
 			<div class="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">
 				<div>
-					<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Tokens</h4>
+					<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Tokens</h4>
 					if len(policy.RelatedTokens) == 0 {
-						<p class="mt-2 text-sm text-neutral-500">No tokens use this policy.</p>
+						<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">No tokens use this policy.</p>
 					} else {
 						<ul class="mt-2 space-y-2">
 							for _, token := range policy.RelatedTokens {
 								<li class="text-sm">
 									<a href={ templ.SafeURL(policyTokenPath(token.AccessorID)) } class="font-medium text-primary-600 hover:text-primary-800">{ policyTokenLabel(token) }</a>
-									<span class="ml-2 text-xs text-neutral-500">{ token.Via }</span>
+									<span class="ml-2 text-xs text-neutral-500 dark:text-neutral-400">{ token.Via }</span>
 								</li>
 							}
 						</ul>
 					}
 				</div>
 				<div>
-					<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Roles</h4>
+					<h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Roles</h4>
 					if len(policy.RelatedRoles) == 0 {
-						<p class="mt-2 text-sm text-neutral-500">No roles use this policy.</p>
+						<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">No roles use this policy.</p>
 					} else {
 						<ul class="mt-2 space-y-2">
 							for _, role := range policy.RelatedRoles {
@@ -200,11 +200,11 @@ templ DetailContent(policy PolicyDetail) {
 		</div>
 		<!-- Description Section (editable) -->
 		<div class="mb-6">
-			<label class="block text-sm font-medium text-neutral-700 mb-2">
+			<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
 				Description
 			</label>
 			<template x-if="!isEditing">
-				<div class="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm text-neutral-900">
+				<div class="px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md text-sm text-neutral-900 dark:text-neutral-100">
 					{ policy.Description }
 				</div>
 			</template>
@@ -212,7 +212,7 @@ templ DetailContent(policy PolicyDetail) {
 				<textarea
 					x-model="description"
 					rows="2"
-					class="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+					class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
 					placeholder="Enter policy description"
 				></textarea>
 			</template>
@@ -220,17 +220,17 @@ templ DetailContent(policy PolicyDetail) {
 		<!-- Rules Editor Section -->
 		<div class="mb-4">
 			<div class="flex items-center justify-between mb-2">
-				<label class="block text-sm font-medium text-neutral-700">
+				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 					Policy Rules (HCL)
 				</label>
-				<span class="text-xs text-neutral-500">
-					<kbd class="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-xs">Ctrl+S</kbd> to save
+				<span class="text-xs text-neutral-500 dark:text-neutral-400">
+					<kbd class="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded text-xs">Ctrl+S</kbd> to save
 				</span>
 			</div>
 			<!-- Editor Container -->
 			<div
 				x-ref="editorContainer"
-				class="border border-neutral-300 rounded-lg overflow-hidden"
+				class="border border-neutral-300 dark:border-neutral-600 rounded-lg overflow-hidden"
 				:class="isEditing ? 'ring-2 ring-primary-500 ring-offset-1' : ''"
 			>
 				<!-- Loading state while editor initializes -->
@@ -244,17 +244,17 @@ templ DetailContent(policy PolicyDetail) {
 				<!-- Modal positioning container -->
 				<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
 					<!-- Modal content -->
-					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+					<div @click.stop class="relative transform overflow-hidden rounded-lg bg-white dark:bg-neutral-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
 						<!-- Modal Header -->
-						<div class="sticky top-0 z-10 bg-white border-b border-neutral-200 px-6 py-4">
+						<div class="sticky top-0 z-10 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
 							<div class="flex items-center justify-between">
-								<h3 class="text-lg font-semibold leading-6 text-neutral-900">
+								<h3 class="text-lg font-semibold leading-6 text-neutral-900 dark:text-neutral-100">
 									Delete Policy
 								</h3>
 								<button
 									type="button"
 									@click="closeDeleteModal"
-									class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+									class="rounded-md bg-white dark:bg-neutral-800 text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 								>
 									<span class="sr-only">Close</span>
 									<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -272,7 +272,7 @@ templ DetailContent(policy PolicyDetail) {
 									</svg>
 								</div>
 								<div class="ml-3">
-									<p class="text-sm text-neutral-700">
+									<p class="text-sm text-neutral-700 dark:text-neutral-300">
 										Are you sure you want to delete the policy <span class="font-mono font-semibold">{ policy.Name }</span>?
 									</p>
 									<p class="mt-2 text-sm text-danger-600 font-medium">
@@ -282,12 +282,12 @@ templ DetailContent(policy PolicyDetail) {
 							</div>
 						</div>
 						<!-- Modal Footer -->
-						<div class="sticky bottom-0 z-10 bg-neutral-50 border-t border-neutral-200 px-6 py-4">
+						<div class="sticky bottom-0 z-10 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-700 px-6 py-4">
 							<div class="flex justify-end space-x-3">
 								<button
 									type="button"
 									@click="closeDeleteModal"
-									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+									class="inline-flex items-center px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
 								>
 									Cancel
 								</button>

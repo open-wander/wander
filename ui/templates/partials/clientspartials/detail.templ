@@ -341,7 +341,7 @@ templ OverviewTab(client ClientDetail) {
 			if !client.StatsAvailable {
 				<div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800 dark:border-warning-800 dark:bg-warning-900/20 dark:text-warning-200">{ client.StatsError }</div>
 			} else if !hasCurrentStats(client.Stats) {
-				<div class="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">The client returned no current CPU, memory, or disk samples.</div>
+				<div class="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 p-4 text-sm text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">The client returned no current CPU, memory, or disk samples.</div>
 			} else {
 				if client.Stats.Uptime > 0 {
 					<p class="mb-3 text-sm text-neutral-600 dark:text-neutral-400">Host uptime: <span class="font-medium text-neutral-900 dark:text-neutral-100">{ formatHostUptime(client.Stats.Uptime) }</span></p>
@@ -459,7 +459,7 @@ templ OverviewTab(client ClientDetail) {
 								<p class="mt-2 text-xs text-neutral-600 dark:text-neutral-400">{ driver.HealthDescription }</p>
 							}
 							if len(driver.Attributes) > 0 {
-								<dl class="mt-3 space-y-1 border-t border-neutral-200 pt-2 dark:border-neutral-700">
+								<dl class="mt-3 space-y-1 border-t border-neutral-200 dark:border-neutral-700 pt-2">
 									for _, key := range sortedKeys(driver.Attributes) {
 										<div class="flex gap-2 text-xs"><dt class="min-w-0 flex-1 break-all font-medium text-neutral-600 dark:text-neutral-400">{ key }</dt><dd class="min-w-0 flex-1 break-all font-mono text-neutral-900 dark:text-neutral-100">{ driver.Attributes[key] }</dd></div>
 									}
@@ -476,7 +476,7 @@ templ OverviewTab(client ClientDetail) {
 				<p class="text-neutral-500 dark:text-neutral-400 text-sm">No host volumes configured</p>
 			} else {
 				<div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
-					<table class="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-700">
+					<table class="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700 text-sm">
 						<thead class="bg-neutral-50 dark:bg-neutral-800"><tr><th class="px-4 py-2 text-left">Name</th><th class="px-4 py-2 text-left">Path</th><th class="px-4 py-2 text-left">Access</th></tr></thead>
 						<tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
 							for _, volume := range client.HostVolumes {
@@ -525,7 +525,7 @@ templ OverviewTab(client ClientDetail) {
 					@dynamicMetadataValues(client)
 				</div>
 				if client.CanWriteNode {
-					<form class="mt-6 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700" method="post" action={ scopedClientActionURL(client, "/metadata") }>
+					<form class="mt-6 rounded-lg border border-neutral-200 dark:border-neutral-700 p-4" method="post" action={ scopedClientActionURL(client, "/metadata") }>
 						<input type="hidden" name="operation" value="set"/>
 						<h4 class="mb-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Create or update dynamic metadata</h4>
 						<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
@@ -547,7 +547,7 @@ templ metadataValues(title string, values map[string]string) {
 		if len(values) == 0 {
 			<p class="text-sm text-neutral-500 dark:text-neutral-400">None</p>
 		} else {
-			<dl class="divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-700">
+			<dl class="divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:border-neutral-700 dark:divide-neutral-800">
 				for _, key := range sortedKeys(values) {
 					<div class="flex gap-3 px-3 py-2 text-sm"><dt class="min-w-0 flex-1 break-all font-medium text-neutral-600 dark:text-neutral-400">{ key }</dt><dd class="min-w-0 flex-1 break-all font-mono text-neutral-900 dark:text-neutral-100">{ values[key] }</dd></div>
 				}
@@ -562,13 +562,13 @@ templ dynamicMetadataValues(client ClientDetail) {
 		if len(client.DynamicMeta) == 0 {
 			<p class="text-sm text-neutral-500 dark:text-neutral-400">None</p>
 		} else {
-			<div class="divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-700">
+			<div class="divide-y divide-neutral-100 rounded-lg border border-neutral-200 dark:border-neutral-700 dark:divide-neutral-800">
 				for _, key := range sortedPointerKeys(client.DynamicMeta) {
 					<div class="flex items-center gap-3 px-3 py-2 text-sm" data-meta-key={ key }>
 						<div class="min-w-0 flex-1 break-all font-medium text-neutral-600 dark:text-neutral-400">{ key }</div>
 						<div class="min-w-0 flex-1 break-all font-mono text-neutral-900 dark:text-neutral-100">
 							if client.DynamicMeta[key] == nil {
-								<span class="italic text-neutral-500">static value masked</span>
+								<span class="italic text-neutral-500 dark:text-neutral-400">static value masked</span>
 							} else {
 								{ *client.DynamicMeta[key] }
 							}
@@ -590,7 +590,7 @@ templ dynamicMetadataValues(client ClientDetail) {
 // AllocationsTab renders the allocations tab with a table of allocations on this client
 templ AllocationsTab(client ClientDetail) {
 	<div class="pt-4">
-		<form method="get" action={ clientDetailPath(client) } class="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800">
+		<form method="get" action={ clientDetailPath(client) } class="mb-4 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 p-4 dark:bg-neutral-800">
 			<input type="hidden" name="tab" value="allocations"/>
 			if client.Namespace != "" {
 				<input type="hidden" name="namespace" value={ client.Namespace }/>
@@ -743,7 +743,7 @@ templ allocationRow(alloc AllocationSummary) {
 templ clientAllocationFilter(name, label, placeholder, selected string, options []string) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>{ label }</span>
-		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-100">
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-sm dark:bg-neutral-900 dark:text-neutral-100">
 			<option value="">{ placeholder }</option>
 			for _, option := range options {
 				<option value={ option } selected?={ selected == option }>{ option }</option>

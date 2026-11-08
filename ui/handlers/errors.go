@@ -71,7 +71,7 @@ func renderForbiddenPartial(err ForbiddenError) string {
 		message = "You do not have permission to perform this action"
 	}
 
-	html := `<div class="rounded-lg bg-red-50 border border-red-200 p-6">
+	html := `<div class="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 p-6">
 	<div class="flex">
 		<div class="flex-shrink-0">
 			<svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -79,14 +79,14 @@ func renderForbiddenPartial(err ForbiddenError) string {
 			</svg>
 		</div>
 		<div class="ml-3">
-			<h3 class="text-sm font-medium text-red-800">Access Denied</h3>
-			<div class="mt-2 text-sm text-red-700">
+			<h3 class="text-sm font-medium text-red-800 dark:text-red-300">Access Denied</h3>
+			<div class="mt-2 text-sm text-red-700 dark:text-red-300">
 				<p>` + message + `</p>`
 
 	if err.Capability != "" {
-		html += `<p class="mt-2"><strong>Required capability:</strong> <code class="px-1.5 py-0.5 bg-red-100 rounded">` + err.Capability + `</code>`
+		html += `<p class="mt-2"><strong>Required capability:</strong> <code class="px-1.5 py-0.5 bg-red-100 dark:bg-red-900 rounded">` + err.Capability + `</code>`
 		if err.Namespace != "" {
-			html += ` in namespace <code class="px-1.5 py-0.5 bg-red-100 rounded">` + err.Namespace + `</code>`
+			html += ` in namespace <code class="px-1.5 py-0.5 bg-red-100 dark:bg-red-900 rounded">` + err.Namespace + `</code>`
 		}
 		html += `</p>`
 	}
@@ -122,31 +122,32 @@ func renderForbiddenPage(err ForbiddenError) string {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>403 Forbidden - Wander</title>
+	<script src="/ui/static/js/theme.js"></script>
 	<link rel="stylesheet" href="/ui/static/css/output.css">
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 dark:bg-neutral-950">
 	<div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
 		<div class="max-w-2xl w-full">
 			<div class="text-center mb-8">
-				<div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+				<div class="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-950 rounded-full mb-4">
 					<svg class="h-8 w-8 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
 					</svg>
 				</div>
-				<h1 class="text-4xl font-bold text-gray-900 mb-2">403 Forbidden</h1>
-				<p class="text-xl text-gray-600">Access Denied</p>
+				<h1 class="text-4xl font-bold text-gray-900 dark:text-neutral-100 mb-2">403 Forbidden</h1>
+				<p class="text-xl text-gray-600 dark:text-neutral-400">Access Denied</p>
 			</div>
 
-			<div class="bg-white shadow-lg rounded-lg p-8 mb-6">
-				<p class="text-gray-700 text-lg mb-4">` + message + `</p>`
+			<div class="bg-white dark:bg-neutral-800 shadow-lg rounded-lg p-8 mb-6">
+				<p class="text-gray-700 dark:text-neutral-300 text-lg mb-4">` + message + `</p>`
 
 	if err.Capability != "" {
-		html += `<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-					<p class="text-sm font-medium text-gray-700 mb-2">Required Permission:</p>
-					<div class="font-mono text-sm bg-white px-3 py-2 rounded border border-gray-300">
+		html += `<div class="bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-4">
+					<p class="text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">Required Permission:</p>
+					<div class="font-mono text-sm bg-white dark:bg-neutral-800 px-3 py-2 rounded border border-gray-300 dark:border-neutral-600">
 						<span class="text-blue-600">` + err.Capability + `</span>`
 		if err.Namespace != "" {
-			html += ` <span class="text-gray-500">in namespace</span> <span class="text-green-600">` + err.Namespace + `</span>`
+			html += ` <span class="text-gray-500 dark:text-neutral-400">in namespace</span> <span class="text-green-600">` + err.Namespace + `</span>`
 		}
 		html += `</div>
 				</div>`
@@ -154,14 +155,14 @@ func renderForbiddenPage(err ForbiddenError) string {
 
 	if len(err.Suggestions) > 0 {
 		html += `<div class="mt-6">
-					<p class="font-medium text-gray-900 mb-3">What you can do:</p>
+					<p class="font-medium text-gray-900 dark:text-neutral-100 mb-3">What you can do:</p>
 					<ul class="space-y-2">`
 		for _, suggestion := range err.Suggestions {
 			html += `<li class="flex items-start">
 						<svg class="h-5 w-5 text-blue-500 mr-2 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
 						</svg>
-						<span class="text-gray-700">` + suggestion + `</span>
+						<span class="text-gray-700 dark:text-neutral-300">` + suggestion + `</span>
 					</li>`
 		}
 		html += `</ul></div>`
@@ -227,7 +228,7 @@ func renderNotFoundPartial(err NotFoundError) string {
 		message = "The page you are looking for could not be found"
 	}
 
-	html := `<div class="rounded-lg bg-yellow-50 border border-yellow-200 p-6">
+	html := `<div class="rounded-lg bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-900 p-6">
 	<div class="flex">
 		<div class="flex-shrink-0">
 			<svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -235,12 +236,12 @@ func renderNotFoundPartial(err NotFoundError) string {
 			</svg>
 		</div>
 		<div class="ml-3">
-			<h3 class="text-sm font-medium text-yellow-800">Page Not Found</h3>
-			<div class="mt-2 text-sm text-yellow-700">
+			<h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-300">Page Not Found</h3>
+			<div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
 				<p>` + message + `</p>`
 
 	if err.RequestPath != "" {
-		html += `<p class="mt-2"><strong>Requested:</strong> <code class="px-1.5 py-0.5 bg-yellow-100 rounded">` + err.RequestPath + `</code></p>`
+		html += `<p class="mt-2"><strong>Requested:</strong> <code class="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900 rounded">` + err.RequestPath + `</code></p>`
 	}
 
 	if len(err.Suggestions) > 0 {
@@ -254,7 +255,7 @@ func renderNotFoundPartial(err NotFoundError) string {
 	}
 
 	html += `<div class="mt-4">
-					<a href="/ui/" class="text-yellow-800 hover:text-yellow-900 underline">Return to Home</a>
+					<a href="/ui/" class="text-yellow-800 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-200 underline">Return to Home</a>
 				</div>
 			</div>
 		</div>
@@ -277,43 +278,44 @@ func renderNotFoundPage(err NotFoundError) string {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>404 Not Found - Wander</title>
+	<script src="/ui/static/js/theme.js"></script>
 	<link rel="stylesheet" href="/ui/static/css/output.css">
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 dark:bg-neutral-950">
 	<div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
 		<div class="max-w-2xl w-full">
 			<div class="text-center mb-8">
-				<div class="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-4">
+				<div class="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 dark:bg-yellow-950 rounded-full mb-4">
 					<svg class="h-8 w-8 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
 					</svg>
 				</div>
-				<h1 class="text-4xl font-bold text-gray-900 mb-2">404 Not Found</h1>
-				<p class="text-xl text-gray-600">Page Not Found</p>
+				<h1 class="text-4xl font-bold text-gray-900 dark:text-neutral-100 mb-2">404 Not Found</h1>
+				<p class="text-xl text-gray-600 dark:text-neutral-400">Page Not Found</p>
 			</div>
 
-			<div class="bg-white shadow-lg rounded-lg p-8 mb-6">
-				<p class="text-gray-700 text-lg mb-4">` + message + `</p>`
+			<div class="bg-white dark:bg-neutral-800 shadow-lg rounded-lg p-8 mb-6">
+				<p class="text-gray-700 dark:text-neutral-300 text-lg mb-4">` + message + `</p>`
 
 	if err.RequestPath != "" {
-		html += `<div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-					<p class="text-sm font-medium text-gray-700 mb-2">Requested Path:</p>
-					<div class="font-mono text-sm bg-white px-3 py-2 rounded border border-gray-300">
-						<span class="text-gray-900">` + err.RequestPath + `</span>
+		html += `<div class="bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-4">
+					<p class="text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">Requested Path:</p>
+					<div class="font-mono text-sm bg-white dark:bg-neutral-800 px-3 py-2 rounded border border-gray-300 dark:border-neutral-600">
+						<span class="text-gray-900 dark:text-neutral-100">` + err.RequestPath + `</span>
 					</div>
 				</div>`
 	}
 
 	if len(err.Suggestions) > 0 {
 		html += `<div class="mt-6">
-					<p class="font-medium text-gray-900 mb-3">You might want to:</p>
+					<p class="font-medium text-gray-900 dark:text-neutral-100 mb-3">You might want to:</p>
 					<ul class="space-y-2">`
 		for _, suggestion := range err.Suggestions {
 			html += `<li class="flex items-start">
 						<svg class="h-5 w-5 text-blue-500 mr-2 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
 						</svg>
-						<span class="text-gray-700">` + suggestion + `</span>
+						<span class="text-gray-700 dark:text-neutral-300">` + suggestion + `</span>
 					</li>`
 		}
 		html += `</ul></div>`
@@ -369,7 +371,7 @@ func renderClusterUnavailablePartial(err ClusterUnavailableError) string {
 		message = "The Wander cluster is currently unavailable"
 	}
 
-	html := `<div class="rounded-lg bg-orange-50 border border-orange-200 p-6">
+	html := `<div class="rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900 p-6">
 	<div class="flex">
 		<div class="flex-shrink-0">
 			<svg class="h-6 w-6 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -377,12 +379,12 @@ func renderClusterUnavailablePartial(err ClusterUnavailableError) string {
 			</svg>
 		</div>
 		<div class="ml-3">
-			<h3 class="text-sm font-medium text-orange-800">Cluster Unavailable</h3>
-			<div class="mt-2 text-sm text-orange-700">
+			<h3 class="text-sm font-medium text-orange-800 dark:text-orange-300">Cluster Unavailable</h3>
+			<div class="mt-2 text-sm text-orange-700 dark:text-orange-300">
 				<p>` + message + `</p>`
 
 	if err.Details != "" {
-		html += `<p class="mt-2 text-orange-600 font-medium">` + err.Details + `</p>`
+		html += `<p class="mt-2 text-orange-600 dark:text-orange-300 font-medium">` + err.Details + `</p>`
 	}
 
 	if len(err.Suggestions) > 0 {
@@ -421,42 +423,43 @@ func renderClusterUnavailablePage(err ClusterUnavailableError) string {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Cluster Unavailable - Wander</title>
+	<script src="/ui/static/js/theme.js"></script>
 	<link rel="stylesheet" href="/ui/static/css/output.css">
 	<meta http-equiv="refresh" content="10">
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 dark:bg-neutral-950">
 	<div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
 		<div class="max-w-2xl w-full">
 			<div class="text-center mb-8">
-				<div class="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
+				<div class="inline-flex items-center justify-center w-16 h-16 bg-orange-100 dark:bg-orange-950 rounded-full mb-4">
 					<svg class="h-8 w-8 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
 					</svg>
 				</div>
-				<h1 class="text-4xl font-bold text-gray-900 mb-2">Cluster Unavailable</h1>
-				<p class="text-xl text-gray-600">No Cluster Leader</p>
+				<h1 class="text-4xl font-bold text-gray-900 dark:text-neutral-100 mb-2">Cluster Unavailable</h1>
+				<p class="text-xl text-gray-600 dark:text-neutral-400">No Cluster Leader</p>
 			</div>
 
-			<div class="bg-white shadow-lg rounded-lg p-8 mb-6">
-				<p class="text-gray-700 text-lg mb-4">` + message + `</p>`
+			<div class="bg-white dark:bg-neutral-800 shadow-lg rounded-lg p-8 mb-6">
+				<p class="text-gray-700 dark:text-neutral-300 text-lg mb-4">` + message + `</p>`
 
 	if err.Details != "" {
-		html += `<div class="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-					<p class="text-sm font-medium text-orange-800 mb-2">Details:</p>
-					<p class="text-sm text-orange-700">` + err.Details + `</p>
+		html += `<div class="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900 rounded-lg p-4 mb-4">
+					<p class="text-sm font-medium text-orange-800 dark:text-orange-300 mb-2">Details:</p>
+					<p class="text-sm text-orange-700 dark:text-orange-300">` + err.Details + `</p>
 				</div>`
 	}
 
 	if len(err.Suggestions) > 0 {
 		html += `<div class="mt-6">
-					<p class="font-medium text-gray-900 mb-3">What you can do:</p>
+					<p class="font-medium text-gray-900 dark:text-neutral-100 mb-3">What you can do:</p>
 					<ul class="space-y-2">`
 		for _, suggestion := range err.Suggestions {
 			html += `<li class="flex items-start">
 						<svg class="h-5 w-5 text-blue-500 mr-2 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
 						</svg>
-						<span class="text-gray-700">` + suggestion + `</span>
+						<span class="text-gray-700 dark:text-neutral-300">` + suggestion + `</span>
 					</li>`
 		}
 		html += `</ul></div>`
@@ -465,7 +468,7 @@ func renderClusterUnavailablePage(err ClusterUnavailableError) string {
 	html += `</div>
 
 			<div class="text-center space-y-3">
-				<div class="flex items-center justify-center space-x-2 text-sm text-gray-500">
+				<div class="flex items-center justify-center space-x-2 text-sm text-gray-500 dark:text-neutral-400">
 					<svg class="animate-spin h-4 w-4 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>

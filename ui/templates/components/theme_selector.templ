@@ -1,0 +1,63 @@
+package components
+
+// ThemeMenu makes the theme preference available from every application page.
+templ ThemeMenu() {
+	@Dropdown(DropdownProps{ID: "theme-selector", Position: "right", Width: "sm"}) {
+		@DropdownTrigger() {
+			<button
+				type="button"
+				class="inline-flex items-center justify-center rounded-md p-2 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+				aria-label="Choose color theme"
+			>
+				@Icon(IconProps{Name: "sun", Size: "md"})
+			</button>
+		}
+		@DropdownMenu(DropdownProps{Position: "right", Width: "sm"}) {
+			<div class="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+				Color theme
+			</div>
+			@themeChoices("menuitemradio", "flex-col px-1 pb-1")
+		}
+	}
+}
+
+// ThemeSettings presents the same preference as a persistent settings control.
+templ ThemeSettings() {
+	<div class="rounded-lg bg-white shadow dark:bg-neutral-800">
+		<div class="border-b border-neutral-200 px-6 py-5 dark:border-neutral-700">
+			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Appearance</h2>
+			<p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Choose a color theme for this browser</p>
+		</div>
+		<div class="px-6 py-6">
+			<div class="max-w-xl" role="radiogroup" aria-label="Color theme">
+				@themeChoices("radio", "grid grid-cols-1 gap-3 sm:grid-cols-3")
+			</div>
+			<p class="mt-3 text-sm text-neutral-500 dark:text-neutral-400">System follows your operating system and updates automatically.</p>
+		</div>
+	</div>
+}
+
+templ themeChoices(role string, classes string) {
+	<div class={ classes }>
+		@themeChoice("system", "System", "computer", role)
+		@themeChoice("light", "Light", "sun", role)
+		@themeChoice("dark", "Dark", "moon", role)
+	</div>
+}
+
+templ themeChoice(value string, label string, icon string, role string) {
+	<button
+		type="button"
+		role={ role }
+		data-theme-choice={ value }
+		aria-checked="false"
+		aria-pressed="false"
+		class="group flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2 text-left text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 aria-checked:border-primary-200 aria-checked:bg-primary-50 aria-checked:text-primary-700 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:aria-checked:border-primary-700 dark:aria-checked:bg-primary-950 dark:aria-checked:text-primary-300"
+	>
+		@Icon(IconProps{Name: icon, Size: "md"})
+		<span>{ label }</span>
+		<svg class="ml-auto hidden h-4 w-4 text-primary-600 group-aria-checked:block dark:text-primary-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+			<path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.296-7.296a1 1 0 011.408 0z" clip-rule="evenodd"></path>
+		</svg>
+	</button>
+}

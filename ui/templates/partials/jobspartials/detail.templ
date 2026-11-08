@@ -109,10 +109,10 @@ type TaskGroupSummary struct {
 templ DetailContent(job JobDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false, dispatchModal: false, forcePeriodicModal: false, purgeModal: false }">
 		<!-- Job Header -->
-		<div class="bg-white shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-4">
-					<h1 class="text-3xl font-bold text-neutral-900">{ job.Name }</h1>
+					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ job.Name }</h1>
 					@components.Badge(components.BadgeProps{
 						Variant: statusToBadgeVariant(job.Status),
 						Dot:     true,
@@ -122,8 +122,8 @@ templ DetailContent(job JobDetail) {
 					}
 				</div>
 				<div class="flex items-center space-x-4">
-					<span class="text-sm text-neutral-600">Type: <span class="font-medium">{ job.Type }</span></span>
-					<span class="text-sm text-neutral-600">Priority: <span class="font-medium">{ fmt.Sprintf("%d", job.Priority) }</span></span>
+					<span class="text-sm text-neutral-600 dark:text-neutral-400">Type: <span class="font-medium">{ job.Type }</span></span>
+					<span class="text-sm text-neutral-600 dark:text-neutral-400">Priority: <span class="font-medium">{ fmt.Sprintf("%d", job.Priority) }</span></span>
 					<!-- Action Buttons -->
 					<div class="flex items-center space-x-2">
 						if job.Status == "dead" || job.Status == "pending" {
@@ -177,7 +177,7 @@ templ DetailContent(job JobDetail) {
 			</div>
 		</div>
 		<!-- Tabs -->
-		<div class="bg-white shadow rounded-lg p-6">
+		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6">
 			@components.Tabs(components.TabsProps{
 				Tabs: []components.Tab{
 					{
@@ -290,8 +290,8 @@ templ ForcePeriodicJobModal(job JobDetail) {
 		}) {
 			@components.ModalBody() {
 				<div class="space-y-4">
-					<p class="text-sm text-neutral-600">
-						Launch <strong class="text-neutral-900">{ job.Name }</strong> immediately, outside its normal schedule?
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						Launch <strong class="text-neutral-900 dark:text-neutral-100">{ job.Name }</strong> immediately, outside its normal schedule?
 					</p>
 				</div>
 			}
@@ -328,10 +328,10 @@ templ StartJobModal(job JobDetail) {
 		}) {
 			@components.ModalBody() {
 				<div class="space-y-4">
-					<p class="text-sm text-neutral-600">
-						Are you sure you want to start job <strong class="text-neutral-900">{ job.Name }</strong>?
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						Are you sure you want to start job <strong class="text-neutral-900 dark:text-neutral-100">{ job.Name }</strong>?
 					</p>
-					<p class="text-sm text-neutral-500">
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">
 						This will create new allocations and start running the job tasks.
 					</p>
 				</div>
@@ -368,10 +368,10 @@ templ StopJobModal(job JobDetail) {
 		}) {
 			@components.ModalBody() {
 				<div class="space-y-4">
-					<p class="text-sm text-neutral-600">
-						Are you sure you want to stop job <strong class="text-neutral-900">{ job.Name }</strong>?
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						Are you sure you want to stop job <strong class="text-neutral-900 dark:text-neutral-100">{ job.Name }</strong>?
 					</p>
-					<p class="text-sm text-neutral-500">
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">
 						This will gracefully stop all running allocations for this job.
 					</p>
 				</div>
@@ -408,10 +408,10 @@ templ RunJobModal(job JobDetail) {
 		}) {
 			@components.ModalBody() {
 				<div class="space-y-4">
-					<p class="text-sm text-neutral-600">
-						Are you sure you want to submit a new version of job <strong class="text-neutral-900">{ job.Name }</strong>?
+					<p class="text-sm text-neutral-600 dark:text-neutral-400">
+						Are you sure you want to submit a new version of job <strong class="text-neutral-900 dark:text-neutral-100">{ job.Name }</strong>?
 					</p>
-					<p class="text-sm text-neutral-500">
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">
 						This will create a new job version and trigger a deployment with the current job specification.
 					</p>
 				</div>
@@ -449,28 +449,28 @@ templ DispatchJobModal(job JobDetail) {
 			<form hx-post={ scopedJobAPIURL(job, "/dispatch") } hx-swap="none">
 				@components.ModalBody() {
 					<div class="space-y-4">
-						<p class="text-sm text-neutral-600">
-							Create a dispatched instance of <strong class="text-neutral-900">{ job.Name }</strong>.
+						<p class="text-sm text-neutral-600 dark:text-neutral-400">
+							Create a dispatched instance of <strong class="text-neutral-900 dark:text-neutral-100">{ job.Name }</strong>.
 						</p>
 						for _, key := range job.Parameterized.MetaRequired {
-							<label class="block text-sm font-medium text-neutral-700">
+							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 								{ key } <span class="text-danger-600">(required)</span>
 								<input class="form-input mt-1 w-full" type="text" name={ "meta." + key } required/>
 							</label>
 						}
 						for _, key := range job.Parameterized.MetaOptional {
-							<label class="block text-sm font-medium text-neutral-700">
-								{ key } <span class="text-neutral-500">(optional)</span>
+							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+								{ key } <span class="text-neutral-500 dark:text-neutral-400">(optional)</span>
 								<input class="form-input mt-1 w-full" type="text" name={ "meta." + key }/>
 							</label>
 						}
 						if job.Parameterized.Payload != "forbidden" {
-							<label class="block text-sm font-medium text-neutral-700">
+							<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 								Payload
 								if job.Parameterized.Payload == "required" {
 									<span class="text-danger-600">(required)</span>
 								} else {
-									<span class="text-neutral-500">(optional)</span>
+									<span class="text-neutral-500 dark:text-neutral-400">(optional)</span>
 								}
 								<textarea
 									class="form-textarea mt-1 w-full font-mono"
@@ -505,8 +505,8 @@ templ PurgeJobModal(job JobDetail) {
 		}) {
 			@components.ModalBody() {
 				<div class="space-y-4">
-					<p class="text-sm text-neutral-700">
-						Permanently purge <strong class="text-neutral-900">{ job.Name }</strong>?
+					<p class="text-sm text-neutral-700 dark:text-neutral-300">
+						Permanently purge <strong class="text-neutral-900 dark:text-neutral-100">{ job.Name }</strong>?
 					</p>
 					<p class="text-sm text-danger-700">
 						This stops the job and immediately removes its job history. This action cannot be undone.

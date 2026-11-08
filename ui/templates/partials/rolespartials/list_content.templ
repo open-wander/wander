@@ -46,7 +46,7 @@ templ ListContent(items []RoleSummary, search string) {
 							<tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800">
 								@components.TableCell("left", "") {
 									<a class="font-medium text-primary-600 hover:text-primary-800" href={ templ.SafeURL(roleDetailPath(item.ID)) } hx-get={ roleDetailPath(item.ID) } hx-target="#main-content" hx-push-url="true">{ item.Name }</a>
-									<div class="mt-1 font-mono text-xs text-neutral-500">{ item.ID }</div>
+									<div class="mt-1 font-mono text-xs text-neutral-500 dark:text-neutral-400">{ item.ID }</div>
 								}
 								@components.TableCell("left", "") {
 									<span>{ item.Description }</span>

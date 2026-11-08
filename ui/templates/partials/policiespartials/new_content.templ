@@ -22,18 +22,18 @@ templ NewContent(form NewPolicyForm) {
 		<form method="post" action="/ui/access-control/policies/new" hx-post="/ui/access-control/policies/new" hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-neutral-900">
 			<div>
 				<label for="policy-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Name</label>
-				<input id="policy-name" name="name" value={ form.Name } required class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"/>
+				<input id="policy-name" name="name" value={ form.Name } required class="mt-1 w-full rounded-md border border-neutral-300 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 dark:border-neutral-700"/>
 			</div>
 			<div>
 				<label for="policy-description" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Description</label>
-				<textarea id="policy-description" name="description" rows="2" class="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">{ form.Description }</textarea>
+				<textarea id="policy-description" name="description" rows="2" class="mt-1 w-full rounded-md border border-neutral-300 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 dark:border-neutral-700">{ form.Description }</textarea>
 			</div>
 			<div>
 				<label for="policy-rules" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Policy Rules (HCL)</label>
-				<textarea id="policy-rules" name="rules" rows="16" required spellcheck="false" class="mt-1 w-full rounded-md border border-neutral-300 bg-neutral-950 px-3 py-2 font-mono text-sm text-neutral-100">{ form.Rules }</textarea>
+				<textarea id="policy-rules" name="rules" rows="16" required spellcheck="false" class="mt-1 w-full rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-950 px-3 py-2 font-mono text-sm text-neutral-100">{ form.Rules }</textarea>
 			</div>
 			<div class="flex justify-end gap-3">
-				<a href="/ui/access-control/policies" hx-get="/ui/access-control/policies" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
+				<a href="/ui/access-control/policies" hx-get="/ui/access-control/policies" hx-target="#main-content" hx-push-url="true" class="rounded-md border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Cancel</a>
 				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Create Policy</button>
 			</div>
 		</form>

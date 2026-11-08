@@ -343,7 +343,7 @@
         language: options.language || 'hcl',
         readOnly: options.readOnly !== false,
         lineNumbers: options.lineNumbers !== false,
-        theme: options.theme || 'light',
+        theme: options.theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),
         value: options.value || '',
         onChange: options.onChange || (() => {}),
         onSave: options.onSave || (() => {}),
@@ -355,6 +355,8 @@
       this.isEditing = !this.options.readOnly;
 
       this.init();
+      this.handleThemeChange = (event) => this.setTheme(event.detail?.theme);
+      document.addEventListener('wander:theme-change', this.handleThemeChange);
     }
 
     init() {
@@ -531,6 +533,12 @@
       this.wrapper.style.cursor = readOnly ? 'default' : 'text';
     }
 
+    setTheme(theme) {
+      this.options.theme = theme === 'dark' ? 'dark' : 'light';
+      this.wrapper.classList.toggle('theme-dark', this.options.theme === 'dark');
+      this.wrapper.classList.toggle('theme-light', this.options.theme === 'light');
+    }
+
     highlight() {
       const tokenizer = this.options.language === 'json' ? tokenizeJSON : tokenizeHCL;
       const tokens = tokenizer(this.value);
@@ -687,6 +695,7 @@
     }
 
     destroy() {
+      document.removeEventListener('wander:theme-change', this.handleThemeChange);
       this.container.innerHTML = '';
     }
   }

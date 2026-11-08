@@ -84,7 +84,7 @@ templ ListContent(props ListProps) {
 				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">View and manage Wander jobs</p>
 			</div>
 		</div>
-		<form id="jobs-filters" class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/jobs" hx-get="/ui/jobs" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+		<form id="jobs-filters" class="mb-6 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white p-4 shadow-sm dark:bg-neutral-900" method="get" action="/ui/jobs" hx-get="/ui/jobs" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
 			<input type="hidden" name="sort" value={ props.SortColumn }/>
 			<input type="hidden" name="dir" value={ props.SortDir }/>
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -99,7 +99,7 @@ templ ListContent(props ListProps) {
 				@multiValueFilter("type", "Type", props.Filters.Types, props.FilterOptions.Types)
 				<div class="ml-auto flex items-center gap-3 pt-1">
 					if hasActiveJobFilters(props.Filters) {
-						<a href={ templ.SafeURL(jobPageSizeURL(props.Pagination.PerPage)) } hx-get={ jobPageSizeURL(props.Pagination.PerPage) } hx-target="#main-content" hx-push-url="true" class="text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">Clear filters</a>
+						<a href={ templ.SafeURL(jobPageSizeURL(props.Pagination.PerPage)) } hx-get={ jobPageSizeURL(props.Pagination.PerPage) } hx-target="#main-content" hx-push-url="true" class="text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">Clear filters</a>
 					}
 					<button type="submit" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply filters</button>
 				</div>
@@ -154,14 +154,14 @@ templ ListContent(props ListProps) {
 templ jobFilterInput(name, label, placeholder, value string) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>{ label }</span>
-		<input type="search" name={ name } value={ value } placeholder={ placeholder } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"/>
+		<input type="search" name={ name } value={ value } placeholder={ placeholder } class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-neutral-800 dark:text-neutral-100"/>
 	</label>
 }
 
 templ jobFilterSelect(name, label, placeholder, selected string, options []string) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>{ label }</span>
-		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-neutral-800 dark:text-neutral-100">
 			<option value="">{ placeholder }</option>
 			for _, option := range options {
 				<option value={ option } selected?={ selected == option }>{ option }</option>
@@ -173,7 +173,7 @@ templ jobFilterSelect(name, label, placeholder, selected string, options []strin
 templ jobPageSizeSelect(selected int) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>Rows per page</span>
-		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-neutral-800 dark:text-neutral-100">
 			for _, option := range []int{10, 25, 50, 100} {
 				<option value={ fmt.Sprintf("%d", option) } selected?={ selected == option }>{ fmt.Sprintf("%d", option) }</option>
 			}
@@ -184,13 +184,13 @@ templ jobPageSizeSelect(selected int) {
 templ multiValueFilter(name, label string, selected, options []string) {
 	<fieldset class="min-w-48">
 		<legend class="mb-1 text-sm font-medium text-neutral-700 dark:text-neutral-300">{ label }</legend>
-		<div class="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-neutral-300 px-3 py-2 dark:border-neutral-600">
+		<div class="flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-neutral-300 dark:border-neutral-600 px-3 py-2">
 			if len(options) == 0 {
 				<span class="text-sm text-neutral-500 dark:text-neutral-400">No options</span>
 			} else {
 				for _, option := range options {
 					<label class="inline-flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-						<input type="checkbox" name={ name } value={ option } checked?={ stringSelected(selected, option) } class="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"/>
+						<input type="checkbox" name={ name } value={ option } checked?={ stringSelected(selected, option) } class="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500"/>
 						<span>{ option }</span>
 					</label>
 				}
@@ -202,7 +202,7 @@ templ multiValueFilter(name, label string, selected, options []string) {
 templ jobRow(job JobSummary) {
 	<tr data-job-id={ job.ID } class="cursor-pointer transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800" hx-get={ job.DetailURL } hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
 		@components.TableCell("left", "") {
-			<a href={ templ.SafeURL(job.DetailURL) } class="font-medium text-neutral-900 hover:text-primary-600 dark:text-neutral-100 dark:hover:text-primary-400" @click.stop hx-get={ job.DetailURL } hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">{ job.Name }</a>
+			<a href={ templ.SafeURL(job.DetailURL) } class="font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 dark:hover:text-primary-400" @click.stop hx-get={ job.DetailURL } hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">{ job.Name }</a>
 			<div class="text-xs text-neutral-500 dark:text-neutral-400">{ job.ID }</div>
 			if job.PackName != "" {
 				<span class="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" title={ packTitle(job) }>Pack · { job.PackName }</span>

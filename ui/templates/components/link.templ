@@ -89,7 +89,7 @@ func linkClasses(props LinkProps) string {
 	var variantClasses string
 	switch props.Variant {
 	case "muted":
-		variantClasses = "text-neutral-600 hover:text-neutral-900 underline-offset-2 hover:underline"
+		variantClasses = "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 underline-offset-2 hover:underline"
 	case "primary":
 		variantClasses = "text-primary-600 hover:text-primary-700 font-medium underline-offset-2 hover:underline"
 	default: // "default"

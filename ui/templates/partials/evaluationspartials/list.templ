@@ -54,7 +54,7 @@ templ ListContent(props ListProps) {
 				@evaluationListHiddenInputs(props)
 				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 					<span>Rows per page</span>
-					<select name="per_page" class="mt-1 block rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+					<select name="per_page" class="mt-1 block rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-neutral-800 dark:text-neutral-100">
 						for _, option := range []int{10, 25, 50, 100} {
 							<option value={ fmt.Sprintf("%d", option) } selected?={ props.Pagination.PerPage == option }>{ fmt.Sprintf("%d", option) }</option>
 						}
@@ -81,8 +81,8 @@ templ ListContent(props ListProps) {
 								d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
 							></path>
 						</svg>
-						<h3 class="mt-2 text-sm font-medium text-neutral-900">No evaluations</h3>
-						<p class="mt-1 text-sm text-neutral-500">No recent evaluations to display.</p>
+						<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No evaluations</h3>
+						<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">No recent evaluations to display.</p>
 					</div>
 				} else {
 					for _, eval := range props.Evaluations {
@@ -148,8 +148,8 @@ templ List(evalsList []EvaluationSummary) {
 						d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
 					></path>
 				</svg>
-				<h3 class="mt-2 text-sm font-medium text-neutral-900">No evaluations</h3>
-				<p class="mt-1 text-sm text-neutral-500">No recent evaluations to display.</p>
+				<h3 class="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-100">No evaluations</h3>
+				<p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">No recent evaluations to display.</p>
 			</div>
 		} else {
 			for _, eval := range evalsList {
@@ -172,7 +172,7 @@ templ evaluationCard(eval EvaluationSummary) {
 					<h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
 						{ eval.JobName }
 					</h3>
-					<span class="text-xs font-mono text-neutral-500">
+					<span class="text-xs font-mono text-neutral-500 dark:text-neutral-400">
 						{ eval.ShortID }
 					</span>
 				</div>
@@ -185,12 +185,12 @@ templ evaluationCard(eval EvaluationSummary) {
 					}) {
 						{ eval.Status }
 					}
-					<span class="text-xs text-neutral-600">
+					<span class="text-xs text-neutral-600 dark:text-neutral-400">
 						{ eval.Type }
 					</span>
 				</div>
 				<!-- Triggered By -->
-				<div class="flex items-center gap-1 text-xs text-neutral-500">
+				<div class="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
 					<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
 					</svg>
@@ -199,7 +199,7 @@ templ evaluationCard(eval EvaluationSummary) {
 			</div>
 			<!-- Time Ago -->
 			<div class="flex-shrink-0 ml-4">
-				<span class="text-xs text-neutral-500 whitespace-nowrap">
+				<span class="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
 					{ eval.TimeAgo }
 				</span>
 			</div>

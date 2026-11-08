@@ -23,6 +23,7 @@ func TestBaseLayoutExposesResolvedSelectionToScopeHelper(t *testing.T) {
 	for _, expected := range []string{
 		`data-wander-namespace="team-a"`,
 		`data-wander-region="region-a"`,
+		`src="/ui/static/js/theme.js"`,
 		`src="/ui/static/js/selection-scope.js"`,
 		`src="/ui/static/js/keyboard-shortcuts.js"`,
 		`data-keyboard-shortcuts-dialog`,
@@ -30,5 +31,11 @@ func TestBaseLayoutExposesResolvedSelectionToScopeHelper(t *testing.T) {
 		if !strings.Contains(html, expected) {
 			t.Errorf("rendered layout missing %s", expected)
 		}
+	}
+
+	themeScript := strings.Index(html, `src="/ui/static/js/theme.js"`)
+	stylesheet := strings.Index(html, `href="/ui/static/css/output.css"`)
+	if themeScript < 0 || stylesheet < 0 || themeScript > stylesheet {
+		t.Errorf("theme bootstrap must load before the application stylesheet")
 	}
 }
