@@ -72,6 +72,24 @@ repository files or prove their privacy. Its passing result demonstrates fixture
 admission and redacted diagnostics, not runtime compatibility; matrix runtime
 acceptance tests remain planned. Unresolved fixture outcomes remain null.
 
+The Wander-authored internal models in `nomad/structs/dynamic_host_volume.go`
+have requirement-scoped tests in `nomad/structs/dynamic_host_volume_test.go`
+(`TestDynamicHostVolumeCopyIsolation`, `TestDynamicHostVolumeEqualityAndValueCopies`,
+`TestDynamicHostVolumeCollections`, and `TestDynamicHostVolumeSerialization`).
+These cover the representation portion of US-001 and FR-7: nil-safe isolated
+copies, complete equality, collection representation, zero/unknown labels, and
+typed JSON/MessagePack integer preservation. Internal enum labels and codec
+field names are independent Wander requirements, not public wire evidence.
+These tests do not cover validation, lifecycle transitions, Raft persistence,
+snapshots, public API compatibility, or runtime integration.
+
+The JSON matrix currently classifies only public interface surfaces; it has no
+internal-model surface. Attaching these implemented model tests to unresolved
+public assertions would overstate their evidence. The matrix and synthetic
+catalog therefore remain unchanged, with their runtime acceptance tests planned.
+Run model tests both with and without `-tags codegen_generated`; the tagged run
+exercises the repository-generated codecs for these independently written types.
+
 The HTTP delete table includes a delete suffix while its example omits it.
 The claim delete table uses a plural collection while its example uses singular.
 These conflicts must be resolved with permitted independent black-box requests

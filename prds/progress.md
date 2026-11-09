@@ -79,3 +79,32 @@ of rejected content.
 
 PATTERN: compatibility - Bind fixtures to individual matrix facets and retain
 null outcomes until permitted evidence resolves them.
+
+## 2026-11-09 — Task 1.3 complete
+
+- Added independent internal models for dynamic host volumes, capabilities,
+  constraints, lifecycle labels, allocation attachments, origins, and sticky
+  claims. Public API models and behavior remain deliberately separate.
+- Added nil-safe deep-copy and complete equality contracts that preserve nil
+  versus empty collections, nil elements, order, unknown labels, timestamps,
+  and Raft indexes.
+- Added tests-first typed JSON and MessagePack round trips, including integer
+  values above 2^53, zero/unknown fields, collection representation, and copy
+  isolation. The required red test initially failed on undefined model symbols.
+- Generated codecs for the Wander-authored models and audited all existing
+  generated functions for semantic stability. A temporary workspace was needed
+  because the pinned retracted go-msgpack v1.1.5 generator uses a duplicate
+  base64 alphabet rejected by modern Go; no repository dependency, cache source,
+  or global tool was changed.
+- Final evidence: focused and complete `nomad/structs` tests passed with both
+  reflection and `codegen_generated` codecs; dynamic contract/privacy checks,
+  licence boundary, whitespace checks, and Deslop passed. Independent review
+  returned PASS with no findings.
+- Validation and immutable-field rules remain task 1.4. No lifecycle operation,
+  Raft state, public API, scheduler behavior, or runtime compatibility is claimed.
+
+PATTERN: provenance - Internal representation tests establish Wander model
+requirements without verifying unresolved public interface claims.
+
+PATTERN: generation - Compare generated functions by signature and body so
+relocation and formatting churn cannot conceal semantic changes.
