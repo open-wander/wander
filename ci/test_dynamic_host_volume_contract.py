@@ -7,9 +7,10 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from dynamic_host_volume_test_support import DELETE, mutate_json
+
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "docs/compatibility/dynamic-host-volumes.json"
-DELETE = object()
 
 
 class ContractTests(unittest.TestCase):
@@ -141,14 +142,7 @@ class ContractTests(unittest.TestCase):
                                path=path, name=name)))
         for label, path, value in cases:
             with self.subTest(mutation=label):
-                changed = copy.deepcopy(self.data)
-                parent = changed
-                for key in path[:-1]:
-                    parent = parent[key]
-                if value is DELETE:
-                    del parent[path[-1]]
-                else:
-                    parent[path[-1]] = value
+                changed = mutate_json(self.data, path, value)
                 with self.assertRaises(ValueError):
                     self.module.validate(changed, ROOT)
 

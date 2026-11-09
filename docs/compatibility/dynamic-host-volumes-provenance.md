@@ -64,6 +64,14 @@ of a documented error does not imply success or an invented status code.
 The current operation inventory includes requested surfaces whose existence or
 exact spelling still requires evidence.
 
+[The synthetic fixture catalog and guard](dynamic-host-volumes-fixtures.md)
+provide reusable scenario inputs without accessing private artifacts. The guard
+admits only its closed synthetic vocabulary in the registered fixture directory
+and checks references against this public matrix. It does not scan other
+repository files or prove their privacy. Its passing result demonstrates fixture
+admission and redacted diagnostics, not runtime compatibility; matrix runtime
+acceptance tests remain planned. Unresolved fixture outcomes remain null.
+
 The HTTP delete table includes a delete suffix while its example omits it.
 The claim delete table uses a plural collection while its example uses singular.
 These conflicts must be resolved with permitted independent black-box requests

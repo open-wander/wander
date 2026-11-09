@@ -53,3 +53,29 @@ arbitrary anchors.
 
 PATTERN: tooling - `git diff HEAD` excludes untracked additions, so supplement
 the required scanner with no-index input until new files are tracked.
+
+## 2026-11-09 — Task 1.2 complete
+
+- Added a closed eight-scenario synthetic fixture catalog covering creation,
+  registration, namespace separation, invalid inputs, plugin failure, and
+  destructive-operation restrictions without exercising runtime behavior.
+- Added a bounded offline fixture guard that reads only the registered catalog
+  and public compatibility matrix, rejects unknown entries and symlinks before
+  content reads, bounds file sizes, and emits only fixed diagnostic tokens.
+- Added seven privacy and mutation tests. The required red test first failed
+  because the fixture catalog was absent; the completed dynamic-volume suite
+  passes all 12 contract and fixture tests.
+- Added fixture scope and extension documentation and wired the offline checks
+  into the core security workflow.
+- Final evidence: fixture guard, contract validator, workflow validation,
+  licence-boundary checks, whitespace checks, and Deslop passed. Independent
+  review returned PASS with no findings.
+- Runtime compatibility tests remain planned and unresolved matrix outcomes
+  remain null. Next ready task: 1.3.
+
+PATTERN: privacy - Admit explicit synthetic vocabulary and registered files
+instead of consulting private identifier denylists; keep diagnostics independent
+of rejected content.
+
+PATTERN: compatibility - Bind fixtures to individual matrix facets and retain
+null outcomes until permitted evidence resolves them.
