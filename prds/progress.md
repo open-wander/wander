@@ -108,3 +108,29 @@ requirements without verifying unresolved public interface claims.
 
 PATTERN: generation - Compare generated functions by signature and body so
 relocation and formatting churn cannot conceal semantic changes.
+
+## 2026-11-09 — Task 1.4 complete
+
+- Added pure operation-specific validation for internal create and register
+  records, capabilities, attachments, claims, capacities, constraints, and
+  lexical registration paths without defaulting or mutating records.
+- Added deterministic aggregated errors with stable sentinel classifications,
+  safe field names, bounded mode values, and redaction of constraint contents,
+  paths, identifiers, parameters, and records.
+- Added an eight-field immutable identity guard covering ID, namespace, name,
+  type, node assignment, origin, create index, and create time. Passing the
+  guard does not authorize any other change.
+- The tests-first run initially failed because the validation methods and error
+  sentinels were absent. Focused and complete `nomad/structs` tests now pass in
+  normal and `codegen_generated` modes, including existing static and CSI tests.
+- Dynamic contract/privacy checks, licence boundary, whitespace, and Deslop
+  passed. Independent review returned PASS with no findings.
+- Public validation envelopes, omitted-capacity defaults, update permissions,
+  lifecycle rules, Raft state, API behavior, scheduler decisions, and ACLs
+  remain unresolved or assigned to later tasks. Next task: 1.5.
+
+PATTERN: validation - Preserve error classification without retaining sensitive
+underlying errors or values.
+
+PATTERN: validation - Test both prohibited identity changes and unrelated
+changes outside an invariant guard's authority.

@@ -90,6 +90,50 @@ catalog therefore remain unchanged, with their runtime acceptance tests planned.
 Run model tests both with and without `-tags codegen_generated`; the tagged run
 exercises the repository-generated codecs for these independently written types.
 
+Internal validation is tested separately in
+`nomad/structs/dynamic_host_volume_validation_test.go` by
+`TestDynamicHostVolumeOperationValidation`, `TestDynamicHostVolumeCapacityValidation`,
+`TestDynamicHostVolumePathValidation`,
+`TestDynamicHostVolumeCapabilityAndAttachmentValidation`,
+`TestDynamicHostVolumeClaimValidation`, `TestDynamicHostVolumeImmutableValidation`,
+and `TestDynamicHostVolumeValidationAggregationAndRedaction`. These implement
+Wander-authored representation rules for US-001/FR-7 and an internal identity
+guard; they do not establish public validation envelopes or update permissions.
+
+Create and register require name, a caller-resolved nonempty namespace, type
+`host`, and supported capabilities. Create requires a plugin ID, permits an
+omitted node ID, and ignores the host path. Register requires node ID and host
+path, permits an omitted plugin ID, and checks only lexical absoluteness and
+absence of NUL. It does not clean, resolve, inspect, create, or test availability
+of a path. Node existence, pool membership, and name uniqueness remain deferred.
+
+Internal capacities must be nonnegative and the requested minimum must not
+exceed the maximum even when that maximum is zero. This literal comparison is
+an internal requirement; omitted/zero public maximum semantics remain unresolved.
+Capabilities and attachments currently support only filesystem attachment and
+single-node reader-only/writer access. Reader-only attachments require read-only
+usage. Unknown strings still serialize unchanged but are rejected by these
+current mode validators. Attachments require allocation/node identities, while
+claims require their stable identity fields and permit an omitted allocation ID
+and zero allocation index. Constraint validation delegates to the existing
+validator after a nil check and discards its potentially value-bearing errors.
+
+The immutable guard compares ID, namespace, name, type, node ID, origin, create
+index, and create time, including clears and nil operands. Passing this guard
+does not authorize changes to paths, plugins, pools, parameters, capacities,
+capabilities, or other metadata. No validation method mutates/defaults records,
+merges updates, executes plugins, enforces ACLs, or checks attachment conflicts,
+ownership, lifecycle, state, or scheduling policy. Errors aggregate in fixed
+field order and expose sentinel codes with safe field names; only unsupported
+mode values are included, truncated to 32 bytes and ASCII-quoted.
+
+The required initial validation test run failed before implementation with
+`ValidateCreate undefined` and `ValidateRegister undefined` using
+`go test ./nomad/structs -run '^TestDynamicHostVolume.*Validat' -count=1`.
+Public matrix assertions and fixture outcomes remain unchanged/unresolved.
+No persisted type shape changed, so no codec generation is needed for this work;
+normal and `codegen_generated` package tests exercise the existing serializers.
+
 The HTTP delete table includes a delete suffix while its example omits it.
 The claim delete table uses a plural collection while its example uses singular.
 These conflicts must be resolved with permitted independent black-box requests
