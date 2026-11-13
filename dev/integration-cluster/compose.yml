@@ -24,13 +24,10 @@ x-consul-server: &consul-server
     timeout: 2s
     retries: 60
 
+# --- built once by `make node-image`, not per service ---
 x-wander: &wander
-  build:
-    context: ./node
-    args:
-      WANDER_IMAGE: ${WANDER_IMAGE:-ghcr.io/open-wander/wander:0.1.1}
-      CONSUL_IMAGE: hashicorp/consul:${CONSUL_VERSION:-2.1.0}
   image: wander-it-node:consul${CONSUL_VERSION:-2.1.0}
+  pull_policy: never
   privileged: true
   cgroup: private
   depends_on:

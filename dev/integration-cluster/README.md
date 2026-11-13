@@ -85,6 +85,9 @@ than docker, exec and raw_exec.
 - **Clients run their own dockerd.** A shared host socket breaks alloc-dir bind
   mounts, bridge-mode netns paths, and each client's dangling-container
   reconciler kills the others' containers.
+- **Consul node IDs come from the hostname.** A recreated node gets a fresh
+  Consul agent; with a random ID, the Consul servers refuse it as a rename of
+  the still-registered node and drop everything it registers.
 - **Images are preloaded** from `.cache/images.tar` (busybox, the pause image,
   the Envoy version Consul advertises) so runs don't depend on Docker Hub from
   inside nested daemons. Delete `.cache/` after changing `ENVOY_VERSION`.

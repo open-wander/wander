@@ -81,9 +81,15 @@ fi
 
 join_args=()
 for addr in ${CONSUL_JOIN:-}; do join_args+=("-retry-join=$addr"); done
+
+# --- ID from the hostname: a recreated node keeps its name ---
+node_id=$(printf '%s' "$(hostname)" | md5sum |
+  sed -E 's/^(.{8})(.{4})(.{4})(.{4})(.{12}).*/\1-\2-\3-\4-\5/')
+
 consul agent \
   -data-dir=/var/lib/consul \
   -node="$(hostname)" \
+  -node-id="$node_id" \
   -bind="$ip" \
   -client=0.0.0.0 \
   -hcl='ports { grpc = 8502 }' \

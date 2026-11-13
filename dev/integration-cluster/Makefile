@@ -36,11 +36,13 @@ UI_DEPS    := $(REPO_ROOT)/ui/node_modules/.package-lock.json
 ENVOY_VERSION ?= 1.39.1
 IMAGES := busybox:1.37 gcr.io/google_containers/pause-amd64:3.1 envoyproxy/envoy:v$(ENVOY_VERSION)
 
+NODE_IMAGE := wander-it-node:consul$(CONSUL_VERSION)
+
 ifeq ($(WANDER_IMAGE),wander-local)
 UP_DEPS := local-image
 endif
 
-.PHONY: help images wander-bin local-image up down test logs ps env
+.PHONY: help images wander-bin local-image node-image up down test logs ps env
 
 help:
 	@printf '%s\n' \
@@ -88,8 +90,22 @@ local-image: wander-bin
 
 images: .cache/images.tar
 
-up: images $(UP_DEPS)
-	$(COMPOSE) up -d --build --wait --remove-orphans
+# -------------------------------------------------------------------------
+# NODE IMAGE
+#
+# One build for all six nodes. Compose would build a copy per service, each
+# stamped with its service name, so every `up` saw a changed image and
+# recreated the nodes. An unchanged rebuild keeps the same image ID here.
+# -------------------------------------------------------------------------
+
+node-image: $(UP_DEPS)
+	docker build -q -t $(NODE_IMAGE) \
+	  --build-arg WANDER_IMAGE=$(WANDER_IMAGE) \
+	  --build-arg CONSUL_IMAGE=hashicorp/consul:$(CONSUL_VERSION) \
+	  node
+
+up: images node-image
+	$(COMPOSE) up -d --wait --remove-orphans
 	@echo "$(WANDER_IMAGE)" > .cache/wander-image
 	@echo; echo "cluster up: wander=$(WANDER_IMAGE) consul=$(CONSUL_VERSION) vault=$(VAULT_VERSION)"
 	@echo "  wander: http://10.77.0.31:4646/ui/  consul: http://10.77.0.11:8500/ui/  vault: http://10.77.0.20:8200 (token root)"
