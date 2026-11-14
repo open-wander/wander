@@ -1,0 +1,182 @@
+# -------------------------------------------------------------------------------
+# compose.yml -- Wander integration cluster
+#
+# Project: Wander
+#
+# Three Consul servers (10.77.0.11-13), a dev Vault (10.77.0.20, root token
+# "root"), three Wander servers (10.77.0.31-33) and three Wander clients
+# (10.77.0.41-43). The addresses are routed from the Linux host, so nothing is
+# published. Host NOMAD_*, CONSUL_* and VAULT_* variables are never
+# interpolated here, since the operator's shell may hold real credentials.
+# -------------------------------------------------------------------------------
+
+name: wander-it
+
+# -------------------------------------------------------------------------
+# SHARED SETTINGS
+# -------------------------------------------------------------------------
+
+x-consul-server: &consul-server
+  image: hashicorp/consul:${CONSUL_VERSION:-2.1.0}
+  healthcheck:
+    test: ["CMD-SHELL", "consul operator raft list-peers | grep -q leader"]
+    interval: 2s
+    timeout: 2s
+    retries: 60
+
+# --- built once by `make node-image`, not per service ---
+x-wander: &wander
+  image: wander-it-node:consul${CONSUL_VERSION:-2.1.0}
+  pull_policy: never
+  privileged: true
+  cgroup: private
+  depends_on:
+    consul-server-1: { condition: service_healthy }
+    vault-init:      { condition: service_completed_successfully }
+
+x-wander-server: &wander-server
+  <<: *wander
+  volumes:
+    - ./config/server.hcl:/etc/wander/agent.hcl:ro
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://127.0.0.1:4646/v1/status/leader | grep -q 4647"]
+    interval: 2s
+    timeout: 2s
+    retries: 90
+
+x-wander-client: &wander-client
+  <<: *wander
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://127.0.0.1:4646/v1/agent/self | jq -e '.stats.client.known_servers != \"\"' >/dev/null"]
+    interval: 2s
+    timeout: 2s
+    retries: 120
+
+x-consul-args: &consul-args
+  - agent
+  - -server
+  - -bootstrap-expect=3
+  - -client=0.0.0.0
+  - -ui
+  - -retry-join=10.77.0.11
+  - -retry-join=10.77.0.12
+  - -retry-join=10.77.0.13
+  - -hcl=connect { enabled = true }
+  - -hcl=ports { grpc = 8502 }
+
+# -------------------------------------------------------------------------
+# SERVICES
+# -------------------------------------------------------------------------
+
+services:
+  # --- Consul servers ---
+  consul-server-1:
+    <<: *consul-server
+    hostname: consul-server-1
+    command: *consul-args
+    environment: { CONSUL_BIND_INTERFACE: eth0 }
+    networks: { it: { ipv4_address: 10.77.0.11 } }
+  consul-server-2:
+    <<: *consul-server
+    hostname: consul-server-2
+    command: *consul-args
+    environment: { CONSUL_BIND_INTERFACE: eth0 }
+    networks: { it: { ipv4_address: 10.77.0.12 } }
+  consul-server-3:
+    <<: *consul-server
+    hostname: consul-server-3
+    command: *consul-args
+    environment: { CONSUL_BIND_INTERFACE: eth0 }
+    networks: { it: { ipv4_address: 10.77.0.13 } }
+
+  # --- Vault, and the one-shot setup the servers wait for ---
+  vault:
+    image: hashicorp/vault:${VAULT_VERSION:-2.2.2}
+    hostname: vault
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    networks: { it: { ipv4_address: 10.77.0.20 } }
+    healthcheck:
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  vault-init:
+    image: hashicorp/vault:${VAULT_VERSION:-2.2.2}
+    entrypoint: ["/bin/sh", "/init/init.sh"]
+    volumes:
+      - ./vault-init.sh:/init/init.sh:ro
+      - ../vault/nomad-server-policy.hcl:/init/nomad-server-policy.hcl:ro
+      - ../vault/nomad-cluster-role.json:/init/nomad-cluster-role.json:ro
+    networks: { it: { ipv4_address: 10.77.0.21 } }
+    depends_on:
+      vault: { condition: service_healthy }
+
+  # --- Wander servers ---
+  wander-server-1:
+    <<: *wander-server
+    hostname: wander-server-1
+    environment: &server-env
+      ROLE: server
+      CONSUL_JOIN: 10.77.0.11 10.77.0.12 10.77.0.13
+    networks: { it: { ipv4_address: 10.77.0.31 } }
+  wander-server-2:
+    <<: *wander-server
+    hostname: wander-server-2
+    environment: *server-env
+    networks: { it: { ipv4_address: 10.77.0.32 } }
+  wander-server-3:
+    <<: *wander-server
+    hostname: wander-server-3
+    environment: *server-env
+    networks: { it: { ipv4_address: 10.77.0.33 } }
+
+  # --- Wander clients, each with its own Docker data volume ---
+  wander-client-1:
+    <<: *wander-client
+    hostname: wander-client-1
+    environment: &client-env
+      ROLE: client
+      CONSUL_JOIN: 10.77.0.11 10.77.0.12 10.77.0.13
+    volumes:
+      - ./config/client.hcl:/etc/wander/agent.hcl:ro
+      - ./.cache/images.tar:/preload/images.tar:ro
+      - client-1-docker:/var/lib/docker
+    networks: { it: { ipv4_address: 10.77.0.41 } }
+  wander-client-2:
+    <<: *wander-client
+    hostname: wander-client-2
+    environment: *client-env
+    volumes:
+      - ./config/client.hcl:/etc/wander/agent.hcl:ro
+      - ./.cache/images.tar:/preload/images.tar:ro
+      - client-2-docker:/var/lib/docker
+    networks: { it: { ipv4_address: 10.77.0.42 } }
+  wander-client-3:
+    <<: *wander-client
+    hostname: wander-client-3
+    environment: *client-env
+    volumes:
+      - ./config/client.hcl:/etc/wander/agent.hcl:ro
+      - ./.cache/images.tar:/preload/images.tar:ro
+      - client-3-docker:/var/lib/docker
+    networks: { it: { ipv4_address: 10.77.0.43 } }
+
+# -------------------------------------------------------------------------
+# VOLUMES AND NETWORK
+# -------------------------------------------------------------------------
+
+volumes:
+  client-1-docker:
+  client-2-docker:
+  client-3-docker:
+
+networks:
+  it:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.77.0.0/24
