@@ -1,6 +1,6 @@
 module github.com/open-wander/wander/api
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/docker/go-units v0.5.0
@@ -9,7 +9,7 @@ require (
 	github.com/hashicorp/cronexpr v1.1.2
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/go-rootcerts v1.0.2
+	github.com/hashicorp/go-rootcerts v1.1.0
 	github.com/mitchellh/go-testing-interface v1.14.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/shoenig/test v1.13.2
