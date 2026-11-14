@@ -5,6 +5,7 @@ package paginator
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/go-bexpr"
 	"github.com/open-wander/wander/nomad/structs"
@@ -99,15 +100,7 @@ func (p *Paginator) next() (interface{}, paginatorState) {
 	// have we found the token we're seeking (if any)?
 	p.nextToken = token
 
-	var passedToken bool
-
-	if p.reverse {
-		passedToken = token > p.seekingToken
-	} else {
-		passedToken = token < p.seekingToken
-	}
-
-	if !p.nextTokenFound && passedToken {
+	if !p.nextTokenFound && p.passedToken(raw, token) {
 		return nil, paginatorSkip
 	}
 
@@ -132,6 +125,22 @@ func (p *Paginator) next() (interface{}, paginatorState) {
 	}
 
 	return raw, paginatorInclude
+}
+
+// passedToken reports whether an element sorts before the token being sought
+// in iteration order, which means an earlier page already returned it.
+func (p *Paginator) passedToken(raw interface{}, token string) bool {
+	var c int
+	if comparer, ok := p.tokenizer.(Comparer); ok {
+		c = comparer.Compare(raw, p.seekingToken)
+	} else {
+		c = strings.Compare(token, p.seekingToken)
+	}
+
+	if p.reverse {
+		return c > 0
+	}
+	return c < 0
 }
 
 type paginatorState int
