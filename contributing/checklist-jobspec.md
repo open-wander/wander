@@ -41,7 +41,6 @@ required in the original `jobspec` package.
 
 * [ ] Changelog
 * [ ] Jobspec entry https://openwander.org/wander/docs/job-specification/index.html
-* [ ] Jobspec sidebar entry https://github.com/hashicorp/nomad/blob/main/website/data/docs-navigation.js
 * [ ] Job JSON API entry https://openwander.org/wander/api/json-jobs.html
 * [ ] Sample Response output in API https://openwander.org/wander/api/jobs.html
 * [ ] Consider if it needs a guide https://openwander.org/wander/guides/index.html

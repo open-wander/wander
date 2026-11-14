@@ -23,10 +23,10 @@ version.
 ## Code
 
 The
-[`update_golang_version.sh`](https://github.com/hashicorp/nomad/blob/main/scripts/update_golang_version.sh)
+[`update_golang_version.sh`](../scripts/update_golang_version.sh)
 script is used to update the Go version for all build tools.
 
-The [Changelog](https://github.com/hashicorp/nomad/blob/main/CHANGELOG.md)
+The [Changelog](../CHANGELOG.md)
 will note when the Go version has changed in the Improvements section:
 
 ```

@@ -123,6 +123,6 @@ Time                       Type        Description
 2023-03-20T16:22:07-04:00  Received    Task received by client
 ```
 
-[built-in drivers]: https://github.com/hashicorp/nomad/blob/main/helper/pluginutils/catalog/register.go
-[not compiled with the release tag]: https://github.com/hashicorp/nomad/blob/main/helper/pluginutils/catalog/register_testing.go
-[`drivers/mock`]: https://github.com/hashicorp/nomad/tree/main/drivers/mock
+[built-in drivers]: ../helper/pluginutils/catalog/register.go
+[not compiled with the release tag]: ../helper/pluginutils/catalog/register_testing.go
+[`drivers/mock`]: ../drivers/mock

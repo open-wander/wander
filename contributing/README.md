@@ -1,11 +1,19 @@
-Nomad Codebase Documentation
+Wander Codebase Documentation
 ===
 
-This directory contains some documentation about the Nomad codebase,
+This directory contains some documentation about the Wander codebase,
 aimed at readers who are interested in making code contributions.
 
-If you're looking for information on _using_ Nomad, please instead refer
-to the [Nomad website](https://nomadproject.io).
+If you're looking for information on _using_ Wander, please instead refer
+to the [Wander 0.1.0 operator runbook](../docs/operations/0.1.0-runbook.md).
+
+Source rule
+---
+Wander does not accept code copied from the HashiCorp Nomad repository. Read
+[CONTRIBUTING.md](../CONTRIBUTING.md) before opening a pull request. The
+documents in this directory describe the Wander source tree. They are not a
+guide to the Nomad repository, and links in them point to files in this
+repository.
 
 Developing with Vagrant
 ---
@@ -15,8 +23,8 @@ A development environment is supplied via Vagrant to make getting started easier
 1. Install [Virtualbox](https://www.virtualbox.org/)
 1. Bring up the Vagrant project
     ```sh
-    $ git clone https://github.com/hashicorp/nomad.git
-    $ cd nomad
+    $ git clone https://github.com/open-wander/wander.git
+    $ cd wander
     $ vagrant up
     ```
 
@@ -78,17 +86,17 @@ a lightweight Linux VM alternative that works natively on ARM-based Macs.
 
 Developing without Vagrant
 ---
-1. Install [Go 1.21.5+](https://golang.org/) *(Note: `gcc-go` is not supported)*
+1. Install the [Go](https://go.dev/) version named in `.go-version` *(Note: `gcc-go` is not supported)*
 1. Clone this repo
    ```sh
-   $ git clone https://github.com/hashicorp/nomad.git
-   $ cd nomad
+   $ git clone https://github.com/open-wander/wander.git
+   $ cd wander
    ```
 1. Bootstrap your environment
    ```sh
    $ make bootstrap
    ```
-1. (Optionally) Set a higher ulimit, as Nomad creates many file handles during normal operations
+1. (Optionally) Set a higher ulimit, as Wander creates many file handles during normal operations
    ```sh
    $ [ "$(ulimit -n)" -lt 1024 ] && ulimit -n 1024
    ```
@@ -106,11 +114,11 @@ Running a development build
 1. Compile a development binary
     ```sh
     $ make dev
-    # find the built binary at ./bin/nomad
+    # find the built binary at ./bin/wander
     ```
 1. Start the agent in dev mode
     ```sh
-    $ sudo bin/nomad agent -dev
+    $ sudo bin/wander agent -dev
     ```
 1. (Optionally) Run Consul to enable service discovery and health checks
     1. Download [Consul](https://www.consul.io/downloads)
@@ -132,11 +140,11 @@ If in the course of your development you change a Protobuf file (those ending in
 
 Building the Web UI
 ---
-The UI is built using HTMX, Templ, and Tailwind CSS. See the `ui-htmx/` directory for details.
+The UI is built using HTMX, Templ, and Tailwind CSS. See the `ui/` directory for details.
 
 To run the UI in development mode:
 ```sh
-cd ui-htmx && make dev
+cd ui && make dev
 ```
 
 Create a release binary
@@ -149,25 +157,28 @@ $ make release
 $ ls ./pkg
 ```
 
-This will generate all the static assets, compile Nomad for multiple
+This will generate all the static assets, compile Wander for multiple
 platforms and place the resulting binaries into the `./pkg` directory.
 
 API Compatibility
 --------------------
-Only the `api/` and `plugins/` packages are intended to be imported by other projects. The root Nomad module does not follow semver and is not intended to be imported directly by other projects.
+Only the `api/` and `plugins/` packages are intended to be imported by other projects. The root Wander module does not follow semver and is not intended to be imported directly by other projects.
 
 ## Architecture
 
-The code for Nomad's major components is organized as:
+The code for Wander's major components is organized as follows. Directory,
+package and type names inherited from the 1.6.5 baseline keep the `nomad` name
+(see [the compatibility boundary](../docs/compatibility-boundary.md)):
 
-* `api/` provides a Go client for Nomad's HTTP API.
-* `client/` contains Nomad's client agent code.
-* `command/` contains Nomad's CLI code.
-* `nomad/` contains Nomad's server agent code.
-* `ui-htmx/` contains Wander's UI code (HTMX, Templ, Tailwind CSS).
-* `website/` contains Nomad's website and documentation.
+* `api/` provides a Go client for Wander's HTTP API.
+* `client/` contains Wander's client agent code.
+* `command/` contains Wander's CLI code.
+* `nomad/` contains Wander's server agent code.
+* `ui/` contains Wander's UI code (HTMX, Templ, Tailwind CSS).
+* `site/` contains the Wander website.
+* `website/` contains the inherited Nomad website. It is reference-only and is not published.
 
-The high level control flow for many Nomad actions (via the CLI or UI) are:
+The high level control flow for many Wander actions (via the CLI or UI) are:
 
 ```
 # Read actions:
@@ -180,7 +191,7 @@ Client -> HTTP API -> RPC -> Raft -> FSM -> StateStore
 Checklists
 ---
 
-When adding new features to Nomad there are often many places to make changes.
+When adding new features to Wander there are often many places to make changes.
 It is difficult to determine where changes must be made and easy to make
 mistakes.
 

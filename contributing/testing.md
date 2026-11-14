@@ -35,5 +35,5 @@ exercises.
 
 # CI Plumbing
 
-See [ci/README.md] for details on how the [Core CI Tests](https://github.com/hashicorp/nomad/actions/workflows/test-core.yaml)
+See [ci/README.md] for details on how the [Core CI Tests](https://github.com/open-wander/wander/actions/workflows/test-core.yaml)
 Github Action works.

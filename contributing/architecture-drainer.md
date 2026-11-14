@@ -177,9 +177,9 @@ flowchart TD
 
 [`nomad node drain`]: https://openwander.org/wander/docs/commands/node/drain
 [node drain tutorial]: https://openwander.org/wander/tutorials/manage-clusters/node-drain
-[`nomad/drainer`]: https://github.com/hashicorp/nomad/tree/main/nomad/drainer
-[`watch_nodes.go`]: https://github.com/hashicorp/nomad/blob/main/nomad/drainer/watch_nodes.go
-[`watch_jobs.go`]: https://github.com/hashicorp/nomad/blob/main/nomad/drainer/watch_jobs.go
-[`drain_heap.go`]: https://github.com/hashicorp/nomad/blob/main/nomad/drainer/drain_heap.go
-[`nomad/drainer_shims.go`]: https://github.com/hashicorp/nomad/blob/main/nomad/drainer_shims.go
+[`nomad/drainer`]: ../nomad/drainer
+[`watch_nodes.go`]: ../nomad/drainer/watch_nodes.go
+[`watch_jobs.go`]: ../nomad/drainer/watch_jobs.go
+[`drain_heap.go`]: ../nomad/drainer/drain_heap.go
+[`nomad/drainer_shims.go`]: ../nomad/drainer_shims.go
 [`migrate`]: https://openwander.org/wander/docs/job-specification/migrate

@@ -18,3 +18,8 @@ make -C site serve
 and are intentionally ignored. The build currently prepares the canonical
 `/wander/docs/` and `/wander/tutorials/` routes, but deployment remains a
 separate operation until the `openwander.org` hosting target is confirmed.
+
+## Contributing
+
+Wander does not accept code copied from the HashiCorp Nomad repository. Read
+[CONTRIBUTING.md](../CONTRIBUTING.md) before opening a pull request.

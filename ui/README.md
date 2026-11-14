@@ -262,3 +262,8 @@ go run cmd/dev/main.go -port 8080 -log-level debug
 This is the in-progress replacement for the legacy Ember.js UI. Current
 coverage and remaining work are tracked in
 [`docs/plans/ui-feature-status.md`](../docs/plans/ui-feature-status.md).
+
+## Contributing
+
+Wander does not accept code copied from the HashiCorp Nomad repository. Read
+[CONTRIBUTING.md](../CONTRIBUTING.md) before opening a pull request.
