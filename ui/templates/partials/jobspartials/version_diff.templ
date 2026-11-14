@@ -114,14 +114,14 @@ templ versionChangeRow(change VersionChange) {
 				<div class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{ strings.Join(change.Annotations, ", ") }</div>
 			}
 		</td>
-		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap break-words text-red-800">
+		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap wrap-break-word text-red-800">
 			if change.Old == "" {
 				<span class="text-neutral-400">—</span>
 			} else {
 				{ change.Old }
 			}
 		</td>
-		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap break-words text-green-800">
+		<td class="px-3 py-2 min-w-52 font-mono whitespace-pre-wrap wrap-break-word text-green-800">
 			if change.New == "" {
 				<span class="text-neutral-400">—</span>
 			} else {

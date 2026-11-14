@@ -72,7 +72,7 @@ templ DetailContent(deploy DeploymentDetail) {
 								hx-post={ deploymentScopedURL("/api/deployments/" + url.PathEscape(deploy.ID) + "/promote", deploy) }
 								hx-swap="none"
 								hx-confirm="Promote all healthy canaries for this deployment?"
-								class="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+								class="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-primary-700 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
 							>
 								Promote canaries
 							</button>
@@ -82,7 +82,7 @@ templ DetailContent(deploy DeploymentDetail) {
 							hx-post={ deploymentScopedURL("/api/deployments/" + url.PathEscape(deploy.ID) + "/fail", deploy) }
 							hx-swap="none"
 							hx-confirm="Fail this deployment? This may trigger an automatic revert if configured."
-							class="inline-flex items-center rounded-md bg-error-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-error-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-600"
+							class="inline-flex items-center rounded-md bg-error-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-error-700 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-600"
 						>
 							Fail deployment
 						</button>

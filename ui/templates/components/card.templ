@@ -136,11 +136,11 @@ func cardClasses(props CardProps) string {
 
 	// Override base border/shadow if props specify
 	if !props.Border {
-		classes += " !border-0"
+		classes += " border-0!"
 	}
 
 	if !props.Shadow {
-		classes += " !shadow-none"
+		classes += " shadow-none!"
 	}
 
 	// Add hover effects for clickable cards
