@@ -49,11 +49,11 @@ apt-get upgrade -y
 # Set hostname -> IP to make advertisement work as expected
 ip=$(ip route get 1 | awk '{print $NF; exit}')
 hostname=$(hostname)
-sed -i -e "s/.*nomad.*/${ip} ${hostname}/" /etc/hosts
+sed -i -e "s/.*wander.*/${ip} ${hostname}/" /etc/hosts
 
 # Ensure we cd into the working directory on login
 if [ -d /home/vagrant/ ] ; then
-  if ! grep "cd /opt/gopath/src/github.com/hashicorp/nomad" /home/vagrant/.profile ; then
-    echo 'cd /opt/gopath/src/github.com/hashicorp/nomad' >> /home/vagrant/.profile
+  if ! grep "cd /opt/gopath/src/github.com/open-wander/wander" /home/vagrant/.profile ; then
+    echo 'cd /opt/gopath/src/github.com/open-wander/wander' >> /home/vagrant/.profile
   fi
 fi

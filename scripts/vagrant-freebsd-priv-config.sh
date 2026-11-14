@@ -34,5 +34,5 @@ cat <<EOT >> /home/vagrant/.profile
 export GOPATH=/opt/gopath
 export PATH=\$GOPATH/bin:\$PATH
 
-cd /opt/gopath/src/github.com/hashicorp/nomad
+cd /opt/gopath/src/github.com/open-wander/wander
 EOT

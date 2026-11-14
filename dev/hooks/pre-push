@@ -8,14 +8,6 @@ fail () {
     exit 1
 }
 
-# only push to oss when the enterprise version is absent
-# ====================
-oss="git@github.com:hashicorp/nomad.git"
-ent="git@github.com:hashicorp/nomad-enterprise.git"
-if [ "$2" != "$ent" -a -f version/version_ent.go ]; then
-    fail "found enterprise version file version/version_ent.go while pushing to oss remote"
-fi
-
 # do not push directly to main, stable-*, release/*
 # ====================
 while read local_ref local_sha remote_ref remote_sha

@@ -17,12 +17,12 @@ Vagrant.configure(2) do |config|
 
 		vmCfg = configureLinuxProvisioners(vmCfg)
 
-        # Expose Nomad and Consul ports for ease.
+        # Expose Wander and Consul ports for ease.
 		vmCfg.vm.network :forwarded_port, guest: 4646, host: 4646, auto_correct: true, host_ip: "127.0.0.1"
 		vmCfg.vm.network :forwarded_port, guest: 8500, host: 8500, auto_correct: true, host_ip: "127.0.0.1"
 
 		vmCfg.vm.synced_folder '.',
-			'/opt/gopath/src/github.com/hashicorp/nomad'
+			'/opt/gopath/src/github.com/open-wander/wander'
 
 		vmCfg.vm.provision "shell",
 			privileged: false,
@@ -42,13 +42,13 @@ Vagrant.configure(2) do |config|
 		vmCfg = configureLinuxProvisioners(vmCfg)
 
 		vmCfg.vm.synced_folder '.',
-			'/opt/gopath/src/github.com/hashicorp/nomad'
+			'/opt/gopath/src/github.com/open-wander/wander'
 
 		vmCfg.vm.provision "shell",
 			privileged: false,
 			path: './scripts/vagrant-linux-unpriv-bootstrap.sh'
 
-		# Expose the nomad api and ui to the host
+		# Expose the Wander API and UI to the host
 		vmCfg.vm.network :forwarded_port, guest: 4646, host: 4646, auto_correct: true
 		vmCfg.vm.network :forwarded_port, guest: 8500, host: 8500, auto_correct: true
 
@@ -65,7 +65,7 @@ Vagrant.configure(2) do |config|
 			cpus: suggestedCPUCores()
 		vmCfg.vm.network "private_network", type: "dhcp"
 		vmCfg.vm.synced_folder '.',
-			'/opt/gopath/src/github.com/hashicorp/nomad',
+			'/opt/gopath/src/github.com/open-wander/wander',
 			type: "nfs",
 			bsd__nfs_options: ['noatime']
 
@@ -80,8 +80,8 @@ Vagrant.configure(2) do |config|
 
 	# Test Cluster (Linux)
 	1.upto(3) do |n|
-		serverName = "nomad-server%02d" % [n]
-		clientName = "nomad-client%02d" % [n]
+		serverName = "wander-server%02d" % [n]
+		clientName = "wander-client%02d" % [n]
 		serverIP = "192.168.56.%d" % [10 + n]
 		clientIP = "192.168.56.%d" % [20 + n]
 
@@ -96,7 +96,7 @@ Vagrant.configure(2) do |config|
 			end
 
 			vmCfg.vm.synced_folder '.',
-				'/opt/gopath/src/github.com/hashicorp/nomad'
+				'/opt/gopath/src/github.com/open-wander/wander'
 
 			vmCfg.vm.provision "shell",
 				privileged: true,
@@ -114,7 +114,7 @@ Vagrant.configure(2) do |config|
 			end
 
 			vmCfg.vm.synced_folder '.',
-				'/opt/gopath/src/github.com/hashicorp/nomad'
+				'/opt/gopath/src/github.com/open-wander/wander'
 
 			vmCfg.vm.provision "shell",
 				privileged: true,

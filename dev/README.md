@@ -4,7 +4,7 @@ Nomad itself.
 See the individual packages for more detail on how to use the configuration
 files. At a high-level the use case for each package is as follows:
 
-* `hooks`: This package provides helpful git hooks for developing Nomad.
+* `hooks`: This package provides helpful git hooks for developing Wander.
 
 * `docker-clients`: This package provides a Nomad job file that can be used to
   spin up Nomad clients in Docker containers. This provides a simple mechanism
