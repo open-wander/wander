@@ -1,6 +1,6 @@
 module github.com/open-wander/wander/tools
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/aws/aws-sdk-go v1.44.249

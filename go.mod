@@ -1,6 +1,6 @@
 module github.com/open-wander/wander
 
-go 1.27.3
+go 1.27.4
 
 // Pinned dependencies are noted in github.com/hashicorp/nomad/issues/11826
 replace (
