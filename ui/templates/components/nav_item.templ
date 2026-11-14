@@ -68,7 +68,7 @@ templ NavigationItem(props NavigationItemProps) {
 	if props.Disabled {
 		<span class={ navItemDisabledClasses(props) }>
 			if props.Icon != "" {
-				@Icon(IconProps{Name: props.Icon, Size: "md", Class: "flex-shrink-0"})
+				@Icon(IconProps{Name: props.Icon, Size: "md", Class: "shrink-0"})
 			}
 			<span class="flex-1">{ props.Label }</span>
 			if props.Badge != "" {
@@ -84,7 +84,7 @@ templ NavigationItem(props NavigationItemProps) {
 			}
 		>
 			if props.Icon != "" {
-				@Icon(IconProps{Name: props.Icon, Size: "md", Class: "flex-shrink-0"})
+				@Icon(IconProps{Name: props.Icon, Size: "md", Class: "shrink-0"})
 			}
 			<span class="flex-1">{ props.Label }</span>
 			if props.Badge != "" {

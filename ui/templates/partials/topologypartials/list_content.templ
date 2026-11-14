@@ -98,7 +98,7 @@ templ ListContent(data TopologyData) {
 				</p>
 			</div>
 		</div>
-		<form id="topology-filters" class="mb-6 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white p-4 shadow-sm dark:bg-neutral-900" method="get" action="/ui/topology" hx-get="/ui/topology" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+		<form id="topology-filters" class="mb-6 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white p-4 shadow-xs dark:bg-neutral-900" method="get" action="/ui/topology" hx-get="/ui/topology" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
 			if data.Namespace != "" {
 				<input type="hidden" name="namespace" value={ data.Namespace }/>
 			}
@@ -120,14 +120,14 @@ templ ListContent(data TopologyData) {
 					if hasActiveTopologyFilters(data.Filters) {
 						<a href={ templ.SafeURL(topologyClearURL(data)) } hx-get={ topologyClearURL(data) } hx-target="#main-content" hx-push-url="true" class="px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">Clear filters</a>
 					}
-					<button type="submit" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply filters</button>
+					<button type="submit" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply filters</button>
 				</div>
 			</div>
 		</form>
 		<!-- Cluster Statistics -->
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 			<!-- Total Nodes -->
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-4">
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-4">
 				<div class="flex items-center justify-between">
 					<div>
 						<p class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Nodes</p>
@@ -143,7 +143,7 @@ templ ListContent(data TopologyData) {
 				</div>
 			</div>
 			<!-- Ready Nodes -->
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-4">
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-4">
 				<div class="flex items-center justify-between">
 					<div>
 						<p class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Ready Nodes</p>
@@ -159,7 +159,7 @@ templ ListContent(data TopologyData) {
 				</div>
 			</div>
 			<!-- Total Allocations -->
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-4">
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-4">
 				<div class="flex items-center justify-between">
 					<div>
 						<p class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Allocations</p>
@@ -175,7 +175,7 @@ templ ListContent(data TopologyData) {
 				</div>
 			</div>
 			<!-- CPU Usage -->
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-4">
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-4">
 				<div class="flex items-center justify-between">
 					<div class="flex-1 mr-3">
 						<p class="text-sm font-medium text-neutral-600 dark:text-neutral-400">CPU Allocated</p>
@@ -201,7 +201,7 @@ templ ListContent(data TopologyData) {
 		<div class="space-y-6">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Datacenters</h2>
 			if len(data.Datacenters) == 0 {
-				<div class="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white p-8 text-center shadow-sm dark:bg-neutral-900">
+				<div class="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white p-8 text-center shadow-xs dark:bg-neutral-900">
 					<h3 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">No clients match these filters</h3>
 					<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">Adjust or clear the topology filters to restore the graph.</p>
 				</div>
@@ -216,7 +216,7 @@ templ ListContent(data TopologyData) {
 
 // datacenterCard renders a single datacenter with its nodes.
 templ datacenterCard(dc Datacenter, data TopologyData) {
-	<div class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+	<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 		<!-- Datacenter Header -->
 		<div class="bg-neutral-100 dark:bg-neutral-800 px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
 			<div class="flex items-center justify-between">
@@ -269,7 +269,7 @@ templ nodeCard(node Node, data TopologyData) {
 		<!-- Node Class -->
 		if node.NodeClass != "" {
 			<div class="mb-3">
-				<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+				<span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
 					{ node.NodeClass }
 				</span>
 			</div>
@@ -377,7 +377,7 @@ templ topologyCapacityTrack(node Node, resource string) {
 			<span class="font-medium text-neutral-700 dark:text-neutral-300">{ topologyResourceLabel(resource) }</span>
 			<span class="text-neutral-500 dark:text-neutral-400">{ topologyCapacityLabel(node, resource) }</span>
 		</div>
-		<div class="flex h-7 overflow-hidden rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900" role="list" aria-label={ topologyTrackAriaLabel(node, resource) }>
+		<div class="flex h-7 overflow-hidden rounded-sm border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900" role="list" aria-label={ topologyTrackAriaLabel(node, resource) }>
 			for _, allocation := range node.AllocationItems {
 				if topologyReservationPercent(allocation, node, resource) > 0 {
 					<a
@@ -563,7 +563,7 @@ func topologyReservationSegmentClasses(status string) string {
 }
 
 func topologyPlacementSegmentClasses(status string) string {
-	return topologyReservationSegmentClasses(status) + " rounded border-0"
+	return topologyReservationSegmentClasses(status) + " rounded-sm border-0"
 }
 
 // truncateID truncates a node ID to first 8 characters.
@@ -577,7 +577,7 @@ func truncateID(id string) string {
 templ topologyFilterSelect(name, label, emptyLabel, selected string, options []string) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>{ label }</span>
-		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:text-neutral-100">
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:text-neutral-100">
 			if emptyLabel != "" {
 				<option value="">{ emptyLabel }</option>
 			}

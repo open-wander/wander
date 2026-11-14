@@ -57,7 +57,7 @@ templ ConnectionStatus(props ConnectionStatusProps) {
 			x-transition:leave="transition ease-in duration-150"
 			x-transition:leave-start="opacity-100 scale-100"
 			x-transition:leave-end="opacity-0 scale-95"
-			class="absolute right-0 top-8 z-50 w-64 rounded-md bg-white dark:bg-neutral-800 shadow-lg ring-1 ring-black ring-opacity-5 p-3 dark:ring-white dark:ring-opacity-10 md:hidden"
+			class="absolute right-0 top-8 z-50 w-64 rounded-md bg-white dark:bg-neutral-800 shadow-lg ring-1 ring-black/5 p-3 dark:ring-white/10 md:hidden"
 		>
 			<div class="text-sm">
 				<div class="font-medium text-neutral-900 dark:text-neutral-100 mb-1" x-text="statusText"></div>

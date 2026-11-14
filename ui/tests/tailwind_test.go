@@ -48,7 +48,7 @@ func TestTailwindBaseStyles(t *testing.T) {
 
 	// Check for Tailwind's CSS reset variables (always present)
 	requiredPatterns := []string{
-		"--tw-",                    // Tailwind CSS variables
+		"--tw-", // Tailwind CSS variables
 	}
 
 	for _, pattern := range requiredPatterns {
@@ -71,8 +71,8 @@ func TestTailwindCustomClasses(t *testing.T) {
 
 	// HTMX indicator class is always included (defined in utilities layer)
 	expectedClasses := []string{
-		".htmx-indicator",         // HTMX loading indicator
-		"opacity",                 // Should have opacity utilities
+		".htmx-indicator", // HTMX loading indicator
+		"opacity",         // Should have opacity utilities
 	}
 
 	for _, class := range expectedClasses {
@@ -82,28 +82,33 @@ func TestTailwindCustomClasses(t *testing.T) {
 	}
 }
 
-// TestTailwindConfigValid verifies the tailwind.config.js exists and is readable
+// TestTailwindConfigValid verifies the shared theme file and the source paths
+// declared in input.css.
 func TestTailwindConfigValid(t *testing.T) {
-	configPath := filepath.Join("..", "tailwind.config.js")
+	configPath := filepath.Join("..", "static", "css", "tailwind-theme.css")
 
 	content, err := os.ReadFile(configPath)
 	if err != nil {
-		t.Fatalf("Failed to read tailwind.config.js: %v", err)
+		t.Fatalf("Failed to read tailwind-theme.css: %v", err)
 	}
 
 	configContent := string(content)
 
-	// Verify content paths are configured
+	input, err := os.ReadFile(filepath.Join("..", "static", "css", "input.css"))
+	if err != nil {
+		t.Fatalf("Failed to read input.css: %v", err)
+	}
+
+	// Verify source paths are declared
 	requiredPaths := []string{
-		"./templates/**/*.templ",
-		"./templates/**/*.go",
-		"./handlers/**/*.go",
-		"./static/js/**/*.js",
+		`@source "../../templates"`,
+		`@source "../../handlers"`,
+		`@source "../js"`,
 	}
 
 	for _, path := range requiredPaths {
-		if !strings.Contains(configContent, path) {
-			t.Errorf("tailwind.config.js missing content path: %s", path)
+		if !strings.Contains(string(input), path) {
+			t.Errorf("input.css missing source path: %s", path)
 		}
 	}
 
@@ -115,15 +120,15 @@ func TestTailwindConfigValid(t *testing.T) {
 
 	for _, plugin := range requiredPlugins {
 		if !strings.Contains(configContent, plugin) {
-			t.Errorf("tailwind.config.js missing plugin: %s", plugin)
+			t.Errorf("tailwind-theme.css missing plugin: %s", plugin)
 		}
 	}
 
 	// Verify custom colors are defined
-	if !strings.Contains(configContent, "primary") ||
-	   !strings.Contains(configContent, "success") ||
-	   !strings.Contains(configContent, "error") {
-		t.Error("tailwind.config.js missing custom color definitions")
+	if !strings.Contains(configContent, "--color-primary-500") ||
+		!strings.Contains(configContent, "--color-success-500") ||
+		!strings.Contains(configContent, "--color-error-500") {
+		t.Error("tailwind-theme.css missing custom color definitions")
 	}
 }
 
@@ -138,11 +143,9 @@ func TestInputCSSExists(t *testing.T) {
 
 	inputContent := string(content)
 
-	// Verify Tailwind directives are present
+	// Verify the shared Tailwind setup is imported
 	requiredDirectives := []string{
-		"@tailwind base",
-		"@tailwind components",
-		"@tailwind utilities",
+		`@import "./tailwind-theme.css"`,
 	}
 
 	for _, directive := range requiredDirectives {

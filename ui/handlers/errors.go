@@ -73,7 +73,7 @@ func renderForbiddenPartial(err ForbiddenError) string {
 
 	html := `<div class="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 p-6">
 	<div class="flex">
-		<div class="flex-shrink-0">
+		<div class="shrink-0">
 			<svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 				<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
 			</svg>
@@ -84,9 +84,9 @@ func renderForbiddenPartial(err ForbiddenError) string {
 				<p>` + message + `</p>`
 
 	if err.Capability != "" {
-		html += `<p class="mt-2"><strong>Required capability:</strong> <code class="px-1.5 py-0.5 bg-red-100 dark:bg-red-900 rounded">` + err.Capability + `</code>`
+		html += `<p class="mt-2"><strong>Required capability:</strong> <code class="px-1.5 py-0.5 bg-red-100 dark:bg-red-900 rounded-sm">` + err.Capability + `</code>`
 		if err.Namespace != "" {
-			html += ` in namespace <code class="px-1.5 py-0.5 bg-red-100 dark:bg-red-900 rounded">` + err.Namespace + `</code>`
+			html += ` in namespace <code class="px-1.5 py-0.5 bg-red-100 dark:bg-red-900 rounded-sm">` + err.Namespace + `</code>`
 		}
 		html += `</p>`
 	}
@@ -144,7 +144,7 @@ func renderForbiddenPage(err ForbiddenError) string {
 	if err.Capability != "" {
 		html += `<div class="bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-4">
 					<p class="text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">Required Permission:</p>
-					<div class="font-mono text-sm bg-white dark:bg-neutral-800 px-3 py-2 rounded border border-gray-300 dark:border-neutral-600">
+					<div class="font-mono text-sm bg-white dark:bg-neutral-800 px-3 py-2 rounded-sm border border-gray-300 dark:border-neutral-600">
 						<span class="text-blue-600">` + err.Capability + `</span>`
 		if err.Namespace != "" {
 			html += ` <span class="text-gray-500 dark:text-neutral-400">in namespace</span> <span class="text-green-600">` + err.Namespace + `</span>`
@@ -171,7 +171,7 @@ func renderForbiddenPage(err ForbiddenError) string {
 	html += `</div>
 
 			<div class="text-center">
-				<a href="/ui/" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+				<a href="/ui/" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
 					<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
 					</svg>
@@ -230,7 +230,7 @@ func renderNotFoundPartial(err NotFoundError) string {
 
 	html := `<div class="rounded-lg bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-900 p-6">
 	<div class="flex">
-		<div class="flex-shrink-0">
+		<div class="shrink-0">
 			<svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 				<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
 			</svg>
@@ -241,7 +241,7 @@ func renderNotFoundPartial(err NotFoundError) string {
 				<p>` + message + `</p>`
 
 	if err.RequestPath != "" {
-		html += `<p class="mt-2"><strong>Requested:</strong> <code class="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900 rounded">` + err.RequestPath + `</code></p>`
+		html += `<p class="mt-2"><strong>Requested:</strong> <code class="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900 rounded-sm">` + err.RequestPath + `</code></p>`
 	}
 
 	if len(err.Suggestions) > 0 {
@@ -300,7 +300,7 @@ func renderNotFoundPage(err NotFoundError) string {
 	if err.RequestPath != "" {
 		html += `<div class="bg-gray-50 dark:bg-neutral-950 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-4">
 					<p class="text-sm font-medium text-gray-700 dark:text-neutral-300 mb-2">Requested Path:</p>
-					<div class="font-mono text-sm bg-white dark:bg-neutral-800 px-3 py-2 rounded border border-gray-300 dark:border-neutral-600">
+					<div class="font-mono text-sm bg-white dark:bg-neutral-800 px-3 py-2 rounded-sm border border-gray-300 dark:border-neutral-600">
 						<span class="text-gray-900 dark:text-neutral-100">` + err.RequestPath + `</span>
 					</div>
 				</div>`
@@ -324,7 +324,7 @@ func renderNotFoundPage(err NotFoundError) string {
 	html += `</div>
 
 			<div class="text-center">
-				<a href="/ui/" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+				<a href="/ui/" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
 					<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
 					</svg>
@@ -373,7 +373,7 @@ func renderClusterUnavailablePartial(err ClusterUnavailableError) string {
 
 	html := `<div class="rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900 p-6">
 	<div class="flex">
-		<div class="flex-shrink-0">
+		<div class="shrink-0">
 			<svg class="h-6 w-6 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 				<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
 			</svg>
@@ -398,7 +398,7 @@ func renderClusterUnavailablePartial(err ClusterUnavailableError) string {
 	}
 
 	html += `<div class="mt-4">
-					<button onclick="location.reload()" class="text-sm px-3 py-1.5 bg-orange-600 text-white rounded hover:bg-orange-700">
+					<button onclick="location.reload()" class="text-sm px-3 py-1.5 bg-orange-600 text-white rounded-sm hover:bg-orange-700">
 						Retry
 					</button>
 				</div>
@@ -475,7 +475,7 @@ func renderClusterUnavailablePage(err ClusterUnavailableError) string {
 					</svg>
 					<span>Auto-refreshing in 10 seconds...</span>
 				</div>
-				<button onclick="location.reload()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+				<button onclick="location.reload()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
 					<svg class="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
 					</svg>

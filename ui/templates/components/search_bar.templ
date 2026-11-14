@@ -100,7 +100,7 @@ templ SearchBar(props SearchBarProps) {
 				<!-- Clear Button -->
 				<button
 					type="button"
-					class="text-neutral-400 hover:text-neutral-600 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 rounded dark:hover:text-neutral-200 dark:focus:ring-offset-neutral-900"
+					class="text-neutral-400 hover:text-neutral-600 transition-colors duration-150 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 rounded-sm dark:hover:text-neutral-200 dark:focus:ring-offset-neutral-900"
 					@click="clear()"
 					aria-label="Clear search"
 					style="display: none;"
@@ -111,7 +111,7 @@ templ SearchBar(props SearchBarProps) {
 				</button>
 				<!-- Keyboard Shortcut Hint (hidden when focused) -->
 				<div
-					class="text-xs text-neutral-400 font-medium px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-200 dark:border-neutral-700"
+					class="text-xs text-neutral-400 font-medium px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-sm border border-neutral-200 dark:border-neutral-700"
 					data-search-bar-hint
 					x-ref="hint"
 				>

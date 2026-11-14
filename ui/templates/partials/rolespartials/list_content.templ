@@ -28,7 +28,7 @@ templ ListContent(items []RoleSummary, search string) {
 		<div class="mb-6">
 			@components.SearchBar(components.SearchBarProps{Name: "search", Placeholder: "Search roles by name or description...", Value: search, SearchURL: "/ui/access-control/roles", ResultsID: "roles-table-container", Debounce: 300})
 		</div>
-		<div id="roles-table-container" class="overflow-hidden rounded-lg bg-white shadow dark:bg-neutral-900">
+		<div id="roles-table-container" class="overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-900">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "name", Label: "Name", Align: "left"},

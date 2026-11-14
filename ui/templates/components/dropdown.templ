@@ -94,7 +94,7 @@ templ DropdownMenu(props DropdownProps) {
 		x-transition:leave-start="transform opacity-100 scale-100"
 		x-transition:leave-end="transform opacity-0 scale-95"
 		class={
-			"absolute z-50 mt-2 rounded-md bg-white dark:bg-neutral-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:ring-white dark:ring-opacity-10",
+			"absolute z-50 mt-2 rounded-md bg-white dark:bg-neutral-800 shadow-lg ring-1 ring-black/5 focus:outline-hidden dark:ring-white/10",
 			dropdownPositionClass(props.Position),
 			dropdownWidthClass(props.Width),
 		}
@@ -220,7 +220,7 @@ templ DropdownDividerItem() {
 templ dropdownItemIcon(iconName string, isDanger bool) {
 	<svg
 		class={
-			"mr-3 h-5 w-5 flex-shrink-0",
+			"mr-3 h-5 w-5 shrink-0",
 			templ.KV("text-neutral-400 group-hover:text-neutral-500 dark:text-neutral-500 dark:group-hover:text-neutral-300", !isDanger),
 			templ.KV("text-red-400 group-hover:text-red-500", isDanger),
 		}

@@ -60,7 +60,7 @@ templ LogsTabContent(props LogsTabProps) {
 							id="task-select"
 							x-model="selectedTask"
 							@change="switchTask()"
-							class="block w-full pl-3 pr-10 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-neutral-800"
+							class="block w-full pl-3 pr-10 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md shadow-xs focus:outline-hidden focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-neutral-800"
 						>
 							for _, task := range props.Tasks {
 								<option value={ task }>{ task }</option>
@@ -69,7 +69,7 @@ templ LogsTabContent(props LogsTabProps) {
 					</div>
 				}
 				<!-- Log Type Toggle (stdout/stderr/both) -->
-				<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Log stream">
+				<div class="inline-flex rounded-md shadow-xs" role="group" aria-label="Log stream">
 					<button
 						type="button"
 						@click="setLogType('stdout')"
@@ -78,7 +78,7 @@ templ LogsTabContent(props LogsTabProps) {
 							'bg-primary-600 text-white border-primary-600': logType === 'stdout',
 							'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50': logType !== 'stdout'
 						}"
-						class="px-3 py-2 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						class="px-3 py-2 text-sm font-medium border rounded-l-md focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>
 						stdout
 					</button>
@@ -90,7 +90,7 @@ templ LogsTabContent(props LogsTabProps) {
 							'bg-primary-600 text-white border-primary-600': logType === 'stderr',
 							'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50': logType !== 'stderr'
 						}"
-						class="-ml-px px-3 py-2 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						class="-ml-px px-3 py-2 text-sm font-medium border focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>
 						stderr
 					</button>
@@ -102,33 +102,33 @@ templ LogsTabContent(props LogsTabProps) {
 							'bg-primary-600 text-white border-primary-600': logType === 'both',
 							'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50': logType !== 'both'
 						}"
-						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>
 						both
 					</button>
 				</div>
 				<!-- Log Position Toggle -->
-				<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Log position">
+				<div class="inline-flex rounded-md shadow-xs" role="group" aria-label="Log position">
 					<button
 						type="button"
 						@click="setViewMode('head')"
 						:class="viewMode === 'head' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50'"
 						data-log-action="head"
-						class="px-3 py-2 text-sm font-medium border rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						class="px-3 py-2 text-sm font-medium border rounded-l-md focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>Head</button>
 					<button
 						type="button"
 						@click="setViewMode('live')"
 						:class="viewMode === 'live' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50'"
 						data-log-action="live"
-						class="-ml-px px-3 py-2 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						class="-ml-px px-3 py-2 text-sm font-medium border focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>Live</button>
 					<button
 						type="button"
 						@click="setViewMode('tail')"
 						:class="viewMode === 'tail' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50'"
 						data-log-action="tail"
-						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+						class="-ml-px px-3 py-2 text-sm font-medium border rounded-r-md focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 					>Tail</button>
 				</div>
 				<button
@@ -137,7 +137,7 @@ templ LogsTabContent(props LogsTabProps) {
 					:aria-pressed="wrapLines"
 					:class="wrapLines ? 'bg-primary-50 text-primary-700 border-primary-300' : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50'"
 					data-log-wrap-toggle
-					class="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					class="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 				>Word Wrap</button>
 				<!-- Pause/Resume Button -->
 				<button
@@ -148,7 +148,7 @@ templ LogsTabContent(props LogsTabProps) {
 						'bg-warning-100 text-warning-700 border-warning-300': isPaused,
 						'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50': !isPaused
 					}"
-					class="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					class="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 				>
 					<template x-if="isPaused">
 						<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,7 +168,7 @@ templ LogsTabContent(props LogsTabProps) {
 					type="button"
 					@click="clearLogs()"
 					data-log-clear
-					class="inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					class="inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 				>
 					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -180,7 +180,7 @@ templ LogsTabContent(props LogsTabProps) {
 					type="button"
 					@click="downloadLogs()"
 					data-log-download
-					class="inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+					class="inline-flex items-center px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 				>
 					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
@@ -299,7 +299,7 @@ templ LogsTabContent(props LogsTabProps) {
 				x-cloak
 				@click="scrollToBottom()"
 				aria-label="Scroll to latest log line"
-				class="absolute bottom-4 right-4 bg-primary-600 text-white p-2 rounded-full shadow-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-opacity"
+				class="absolute bottom-4 right-4 bg-primary-600 text-white p-2 rounded-full shadow-lg hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-opacity"
 			>
 				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
@@ -314,7 +314,7 @@ templ LogsTabContent(props LogsTabProps) {
 					<input
 						type="checkbox"
 						x-model="showTimestamps"
-						class="rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500"
+						class="rounded-sm border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500"
 					/>
 					<span>Show timestamps</span>
 				</label>

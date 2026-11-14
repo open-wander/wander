@@ -1,6 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "./tailwind-theme.css";
+
+@source "../../templates";
+@source "../../handlers";
+@source "../js";
 
 /* ============================================
    BASE LAYER - Typography, Forms, Defaults
@@ -14,7 +16,7 @@
      Focus Styles
      ---------------------------------------- */
   *:focus-visible {
-    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+    @apply outline-hidden ring-2 ring-primary-500 ring-offset-2;
   }
 
   .dark *:focus-visible {
@@ -149,7 +151,7 @@
      Typography - Code & Pre
      ---------------------------------------- */
   code {
-    @apply bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded text-sm font-mono;
+    @apply bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded-sm text-sm font-mono;
     @apply border border-neutral-200;
   }
 
@@ -169,7 +171,7 @@
 
   kbd {
     @apply inline-flex items-center justify-center px-2 py-0.5 text-xs font-mono font-medium;
-    @apply bg-neutral-100 text-neutral-700 border border-neutral-300 rounded shadow-sm;
+    @apply bg-neutral-100 text-neutral-700 border border-neutral-300 rounded-sm shadow-xs;
   }
 
   .dark kbd {
@@ -248,10 +250,10 @@
   input[type="datetime-local"],
   textarea {
     @apply block w-full px-3 py-2 text-base;
-    @apply bg-white border border-neutral-300 rounded-md shadow-sm;
+    @apply bg-white border border-neutral-300 rounded-md shadow-xs;
     @apply placeholder-neutral-400;
     @apply transition-colors duration-150;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+    @apply focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
   }
 
   .dark input[type="text"],
@@ -278,9 +280,9 @@
      ---------------------------------------- */
   select {
     @apply block w-full px-3 py-2 text-base;
-    @apply bg-white border border-neutral-300 rounded-md shadow-sm;
+    @apply bg-white border border-neutral-300 rounded-md shadow-xs;
     @apply transition-colors duration-150;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+    @apply focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
     @apply cursor-pointer;
   }
 
@@ -311,7 +313,7 @@
   }
 
   input[type="checkbox"] {
-    @apply rounded;
+    @apply rounded-sm;
   }
 
   input[type="radio"] {
@@ -452,7 +454,7 @@
     @apply px-4 py-2 rounded-md;
     @apply text-sm font-medium leading-none;
     @apply transition-all duration-150 ease-in-out;
-    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply focus:outline-hidden focus:ring-2 focus:ring-offset-2;
     @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none;
     @apply select-none cursor-pointer;
   }
@@ -524,7 +526,7 @@
   }
 
   .btn-outline-primary {
-    @apply btn-outline border-primary-600 text-primary-600;
+    @apply bg-transparent border-2 border-primary-600 text-primary-600;
     @apply hover:bg-primary-50 active:bg-primary-100;
     @apply focus:ring-primary-500;
   }
@@ -535,7 +537,7 @@
   }
 
   .btn-outline-danger {
-    @apply btn-outline border-error-600 text-error-600;
+    @apply bg-transparent border-2 border-error-600 text-error-600;
     @apply hover:bg-error-50 active:bg-error-100;
     @apply focus:ring-error-500;
   }
@@ -549,7 +551,7 @@
      Buttons - Size Variants
      ---------------------------------------- */
   .btn-xs {
-    @apply px-2 py-1 text-xs rounded;
+    @apply px-2 py-1 text-xs rounded-sm;
   }
 
   .btn-sm {
@@ -572,7 +574,7 @@
   }
 
   .btn-icon-sm {
-    @apply p-1.5 rounded;
+    @apply p-1.5 rounded-sm;
   }
 
   .btn-icon-lg {
@@ -589,10 +591,10 @@
      ---------------------------------------- */
   .input {
     @apply block w-full px-3 py-2 text-base;
-    @apply bg-white border border-neutral-300 rounded-md shadow-sm;
+    @apply bg-white border border-neutral-300 rounded-md shadow-xs;
     @apply placeholder-neutral-400;
     @apply transition-colors duration-150;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+    @apply focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
   }
 
   .dark .input {
@@ -601,7 +603,7 @@
   }
 
   .input-sm {
-    @apply px-2.5 py-1.5 text-sm rounded;
+    @apply px-2.5 py-1.5 text-sm rounded-sm;
   }
 
   .input-lg {
@@ -683,7 +685,7 @@
 
   .checkbox-label input,
   .radio-label input {
-    @apply flex-shrink-0;
+    @apply shrink-0;
   }
 
   /* ----------------------------------------
@@ -872,7 +874,7 @@
   }
 
   .alert-icon {
-    @apply flex-shrink-0 w-5 h-5;
+    @apply shrink-0 w-5 h-5;
   }
 
   .alert-content {
@@ -1043,7 +1045,7 @@
   }
 
   .tooltip-content {
-    @apply absolute z-50 px-2 py-1 text-xs font-medium text-white bg-neutral-900 rounded;
+    @apply absolute z-50 px-2 py-1 text-xs font-medium text-white bg-neutral-900 rounded-sm;
     @apply whitespace-nowrap pointer-events-none;
     @apply opacity-0 transition-opacity duration-150;
   }
@@ -1193,11 +1195,11 @@
      ---------------------------------------- */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.neutral.300') theme('colors.neutral.100');
+    scrollbar-color: var(--color-neutral-300) var(--color-neutral-100);
   }
 
   .dark .scrollbar-thin {
-    scrollbar-color: theme('colors.neutral.600') theme('colors.neutral.800');
+    scrollbar-color: var(--color-neutral-600) var(--color-neutral-800);
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -1206,7 +1208,7 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
-    @apply bg-neutral-100 rounded;
+    @apply bg-neutral-100 rounded-sm;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
@@ -1278,31 +1280,36 @@
      Skeleton Loaders
      ---------------------------------------- */
   .skeleton {
-    @apply animate-pulse bg-neutral-200 rounded;
+    @apply animate-pulse bg-neutral-200 rounded-sm;
   }
 
-  .dark .skeleton {
+  .dark .skeleton,
+  .dark .skeleton-text,
+  .dark .skeleton-title,
+  .dark .skeleton-avatar,
+  .dark .skeleton-button,
+  .dark .skeleton-card {
     @apply bg-neutral-700;
   }
 
   .skeleton-text {
-    @apply skeleton h-4 w-full;
+    @apply animate-pulse bg-neutral-200 rounded-sm h-4 w-full;
   }
 
   .skeleton-title {
-    @apply skeleton h-6 w-3/4;
+    @apply animate-pulse bg-neutral-200 rounded-sm h-6 w-3/4;
   }
 
   .skeleton-avatar {
-    @apply skeleton rounded-full w-10 h-10;
+    @apply animate-pulse bg-neutral-200 rounded-full w-10 h-10;
   }
 
   .skeleton-button {
-    @apply skeleton h-10 w-24 rounded-md;
+    @apply animate-pulse bg-neutral-200 h-10 w-24 rounded-md;
   }
 
   .skeleton-card {
-    @apply skeleton h-32 w-full rounded-lg;
+    @apply animate-pulse bg-neutral-200 h-32 w-full rounded-lg;
   }
 
   /* ----------------------------------------
@@ -1376,7 +1383,7 @@
   }
 
   .focusable {
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
   }
 
   .dark .focusable {

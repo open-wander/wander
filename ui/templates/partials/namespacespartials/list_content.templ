@@ -28,7 +28,7 @@ templ ListContent(namespacesList []NamespaceSummary) {
 			</div>
 		</div>
 		<!-- Namespaces Table Container -->
-		<div id="namespaces-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div id="namespaces-table-container" class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "name", Label: "Name", Sortable: false, Align: "left", Width: "w-48"},

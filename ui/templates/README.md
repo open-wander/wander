@@ -182,7 +182,7 @@ All templates should follow accessibility best practices:
 
 ## Tailwind CSS
 
-Styling uses Tailwind CSS utility classes. Custom colors are defined in `tailwind.config.js`:
+Styling uses Tailwind CSS utility classes. Custom colors are defined in `static/css/tailwind-theme.css`:
 - `primary` - Blue shades for main actions
 - `success` - Green for successful states
 - `warning` - Amber for warning states

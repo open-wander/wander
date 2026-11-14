@@ -48,7 +48,7 @@ Output: `ui-htmx/static/css/output.css`
 
 - **`.air.toml`**: Air hot-reload configuration
 - **`cmd/dev/main.go`**: Development server entry point
-- **`tailwind.config.js`**: Tailwind CSS configuration
+- **`static/css/tailwind-theme.css`**: Tailwind CSS theme and plugins
 
 ## Common Tasks
 
@@ -96,7 +96,7 @@ Or edit `.air.toml` to pass custom flags:
 |-----------|----------|---------|
 | `*.templ` | Air | Generate templates, rebuild Go server, restart |
 | `*.go` | Air | Rebuild Go server, restart |
-| `*.css`, `tailwind.config.js` | Tailwind | Rebuild CSS |
+| `*.css` | Tailwind | Rebuild CSS |
 | Template files (for classes) | Tailwind | Rebuild CSS (if watch running) |
 
 ## Troubleshooting
@@ -107,7 +107,7 @@ Or edit `.air.toml` to pass custom flags:
 
 ### CSS not updating
 - Ensure Tailwind is watching: `make ui-css-watch`
-- Check `tailwind.config.js` content paths include your files
+- Check the `@source` paths in `static/css/input.css` include your files
 - Clear browser cache
 
 ### Port already in use

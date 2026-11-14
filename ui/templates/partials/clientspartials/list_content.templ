@@ -80,7 +80,7 @@ templ ListContent(props ListProps) {
 				</p>
 			</div>
 		</div>
-		<form class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/clients" hx-get="/ui/clients" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+		<form class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-xs dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/clients" hx-get="/ui/clients" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
 			if props.Filters.Namespace != "" {
 				<input type="hidden" name="namespace" value={ props.Filters.Namespace }/>
 			}
@@ -90,7 +90,7 @@ templ ListContent(props ListProps) {
 			<input type="hidden" name="sort" value={ props.SortColumn }/>
 			<input type="hidden" name="dir" value={ props.SortDir }/>
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300"><span>Search</span><input type="search" name="search" value={ props.Filters.Search } placeholder="Name, address, ID, pool, version, or volume" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"/></label>
+				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300"><span>Search</span><input type="search" name="search" value={ props.Filters.Search } placeholder="Name, address, ID, pool, version, or volume" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-xs dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"/></label>
 				@clientFilterSelect("status", "State", "All states", props.Filters.Status, []string{"initializing", "ready", "down", "disconnected", "ineligible", "draining"})
 				@clientFilterSelect("nodepool", "Node pool", "All node pools", props.Filters.NodePool, props.FilterOptions.NodePools)
 				@clientFilterSelect("nodeclass", "Class", "All classes", props.Filters.NodeClass, props.FilterOptions.NodeClasses)
@@ -103,11 +103,11 @@ templ ListContent(props ListProps) {
 				if hasActiveFilters(props.Filters) {
 					<a href={ templ.SafeURL(clientClearFiltersURL(props)) } hx-get={ clientClearFiltersURL(props) } hx-target="#main-content" hx-push-url="true" class="px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400">Clear filters</a>
 				}
-				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500">Apply filters</button>
+				<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-primary-500">Apply filters</button>
 			</div>
 		</form>
 		<!-- Clients Table Container -->
-		<div id="clients-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div id="clients-table-container" class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 			@ClientsTable(props)
 		</div>
 	</div>
@@ -393,7 +393,7 @@ func formatClientVolumes(volumes []string) string {
 templ clientFilterSelect(name, label, placeholder, selected string, options []string) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>{ label }</span>
-		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-xs dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
 			<option value="">{ placeholder }</option>
 			for _, option := range options {
 				<option value={ option } selected?={ selected == option }>{ option }</option>
@@ -405,7 +405,7 @@ templ clientFilterSelect(name, label, placeholder, selected string, options []st
 templ clientPageSizeSelect(selected int) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>Rows per page</span>
-		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-xs dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
 			for _, option := range []int{10, 25, 50, 100} {
 				<option value={ fmt.Sprintf("%d", option) } selected?={ selected == option }>{ fmt.Sprintf("%d", option) }</option>
 			}

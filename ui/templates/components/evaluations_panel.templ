@@ -42,7 +42,7 @@ templ EvaluationsPanel(props EvaluationsPanelProps) {
 			x-transition:leave="transition-opacity ease-linear duration-300"
 			x-transition:leave-start="opacity-100"
 			x-transition:leave-end="opacity-0"
-			class="fixed inset-0 bg-black bg-opacity-50"
+			class="fixed inset-0 bg-black/50"
 			aria-hidden="true"
 		></div>
 		<!-- Panel -->
@@ -61,7 +61,7 @@ templ EvaluationsPanel(props EvaluationsPanelProps) {
 			>
 				<div class="h-full flex flex-col bg-white shadow-xl dark:bg-neutral-900">
 					<!-- Panel Header -->
-					<div class="flex-shrink-0 px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+					<div class="shrink-0 px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
 						<div class="flex items-center justify-between">
 							<h2
 								id={ "panel-title-" + props.ID }
@@ -72,7 +72,7 @@ templ EvaluationsPanel(props EvaluationsPanelProps) {
 							<button
 								type="button"
 								@click="close"
-								class="rounded-md text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:hover:text-neutral-200"
+								class="rounded-md text-neutral-400 hover:text-neutral-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:hover:text-neutral-200"
 								aria-label="Close panel"
 							>
 								<span class="sr-only">Close panel</span>

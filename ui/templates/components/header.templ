@@ -39,7 +39,7 @@ type RegionInfo struct {
 templ Header(props HeaderProps) {
 	<header
 		id="header"
-		class="flex-shrink-0 border-b border-neutral-200 dark:border-neutral-700 bg-white shadow-sm dark:bg-neutral-900"
+		class="shrink-0 border-b border-neutral-200 dark:border-neutral-700 bg-white shadow-xs dark:bg-neutral-900"
 		aria-label="Page header"
 		x-data="{ mobileMenuOpen: false }"
 	>
@@ -50,7 +50,7 @@ templ Header(props HeaderProps) {
 				<button
 					type="button"
 					@click="$dispatch('toggle-sidebar')"
-					class="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+					class="lg:hidden inline-flex items-center justify-center p-2 rounded-md text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 focus:outline-hidden focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-colors dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
 					aria-label="Toggle sidebar"
 				>
 					<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -64,7 +64,7 @@ templ Header(props HeaderProps) {
 							for i, crumb := range props.Breadcrumbs {
 								<li class="flex items-center">
 									if i > 0 {
-										<svg class="flex-shrink-0 h-5 w-5 text-neutral-400 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+										<svg class="shrink-0 h-5 w-5 text-neutral-400 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
 											<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
 										</svg>
 									}
@@ -87,18 +87,18 @@ templ Header(props HeaderProps) {
 				}
 			</div>
 			<!-- Right: Connection status, region selector, namespace selector and user menu -->
-			<div class="flex items-center space-x-4 flex-shrink-0">
+			<div class="flex items-center space-x-4 shrink-0">
 				<!-- Connection Status Indicator -->
 				@ConnectionStatus(ConnectionStatusProps{
 					ID: "global-connection-status",
 				})
 				<!-- Region Selector -->
 				if len(props.AvailableRegions) > 1 {
-					@Dropdown(DropdownProps{ID: "region-selector", Position: "right", Width: "md", Class: "hidden sm:inline-block"}) {
+					@Dropdown(DropdownProps{ID: "region-selector", Position: "right", Width: "md", Class: "max-sm:hidden"}) {
 						@DropdownTrigger() {
 							<button
 								type="button"
-								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 dark:hover:bg-neutral-700"
+								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-sm transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:hover:bg-neutral-700"
 								aria-label="Select region"
 							>
 								<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -130,11 +130,11 @@ templ Header(props HeaderProps) {
 				}
 				<!-- Namespace Selector -->
 				if len(props.AvailableNamespaces) > 0 {
-					@Dropdown(DropdownProps{ID: "namespace-selector", Position: "right", Width: "md", Class: "hidden sm:inline-block"}) {
+					@Dropdown(DropdownProps{ID: "namespace-selector", Position: "right", Width: "md", Class: "max-sm:hidden"}) {
 						@DropdownTrigger() {
 							<button
 								type="button"
-								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 dark:hover:bg-neutral-700"
+								class="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-sm transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:hover:bg-neutral-700"
 								aria-label="Select namespace"
 							>
 								<svg class="h-4 w-4 text-neutral-500 dark:text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -179,7 +179,7 @@ templ Header(props HeaderProps) {
 						@DropdownTrigger() {
 							<button
 								type="button"
-								class="flex items-center space-x-2 p-2 rounded-md hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors dark:hover:bg-neutral-800"
+								class="flex items-center space-x-2 p-2 rounded-md hover:bg-neutral-100 focus:outline-hidden focus:ring-2 focus:ring-primary-500 transition-colors dark:hover:bg-neutral-800"
 								aria-label="User menu"
 							>
 								<div class="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm">

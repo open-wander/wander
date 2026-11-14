@@ -132,7 +132,7 @@ type AllocationEvent struct {
 templ DetailContent(alloc AllocationDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Allocation Header -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 			<div class="flex items-start justify-between">
 				<div class="flex-1">
 					<div class="flex items-center space-x-4 mb-4">
@@ -190,7 +190,7 @@ templ DetailContent(alloc AllocationDetail) {
 							aria-modal="true"
 							aria-labelledby="restart-modal-title"
 						>
-							<div @click="showRestartModal = false" class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+							<div @click="showRestartModal = false" class="fixed inset-0 bg-black/50 transition-opacity"></div>
 							<div class="flex min-h-full items-center justify-center p-4">
 								<div
 									@click.stop
@@ -204,7 +204,7 @@ templ DetailContent(alloc AllocationDetail) {
 								>
 									<div class="bg-white dark:bg-neutral-800 px-6 py-5">
 										<div class="flex items-center">
-											<div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-yellow-100">
+											<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-yellow-100">
 												<svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
 												</svg>
@@ -282,7 +282,7 @@ templ DetailContent(alloc AllocationDetail) {
 							aria-modal="true"
 							aria-labelledby="stop-modal-title"
 						>
-							<div @click="showStopModal = false" class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+							<div @click="showStopModal = false" class="fixed inset-0 bg-black/50 transition-opacity"></div>
 							<div class="flex min-h-full items-center justify-center p-4">
 								<div
 									@click.stop
@@ -296,7 +296,7 @@ templ DetailContent(alloc AllocationDetail) {
 								>
 									<div class="bg-white dark:bg-neutral-800 px-6 py-5">
 										<div class="flex items-center">
-											<div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
+											<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100">
 												<svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
@@ -350,7 +350,7 @@ templ DetailContent(alloc AllocationDetail) {
 			</div>
 		</div>
 		<!-- Tabs -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6">
 			@components.Tabs(components.TabsProps{
 				Tabs: []components.Tab{
 					{

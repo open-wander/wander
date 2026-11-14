@@ -69,7 +69,7 @@ templ ToastContainer(props ToastContainerProps) {
 				>
 					<div class="flex items-start gap-3">
 						<!-- Icon -->
-						<div class="flex-shrink-0 pt-0.5">
+						<div class="shrink-0 pt-0.5">
 							<template x-if="toast.variant === 'success'">
 								<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
 									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"></path>
@@ -100,7 +100,7 @@ templ ToastContainer(props ToastContainerProps) {
 						<button
 							type="button"
 							@click="$store.toasts.remove(toast.id)"
-							class="flex-shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2"
+							class="shrink-0 rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2"
 							:class="$store.toasts.closeButtonClasses(toast.variant)"
 							aria-label="Close notification"
 						>
@@ -112,10 +112,10 @@ templ ToastContainer(props ToastContainerProps) {
 					<!-- Progress bar for auto-dismiss -->
 					<div
 						x-show="toast.duration > 0"
-						class="mt-2 h-1 bg-black bg-opacity-10 rounded-full overflow-hidden"
+						class="mt-2 h-1 bg-black/10 rounded-full overflow-hidden"
 					>
 						<div
-							class="h-full bg-black bg-opacity-20 transition-all ease-linear"
+							class="h-full bg-black/20 transition-all ease-linear"
 							:style="'width: ' + ((toast.remaining / toast.duration) * 100) + '%'"
 						></div>
 					</div>
@@ -148,7 +148,7 @@ templ Toast(props ToastProps) {
 	>
 		<div class="flex items-start gap-3">
 			<!-- Icon -->
-			<div class="flex-shrink-0 pt-0.5">
+			<div class="shrink-0 pt-0.5">
 				@toastIcon(props.Variant)
 			</div>
 			<!-- Content -->
@@ -163,7 +163,7 @@ templ Toast(props ToastProps) {
 			<!-- Close button -->
 			<button
 				type="button"
-				class={ "flex-shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 " + toastVariantHoverClass(props.Variant) + " " + toastVariantRingClass(props.Variant) }
+				class={ "shrink-0 rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2 " + toastVariantHoverClass(props.Variant) + " " + toastVariantRingClass(props.Variant) }
 				aria-label="Close notification"
 			>
 				<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">

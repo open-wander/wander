@@ -109,7 +109,7 @@ type TaskGroupSummary struct {
 templ DetailContent(job JobDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ startModal: false, stopModal: false, runModal: false, dispatchModal: false, forcePeriodicModal: false, purgeModal: false }">
 		<!-- Job Header -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-4">
 					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ job.Name }</h1>
@@ -177,7 +177,7 @@ templ DetailContent(job JobDetail) {
 			</div>
 		</div>
 		<!-- Tabs -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6">
 			@components.Tabs(components.TabsProps{
 				Tabs: []components.Tab{
 					{

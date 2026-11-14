@@ -58,7 +58,7 @@ templ ListContent(props ListProps) {
 			<div class="mt-4 sm:mt-0">
 				<a
 					href={ templ.SafeURL(variableScopedURL("/ui/variables/new", props.Namespace, props.Region)) }
-					class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-xs text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 				>
 					<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
@@ -79,13 +79,13 @@ templ ListContent(props ListProps) {
 					MinChars:    0,
 				})
 			</div>
-			<nav class="inline-flex rounded-md shadow-sm" aria-label="Variable view">
+			<nav class="inline-flex rounded-md shadow-xs" aria-label="Variable view">
 				@variableViewLink(props, "list", "List")
 				@variableViewLink(props, "tree", "Tree")
 			</nav>
 		</div>
 		<!-- Variables Table Container -->
-		<div id="variables-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div id="variables-table-container" class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 			if props.View == "tree" {
 				@variableTreeView(props)
 			} else {
@@ -197,7 +197,7 @@ templ variableViewLink(props ListProps, view string, label string) {
 }
 
 func variableViewLinkClasses(active bool) string {
-	base := "inline-flex items-center border px-4 py-2 text-sm font-medium first:rounded-l-md last:rounded-r-md focus:z-10 focus:outline-none focus:ring-2 focus:ring-primary-500"
+	base := "inline-flex items-center border px-4 py-2 text-sm font-medium first:rounded-l-md last:rounded-r-md focus:z-10 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
 	if active {
 		return base + " border-primary-600 bg-primary-600 text-white"
 	}
@@ -230,7 +230,7 @@ templ variableTreeNodes(nodes []VariablePathNode, namespace string, region strin
 		<li data-variable-tree-path={ node.Path }>
 			if len(node.Children) > 0 {
 				<details open class="group">
-					<summary class="cursor-pointer rounded px-2 py-1 font-medium text-neutral-800 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800">
+					<summary class="cursor-pointer rounded-sm px-2 py-1 font-medium text-neutral-800 hover:bg-neutral-50 dark:text-neutral-200 dark:hover:bg-neutral-800">
 						{ node.Segment }
 					</summary>
 					<div class="ml-4 border-l border-neutral-200 pl-3 dark:border-neutral-700">
@@ -252,7 +252,7 @@ templ variableTreeNodes(nodes []VariablePathNode, namespace string, region strin
 templ variableTreeRecord(variable VariableSummary, namespace string, region string, label string) {
 	<a
 		href={ templ.SafeURL(variableScopedURL("/ui/variables/"+url.PathEscape(variable.Path), namespace, region)) }
-		class="flex items-center justify-between gap-3 rounded px-2 py-2 text-sm text-primary-700 hover:bg-primary-50 hover:text-primary-800 dark:text-primary-400 dark:hover:bg-neutral-800"
+		class="flex items-center justify-between gap-3 rounded-sm px-2 py-2 text-sm text-primary-700 hover:bg-primary-50 hover:text-primary-800 dark:text-primary-400 dark:hover:bg-neutral-800"
 		hx-get={ variableScopedURL("/ui/variables/"+url.PathEscape(variable.Path), namespace, region) }
 		hx-target="#main-content"
 		hx-swap="innerHTML"

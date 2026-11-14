@@ -61,7 +61,7 @@ templ ExecTabContent(props ExecTabProps) {
 							id="exec-task-select"
 							x-model="selectedTask"
 							:disabled="connectionState === 'connected' || connectionState === 'connecting'"
-							class="block w-full pl-3 pr-10 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-neutral-800 disabled:bg-neutral-100 disabled:cursor-not-allowed"
+							class="block w-full pl-3 pr-10 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md shadow-xs focus:outline-hidden focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-neutral-800 disabled:bg-neutral-100 disabled:cursor-not-allowed"
 						>
 							for _, task := range props.Tasks {
 								<option value={ task }>{ task }</option>
@@ -78,7 +78,7 @@ templ ExecTabContent(props ExecTabProps) {
 						x-model="command"
 						:disabled="connectionState === 'connected' || connectionState === 'connecting'"
 						placeholder="/bin/sh"
-						class="block w-40 px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-neutral-800 disabled:bg-neutral-100 disabled:cursor-not-allowed font-mono"
+						class="block w-40 px-3 py-2 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md shadow-xs focus:outline-hidden focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-neutral-800 disabled:bg-neutral-100 disabled:cursor-not-allowed font-mono"
 					/>
 				</div>
 				<!-- Connect/Disconnect Button -->
@@ -91,7 +91,7 @@ templ ExecTabContent(props ExecTabProps) {
 						'bg-warning-500 cursor-wait': connectionState === 'connecting'
 					}"
 					:disabled="connectionState === 'connecting'"
-					class="inline-flex items-center px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50"
+					class="inline-flex items-center px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-hidden focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50"
 				>
 					<template x-if="connectionState === 'disconnected' || connectionState === 'complete' || connectionState === 'error'">
 						<span class="flex items-center">
@@ -145,7 +145,7 @@ templ ExecTabContent(props ExecTabProps) {
 					<button
 						type="button"
 						@click="toggleConnection()"
-						class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+						class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
 					>
 						<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
@@ -164,7 +164,7 @@ templ ExecTabContent(props ExecTabProps) {
 			<div x-show="connectionState === 'connected'" class="flex items-center gap-2">
 				<span class="text-success-600">Session active</span>
 				<span class="text-neutral-400">|</span>
-				<span>Press <kbd class="px-1.5 py-0.5 text-xs font-mono bg-neutral-200 rounded">Ctrl+D</kbd> to exit</span>
+				<span>Press <kbd class="px-1.5 py-0.5 text-xs font-mono bg-neutral-200 rounded-sm">Ctrl+D</kbd> to exit</span>
 			</div>
 			<div x-show="connectionState === 'complete'" class="flex items-center gap-2" data-exec-completion role="status" aria-live="polite">
 				<span>Session ended</span>
@@ -177,8 +177,8 @@ templ ExecTabContent(props ExecTabProps) {
 			<h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Exec Terminal Help</h4>
 			<ul class="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
 				<li>- Select a task and click <strong>Connect</strong> to start an interactive shell session</li>
-				<li>- The default command is <code class="px-1 py-0.5 bg-neutral-200 rounded font-mono text-xs">/bin/sh</code>, but you can change it to any executable</li>
-				<li>- Use <kbd class="px-1 py-0.5 text-xs font-mono bg-neutral-200 rounded">Ctrl+D</kbd> or type <code class="px-1 py-0.5 bg-neutral-200 rounded font-mono text-xs">exit</code> to end the session</li>
+				<li>- The default command is <code class="px-1 py-0.5 bg-neutral-200 rounded-sm font-mono text-xs">/bin/sh</code>, but you can change it to any executable</li>
+				<li>- Use <kbd class="px-1 py-0.5 text-xs font-mono bg-neutral-200 rounded-sm">Ctrl+D</kbd> or type <code class="px-1 py-0.5 bg-neutral-200 rounded-sm font-mono text-xs">exit</code> to end the session</li>
 				<li>- The terminal supports full ANSI colors and cursor positioning</li>
 			</ul>
 		</div>

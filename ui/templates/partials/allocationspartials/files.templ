@@ -37,7 +37,7 @@ templ FilesTabFull(props FilesTabProps) {
 					<select
 						id="task-select"
 						name="task"
-						class="block w-48 pl-3 pr-10 py-2 text-sm border-neutral-300 dark:border-neutral-600 focus:outline-none focus:ring-primary-500 focus:border-primary-500 rounded-md"
+						class="block w-48 pl-3 pr-10 py-2 text-sm border-neutral-300 dark:border-neutral-600 focus:outline-hidden focus:ring-primary-500 focus:border-primary-500 rounded-md"
 						hx-get={ "/ui/allocations/" + props.AllocID + "/files" }
 						hx-target="#files-container"
 						hx-include="[name='task']"
@@ -58,7 +58,7 @@ templ FilesTabFull(props FilesTabProps) {
 				<!-- Refresh Button -->
 				<button
 					type="button"
-					class="inline-flex items-center px-3 py-2 border border-neutral-300 dark:border-neutral-600 shadow-sm text-sm font-medium rounded-md text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					class="inline-flex items-center px-3 py-2 border border-neutral-300 dark:border-neutral-600 shadow-xs text-sm font-medium rounded-md text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 					hx-get={ "/ui/allocations/" + props.AllocID + "/files?task=" + props.SelectedTask }
 					hx-target="#files-container"
 					hx-swap="innerHTML"
@@ -106,7 +106,7 @@ templ FilesTabFull(props FilesTabProps) {
 			<!-- File Preview Panel -->
 			<div
 				id="file-preview-panel"
-				class="w-96 flex-shrink-0"
+				class="w-96 shrink-0"
 				x-show="previewOpen"
 				x-cloak
 			>
@@ -114,7 +114,7 @@ templ FilesTabFull(props FilesTabProps) {
 					<!-- Preview Header -->
 					<div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
 						<div class="flex items-center space-x-2 min-w-0">
-							<svg class="h-4 w-4 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="h-4 w-4 text-neutral-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
 							</svg>
 							<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate" x-text="previewFileName">file.txt</span>
@@ -188,7 +188,7 @@ templ directoryNode(entry FileEntry, allocID, task string, depth int) {
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
 				</svg>
 				<!-- Folder Icon -->
-				<svg class="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg class="h-5 w-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
 				</svg>
 				<!-- Directory Name -->
@@ -313,7 +313,7 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 			<img
 				src={ templ.SafeURL(props.ImageURL) }
 				alt={ props.FileName }
-				class="max-w-full max-h-[32rem] mx-auto object-contain rounded border border-neutral-200 dark:border-neutral-700"
+				class="max-w-full max-h-[32rem] mx-auto object-contain rounded-sm border border-neutral-200 dark:border-neutral-700"
 			/>
 			<figcaption class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{ props.FileName } ({ formatFileSize(props.Size) })</figcaption>
 		</figure>
@@ -336,10 +336,10 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 			<!-- File info header -->
 			<div class="flex items-center justify-between mb-2 px-1">
 				<span class="text-xs text-neutral-500 dark:text-neutral-400">{ formatFileSize(props.Size) }</span>
-				<span class="text-xs px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded">{ getLanguageLabel(props.FileName) }</span>
+				<span class="text-xs px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-sm">{ getLanguageLabel(props.FileName) }</span>
 			</div>
 			if props.Size > props.MaxSize {
-				<div class="mb-2 inline-flex rounded-md shadow-sm" role="group" aria-label="File preview position">
+				<div class="mb-2 inline-flex rounded-md shadow-xs" role="group" aria-label="File preview position">
 					<button
 						type="button"
 						hx-get={ FilePreviewModeURL(props, "head") }
@@ -365,12 +365,12 @@ templ FilePreviewEnhanced(props FilePreviewProps) {
 					><span x-text="isStreaming ? 'Stop Live' : 'Live'"></span></button>
 				</div>
 			}
-			<div x-show="streamError" x-cloak class="mb-2 px-3 py-2 text-xs text-error-700 bg-error-50 border border-error-200 rounded" x-text="streamError"></div>
+			<div x-show="streamError" x-cloak class="mb-2 px-3 py-2 text-xs text-error-700 bg-error-50 border border-error-200 rounded-sm" x-text="streamError"></div>
 			<!-- Truncation warning if applicable -->
 			if props.IsTruncated {
 				<div class="mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md">
 					<div class="flex items-center space-x-2">
-						<svg class="h-4 w-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="h-4 w-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
 						</svg>
 						<span class="text-xs text-amber-700">
@@ -1061,24 +1061,24 @@ func containsLogPattern(fileName string) bool {
 templ fileIcon(fileName string) {
 	switch getFileType(fileName) {
 		case "log":
-			<svg class="h-5 w-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<svg class="h-5 w-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
 			</svg>
 		case "config":
-			<svg class="h-5 w-5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<svg class="h-5 w-5 text-purple-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
 			</svg>
 		case "script":
-			<svg class="h-5 w-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<svg class="h-5 w-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
 			</svg>
 		case "binary":
-			<svg class="h-5 w-5 text-neutral-500 dark:text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<svg class="h-5 w-5 text-neutral-500 dark:text-neutral-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
 			</svg>
 		default:
-			<svg class="h-5 w-5 text-neutral-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<svg class="h-5 w-5 text-neutral-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
 			</svg>
 	}

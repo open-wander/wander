@@ -44,7 +44,7 @@ templ paginationContent(props PaginationProps, totalPages int) {
 					</p>
 				</div>
 				<div>
-					<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+					<nav class="isolate inline-flex -space-x-px rounded-md shadow-xs" aria-label="Pagination">
 						@prevButton(props, totalPages, false)
 						@pageNumbers(props, totalPages)
 						@nextButton(props, totalPages, false)

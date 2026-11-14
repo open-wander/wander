@@ -69,7 +69,7 @@ templ ToastExample() {
 			<p class="text-sm text-neutral-600">Toast triggered from server response</p>
 			<div class="bg-neutral-100 p-4 rounded-lg space-y-2">
 				<p class="text-sm font-medium">Server-side Go code:</p>
-				<pre class="text-xs bg-white p-3 rounded border border-neutral-200 overflow-x-auto">
+				<pre class="text-xs bg-white p-3 rounded-sm border border-neutral-200 overflow-x-auto">
 					<code>
 						{ `// Set HX-Trigger header in your HTTP response` }
 						{ "\n" }
@@ -84,7 +84,7 @@ templ ToastExample() {
 			<p class="text-sm text-neutral-600">Trigger toasts from vanilla JavaScript</p>
 			<div class="bg-neutral-100 p-4 rounded-lg space-y-2">
 				<p class="text-sm font-medium">Example:</p>
-				<pre class="text-xs bg-white p-3 rounded border border-neutral-200 overflow-x-auto">
+				<pre class="text-xs bg-white p-3 rounded-sm border border-neutral-200 overflow-x-auto">
 					<code>
 						{ `// From anywhere in your JavaScript` }
 						{ "\n" }
@@ -128,13 +128,13 @@ templ ToastExample() {
 			<div class="bg-neutral-100 p-4 rounded-lg space-y-2">
 				<p class="text-sm font-medium">Available positions:</p>
 				<ul class="text-xs space-y-1 list-disc list-inside">
-					<li><code class="bg-white px-1 py-0.5 rounded">top-right</code> - Top right corner (default)</li>
-					<li><code class="bg-white px-1 py-0.5 rounded">top-left</code> - Top left corner</li>
-					<li><code class="bg-white px-1 py-0.5 rounded">bottom-right</code> - Bottom right corner</li>
-					<li><code class="bg-white px-1 py-0.5 rounded">bottom-left</code> - Bottom left corner</li>
+					<li><code class="bg-white px-1 py-0.5 rounded-sm">top-right</code> - Top right corner (default)</li>
+					<li><code class="bg-white px-1 py-0.5 rounded-sm">top-left</code> - Top left corner</li>
+					<li><code class="bg-white px-1 py-0.5 rounded-sm">bottom-right</code> - Bottom right corner</li>
+					<li><code class="bg-white px-1 py-0.5 rounded-sm">bottom-left</code> - Bottom left corner</li>
 				</ul>
 				<p class="text-sm font-medium mt-3">Example in base layout:</p>
-				<pre class="text-xs bg-white p-3 rounded border border-neutral-200 overflow-x-auto">
+				<pre class="text-xs bg-white p-3 rounded-sm border border-neutral-200 overflow-x-auto">
 					<code>
 						{ `@ToastContainer(ToastContainerProps{` }
 						{ "\n" }

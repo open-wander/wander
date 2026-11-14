@@ -82,7 +82,7 @@ templ Modal(props ModalProps) {
 			if props.Closable {
 				@click="close"
 			}
-			class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+			class="fixed inset-0 bg-black/50 transition-opacity"
 			aria-hidden="true"
 		></div>
 		<!-- Modal positioning container -->
@@ -142,7 +142,7 @@ templ ModalHeader(props ModalHeaderProps) {
 				<button
 					type="button"
 					@click="close"
-					class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-neutral-800 dark:hover:text-neutral-200 dark:focus:ring-offset-neutral-800"
+					class="rounded-md bg-white text-neutral-400 hover:text-neutral-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-neutral-800 dark:hover:text-neutral-200 dark:focus:ring-offset-neutral-800"
 					aria-label="Close"
 				>
 					<span class="sr-only">Close</span>

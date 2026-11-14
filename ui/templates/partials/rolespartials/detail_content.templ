@@ -48,7 +48,7 @@ templ DetailContent(form RoleForm) {
 		if form.Error != "" {
 			<div class="mb-6 rounded-md border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800" role="alert">{ form.Error }</div>
 		}
-		<form method="post" action={ templ.SafeURL(roleFormAction(form)) } hx-post={ roleFormAction(form) } hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-neutral-900">
+		<form method="post" action={ templ.SafeURL(roleFormAction(form)) } hx-post={ roleFormAction(form) } hx-target="#main-content" class="space-y-6 rounded-lg bg-white p-6 shadow-sm dark:bg-neutral-900">
 			<div>
 				<label for="role-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Name</label>
 				<input id="role-name" name="name" value={ form.Role.Name } required class="mt-1 w-full rounded-md border border-neutral-300 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 dark:border-neutral-700"/>
@@ -64,8 +64,8 @@ templ DetailContent(form RoleForm) {
 						<p class="text-sm text-neutral-500 dark:text-neutral-400">No policies are available. Create a policy before creating a role.</p>
 					} else {
 						for _, policy := range form.Policies {
-							<label class="flex items-start gap-2 rounded p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800">
-								<input type="checkbox" name="policies" value={ policy.Value } checked?={ policy.Selected } class="mt-1 rounded border-neutral-300 dark:border-neutral-600"/>
+							<label class="flex items-start gap-2 rounded-sm p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+								<input type="checkbox" name="policies" value={ policy.Value } checked?={ policy.Selected } class="mt-1 rounded-sm border-neutral-300 dark:border-neutral-600"/>
 								<span>
 									<span class="block text-sm font-medium text-neutral-900 dark:text-neutral-100">{ policy.Label }</span>
 									if policy.Description != "" {

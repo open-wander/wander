@@ -32,7 +32,7 @@ templ ListContent(serversList []ServerSummary, sortColumn string, sortDir string
 				</p>
 			</div>
 		</div>
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "name", Label: "Name", Sortable: true, Align: "left"},
