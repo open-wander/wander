@@ -123,8 +123,10 @@ relocation and formatting churn cannot conceal semantic changes.
 - The tests-first run initially failed because the validation methods and error
   sentinels were absent. Focused and complete `nomad/structs` tests now pass in
   normal and `codegen_generated` modes, including existing static and CSI tests.
-- Dynamic contract/privacy checks, licence boundary, whitespace, and Deslop
-  passed. Independent review returned PASS with no findings.
+- Dynamic contract/privacy checks, licence boundary, and whitespace passed.
+  Deslop findings were reviewed: transaction logic is shared, while the
+  remaining typed query wrappers, schema rows, and test assertions are retained
+  for type safety and clarity. Independent review returned PASS with no findings.
 - Public validation envelopes, omitted-capacity defaults, update permissions,
   lifecycle rules, Raft state, API behavior, scheduler decisions, and ACLs
   remain unresolved or assigned to later tasks. Next task: 1.5.
@@ -134,3 +136,33 @@ underlying errors or values.
 
 PATTERN: validation - Test both prohibited identity changes and unrelated
 changes outside an invariant guard's authority.
+
+## 2026-11-09 — Task 1.5 complete
+
+- Added namespace-scoped state-store tables for dynamic host volumes and sticky
+  claims, with deterministic compound indexes for IDs, node and plugin prefixes,
+  node/name uniqueness, volume references, and jobs.
+- Added copy-safe transactional CRUD with create-only and exact-index CAS,
+  monotonic per-table indexes, immutable identity enforcement, duplicate-batch
+  rejection, claim referential integrity, and complete rollback on failure.
+- Exact reads and iterators return deep copies while preserving MemDB watch
+  channels. Namespace deletion now rejects namespaces containing dynamic host
+  volumes without exposing volume metadata.
+- The tests-first run initially failed because the state methods were undefined.
+  Focused normal, race-enabled, and `codegen_generated` state tests now cover
+  namespace isolation, exact and prefix scans, optional indexes, stale writes,
+  failed-batch index preservation, copy isolation, watches, claims, deletion,
+  and concurrent CAS.
+- Dynamic contract/privacy checks, licence boundary, whitespace, and Deslop
+  passed. Independent review returned PASS with no findings.
+- This checkpoint establishes internal MemDB transaction behavior only. Snapshot
+  serialization, restore, full blocking-query responses, FSM commands, public
+  APIs, lifecycle operations, scheduling, ACLs, and runtime compatibility remain
+  later tasks. Next task: 1.6.
+
+PATTERN: state - Keep CAS, uniqueness, references, record writes, and table-index
+updates in one transaction so every failure rolls back completely.
+
+PATTERN: state - Return isolated records without discarding iterator watches;
+record namespace-scoped node/name uniqueness as Wander policy, not upstream
+compatibility evidence.

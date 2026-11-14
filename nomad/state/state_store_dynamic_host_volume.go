@@ -1,0 +1,365 @@
+// Copyright (c) Open Wander contributors.
+// SPDX-License-Identifier: MPL-2.0
+
+package state
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-memdb"
+	"github.com/open-wander/wander/nomad/structs"
+)
+
+// State errors contain no record values or underlying memdb diagnostics.
+var (
+	ErrDynamicHostVolumeStateInvalid   = errors.New("dynamic host volume state: invalid record or key")
+	ErrDynamicHostVolumeStateCAS       = errors.New("dynamic host volume state: compare-and-set conflict")
+	ErrDynamicHostVolumeStateIndex     = errors.New("dynamic host volume state: invalid table index")
+	ErrDynamicHostVolumeStateConflict  = errors.New("dynamic host volume state: identity conflict")
+	ErrDynamicHostVolumeStateNamespace = errors.New("dynamic host volume state: namespace missing")
+	ErrDynamicHostVolumeStateInUse     = errors.New("dynamic host volume state: referenced record")
+	ErrDynamicHostVolumeStateStorage   = errors.New("dynamic host volume state: storage failure")
+)
+
+// DynamicHostVolumeDelete is a state-only exact-key CAS descriptor.
+type DynamicHostVolumeDelete struct {
+	Namespace           string
+	ID                  string
+	ExpectedModifyIndex uint64
+}
+
+type DynamicHostVolumeClaimDelete = DynamicHostVolumeDelete
+
+func dynamicHostVolumeKeys(required int, values ...string) error {
+	for index, value := range values {
+		if strings.ContainsRune(value, 0) || (index < required && value == "") {
+			return ErrDynamicHostVolumeStateInvalid
+		}
+	}
+	return nil
+}
+
+func dynamicHostVolumeBatchKey(seen map[string]bool, namespace, id string) error {
+	if err := dynamicHostVolumeKeys(2, namespace, id); err != nil {
+		return err
+	}
+	key := namespace + "\x00" + id
+	if seen[key] {
+		return ErrDynamicHostVolumeStateConflict
+	}
+	seen[key] = true
+	return nil
+}
+
+func dynamicHostVolumeWriteKey(tx *txn, seen map[string]bool, namespace, id string) error {
+	if err := dynamicHostVolumeBatchKey(seen, namespace, id); err != nil {
+		return err
+	}
+	return dynamicHostVolumeNamespace(tx, namespace)
+}
+
+func dynamicHostVolumeCreateIndex(raw interface{}, supplied, transaction uint64) (uint64, error) {
+	if raw != nil {
+		return supplied, nil
+	}
+	if supplied != 0 {
+		return 0, ErrDynamicHostVolumeStateInvalid
+	}
+	return transaction, nil
+}
+
+func (s *StateStore) writeDynamicHostVolumeBatch(index uint64, table string, count int, apply func(*txn, int, map[string]bool) error) error {
+	if count == 0 {
+		return nil
+	}
+	tx := s.db.WriteTxn(index)
+	defer tx.Abort()
+	raw, err := tx.First(tableIndex, indexID, table)
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	if index == 0 || (raw != nil && index <= raw.(*IndexEntry).Value) {
+		return ErrDynamicHostVolumeStateIndex
+	}
+	seen := make(map[string]bool, count)
+	for position := 0; position < count; position++ {
+		if err := apply(tx, position, seen); err != nil {
+			return err
+		}
+	}
+	if err := tx.Insert(tableIndex, indexEntry(table, index)); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	if err := tx.Commit(); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
+}
+
+func dynamicHostVolumeExisting(tx *txn, table, namespace, id string, expected uint64) (interface{}, error) {
+	raw, err := tx.First(table, indexID, namespace, id)
+	if err != nil {
+		return nil, ErrDynamicHostVolumeStateStorage
+	}
+	if raw == nil {
+		if expected != 0 {
+			return nil, ErrDynamicHostVolumeStateCAS
+		}
+		return nil, nil
+	}
+	var modify uint64
+	switch record := raw.(type) {
+	case *structs.DynamicHostVolume:
+		modify = record.ModifyIndex
+	case *structs.DynamicHostVolumeClaim:
+		modify = record.ModifyIndex
+	default:
+		return nil, ErrDynamicHostVolumeStateStorage
+	}
+	if expected == 0 || expected != modify {
+		return nil, ErrDynamicHostVolumeStateCAS
+	}
+	return raw, nil
+}
+
+func dynamicHostVolumeNamespace(tx *txn, namespace string) error {
+	raw, err := tx.First(TableNamespaces, indexID, namespace)
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	if raw == nil {
+		return ErrDynamicHostVolumeStateNamespace
+	}
+	return nil
+}
+
+// UpsertDynamicHostVolumes stores metadata only. Operation-specific validation
+// remains the responsibility of callers; this layer enforces storage identity.
+func (s *StateStore) UpsertDynamicHostVolumes(index uint64, volumes []*structs.DynamicHostVolume) error {
+	return s.writeDynamicHostVolumeBatch(index, TableDynamicHostVolumes, len(volumes), func(tx *txn, position int, seen map[string]bool) error {
+		candidate := volumes[position]
+		if candidate == nil || candidate.Type != structs.VolumeTypeHost {
+			return ErrDynamicHostVolumeStateInvalid
+		}
+		if err := dynamicHostVolumeKeys(3, candidate.Namespace, candidate.ID, candidate.Name, candidate.NodeID, candidate.PluginID); err != nil {
+			return err
+		}
+		if err := dynamicHostVolumeWriteKey(tx, seen, candidate.Namespace, candidate.ID); err != nil {
+			return err
+		}
+		raw, err := dynamicHostVolumeExisting(tx, TableDynamicHostVolumes, candidate.Namespace, candidate.ID, candidate.ModifyIndex)
+		if err != nil {
+			return err
+		}
+		volume := candidate.Copy()
+		if raw != nil {
+			existing := raw.(*structs.DynamicHostVolume)
+			if err := existing.ValidateImmutableFields(volume); err != nil {
+				return fmt.Errorf("volume identity: %w", err)
+			}
+		}
+		volume.CreateIndex, err = dynamicHostVolumeCreateIndex(raw, volume.CreateIndex, index)
+		if err != nil {
+			return err
+		}
+		if volume.NodeID != "" {
+			conflict, err := tx.First(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, volume.Namespace, volume.NodeID, volume.Name)
+			if err != nil {
+				return ErrDynamicHostVolumeStateStorage
+			}
+			// Memdb unique indexes alone do not reject another object's key.
+			if conflict != nil && conflict.(*structs.DynamicHostVolume).ID != volume.ID {
+				return ErrDynamicHostVolumeStateConflict
+			}
+		}
+		volume.ModifyIndex = index
+		if err := tx.Insert(TableDynamicHostVolumes, volume); err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+		return nil
+	})
+}
+
+func (s *StateStore) UpsertDynamicHostVolumeClaims(index uint64, claims []*structs.DynamicHostVolumeClaim) error {
+	return s.writeDynamicHostVolumeBatch(index, TableDynamicHostVolumeClaims, len(claims), func(tx *txn, position int, seen map[string]bool) error {
+		candidate := claims[position]
+		if candidate == nil || candidate.Validate() != nil {
+			return ErrDynamicHostVolumeStateInvalid
+		}
+		if err := dynamicHostVolumeKeys(2, candidate.Namespace, candidate.ID, candidate.JobID, candidate.VolumeID,
+			candidate.TaskGroupName, candidate.VolumeName, candidate.AllocationID); err != nil {
+			return err
+		}
+		if err := dynamicHostVolumeWriteKey(tx, seen, candidate.Namespace, candidate.ID); err != nil {
+			return err
+		}
+		volume, err := tx.First(TableDynamicHostVolumes, indexID, candidate.Namespace, candidate.VolumeID)
+		if err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+		if volume == nil || volume.(*structs.DynamicHostVolume).Name != candidate.VolumeName {
+			return ErrDynamicHostVolumeStateConflict
+		}
+		raw, err := dynamicHostVolumeExisting(tx, TableDynamicHostVolumeClaims, candidate.Namespace, candidate.ID, candidate.ModifyIndex)
+		if err != nil {
+			return err
+		}
+		claim := candidate.Copy()
+		if raw != nil {
+			existing := raw.(*structs.DynamicHostVolumeClaim)
+			if !dynamicHostVolumeClaimIdentityEqual(existing, claim) {
+				return ErrDynamicHostVolumeStateConflict
+			}
+		}
+		claim.CreateIndex, err = dynamicHostVolumeCreateIndex(raw, claim.CreateIndex, index)
+		if err != nil {
+			return err
+		}
+		claim.ModifyIndex = index
+		if err := tx.Insert(TableDynamicHostVolumeClaims, claim); err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+		return nil
+	})
+}
+
+func dynamicHostVolumeClaimIdentityEqual(left, right *structs.DynamicHostVolumeClaim) bool {
+	return left.ID == right.ID && left.Namespace == right.Namespace && left.JobID == right.JobID &&
+		left.TaskGroupName == right.TaskGroupName && left.VolumeName == right.VolumeName &&
+		left.VolumeID == right.VolumeID && left.AllocationIndex == right.AllocationIndex && left.CreateIndex == right.CreateIndex
+}
+
+func (s *StateStore) deleteDynamicHostVolumeRecords(index uint64, table string, records []DynamicHostVolumeDelete) error {
+	return s.writeDynamicHostVolumeBatch(index, table, len(records), func(tx *txn, position int, seen map[string]bool) error {
+		key := records[position]
+		if err := dynamicHostVolumeBatchKey(seen, key.Namespace, key.ID); err != nil {
+			return err
+		}
+		if key.ExpectedModifyIndex == 0 {
+			return ErrDynamicHostVolumeStateCAS
+		}
+		raw, err := dynamicHostVolumeExisting(tx, table, key.Namespace, key.ID, key.ExpectedModifyIndex)
+		if err != nil {
+			return err
+		}
+		if table == TableDynamicHostVolumes {
+			claims, err := tx.Get(TableDynamicHostVolumeClaims, dynamicHostVolumeClaimVolumeIndex+"_prefix", key.Namespace, key.ID, "")
+			if err != nil {
+				return ErrDynamicHostVolumeStateStorage
+			}
+			if claims.Next() != nil {
+				return ErrDynamicHostVolumeStateInUse
+			}
+		}
+		if err := tx.Delete(table, raw); err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+		return nil
+	})
+}
+
+func (s *StateStore) DeleteDynamicHostVolumes(index uint64, records []DynamicHostVolumeDelete) error {
+	return s.deleteDynamicHostVolumeRecords(index, TableDynamicHostVolumes, records)
+}
+
+func (s *StateStore) DeleteDynamicHostVolumeClaims(index uint64, records []DynamicHostVolumeClaimDelete) error {
+	return s.deleteDynamicHostVolumeRecords(index, TableDynamicHostVolumeClaims, records)
+}
+
+type dynamicHostVolumeCopyable[T any] interface{ Copy() T }
+
+type dynamicHostVolumeCopyIterator[T dynamicHostVolumeCopyable[T]] struct {
+	memdb.ResultIterator
+}
+
+func (iter *dynamicHostVolumeCopyIterator[T]) Next() interface{} {
+	raw := iter.ResultIterator.Next()
+	if raw == nil {
+		return nil
+	}
+	return raw.(T).Copy()
+}
+
+func dynamicHostVolumeByID[T dynamicHostVolumeCopyable[T]](s *StateStore, ws memdb.WatchSet, table, namespace, id string) (T, error) {
+	var zero T
+	if err := dynamicHostVolumeKeys(2, namespace, id); err != nil {
+		return zero, err
+	}
+	tx := s.db.ReadTxn()
+	watch, raw, err := tx.FirstWatch(table, indexID, namespace, id)
+	if err != nil {
+		return zero, ErrDynamicHostVolumeStateStorage
+	}
+	ws.Add(watch)
+	if raw == nil {
+		return zero, nil
+	}
+	return raw.(T).Copy(), nil
+}
+
+func dynamicHostVolumeRecords[T dynamicHostVolumeCopyable[T]](s *StateStore, ws memdb.WatchSet, table, index string, args ...string) (memdb.ResultIterator, error) {
+	required := len(args)
+	if strings.HasSuffix(index, "_prefix") {
+		required--
+	}
+	if err := dynamicHostVolumeKeys(required, args...); err != nil {
+		return nil, err
+	}
+	values := make([]interface{}, len(args))
+	for position, arg := range args {
+		values[position] = arg
+	}
+	tx := s.db.ReadTxn()
+	raw, err := tx.Get(table, index, values...)
+	if err != nil {
+		return nil, ErrDynamicHostVolumeStateStorage
+	}
+	iter := &dynamicHostVolumeCopyIterator[T]{ResultIterator: raw}
+	ws.Add(iter.WatchCh())
+	return iter, nil
+}
+
+func (s *StateStore) DynamicHostVolumeByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolume, error) {
+	return dynamicHostVolumeByID[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, namespace, id)
+}
+func (s *StateStore) DynamicHostVolumeClaimByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolumeClaim, error) {
+	return dynamicHostVolumeByID[*structs.DynamicHostVolumeClaim](s, ws, TableDynamicHostVolumeClaims, namespace, id)
+}
+func (s *StateStore) DynamicHostVolumes(ws memdb.WatchSet) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, indexID)
+}
+func (s *StateStore) DynamicHostVolumeClaims(ws memdb.WatchSet) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolumeClaim](s, ws, TableDynamicHostVolumeClaims, indexID)
+}
+func (s *StateStore) DynamicHostVolumesByIDPrefix(ws memdb.WatchSet, namespace, prefix string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, indexID+"_prefix", namespace, prefix)
+}
+func (s *StateStore) DynamicHostVolumesByNamespace(ws memdb.WatchSet, namespace string) (memdb.ResultIterator, error) {
+	return s.DynamicHostVolumesByIDPrefix(ws, namespace, "")
+}
+func (s *StateStore) DynamicHostVolumesByNodeID(ws memdb.WatchSet, namespace, node string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, indexNodeID+"_prefix", namespace, node, "")
+}
+func (s *StateStore) DynamicHostVolumesByPluginID(ws memdb.WatchSet, namespace, plugin string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, dynamicHostVolumePluginIndex+"_prefix", namespace, plugin, "")
+}
+func (s *StateStore) DynamicHostVolumesByNodeIDPrefix(ws memdb.WatchSet, namespace, prefix string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, indexNodeID+"_prefix", namespace, prefix)
+}
+func (s *StateStore) DynamicHostVolumesByPluginIDPrefix(ws memdb.WatchSet, namespace, prefix string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, dynamicHostVolumePluginIndex+"_prefix", namespace, prefix)
+}
+func (s *StateStore) DynamicHostVolumeClaimsByIDPrefix(ws memdb.WatchSet, namespace, prefix string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolumeClaim](s, ws, TableDynamicHostVolumeClaims, indexID+"_prefix", namespace, prefix)
+}
+func (s *StateStore) DynamicHostVolumeClaimsByNamespace(ws memdb.WatchSet, namespace string) (memdb.ResultIterator, error) {
+	return s.DynamicHostVolumeClaimsByIDPrefix(ws, namespace, "")
+}
+func (s *StateStore) DynamicHostVolumeClaimsByVolumeID(ws memdb.WatchSet, namespace, volume string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolumeClaim](s, ws, TableDynamicHostVolumeClaims, dynamicHostVolumeClaimVolumeIndex+"_prefix", namespace, volume, "")
+}
+func (s *StateStore) DynamicHostVolumeClaimsByJobID(ws memdb.WatchSet, namespace, job string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolumeClaim](s, ws, TableDynamicHostVolumeClaims, indexJob+"_prefix", namespace, job, "")
+}

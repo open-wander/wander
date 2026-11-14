@@ -134,6 +134,34 @@ Public matrix assertions and fixture outcomes remain unchanged/unresolved.
 No persisted type shape changed, so no codec generation is needed for this work;
 normal and `codegen_generated` package tests exercise the existing serializers.
 
+Internal state storage is tested separately in
+`nomad/state/state_store_dynamic_host_volume_test.go`. The initial test-first
+run failed because `UpsertDynamicHostVolumes` and `DynamicHostVolumeByID` were
+undefined. The completed tests cover namespace-scoped identities, ID/node/plugin
+prefixes, deterministic compound-index order, copy isolation, watch forwarding,
+create-only and exact-index compare-and-set, monotonic table indexes, immutable
+updates, batch rollback, claim references, deletion integrity, and concurrent
+writers. These are Wander-authored storage requirements for US-002 and FR-8
+through FR-10, not evidence of an upstream implementation.
+
+Volume names are unique for one `(namespace, node ID)` pair. The same name may
+exist on another node or in another namespace. This is an internal Wander policy
+chosen because records are namespace scoped; cross-namespace public behavior
+remains unresolved. Claim IDs are unique within a namespace, while volume and
+job indexes are non-unique because scaling and writer exclusivity belong to the
+scheduler. New records must not supply a create index: the transaction assigns
+both create and modify indexes. Updates and deletes require the stored modify
+index, and a failed batch changes neither records nor the table index.
+
+The storage layer does not select create versus register validation, set wall
+clock values, invoke plugins, remove paths, authorize requests, enforce
+attachment modes, or decide public idempotency. It rejects volume deletion while
+a claim references that volume and rejects namespace deletion while any dynamic
+volume remains. Snapshot serialization, restore, Raft FSM commands, complete
+blocking-query response behavior, pagination, garbage collection, public APIs,
+and lifecycle transitions remain task 1.6 or later. No matrix runtime outcome is
+changed by these internal tests.
+
 The HTTP delete table includes a delete suffix while its example omits it.
 The claim delete table uses a plural collection while its example uses singular.
 These conflicts must be resolved with permitted independent black-box requests
