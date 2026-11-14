@@ -34,7 +34,7 @@ templ ListContent(deploymentsList []DeploymentSummary) {
 				</p>
 			</div>
 		</div>
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 			<div class="p-4 space-y-3">
 				if len(deploymentsList) == 0 {
 					<div class="text-center py-12">
@@ -115,7 +115,7 @@ templ deploymentCard(deploy DeploymentSummary) {
 						{ deploy.ShortID }
 					</span>
 					if deploy.IsMultiregion {
-						<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+						<span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-purple-100 text-purple-800">
 							Multi-region
 						</span>
 					}
@@ -162,7 +162,7 @@ templ deploymentCard(deploy DeploymentSummary) {
 				</div>
 			</div>
 			<!-- Time Ago -->
-			<div class="flex-shrink-0 ml-4">
+			<div class="shrink-0 ml-4">
 				<span class="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
 					{ deploy.TimeAgo }
 				</span>

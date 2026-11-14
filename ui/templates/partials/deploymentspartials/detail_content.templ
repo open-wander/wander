@@ -51,7 +51,7 @@ templ DetailContent(deploy DeploymentDetail) {
 		}
 	>
 		<!-- Deployment Header -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 			<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
 				<div class="flex items-center space-x-4">
 					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Deployment</h1>
@@ -72,7 +72,7 @@ templ DetailContent(deploy DeploymentDetail) {
 								hx-post={ deploymentScopedURL("/api/deployments/" + url.PathEscape(deploy.ID) + "/promote", deploy) }
 								hx-swap="none"
 								hx-confirm="Promote all healthy canaries for this deployment?"
-								class="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+								class="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-primary-700 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
 							>
 								Promote canaries
 							</button>
@@ -82,7 +82,7 @@ templ DetailContent(deploy DeploymentDetail) {
 							hx-post={ deploymentScopedURL("/api/deployments/" + url.PathEscape(deploy.ID) + "/fail", deploy) }
 							hx-swap="none"
 							hx-confirm="Fail this deployment? This may trigger an automatic revert if configured."
-							class="inline-flex items-center rounded-md bg-error-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-error-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-600"
+							class="inline-flex items-center rounded-md bg-error-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-error-700 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-600"
 						>
 							Fail deployment
 						</button>
@@ -153,7 +153,7 @@ templ DetailContent(deploy DeploymentDetail) {
 
 		<!-- Task Groups Status -->
 		if len(deploy.TaskGroups) > 0 {
-			<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+			<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Task Groups</h2>
 				<div class="overflow-x-auto">
 					<table class="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -235,9 +235,9 @@ templ DetailContent(deploy DeploymentDetail) {
 		}
 
 		<!-- Full ID Section -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Full ID</h2>
-			<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-4">
+			<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-4">
 				<code class="text-sm font-mono text-neutral-900 dark:text-neutral-100 break-all">{ deploy.ID }</code>
 			</div>
 		</div>

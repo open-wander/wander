@@ -72,7 +72,7 @@ templ DetailContent(eval EvaluationDetail) {
 		}
 	>
 		<!-- Evaluation Header -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between mb-4">
 				<div class="flex items-center space-x-4">
 					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Evaluation</h1>
@@ -171,7 +171,7 @@ templ DetailContent(eval EvaluationDetail) {
 
 		<!-- Related Evaluations -->
 		if eval.NextEval != "" || eval.PreviousEval != "" || eval.BlockedEval != "" {
-			<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+			<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Related Evaluations</h2>
 				<div class="space-y-3">
 					if eval.PreviousEval != "" {
@@ -213,7 +213,7 @@ templ DetailContent(eval EvaluationDetail) {
 
 		<!-- Queued Allocations -->
 		if len(eval.QueuedAllocations) > 0 {
-			<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+			<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Queued Allocations</h2>
 				<div class="overflow-x-auto">
 					<table class="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
@@ -238,7 +238,7 @@ templ DetailContent(eval EvaluationDetail) {
 
 		<!-- Placement Failures -->
 		if len(eval.FailedTGAllocs) > 0 {
-			<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+			<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Placement Failures</h2>
 				<div class="space-y-6">
 					for tgName, metrics := range eval.FailedTGAllocs {
@@ -263,7 +263,7 @@ templ DetailContent(eval EvaluationDetail) {
 							if len(metrics.ConstraintFiltered) > 0 {
 								<div class="mt-4">
 									<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Constraint Filtered</label>
-									<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3 space-y-1">
+									<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-3 space-y-1">
 										for constraint, count := range metrics.ConstraintFiltered {
 											<div class="flex justify-between text-sm">
 												<span class="text-neutral-700 dark:text-neutral-300">{ constraint }</span>
@@ -278,7 +278,7 @@ templ DetailContent(eval EvaluationDetail) {
 							if len(metrics.ClassFiltered) > 0 {
 								<div class="mt-4">
 									<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Class Filtered</label>
-									<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3 space-y-1">
+									<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-3 space-y-1">
 										for class, count := range metrics.ClassFiltered {
 											<div class="flex justify-between text-sm">
 												<span class="text-neutral-700 dark:text-neutral-300">{ class }</span>
@@ -293,7 +293,7 @@ templ DetailContent(eval EvaluationDetail) {
 							if len(metrics.DimensionExhausted) > 0 {
 								<div class="mt-4">
 									<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Dimension Exhausted</label>
-									<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3 space-y-1">
+									<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-3 space-y-1">
 										for dimension, count := range metrics.DimensionExhausted {
 											<div class="flex justify-between text-sm">
 												<span class="text-neutral-700 dark:text-neutral-300">{ dimension }</span>
@@ -308,7 +308,7 @@ templ DetailContent(eval EvaluationDetail) {
 							if len(metrics.QuotaExhausted) > 0 {
 								<div class="mt-4">
 									<label class="block text-sm font-medium text-neutral-500 dark:text-neutral-400 mb-2">Quota Exhausted</label>
-									<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3">
+									<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-3">
 										for _, quota := range metrics.QuotaExhausted {
 											<div class="text-sm text-neutral-700 dark:text-neutral-300">{ quota }</div>
 										}
@@ -322,9 +322,9 @@ templ DetailContent(eval EvaluationDetail) {
 		}
 
 		<!-- Full ID Section -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Full ID</h2>
-			<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-4">
+			<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-4">
 				<code class="text-sm font-mono text-neutral-900 dark:text-neutral-100 break-all">{ eval.ID }</code>
 			</div>
 		</div>

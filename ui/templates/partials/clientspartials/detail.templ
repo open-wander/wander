@@ -743,7 +743,7 @@ templ allocationRow(alloc AllocationSummary) {
 templ clientAllocationFilter(name, label, placeholder, selected string, options []string) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>{ label }</span>
-		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-sm dark:bg-neutral-900 dark:text-neutral-100">
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-xs dark:bg-neutral-900 dark:text-neutral-100">
 			<option value="">{ placeholder }</option>
 			for _, option := range options {
 				<option value={ option } selected?={ selected == option }>{ option }</option>

@@ -174,9 +174,9 @@ Dark mode utilities automatically work:
 
 ## Custom Configuration
 
-The `tailwind.config.js` includes:
+Tailwind CSS 4 is configured in CSS. `static/css/tailwind-theme.css` includes:
 
-- **Content paths**: Scans `.templ` and `.go` files in templates/handlers
+- **Dark mode**: A class-based `dark` variant
 - **Extended colors**: All semantic color palettes
 - **Fonts**: Inter (sans), JetBrains Mono (mono)
 - **Plugins**:

@@ -54,16 +54,16 @@ templ ListContent(props ListProps) {
 				@evaluationListHiddenInputs(props)
 				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 					<span>Rows per page</span>
-					<select name="per_page" class="mt-1 block rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-neutral-800 dark:text-neutral-100">
+					<select name="per_page" class="mt-1 block rounded-md border-neutral-300 dark:border-neutral-600 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:bg-neutral-800 dark:text-neutral-100">
 						for _, option := range []int{10, 25, 50, 100} {
 							<option value={ fmt.Sprintf("%d", option) } selected?={ props.Pagination.PerPage == option }>{ fmt.Sprintf("%d", option) }</option>
 						}
 					</select>
 				</label>
-				<button type="submit" class="inline-flex rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply</button>
+				<button type="submit" class="inline-flex rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply</button>
 			</form>
 		</div>
-		<div id="evaluations-list-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div id="evaluations-list-container" class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 			<div class="p-4 space-y-3">
 				if len(props.Evaluations) == 0 {
 					<div class="text-center py-12">
@@ -198,7 +198,7 @@ templ evaluationCard(eval EvaluationSummary) {
 				</div>
 			</div>
 			<!-- Time Ago -->
-			<div class="flex-shrink-0 ml-4">
+			<div class="shrink-0 ml-4">
 				<span class="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
 					{ eval.TimeAgo }
 				</span>

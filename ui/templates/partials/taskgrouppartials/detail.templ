@@ -118,7 +118,7 @@ type PlacementFailure struct {
 templ DetailContent(jobID string, tg TaskGroupDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Task Group Header -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-4">
 					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ tg.Name }</h1>
@@ -131,7 +131,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 		<!-- Scaling Controls -->
 		@ScalingControls(jobID, tg)
 		<!-- Runtime Status -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6" data-task-group-runtime>
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6" data-task-group-runtime>
 			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Runtime Status</h3>
 			if tg.ScaleStatusError != "" {
 				<p class="text-sm text-danger-700">Scale status unavailable: { tg.ScaleStatusError }</p>
@@ -174,7 +174,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 			}
 		</div>
 		<!-- Task-group Allocations -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6" data-task-group-allocations>
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6" data-task-group-allocations>
 			<div class="flex flex-wrap items-center justify-between gap-4 mb-4">
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Allocations</h3>
 				<form method="get" action={ templ.SafeURL(scopedTaskGroupURL(jobID, tg, "")) } class="flex flex-wrap items-end gap-3">
@@ -186,7 +186,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 					}
 					<label class="text-xs text-neutral-600 dark:text-neutral-400">
 						Status
-						<select name="status" class="mt-1 block rounded border-neutral-300 dark:border-neutral-600 text-sm">
+						<select name="status" class="mt-1 block rounded-sm border-neutral-300 dark:border-neutral-600 text-sm">
 							for _, option := range []string{"all", "pending", "running", "complete", "failed", "lost"} {
 								<option value={ option } selected?={ option == tg.AllocationStatus }>{ option }</option>
 							}
@@ -194,7 +194,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 					</label>
 					<label class="text-xs text-neutral-600 dark:text-neutral-400">
 						Sort
-						<select name="sort" class="mt-1 block rounded border-neutral-300 dark:border-neutral-600 text-sm">
+						<select name="sort" class="mt-1 block rounded-sm border-neutral-300 dark:border-neutral-600 text-sm">
 							for _, option := range []string{"created", "status", "node"} {
 								<option value={ option } selected?={ option == tg.AllocationSort }>{ option }</option>
 							}
@@ -202,12 +202,12 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 					</label>
 					<label class="text-xs text-neutral-600 dark:text-neutral-400">
 						Order
-						<select name="order" class="mt-1 block rounded border-neutral-300 dark:border-neutral-600 text-sm">
+						<select name="order" class="mt-1 block rounded-sm border-neutral-300 dark:border-neutral-600 text-sm">
 							<option value="desc" selected?={ tg.AllocationOrder == "desc" }>descending</option>
 							<option value="asc" selected?={ tg.AllocationOrder == "asc" }>ascending</option>
 						</select>
 					</label>
-					<button type="submit" class="rounded bg-primary-600 px-3 py-2 text-sm font-medium text-white">Apply</button>
+					<button type="submit" class="rounded-sm bg-primary-600 px-3 py-2 text-sm font-medium text-white">Apply</button>
 				</form>
 			</div>
 			if tg.AllocationsError != "" {
@@ -231,14 +231,14 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 		if len(tg.PlacementFailures) > 0 {
 			<div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
 				<div class="flex items-start">
-					<div class="flex-shrink-0">
+					<div class="shrink-0">
 						@components.Icon(components.IconProps{Name: "exclamation-triangle", Size: "md", Class: "text-red-600"})
 					</div>
 					<div class="ml-3 flex-1">
 						<h3 class="text-sm font-medium text-red-800 mb-2">Placement Failures</h3>
 						<div class="space-y-2">
 							for _, failure := range tg.PlacementFailures {
-								<div class="bg-white dark:bg-neutral-800 rounded p-3 border border-red-200">
+								<div class="bg-white dark:bg-neutral-800 rounded-sm p-3 border border-red-200">
 									<div class="flex items-start justify-between mb-1">
 										<span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">{ failure.Node }</span>
 										<span class="text-xs text-neutral-500 dark:text-neutral-400">{ formatTime(failure.Timestamp) }</span>
@@ -253,7 +253,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 		}
 		<!-- Scaling Configuration -->
 		if tg.Scaling != nil && tg.Scaling.Enabled {
-			<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6">
+			<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6">
 				<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Autoscaling Configuration</h3>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<div class="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
@@ -268,7 +268,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 			</div>
 		}
 		<!-- Configured Volumes -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6" data-task-group-volumes>
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6" data-task-group-volumes>
 			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Configured Volumes</h3>
 			if len(tg.Volumes) == 0 {
 				<p class="text-sm text-neutral-500 dark:text-neutral-400">No configured volumes</p>
@@ -295,7 +295,7 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 			}
 		</div>
 		<!-- Tasks List -->
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6">
 			<h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Tasks</h3>
 			<div class="space-y-4">
 				for _, task := range tg.Tasks {
@@ -319,20 +319,20 @@ templ DetailContent(jobID string, tg TaskGroupDetail) {
 						<div>
 							<h5 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3">Resource Requirements</h5>
 							<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-								<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded p-3">
+								<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-sm p-3">
 									<dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">CPU</dt>
 									<dd class="mt-1 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</dd>
 								</div>
-								<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded p-3">
+								<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-sm p-3">
 									<dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Memory</dt>
 									<dd class="mt-1 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</dd>
 								</div>
-								<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded p-3">
+								<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-sm p-3">
 									<dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Disk</dt>
 									<dd class="mt-1 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d MB", task.Resources.DiskMB) }</dd>
 								</div>
 								if len(task.Resources.Networks) > 0 {
-									<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded p-3">
+									<div class="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-sm p-3">
 										<dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase">Network</dt>
 										<dd class="mt-1 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ fmt.Sprintf("%d Mbps", task.Resources.Networks[0].MBits) }</dd>
 									</div>
@@ -430,7 +430,7 @@ func formatTime(t time.Time) string {
 // ScalingControls renders the scaling controls section for a task group
 templ ScalingControls(jobID string, tg TaskGroupDetail) {
 	<div
-		class="bg-white dark:bg-neutral-800 shadow rounded-lg p-6 mb-6"
+		class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg p-6 mb-6"
 		x-data="scaleControls"
 		data-count={ fmt.Sprintf("%d", tg.Count) }
 		data-min-count={ fmt.Sprintf("%d", getMinCount(tg.Scaling)) }
@@ -472,7 +472,7 @@ templ ScalingControls(jobID string, tg TaskGroupDetail) {
 				type="button"
 				@click="decrement()"
 				:disabled="!canDecrement()"
-				class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+				class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
 				aria-label="Decrease count"
 			>
 				@components.Icon(components.IconProps{Name: "minus", Size: "md"})
@@ -484,7 +484,7 @@ templ ScalingControls(jobID string, tg TaskGroupDetail) {
 					x-model.number="count"
 					:min="hasConstraints ? minCount : 0"
 					:max="hasConstraints ? maxCount : undefined"
-					class="w-24 h-10 text-center text-lg font-semibold border border-neutral-300 dark:border-neutral-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+					class="w-24 h-10 text-center text-lg font-semibold border border-neutral-300 dark:border-neutral-600 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
 					aria-label="Instance count"
 				/>
 			</div>
@@ -493,7 +493,7 @@ templ ScalingControls(jobID string, tg TaskGroupDetail) {
 				type="button"
 				@click="increment()"
 				:disabled="!canIncrement()"
-				class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+				class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
 				aria-label="Increase count"
 			>
 				@components.Icon(components.IconProps{Name: "plus", Size: "md"})
@@ -505,7 +505,7 @@ templ ScalingControls(jobID string, tg TaskGroupDetail) {
 				type="button"
 				@click="resetCount()"
 				x-show="hasChanges()"
-				class="inline-flex items-center px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+				class="inline-flex items-center px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
 			>
 				Reset
 			</button>
@@ -563,7 +563,7 @@ templ ScaleConfirmModal(jobID string, tg TaskGroupDetail) {
 		<!-- Backdrop -->
 		<div
 			@click="closeConfirmModal()"
-			class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+			class="fixed inset-0 bg-black/50 transition-opacity"
 			aria-hidden="true"
 		></div>
 		<!-- Modal positioning container -->
@@ -590,7 +590,7 @@ templ ScaleConfirmModal(jobID string, tg TaskGroupDetail) {
 							type="button"
 							@click="closeConfirmModal()"
 							x-ref="scaleDialogClose"
-							class="rounded-md bg-white dark:bg-neutral-800 text-neutral-400 hover:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+							class="rounded-md bg-white dark:bg-neutral-800 text-neutral-400 hover:text-neutral-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
 							aria-label="Close"
 						>
 							<span class="sr-only">Close</span>
@@ -601,7 +601,7 @@ templ ScaleConfirmModal(jobID string, tg TaskGroupDetail) {
 				<!-- Modal Body -->
 				<div class="px-6 py-4">
 					<div class="flex items-start space-x-4">
-						<div class="flex-shrink-0">
+						<div class="shrink-0">
 							<div class="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
 								@components.Icon(components.IconProps{Name: "exclamation-triangle", Size: "md", Class: "text-amber-600"})
 							</div>
@@ -640,7 +640,7 @@ templ ScaleConfirmModal(jobID string, tg TaskGroupDetail) {
 						<button
 							type="button"
 							@click="closeConfirmModal()"
-							class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+							class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
 						>
 							Cancel
 						</button>
@@ -653,7 +653,7 @@ templ ScaleConfirmModal(jobID string, tg TaskGroupDetail) {
 							<input type="hidden" name="count" :value="count"/>
 							<button
 								type="submit"
-								class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+								class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
 							>
 								Confirm Scale
 							</button>

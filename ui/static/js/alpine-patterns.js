@@ -183,7 +183,7 @@ function dropdown(initialOpen = false) {
  *        class="fixed inset-0 z-50"
  *        x-transition>
  *     <!-- Backdrop -->
- *     <div @click="close" class="fixed inset-0 bg-black bg-opacity-50"></div>
+ *     <div @click="close" class="fixed inset-0 bg-black/50"></div>
  *
  *     <!-- Modal content -->
  *     <div class="relative bg-white rounded-lg p-6"
@@ -401,7 +401,9 @@ function enhanceFileTree(root = document) {
 }
 
 document.addEventListener('DOMContentLoaded', () => enhanceFileTree());
-document.addEventListener('htmx:afterSwap', event => enhanceFileTree(event.detail.target));
+// Enhance after settle, once htmx has attached its handlers to the new rows, so a
+// row is never announced as a button before it can load its contents.
+document.addEventListener('htmx:afterSettle', event => enhanceFileTree(event.detail.target));
 document.addEventListener('keydown', event => {
     const fileRow = event.target instanceof Element ? event.target.closest('[data-file-name], .file-tree-node > [role="button"]') : null;
     if (fileRow && (event.key === 'Enter' || event.key === ' ')) {

@@ -59,7 +59,7 @@ type PluginAllocationsProps struct {
 templ PluginDetailContent(plugin PluginDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 		@pluginHeader(plugin, "overview")
-		<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+		<section class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Plugin Details</h2>
 			<dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
 				@detailValue("Provider", plugin.Provider)
@@ -84,7 +84,7 @@ templ PluginDetailContent(plugin PluginDetail) {
 templ PluginAllocationsContent(props PluginAllocationsProps) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 		@pluginHeader(props.Plugin, "allocations")
-		<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+		<section class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 			<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-6">
 				<div>
 					<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Plugin Allocations</h2>
@@ -118,7 +118,7 @@ templ PluginAllocationsContent(props PluginAllocationsProps) {
 }
 
 templ pluginHeader(plugin PluginDetail, active string) {
-	<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+	<section class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 			<div>
 				<p class="text-sm font-medium text-neutral-500 dark:text-neutral-400">CSI Plugin</p>
@@ -156,7 +156,7 @@ templ overallPluginHealth(plugin PluginDetail) {
 }
 
 templ healthCard(label string, healthy, expected int) {
-	<section class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+	<section class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 		<div class="flex items-center justify-between">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ label }</h2>
 			@healthStatus(healthy, expected)
@@ -180,7 +180,7 @@ templ detailValue(label, value string) {
 }
 
 templ pluginAllocationSection(plugin PluginDetail, label, kind string, allocations []PluginAllocation) {
-	<section class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+	<section class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 		<div class="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
 			<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{ label }</h2>
 			if len(allocations) > 0 {

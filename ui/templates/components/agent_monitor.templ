@@ -15,7 +15,7 @@ templ AgentMonitor(props AgentMonitorProps) {
 		x-data={ agentMonitorData(props) }
 		x-init="connect()"
 		x-on:beforeunload.window="disconnect()"
-		class="overflow-hidden rounded-lg bg-white dark:bg-neutral-900 shadow"
+		class="overflow-hidden rounded-lg bg-white dark:bg-neutral-900 shadow-sm"
 		data-agent-monitor
 	>
 		<header class="flex flex-col gap-4 border-b border-neutral-200 dark:border-neutral-700 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -29,7 +29,7 @@ templ AgentMonitor(props AgentMonitorProps) {
 					id="monitor-level"
 					x-model="level"
 					x-on:change="changeLevel()"
-					class="rounded-md border-neutral-300 bg-white text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
+					class="rounded-md border-neutral-300 bg-white text-sm text-neutral-900 shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
 					data-monitor-level
 				>
 					<option value="error">Error</option>
@@ -42,7 +42,7 @@ templ AgentMonitor(props AgentMonitorProps) {
 					type="button"
 					x-on:click="toggle()"
 					x-text="isStreaming ? 'Pause' : 'Resume'"
-					class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+					class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 shadow-xs hover:bg-neutral-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
 					data-monitor-toggle
 				></button>
 			</div>
@@ -58,7 +58,7 @@ templ AgentMonitor(props AgentMonitorProps) {
 		<pre
 			x-ref="output"
 			x-text="output"
-			class="m-0 min-h-[20rem] max-h-[calc(100vh-22rem)] overflow-auto whitespace-pre-wrap break-words bg-neutral-950 p-5 font-mono text-sm leading-6 text-neutral-100"
+			class="m-0 min-h-[20rem] max-h-[calc(100vh-22rem)] overflow-auto whitespace-pre-wrap wrap-break-word bg-neutral-950 p-5 font-mono text-sm leading-6 text-neutral-100"
 			aria-live="polite"
 			aria-label="Agent log output"
 			data-monitor-output

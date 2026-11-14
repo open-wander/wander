@@ -257,12 +257,12 @@ templ TasksTab(alloc AllocationDetail) {
 										hx-swap="none"
 										hx-confirm={ "Restart task " + task.Name + " in place?" }
 										data-task-restart={ task.Name }
-										class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-warning-700 bg-warning-50 rounded-md hover:bg-warning-100 focus:outline-none focus:ring-2 focus:ring-warning-500 focus:ring-offset-2 transition-colors"
+										class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-warning-700 bg-warning-50 rounded-md hover:bg-warning-100 focus:outline-hidden focus:ring-2 focus:ring-warning-500 focus:ring-offset-2 transition-colors"
 									>Restart</button>
 								}
 								<a
 									href={ templ.URL("/ui/allocations/" + alloc.ID + "/logs?task=" + task.Name) }
-									class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+									class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
 								>
 									<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -319,8 +319,8 @@ templ TasksTab(alloc AllocationDetail) {
 							<div class="mb-4">
 								<h5 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Reserved Resources</h5>
 								<div class="grid grid-cols-2 gap-4 text-sm">
-									<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3"><span class="text-neutral-600 dark:text-neutral-400">CPU</span><span class="float-right font-medium">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</span></div>
-									<div class="bg-neutral-50 dark:bg-neutral-900 rounded p-3"><span class="text-neutral-600 dark:text-neutral-400">Memory</span><span class="float-right font-medium">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</span></div>
+									<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-3"><span class="text-neutral-600 dark:text-neutral-400">CPU</span><span class="float-right font-medium">{ fmt.Sprintf("%d MHz", task.Resources.CPU) }</span></div>
+									<div class="bg-neutral-50 dark:bg-neutral-900 rounded-sm p-3"><span class="text-neutral-600 dark:text-neutral-400">Memory</span><span class="float-right font-medium">{ fmt.Sprintf("%d MB", task.Resources.Memory) }</span></div>
 								</div>
 							</div>
 						}
@@ -443,7 +443,7 @@ templ TasksTab(alloc AllocationDetail) {
 				<div class="space-y-2">
 					for _, event := range alloc.Events {
 						<div class="flex items-start space-x-4 text-sm border-l-2 border-primary-500 pl-4 py-2">
-							<div class="flex-shrink-0 w-32 text-neutral-500 dark:text-neutral-400">
+							<div class="shrink-0 w-32 text-neutral-500 dark:text-neutral-400">
 								{ event.Time.Format("Jan 2, 15:04:05") }
 							</div>
 							<div class="flex-1">
@@ -497,7 +497,7 @@ func taskStateToBadgeVariant(state string) string {
 
 // taskIconClasses returns CSS classes for task state icon container
 func taskIconClasses(state string) string {
-	base := "flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center "
+	base := "shrink-0 w-10 h-10 rounded-lg flex items-center justify-center "
 	switch state {
 	case "running":
 		return base + "bg-success-100 text-success-600"

@@ -71,7 +71,7 @@ templ JobTemplatesContent(props JobTemplatesProps) {
 }
 
 templ jobTemplateChooseCard(item JobTemplate, namespace string) {
-	<div class="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-sm">
+	<div class="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-xs">
 		<div class="flex items-start justify-between gap-4">
 			<div>
 				<h2 class="font-semibold text-neutral-900 dark:text-neutral-100">{ item.Name }</h2>
@@ -90,7 +90,7 @@ templ jobTemplateChooseCard(item JobTemplate, namespace string) {
 }
 
 templ jobTemplateManageCard(item JobTemplate, namespace string) {
-	<div class="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-sm" x-data="{ editing: false }">
+	<div class="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 shadow-xs" x-data="{ editing: false }">
 		<div class="flex items-start justify-between gap-4">
 			<div>
 				<h2 class="font-semibold text-neutral-900 dark:text-neutral-100">{ item.Name }</h2>
@@ -106,7 +106,7 @@ templ jobTemplateManageCard(item JobTemplate, namespace string) {
 		if item.Readable {
 			<form x-show="editing" x-cloak hx-post={ manageTemplateRoute(item.Name, namespace) } class="mt-5">
 				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for={ "template-" + item.Name }>HCL job definition</label>
-				<textarea id={ "template-" + item.Name } name="template" rows="16" required spellcheck="false" class="mt-2 block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100">{ item.Definition }</textarea>
+				<textarea id={ "template-" + item.Name } name="template" rows="16" required spellcheck="false" class="mt-2 block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100">{ item.Definition }</textarea>
 				<div class="mt-3 flex justify-end gap-2">
 					<button type="button" @click="editing = false" class="rounded-md border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">Cancel</button>
 					<button type="submit" class="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Save Template</button>
@@ -124,16 +124,16 @@ templ JobTemplateCreateContent(props JobTemplateCreateProps) {
 			<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Create Job Template</h1>
 			<p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">Store reusable HCL source in the <span class="font-medium">{ props.Namespace }</span> namespace.</p>
 		</div>
-		<form method="post" action={ templ.SafeURL(templateRoute("/ui/jobs/run/templates/new", props.Namespace)) } hx-post={ templateRoute("/ui/jobs/run/templates/new", props.Namespace) } class="rounded-lg bg-white dark:bg-neutral-900 p-6 shadow space-y-6">
+		<form method="post" action={ templ.SafeURL(templateRoute("/ui/jobs/run/templates/new", props.Namespace)) } hx-post={ templateRoute("/ui/jobs/run/templates/new", props.Namespace) } class="rounded-lg bg-white dark:bg-neutral-900 p-6 shadow-sm space-y-6">
 			<input type="hidden" name="namespace" value={ props.Namespace }/>
 			<div>
 				<label for="template-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Name</label>
-				<input id="template-name" name="name" required placeholder="web-service" class="mt-2 block w-full rounded-md border-neutral-300 bg-white text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100"/>
+				<input id="template-name" name="name" required placeholder="web-service" class="mt-2 block w-full rounded-md border-neutral-300 bg-white text-neutral-900 shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100"/>
 				<p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Stored at <code>nomad/job-templates/&lt;name&gt;</code>.</p>
 			</div>
 			<div>
 				<label for="template-source" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">HCL job definition</label>
-				<textarea id="template-source" name="template" rows="22" required spellcheck="false" class="mt-2 block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100"></textarea>
+				<textarea id="template-source" name="template" rows="22" required spellcheck="false" class="mt-2 block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-950 dark:text-neutral-100"></textarea>
 			</div>
 			<div class="flex justify-end gap-3 border-t border-neutral-200 dark:border-neutral-700 pt-5">
 				<a href={ templ.SafeURL(templateRoute("/ui/jobs/run/templates", props.Namespace)) } class="rounded-md border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">Cancel</a>

@@ -192,7 +192,7 @@ templ OverviewTab(job JobDetail) {
 							<div class="font-medium mb-1">Tasks:</div>
 							<div class="flex flex-wrap gap-1">
 								for _, task := range tg.Tasks {
-									<span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300">
+									<span class="inline-flex items-center px-2 py-0.5 rounded-sm text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300">
 										{ task }
 									</span>
 								}
@@ -242,7 +242,7 @@ templ OverviewTab(job JobDetail) {
 			} else {
 				<dl class="divide-y divide-neutral-200 dark:divide-neutral-700 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
 					for _, item := range job.Metadata {
-						<div class="grid gap-1 px-4 py-3 sm:grid-cols-3 sm:gap-4"><dt class="font-mono text-sm font-medium text-neutral-700 dark:text-neutral-300">{ item.Key }</dt><dd class="break-words text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2">{ item.Value }</dd></div>
+						<div class="grid gap-1 px-4 py-3 sm:grid-cols-3 sm:gap-4"><dt class="font-mono text-sm font-medium text-neutral-700 dark:text-neutral-300">{ item.Key }</dt><dd class="wrap-break-word text-sm text-neutral-900 dark:text-neutral-100 sm:col-span-2">{ item.Value }</dd></div>
 					}
 				</dl>
 			}

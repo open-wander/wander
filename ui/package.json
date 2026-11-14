@@ -19,9 +19,10 @@
     "postcss-selector-parser": "7.1.6"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "devDependencies": {
-    "tailwindcss": "3.4.17"
+    "@tailwindcss/cli": "4.3.5",
+    "tailwindcss": "4.3.5"
   }
 }

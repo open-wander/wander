@@ -6,7 +6,7 @@ templ ThemeMenu() {
 		@DropdownTrigger() {
 			<button
 				type="button"
-				class="inline-flex items-center justify-center rounded-md p-2 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+				class="inline-flex items-center justify-center rounded-md p-2 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus:outline-hidden focus:ring-2 focus:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
 				aria-label="Choose color theme"
 			>
 				@Icon(IconProps{Name: "sun", Size: "md"})
@@ -23,7 +23,7 @@ templ ThemeMenu() {
 
 // ThemeSettings presents the same preference as a persistent settings control.
 templ ThemeSettings() {
-	<div class="rounded-lg bg-white shadow dark:bg-neutral-800">
+	<div class="rounded-lg bg-white shadow-sm dark:bg-neutral-800">
 		<div class="border-b border-neutral-200 px-6 py-5 dark:border-neutral-700">
 			<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Appearance</h2>
 			<p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Choose a color theme for this browser</p>
@@ -52,7 +52,7 @@ templ themeChoice(value string, label string, icon string, role string) {
 		data-theme-choice={ value }
 		aria-checked="false"
 		aria-pressed="false"
-		class="group flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2 text-left text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 aria-checked:border-primary-200 aria-checked:bg-primary-50 aria-checked:text-primary-700 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:aria-checked:border-primary-700 dark:aria-checked:bg-primary-950 dark:aria-checked:text-primary-300"
+		class="group flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2 text-left text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 focus:outline-hidden focus:ring-2 focus:ring-primary-500 aria-checked:border-primary-200 aria-checked:bg-primary-50 aria-checked:text-primary-700 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:aria-checked:border-primary-700 dark:aria-checked:bg-primary-950 dark:aria-checked:text-primary-300"
 	>
 		@Icon(IconProps{Name: icon, Size: "md"})
 		<span>{ label }</span>

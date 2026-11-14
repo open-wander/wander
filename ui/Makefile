@@ -39,9 +39,9 @@ clean: ## Remove generated CSS
 	@rm -f $(OUTPUT_CSS)
 	@echo "✓ Cleaned"
 
-verify-config: ## Verify Tailwind config is valid
+verify-config: ## Verify the Tailwind stylesheet and theme compile
 	@echo "Verifying Tailwind configuration..."
-	@$(TAILWIND_BIN) -i $(INPUT_CSS) -o /dev/null --config tailwind.config.js
+	@$(TAILWIND_BIN) -i $(INPUT_CSS) -o /dev/null
 	@echo "✓ Configuration is valid"
 
 check-deps: ## Check if Tailwind plugins are installed

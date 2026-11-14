@@ -1,14 +1,14 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "../../../ui/static/css/tailwind-theme.css";
+
+@source "../../templates";
 
 @layer base {
   html { scroll-behavior: smooth; }
   body { @apply bg-white font-sans text-neutral-900 antialiased; }
   .dark body { @apply bg-neutral-950 text-neutral-100; }
-  :focus-visible { @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-white; }
+  :focus-visible { @apply outline-hidden ring-2 ring-primary-500 ring-offset-2 ring-offset-white; }
   .dark :focus-visible { @apply ring-offset-neutral-950; }
-  code { @apply rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-sm text-neutral-800; }
+  code { @apply rounded-sm bg-neutral-100 px-1.5 py-0.5 font-mono text-sm text-neutral-800; }
   .dark code { @apply bg-neutral-800 text-neutral-100; }
   pre { @apply overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950 p-5 text-sm leading-7 text-neutral-100 shadow-2xl; }
   pre code { @apply bg-transparent p-0 text-inherit; }
@@ -19,7 +19,7 @@
   .eyebrow { @apply text-sm font-semibold uppercase tracking-[0.2em] text-primary-600 dark:text-primary-400; }
   .button-primary { @apply inline-flex items-center justify-center rounded-xl bg-primary-600 px-5 py-3 font-semibold text-white no-underline shadow-lg shadow-primary-600/20 transition hover:bg-primary-700 hover:no-underline; }
   .button-secondary { @apply inline-flex items-center justify-center rounded-xl border border-neutral-300 bg-white px-5 py-3 font-semibold text-neutral-800 no-underline transition hover:border-primary-400 hover:text-primary-700 hover:no-underline dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100; }
-  .surface { @apply rounded-3xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900; }
+  .surface { @apply rounded-3xl border border-neutral-200 bg-white shadow-xs dark:border-neutral-800 dark:bg-neutral-900; }
   .prose-wander { @apply prose prose-neutral max-w-none prose-headings:scroll-mt-24 prose-a:text-primary-600 prose-pre:bg-neutral-950 dark:prose-invert dark:prose-a:text-primary-400; }
 }
 

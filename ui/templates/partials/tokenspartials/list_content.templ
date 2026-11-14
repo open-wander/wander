@@ -31,7 +31,7 @@ templ ListContent(items []TokenSummary, search string) {
 		<div class="mb-6">
 			@components.SearchBar(components.SearchBarProps{Name: "search", Placeholder: "Search tokens by name or accessor ID...", Value: search, SearchURL: "/ui/access-control/tokens", ResultsID: "tokens-table-container", Debounce: 300})
 		</div>
-		<div id="tokens-table-container" class="overflow-hidden rounded-lg bg-white shadow dark:bg-neutral-900">
+		<div id="tokens-table-container" class="overflow-hidden rounded-lg bg-white shadow-sm dark:bg-neutral-900">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "name", Label: "Name", Align: "left"},

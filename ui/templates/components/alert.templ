@@ -47,7 +47,7 @@ templ Alert(props AlertProps) {
 	>
 		<div class="flex">
 			if props.Icon {
-				<div class="flex-shrink-0">
+				<div class="shrink-0">
 					@alertIcon(props.Variant)
 				</div>
 			}
@@ -163,7 +163,7 @@ func messageClasses(variant string, hasTitle bool) string {
 
 // dismissButtonClasses returns the CSS classes for the dismiss button
 func dismissButtonClasses(variant string) string {
-	baseClasses := "inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 "
+	baseClasses := "inline-flex rounded-md p-1.5 focus:outline-hidden focus:ring-2 focus:ring-offset-2 "
 
 	switch variant {
 	case "success":

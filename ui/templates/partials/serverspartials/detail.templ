@@ -58,7 +58,7 @@ templ DetailContent(server ServerDetail) {
 		<!-- Overview Section -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 			<!-- Basic Information -->
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
 					Server Information
 				</h2>
@@ -85,7 +85,7 @@ templ DetailContent(server ServerDetail) {
 				</dl>
 			</div>
 			<!-- Tags -->
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
 					Server Tags
 				</h2>
@@ -108,7 +108,7 @@ templ DetailContent(server ServerDetail) {
 		</div>
 		<!-- Statistics Section -->
 		if len(server.Stats) > 0 {
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 				<h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
 					Server Statistics
 				</h2>

@@ -52,7 +52,7 @@ type AllocationInfo struct {
 templ VolumeDetailContent(volume VolumeDetail) {
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Volume Header -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6 mb-6">
 			<div class="flex items-start justify-between">
 				<div class="flex-1">
 					<div class="flex items-center space-x-4 mb-4">
@@ -93,9 +93,9 @@ templ VolumeDetailContent(volume VolumeDetail) {
 			</div>
 		</div>
 		<div class="space-y-6">
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg">@OverviewTab(volume)</div>
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg">@AllocationsTab(volume)</div>
-			<div class="bg-white dark:bg-neutral-900 shadow rounded-lg">@HealthTab(volume)</div>
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg">@OverviewTab(volume)</div>
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg">@AllocationsTab(volume)</div>
+			<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg">@HealthTab(volume)</div>
 		</div>
 	</div>
 }

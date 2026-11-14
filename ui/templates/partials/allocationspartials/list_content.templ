@@ -81,7 +81,7 @@ templ ListContent(props ListProps) {
 				</p>
 			</div>
 		</div>
-		<form id="allocation-filters" class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/allocations" hx-get="/ui/allocations" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
+		<form id="allocation-filters" class="mb-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-xs dark:border-neutral-700 dark:bg-neutral-900" method="get" action="/ui/allocations" hx-get="/ui/allocations" hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true">
 			if props.Filters.Namespace != "" {
 				<input type="hidden" name="namespace" value={ props.Filters.Namespace }/>
 			}
@@ -93,7 +93,7 @@ templ ListContent(props ListProps) {
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 					<span>Search</span>
-					<input type="search" name="search" value={ props.Filters.Search } placeholder="ID, job, task group, or client" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"/>
+					<input type="search" name="search" value={ props.Filters.Search } placeholder="ID, job, task group, or client" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"/>
 				</label>
 				@allocationFilterSelect("status", "Client status", "All client states", props.Filters.Status, props.FilterOptions.Statuses)
 				@allocationFilterSelect("scheduling", "Scheduling", "All scheduling states", props.Filters.DesiredStatus, props.FilterOptions.DesiredStatuses)
@@ -107,11 +107,11 @@ templ ListContent(props ListProps) {
 				if hasActiveAllocationFilters(props.Filters) {
 					<a href={ templ.SafeURL(allocationPageSizeURL(props.Pagination.PerPage, props.Filters.Namespace, props.Filters.Region)) } hx-get={ allocationPageSizeURL(props.Pagination.PerPage, props.Filters.Namespace, props.Filters.Region) } hx-target="#main-content" hx-push-url="true" class="px-3 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">Clear filters</a>
 				}
-				<button type="submit" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply filters</button>
+				<button type="submit" class="inline-flex items-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-primary-500 focus:outline-hidden focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">Apply filters</button>
 			</div>
 		</form>
 		<!-- Allocations Table Container -->
-		<div id="allocations-table-container" class="bg-white dark:bg-neutral-900 shadow rounded-lg overflow-hidden">
+		<div id="allocations-table-container" class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
 			@AllocationsTable(props)
 		</div>
 	</div>
@@ -252,7 +252,7 @@ templ textAllocationCell(value string) {
 templ allocationFilterSelect(name, label, placeholder, selected string, options []string) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>{ label }</span>
-		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+		<select name={ name } class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
 			<option value="">{ placeholder }</option>
 			for _, option := range options {
 				<option value={ option } selected?={ selected == option }>{ capitalizeFirst(option) }</option>
@@ -264,7 +264,7 @@ templ allocationFilterSelect(name, label, placeholder, selected string, options 
 templ allocationPageSizeSelect(selected int) {
 	<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
 		<span>Rows per page</span>
-		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+		<select name="per_page" class="mt-1 block w-full rounded-md border-neutral-300 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
 			for _, option := range []int{10, 25, 50, 100} {
 				<option value={ fmt.Sprintf("%d", option) } selected?={ selected == option }>{ fmt.Sprintf("%d", option) }</option>
 			}
@@ -385,7 +385,7 @@ templ highlightedShortID(id string, matchedPrefix string) {
 		matchedPart := short[:prefixLen]
 		remainingPart := short[prefixLen:]
 	}}
-	<span class="bg-warning-100 dark:bg-warning-900/50 text-warning-800 dark:text-warning-200 rounded px-0.5">{ matchedPart }</span>{ remainingPart }
+	<span class="bg-warning-100 dark:bg-warning-900/50 text-warning-800 dark:text-warning-200 rounded-sm px-0.5">{ matchedPart }</span>{ remainingPart }
 }
 
 // formatTimeAgo formats a time.Time as a relative time string

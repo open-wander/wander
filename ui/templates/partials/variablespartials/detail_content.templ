@@ -32,7 +32,7 @@ templ DetailContent(variable VariableDetail) {
 		@htmx:before-request.window="guardHTMXNavigation($event)"
 	>
 		<!-- Variable Header -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6 mb-6">
+		<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6 mb-6">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-4">
 					<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ variable.Path }</h1>
@@ -80,10 +80,10 @@ templ DetailContent(variable VariableDetail) {
 			}
 		</div>
 		<!-- Key-Value Editor -->
-		<div class="bg-white dark:bg-neutral-900 shadow rounded-lg p-6">
+		<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
 			<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 				<h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Items</h2>
-				<div class="inline-flex rounded-md shadow-sm" role="group" aria-label="Variable editor mode">
+				<div class="inline-flex rounded-md shadow-xs" role="group" aria-label="Variable editor mode">
 					<button type="button" @click="switchEditorMode('list')" :aria-pressed="editorMode === 'list'" class="btn btn-secondary btn-sm rounded-r-none">List</button>
 					<button type="button" @click="switchEditorMode('json')" :aria-pressed="editorMode === 'json'" class="btn btn-secondary btn-sm rounded-l-none">JSON</button>
 					<button type="button" @click="copyItemsJSON()" class="btn btn-secondary btn-sm rounded-l-none" :aria-label="copiedJSON ? 'Copied variable JSON' : 'Copy variable JSON'" x-text="copiedJSON ? 'Copied' : 'Copy JSON'"></button>
@@ -92,7 +92,7 @@ templ DetailContent(variable VariableDetail) {
 					type="button"
 					@click="addItem()"
 					x-show="editorMode === 'list'"
-					class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+					class="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-xs text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 				>
 					<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
@@ -123,7 +123,7 @@ templ DetailContent(variable VariableDetail) {
 									x-model="item.key"
 									:name="'key_' + index"
 									placeholder="Key"
-									class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+									class="block w-full rounded-md border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-xs focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
 								/>
 							</div>
 							<!-- Value Input -->
@@ -134,7 +134,7 @@ templ DetailContent(variable VariableDetail) {
 							<button
 								type="button"
 								@click="removeItem(index)"
-								class="inline-flex items-center p-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-sm text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+								class="inline-flex items-center p-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-xs text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 							>
 								<svg class="h-5 w-5 text-error-600 dark:text-error-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"></path>
@@ -154,7 +154,7 @@ templ DetailContent(variable VariableDetail) {
 								<button
 									type="button"
 									@click="addItem()"
-									class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+									class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-xs text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 								>
 									<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 										<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
@@ -173,7 +173,7 @@ templ DetailContent(variable VariableDetail) {
 						@input="validateJSON()"
 						rows="12"
 						spellcheck="false"
-						class="block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+						class="block w-full rounded-md border-neutral-300 bg-white font-mono text-sm text-neutral-900 shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
 					></textarea>
 					<p x-show="jsonError" x-text="jsonError" class="mt-2 text-sm text-error-600 dark:text-error-400" role="alert"></p>
 				</div>
@@ -183,13 +183,13 @@ templ DetailContent(variable VariableDetail) {
 						<button
 							type="button"
 							@click="resetItems()"
-							class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-sm text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+							class="inline-flex items-center px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-xs text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 						>
 							Reset
 						</button>
 						<button
 							type="submit"
-							class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+							class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-xs text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
 						>
 							<svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>

@@ -11,7 +11,7 @@ generate:
 
 css:
 	@test -x $(TAILWIND) || (echo "Tailwind is missing; run make -C ../ui install-tailwind"; exit 1)
-	@$(TAILWIND) --config tailwind.config.js -i static/css/input.css -o static/css/output.css --minify
+	@$(TAILWIND) -i static/css/input.css -o static/css/output.css --minify
 
 render:
 	@go run ./cmd/site-build

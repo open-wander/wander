@@ -44,7 +44,7 @@ templ paginationContent(props PaginationProps, totalPages int) {
 					</p>
 				</div>
 				<div>
-					<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+					<nav class="isolate inline-flex -space-x-px rounded-md shadow-xs" aria-label="Pagination">
 						@prevButton(props, totalPages, false)
 						@pageNumbers(props, totalPages)
 						@nextButton(props, totalPages, false)
@@ -132,7 +132,7 @@ templ pageNumbers(props PaginationProps, totalPages int) {
 			<!-- Current page -->
 			<span
 				aria-current="page"
-				class="relative z-10 inline-flex items-center bg-primary-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+				class="relative z-10 inline-flex items-center bg-primary-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
 			>
 				{ fmt.Sprintf("%d", pageNum) }
 			</span>

@@ -13,12 +13,11 @@ download.
 
 ### Input
 - **Source**: `ui/static/css/input.css`
-- **Config**: `ui/tailwind.config.js`
+- **Theme**: `ui/static/css/tailwind-theme.css` (shared with `site/`)
 - **Content**: Scans for classes in:
-  - `./templates/**/*.templ` - Templ template files
-  - `./templates/**/*.go` - Generated Templ Go files
-  - `./handlers/**/*.go` - Handler files (may contain class references)
-  - `./static/js/**/*.js` - JavaScript files (Alpine.js patterns)
+  - `templates/` - Templ template files
+  - `handlers/` - Handler files (may contain class references)
+  - `static/js/` - JavaScript files (Alpine.js patterns)
 
 ### Output
 - **Production**: `ui/static/css/output.css` (minified)
@@ -57,20 +56,19 @@ make check-deps       # Check npm dependencies
 
 ### Content Paths
 
-The `tailwind.config.js` is configured to scan the following paths for class usage:
+Automatic source detection is turned off. `static/css/input.css` declares the
+paths Tailwind scans for class usage:
 
-```javascript
-content: [
-  "./templates/**/*.templ",  // Templ template source files
-  "./templates/**/*.go",     // Generated Templ Go files
-  "./handlers/**/*.go",      // HTTP handlers
-  "./static/js/**/*.js",     // JavaScript (Alpine.js patterns)
-]
+```css
+@source "../../templates";  /* Templ template source files */
+@source "../../handlers";   /* HTTP handlers */
+@source "../js";            /* JavaScript (Alpine.js patterns) */
 ```
 
 ### Plugins
 
-Two official Tailwind plugins are installed via npm:
+Two official Tailwind plugins are installed via npm and loaded with `@plugin` in
+`tailwind-theme.css`:
 
 - `@tailwindcss/forms` - Better default styles for form inputs
 - `@tailwindcss/typography` - Typography plugin for prose content
@@ -81,7 +79,7 @@ The config extends Tailwind's default theme with:
 
 - **Custom Colors**: primary, success, warning, error, info, neutral (with 50-950 shades)
 - **Custom Fonts**: Inter (sans), JetBrains Mono (mono)
-- **Custom Spacing**: 128, 144
+- **Spacing**: 128 and 144 come from the default dynamic spacing scale
 - **Custom Animations**: spin-slow, pulse-slow
 - **Dark Mode**: Class-based (`class` strategy)
 

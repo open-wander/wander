@@ -26,7 +26,7 @@ templ ListContent(serviceList []ServiceSummary) {
 			<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Services</h1>
 			<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">Nomad-native service registrations in the selected namespace</p>
 		</div>
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg overflow-hidden">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg overflow-hidden">
 			@components.Table(components.TableProps{
 				Columns: []components.Column{
 					{Key: "name", Label: "Name", Align: "left"},
@@ -67,7 +67,7 @@ templ DetailContent(service ServiceDetail) {
 			<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{ service.Name }</h1>
 			<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">{ fmt.Sprintf("%d live registration(s)", len(service.Registrations)) }</p>
 		</div>
-		<div class="bg-white dark:bg-neutral-800 shadow rounded-lg overflow-hidden">
+		<div class="bg-white dark:bg-neutral-800 shadow-sm rounded-lg overflow-hidden">
 			@RegistrationTable(service.Registrations)
 		</div>
 	</div>
