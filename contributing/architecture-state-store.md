@@ -64,7 +64,7 @@ flowchart TD
         raftApply(MessageType, entry) in nomad/rpc.go
         structs.MessageType in nomad/structs/structs.go
         go generate ./... for nomad/msgtypes.go")
-    click writes href "https://github.com/hashicorp/nomad/tree/main/nomad" _blank
+    click writes href "https://github.com/open-wander/wander/tree/main/nomad" _blank
 
     reads("reads go directly to state store
         Typical state_store.go funcs to implement:
@@ -74,7 +74,7 @@ flowchart TD
         state.ListMyThing
         state.UpsertMyThing
         state.DeleteMyThing")
-    click writes href "https://github.com/hashicorp/nomad/tree/main/nomad/state" _blank
+    click writes href "https://github.com/open-wander/wander/tree/main/nomad/state" _blank
 
     raft("hashicorp/raft")
 
@@ -83,7 +83,7 @@ flowchart TD
     fsm("Application-specific
       Finite State Machine (FSM)
       (aka State Store)")
-    click writes href "https://github.com/hashicorp/nomad/tree/main/nomad/fsm.go" _blank
+    click writes href "https://github.com/open-wander/wander/blob/main/nomad/fsm.go" _blank
 
     memdb("hashicorp/go-memdb")
 
@@ -148,4 +148,4 @@ flowchart TD
 ```
 
 
-[RPC Endpoint Checklist]: https://github.com/hashicorp/nomad/blob/main/contributing/checklist-rpc-endpoint.md
+[RPC Endpoint Checklist]: checklist-rpc-endpoint.md

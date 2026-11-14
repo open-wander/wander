@@ -5,6 +5,18 @@ Source code from later Nomad releases must not be copied, merged, or used as an
 implementation reference. Security fixes are implemented independently from
 public vulnerability information and maintained dependencies.
 
+## Source rule
+
+Wander does not accept code copied from the HashiCorp Nomad repository. The
+inherited source is fixed at the approved 1.6.5 baseline recorded in
+[`docs/licenses/README.md`](licenses/README.md). Nothing further is imported
+from the Nomad repository, from any branch, tag, release, pull request or fork.
+The rule covers source, tests, patches, generated assets and documentation, and
+it covers text that is ported, translated or paraphrased as well as text that
+is copied verbatim. [CONTRIBUTING.md](../CONTRIBUTING.md) states the rule for
+contributors and [the parity method](plans/license-safe-parity-method.md) lists
+the evidence that compatibility work may use.
+
 ## Wander-owned names
 
 New product behavior, browser state, configuration, release artifacts, and
