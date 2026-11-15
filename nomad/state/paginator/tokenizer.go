@@ -4,7 +4,9 @@
 package paginator
 
 import (
+	"cmp"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +15,14 @@ import (
 type Tokenizer interface {
 	// GetToken returns the pagination token for the given element.
 	GetToken(interface{}) string
+}
+
+// Comparer is an optional interface for a Tokenizer whose tokens do not sort
+// as plain strings in iteration order. Compare returns -1, 0 or +1 when the
+// token of raw sorts before, equal to, or after target. A Tokenizer without it
+// is compared with strings.Compare.
+type Comparer interface {
+	Compare(raw interface{}, target string) int
 }
 
 // IDGetter is the interface that must be implemented by structs that need to
@@ -106,4 +116,46 @@ func (it StructsTokenizer) GetToken(raw interface{}) string {
 	// `a-b` and job `c` into the same token `a-b-c`, since `-` is an allowed
 	// character in namespace.
 	return strings.Join(parts, ".")
+}
+
+// Compare orders the token of raw against target field by field, as memdb
+// orders compound indexes. Whole-string order differs: "team-a.j1" sorts
+// before "team.j1" because '-' < '.', and "10.x" sorts before "9.x". A target
+// not in this tokenizer's format is compared as a plain string.
+func (it StructsTokenizer) Compare(raw interface{}, target string) int {
+	fields := 0
+	for _, with := range []bool{it.opts.WithCreateIndex, it.opts.WithNamespace, it.opts.WithID} {
+		if with {
+			fields++
+		}
+	}
+
+	// only the last field, an ID, may contain '.', so SplitN keeps it whole
+	segments := strings.SplitN(target, ".", fields)
+	if fields == 0 || len(segments) != fields {
+		return strings.Compare(it.GetToken(raw), target)
+	}
+
+	if it.opts.WithCreateIndex {
+		index, err := strconv.ParseUint(segments[0], 10, 64)
+		if err != nil {
+			return strings.Compare(it.GetToken(raw), target)
+		}
+		if c := cmp.Compare(raw.(CreateIndexGetter).GetCreateIndex(), index); c != 0 {
+			return c
+		}
+		segments = segments[1:]
+	}
+
+	if it.opts.WithNamespace {
+		if c := strings.Compare(raw.(NamespaceGetter).GetNamespace(), segments[0]); c != 0 {
+			return c
+		}
+		segments = segments[1:]
+	}
+
+	if it.opts.WithID {
+		return strings.Compare(raw.(IDGetter).GetID(), segments[0])
+	}
+	return 0
 }
