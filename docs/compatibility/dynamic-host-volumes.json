@@ -1,16 +1,17 @@
 {
   "schema_version": 1,
   "feature": "dynamic-host-volumes",
-  "evidence_cutoff": "2026-11-08",
+  "evidence_cutoff": "2026-11-15",
   "synthetic_only": true,
   "sources": [
     {"id":"SRC-api","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-08","scope":"HTTP and claim operation tables; conflicting examples","summary":"Public operation tables only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/volume/host","date":"2026-11-08","scope":"Volume fields and mkdir parameters","summary":"Specification field descriptions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
-    {"id":"SRC-plugin","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/plugins/author/host-volume#specification","date":"2026-11-08","scope":"Plugin protocol specification only; implementation examples excluded","summary":"Executable protocol interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
+    {"id":"SRC-plugin","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/plugins/author/host-volume#specification","date":"2026-11-15","scope":"Plugin protocol specification only; implementation examples excluded","summary":"Executable protocol interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-job","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/job-specification/volume#parameters","date":"2026-11-08","scope":"Dynamic host job fields","summary":"Job field contract only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-config","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/configuration/client","date":"2026-11-08","scope":"Host volume directory settings","summary":"Directory configuration interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-cli","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/commands/volume","date":"2026-11-08","scope":"Command family index","summary":"Command family existence only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-acl","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/secure/acl/policies#host-volume-rules","date":"2026-11-08","scope":"Host volume mount policy","summary":"Mount permissions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
+    {"id":"SRC-acl-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/acl-policy","date":"2026-11-15","scope":"Namespace host-volume capabilities, their implications, and the read, write and scale shorthands","summary":"Capability names, descriptions and shorthand expansions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-requirements","category":"wander_requirement","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#requirements","date":"2026-11-08","scope":"Authorized PRD inventory; US-001..018, FR-1..36, section 6.5","summary":"Wander intended acceptance criteria; not upstream behavior.","limitations":"Does not resolve missing public contract evidence."}
   ],
   "test_cases": [
@@ -1567,9 +1568,9 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for fingerprint that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"First argument fingerprint; stdout version; five-second timeout.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-080"]},
+        "contract": {"status":"documented","value":"First argument fingerprint; DHV_OPERATION is fingerprint; stdout is a JSON object with a version field; five-second timeout.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-080"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-080"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-080"]},
+        "outputs": {"status":"documented","value":"JSON object with a string field version; the version must be valid for the go-version library.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-080"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-080"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-080"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-080"]},
@@ -1585,8 +1586,8 @@
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for create that remain null? Consult permitted evidence before implementation."],
       "assertions": {
         "contract": {"status":"documented","value":"First argument create; stdout path and bytes; sixty-second timeout.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
+        "inputs_defaults": {"status":"documented","value":"Environment: DHV_OPERATION, DHV_VOLUMES_DIR, DHV_PLUGIN_DIR, DHV_NAMESPACE, DHV_VOLUME_NAME, DHV_VOLUME_ID, DHV_NODE_ID, DHV_NODE_POOL, DHV_CAPACITY_MIN_BYTES, DHV_CAPACITY_MAX_BYTES, DHV_PARAMETERS (JSON text of the parameters).","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
+        "outputs": {"status":"documented","value":"JSON object with path (created path) and bytes (volume size); the path is passed back as DHV_CREATED_PATH on delete.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
@@ -1602,8 +1603,8 @@
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for delete that remain null? Consult permitted evidence before implementation."],
       "assertions": {
         "contract": {"status":"documented","value":"First argument delete; sixty-second timeout; repeated deletion succeeds.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-082"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-082"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-082"]},
+        "inputs_defaults": {"status":"documented","value":"Environment: DHV_OPERATION, DHV_CREATED_PATH, DHV_VOLUMES_DIR, DHV_PLUGIN_DIR, DHV_NAMESPACE, DHV_VOLUME_NAME, DHV_VOLUME_ID, DHV_NODE_ID, DHV_NODE_POOL, DHV_PARAMETERS; no capacity variables are listed.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-082"]},
+        "outputs": {"status":"documented","value":"None; stdout is discarded.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-082"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-082"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-082"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-082"]},
@@ -1839,7 +1840,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for stdout-error that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-096"]},
+        "contract": {"status":"documented","value":"A plugin may print a JSON object with an error field on stdout; the message is returned to the user. Stdout and stderr appear in client debug logs.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-096"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-096"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-096"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-096"]},
@@ -1856,7 +1857,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for exit-status that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-097"]},
+        "contract": {"status":"documented","value":"A failed create exits non-zero. No other exit-code meanings are documented.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-097"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-097"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-097"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-097"]},
@@ -1873,7 +1874,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for cleanup that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-098"]},
+        "contract": {"status":"documented","value":"The plugin cleans up a failed create; partial creates are not deleted for it. Delete is called when the volume cannot be saved after an initial create.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-098"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-098"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-098"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-098"]},
@@ -1890,7 +1891,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for concurrent-name-node that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-099"]},
+        "contract": {"status":"documented","value":"Create and delete must be safe to run concurrently per volume name per node.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-099"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-099"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-099"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-099"]},
@@ -1924,7 +1925,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for retry-cancellation that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-101"]},
+        "contract": {"status":"documented","value":"No automatic retry; the caller retries. A plugin may retry internally within the deadline.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-101"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-101"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-101"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-101"]},
@@ -1941,7 +1942,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for restart-reconciliation that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-102"]},
+        "contract": {"status":"documented","value":"A create failure while restoring volumes at agent start is logged; the client keeps running and the volume is not available on the node.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-102"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-102"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-102"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-102"]},
@@ -2536,7 +2537,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for host-volume-create that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-137"]},
+        "contract": {"status":"documented","value":"Namespace capability host-volume-create allows creating dynamic host volumes and implicitly grants host-volume-read.","evidence_refs":["SRC-acl-spec"],"test_ids":["DHV-T-137"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-137"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-137"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-137"]},
@@ -2553,7 +2554,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for host-volume-register that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-138"]},
+        "contract": {"status":"documented","value":"Namespace capability host-volume-register allows registering volumes created without a plugin and implicitly grants host-volume-read and host-volume-create.","evidence_refs":["SRC-acl-spec"],"test_ids":["DHV-T-138"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-138"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-138"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-138"]},
@@ -2570,7 +2571,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for host-volume-read that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-139"]},
+        "contract": {"status":"documented","value":"Namespace capability host-volume-read allows inspecting dynamic host volumes.","evidence_refs":["SRC-acl-spec"],"test_ids":["DHV-T-139"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-139"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-139"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-139"]},
@@ -2587,7 +2588,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for host-volume-write that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-140"]},
+        "contract": {"status":"documented","value":"Namespace capability host-volume-write allows all write operations and implicitly grants host-volume-read, host-volume-create, host-volume-register and host-volume-delete.","evidence_refs":["SRC-acl-spec"],"test_ids":["DHV-T-140"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-140"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-140"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-140"]},
@@ -2604,7 +2605,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for host-volume-delete that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-141"]},
+        "contract": {"status":"documented","value":"Namespace capability host-volume-delete allows deleting dynamic host volumes.","evidence_refs":["SRC-acl-spec"],"test_ids":["DHV-T-141"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-141"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-141"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-141"]},
@@ -2655,7 +2656,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for shorthand-policies that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-144"]},
+        "contract": {"status":"documented","value":"Namespace shorthand read includes host-volume-read; write includes host-volume-write; scale includes no host-volume capability.","evidence_refs":["SRC-acl-spec"],"test_ids":["DHV-T-144"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-144"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-144"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-144"]},

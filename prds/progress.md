@@ -325,3 +325,35 @@ checking that a child process is gone.
 PATTERN: fingerprint - A periodic fingerprinter must not return an error for
 expected faults, and should clear stale attributes by scanning the node's
 current attributes so it is correct after a restart.
+
+## 2026-11-15 — Corrections to tasks 3.1 and 2.2 from public documentation
+
+- The project owner authorised reading the public documentation to settle two
+  points the evidence file left unresolved. Read on 2026-11-15: the plugin
+  authoring specification (`SRC-plugin`), the API volumes page (`SRC-api`) and
+  the ACL policy specification (new source `SRC-acl-spec`). The evidence cutoff
+  moved to 2026-11-15 and the validator allow-list gained the ACL policy
+  specification path. Only interface facts were recorded; example plugin code
+  on the page was not read into the record.
+- Task 3.1 corrected: `host-volume-write` grants all five capabilities,
+  `host-volume-register` grants create and read, `host-volume-create` grants
+  read, the `read` shorthand includes `host-volume-read` and the `write`
+  shorthand includes `host-volume-write`. The earlier independent,
+  deny-by-default model would have stopped tokens with `policy = "write"` from
+  managing volumes.
+- Task 2.2 corrected: fingerprint stdout is one JSON object with a string
+  `version` that go-version accepts. A plain version line is now rejected.
+  Added reason code `invalid_output`.
+- Recorded for task 2.3 in DHV-B-081, 082 and 096 to 102: the create and delete
+  environment variables, the create output (`path`, `bytes`), the discarded
+  delete output, the optional `error` object, 60 second timeouts, idempotency,
+  per-name concurrency safety, no automatic retries, and cleanup rules.
+- A validator test assumed the first source's date equals the evidence cutoff;
+  it now uses the source's own date.
+- Tests were changed first and failed before each fix. ACL, plugin, fingerprint
+  and dependent server tests pass, with race detection where applicable.
+
+PATTERN: provenance - When the evidence file leaves a public interface point
+unresolved, stop and resolve it from the permitted public documentation before
+implementing, instead of choosing a narrower Wander policy. A deny-by-default
+or stricter-format guess breaks compatibility as surely as a wrong one.

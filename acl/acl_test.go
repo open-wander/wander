@@ -4,8 +4,7 @@
 package acl
 
 import (
-	"fmt"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/open-wander/wander/ci"
@@ -1026,204 +1025,106 @@ func TestACL_matchingCapabilitySet_difference(t *testing.T) {
 
 }
 
-// TestHostVolumeNamespaceCapabilities is the allow/deny matrix for the
-// dynamic host volume namespace capabilities. Every capability is checked
-// against every scenario, so independence between the capabilities and the
-// absence of shorthand grants are asserted rather than assumed.
+// TestHostVolumeNamespaceCapabilities checks which host volume operations a
+// compiled ACL allows for each way of granting access: shorthands, explicit
+// capabilities, the implications between capabilities, and deny.
 func TestHostVolumeNamespaceCapabilities(t *testing.T) {
 	ci.Parallel(t)
 
-	mustPolicy := func(t *testing.T, raw string) *Policy {
-		t.Helper()
-		p, err := Parse(raw)
-		must.NoError(t, err)
-		return p
-	}
+	const (
+		create   = NamespaceCapabilityHostVolumeCreate
+		register = NamespaceCapabilityHostVolumeRegister
+		read     = NamespaceCapabilityHostVolumeRead
+		write    = NamespaceCapabilityHostVolumeWrite
+		del      = NamespaceCapabilityHostVolumeDelete
+	)
 
-	others := func(target string) string {
-		var out []string
-		for _, c := range hostVolumeNamespaceCapabilities {
-			if c != target {
-				out = append(out, fmt.Sprintf("%q", c))
-			}
-		}
-		return strings.Join(out, ", ")
-	}
-
-	type check struct {
-		ns    string
-		allow bool
-	}
-	type scenario struct {
+	cases := []struct {
 		name     string
 		mgmt     bool
-		policies func(c string) []string
-		checks   []check
-	}
-
-	scenarios := []scenario{
-		{
-			name:     "no policy",
-			policies: func(c string) []string { return nil },
-			checks:   []check{{"team-a", false}, {"*", false}},
-		},
-		{
-			name: "unrelated capability",
-			policies: func(c string) []string {
-				return []string{`namespace "team-a" { capabilities = ["csi-read-volume", "read-job"] }`}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "every other host volume capability but not this one",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "team-a" { capabilities = [%s] }`, others(c))}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "exact namespace",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "team-a" { capabilities = [%q] }`, c)}
-			},
-			checks: []check{{"team-a", true}, {"team-b", false}, {"team-a-x", false}},
-		},
-		{
-			name: "wildcard namespace",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "*" { capabilities = [%q] }`, c)}
-			},
-			checks: []check{{"team-a", true}, {"other", true}},
-		},
-		{
-			name: "glob namespace",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "team-*" { capabilities = [%q] }`, c)}
-			},
-			checks: []check{{"team-a", true}, {"team-b", true}, {"other", false}},
-		},
+		policies []string
+		// allowed are the host volume capabilities permitted in team-a; all
+		// the others must be refused.
+		allowed []string
+		// other, when set, lists capabilities allowed in team-b.
+		other []string
+	}{
+		{name: "no policy"},
+		{name: "management token", mgmt: true, allowed: hostVolumeNamespaceCapabilities, other: hostVolumeNamespaceCapabilities},
+		{name: "unrelated capability", policies: []string{`namespace "team-a" { capabilities = ["csi-read-volume", "read-job"] }`}},
+		{name: "read shorthand", policies: []string{`namespace "team-a" { policy = "read" }`}, allowed: []string{read}},
+		{name: "write shorthand", policies: []string{`namespace "team-a" { policy = "write" }`}, allowed: hostVolumeNamespaceCapabilities},
+		{name: "scale shorthand", policies: []string{`namespace "team-a" { policy = "scale" }`}},
+		{name: "deny shorthand", policies: []string{`namespace "team-a" { policy = "deny" }`}},
+		{name: "node write policy", policies: []string{`node { policy = "write" }`}},
+		{name: "node read policy", policies: []string{`node { policy = "read" }`}},
+		{name: "write capability", policies: []string{`namespace "team-a" { capabilities = ["host-volume-write"] }`}, allowed: hostVolumeNamespaceCapabilities},
+		{name: "register capability", policies: []string{`namespace "team-a" { capabilities = ["host-volume-register"] }`}, allowed: []string{register, create, read}},
+		{name: "create capability", policies: []string{`namespace "team-a" { capabilities = ["host-volume-create"] }`}, allowed: []string{create, read}},
+		{name: "delete capability", policies: []string{`namespace "team-a" { capabilities = ["host-volume-delete"] }`}, allowed: []string{del}},
+		{name: "read capability", policies: []string{`namespace "team-a" { capabilities = ["host-volume-read"] }`}, allowed: []string{read}},
+		{name: "delete plus create", policies: []string{`namespace "team-a" { capabilities = ["host-volume-delete", "host-volume-create"] }`}, allowed: []string{del, create, read}},
+		{name: "scale shorthand plus create", policies: []string{`namespace "team-a" { policy = "scale" capabilities = ["host-volume-create"] }`}, allowed: []string{create, read}},
+		{name: "read shorthand plus delete", policies: []string{`namespace "team-a" { policy = "read" capabilities = ["host-volume-delete"] }`}, allowed: []string{read, del}},
+		{name: "write shorthand plus delete", policies: []string{`namespace "team-a" { policy = "write" capabilities = ["host-volume-delete"] }`}, allowed: hostVolumeNamespaceCapabilities},
+		{name: "wildcard namespace", policies: []string{`namespace "*" { capabilities = ["host-volume-create"] }`}, allowed: []string{create, read}, other: []string{create, read}},
+		{name: "glob namespace", policies: []string{`namespace "team-*" { policy = "read" }`}, allowed: []string{read}, other: []string{read}},
 		{
 			name: "exact namespace beats glob",
-			policies: func(c string) []string {
-				return []string{
-					fmt.Sprintf(`namespace "team-*" { capabilities = [%q] }`, c),
-					`namespace "team-a" { capabilities = ["read-job"] }`,
-				}
+			policies: []string{
+				`namespace "team-*" { policy = "write" }`,
+				`namespace "team-a" { capabilities = ["read-job"] }`,
 			},
-			checks: []check{{"team-a", false}, {"team-b", true}},
+			other: hostVolumeNamespaceCapabilities,
+		},
+		{name: "deny capability with write", policies: []string{`namespace "team-a" { capabilities = ["host-volume-write", "deny"] }`}},
+		{name: "deny shorthand with write capability", policies: []string{`namespace "team-a" { policy = "deny" capabilities = ["host-volume-write"] }`}},
+		{
+			name: "deny in one policy beats write in another",
+			policies: []string{
+				`namespace "team-a" { policy = "deny" }`,
+				`namespace "team-a" { policy = "write" }`,
+			},
 		},
 		{
-			name: "explicit deny capability",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "team-a" { capabilities = [%q, "deny"] }`, c)}
+			name: "two policies are unioned",
+			policies: []string{
+				`namespace "team-a" { capabilities = ["host-volume-delete"] }`,
+				`namespace "team-a" { capabilities = ["host-volume-create"] }`,
 			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "explicit deny policy",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "team-a" {
-					policy = "deny"
-					capabilities = [%q]
-				}`, c)}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "deny in one policy wins over grant in another",
-			policies: func(c string) []string {
-				return []string{
-					`namespace "team-a" { policy = "deny" }`,
-					fmt.Sprintf(`namespace "team-a" { capabilities = [%q] }`, c),
-				}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "all namespaces sentinel with one granting namespace",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "team-a" { capabilities = [%q] }`, c)}
-			},
-			checks: []check{{AllNamespacesSentinel, true}},
-		},
-		{
-			name: "all namespaces sentinel with no granting namespace",
-			policies: func(c string) []string {
-				return []string{`namespace "team-a" { policy = "write" }`}
-			},
-			checks: []check{{AllNamespacesSentinel, false}},
-		},
-		{
-			name:     "management token",
-			mgmt:     true,
-			policies: func(c string) []string { return nil },
-			checks:   []check{{"team-a", true}, {"other", true}, {AllNamespacesSentinel, true}},
-		},
-		{
-			name: "namespace read shorthand",
-			policies: func(c string) []string {
-				return []string{`namespace "team-a" { policy = "read" }`}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "namespace write shorthand",
-			policies: func(c string) []string {
-				return []string{`namespace "team-a" { policy = "write" }`}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "namespace scale shorthand",
-			policies: func(c string) []string {
-				return []string{`namespace "team-a" { policy = "scale" }`}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "node write policy",
-			policies: func(c string) []string {
-				return []string{`node { policy = "write" }`}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "node read policy",
-			policies: func(c string) []string {
-				return []string{`node { policy = "read" }`}
-			},
-			checks: []check{{"team-a", false}},
-		},
-		{
-			name: "write shorthand plus this capability",
-			policies: func(c string) []string {
-				return []string{fmt.Sprintf(`namespace "team-a" {
-					policy = "write"
-					capabilities = [%q]
-				}`, c)}
-			},
-			checks: []check{{"team-a", true}},
+			allowed: []string{del, create, read},
 		},
 	}
 
-	for _, capName := range hostVolumeNamespaceCapabilities {
-		for _, sc := range scenarios {
-			t.Run(capName+"/"+sc.name, func(t *testing.T) {
-				var policies []*Policy
-				for _, raw := range sc.policies(capName) {
-					policies = append(policies, mustPolicy(t, raw))
-				}
-				a, err := NewACL(sc.mgmt, policies)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var policies []*Policy
+			for _, raw := range tc.policies {
+				p, err := Parse(raw)
 				must.NoError(t, err)
-				must.NotNil(t, a)
+				policies = append(policies, p)
+			}
+			a, err := NewACL(tc.mgmt, policies)
+			must.NoError(t, err)
+			must.NotNil(t, a)
 
-				for _, chk := range sc.checks {
-					must.Eq(t, chk.allow, a.AllowNamespaceOperation(chk.ns, capName),
-						must.Sprintf("namespace %q", chk.ns))
-				}
-			})
-		}
+			for _, capName := range hostVolumeNamespaceCapabilities {
+				must.Eq(t, slices.Contains(tc.allowed, capName), a.AllowNamespaceOperation("team-a", capName),
+					must.Sprintf("team-a %s", capName))
+				must.Eq(t, slices.Contains(tc.other, capName), a.AllowNamespaceOperation("team-b", capName),
+					must.Sprintf("team-b %s", capName))
+			}
+		})
 	}
+
+	t.Run("all namespaces sentinel", func(t *testing.T) {
+		p, err := Parse(`namespace "team-a" { policy = "read" }`)
+		must.NoError(t, err)
+		a, err := NewACL(false, []*Policy{p})
+		must.NoError(t, err)
+		must.True(t, a.AllowNamespaceOperation(AllNamespacesSentinel, read))
+		must.False(t, a.AllowNamespaceOperation(AllNamespacesSentinel, write))
+	})
 
 	t.Run("nil ACL means ACLs are disabled", func(t *testing.T) {
 		var a *ACL
@@ -1232,26 +1133,14 @@ func TestHostVolumeNamespaceCapabilities(t *testing.T) {
 		}
 	})
 
-	t.Run("granted capability does not satisfy any other", func(t *testing.T) {
-		for _, granted := range hostVolumeNamespaceCapabilities {
-			p := mustPolicy(t, fmt.Sprintf(`namespace "team-a" { capabilities = [%q] }`, granted))
-			a, err := NewACL(false, []*Policy{p})
-			must.NoError(t, err)
-			for _, asked := range hostVolumeNamespaceCapabilities {
-				must.Eq(t, granted == asked, a.AllowNamespaceOperation("team-a", asked),
-					must.Sprintf("granted %s, asked %s", granted, asked))
-			}
-		}
-	})
-
 	t.Run("mount capabilities stay host_volume block capabilities", func(t *testing.T) {
-		p := mustPolicy(t, `host_volume "data-*" { capabilities = ["mount-readonly"] }`)
+		p, err := Parse(`host_volume "data-*" { capabilities = ["mount-readonly"] }`)
+		must.NoError(t, err)
 		a, err := NewACL(false, []*Policy{p})
 		must.NoError(t, err)
 		must.True(t, a.AllowHostVolumeOperation("data-1", HostVolumeCapabilityMountReadOnly))
 		must.False(t, a.AllowHostVolumeOperation("data-1", HostVolumeCapabilityMountReadWrite))
 		must.False(t, a.AllowHostVolumeOperation("other", HostVolumeCapabilityMountReadOnly))
-		// A mount grant says nothing about the namespace capabilities.
 		for _, capName := range hostVolumeNamespaceCapabilities {
 			must.False(t, a.AllowNamespaceOperation("team-a", capName))
 		}

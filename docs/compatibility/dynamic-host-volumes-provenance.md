@@ -1,7 +1,8 @@
 # Dynamic host volume provenance
 
 This record accompanies [the JSON matrix](dynamic-host-volumes.json).
-It captures interface evidence on 2026-11-08, not an implemented feature or a
+It captures interface evidence on 2026-11-08 and 2026-11-15, not an implemented
+feature or a
 complete verified contract. Every runtime acceptance test is currently planned.
 The offline validator tests the ledger itself only.
 
@@ -206,38 +207,47 @@ which uses an unregistered type byte to stand in for the older binary.
 
 The five capabilities `host-volume-create`, `host-volume-register`,
 `host-volume-read`, `host-volume-write` and `host-volume-delete` are namespace
-capabilities, as the evidence records them in the HTTP API authorization
-assertions. The existing `mount-readonly` and `mount-readwrite` stay
-`host_volume` block capabilities keyed by volume name, and a read-only mount
-grant does not satisfy a read-write mount check. The ACL-surface assertions
-(DHV-B-137 to DHV-B-144) remain unresolved, so the model below is Wander policy,
-not recorded public behaviour.
+capabilities. Their meaning comes from the public ACL policy specification
+(`SRC-acl-spec`, read on 2026-11-15) and is recorded in DHV-B-137 to DHV-B-141
+and DHV-B-144:
 
-Wander policy:
+| Capability or shorthand | Grants |
+| --- | --- |
+| `host-volume-read` | Itself only. |
+| `host-volume-delete` | Itself only. |
+| `host-volume-create` | Itself and `host-volume-read`. |
+| `host-volume-register` | Itself, `host-volume-create` and `host-volume-read`. |
+| `host-volume-write` | All five. |
+| `policy = "read"` | `host-volume-read`. |
+| `policy = "write"` | `host-volume-write`, and therefore all five. |
+| `policy = "scale"` | None. |
 
-- The capabilities are independent. No capability implies another, including
-  `host-volume-write`.
-- The namespace shorthands `read`, `write` and `scale` grant none of them.
-  `deny` revokes them like any other namespace capability, and deny takes
-  precedence across merged policies.
+An earlier version of this record treated the capabilities as independent and
+left them out of the shorthands, because the specification had not yet been
+recorded. That was corrected on 2026-11-15.
+
+The existing `mount-readonly` and `mount-readwrite` stay `host_volume` block
+capabilities keyed by volume name, and a read-only mount grant does not satisfy
+a read-write mount check.
+
+Still unresolved, and therefore Wander policy:
+
+- Wildcard and glob namespaces (DHV-B-142) follow the existing namespace rules:
+  an exact match beats a glob, the closest glob replaces rather than merges,
+  and management tokens pass every check.
+- Deny precedence (DHV-B-143) follows the existing rule: `deny` revokes the
+  capabilities like any other namespace capability, across merged policies.
 - Node policies grant none of them.
-- Wildcard and glob namespaces follow the existing namespace rules: an exact
-  match beats a glob, the closest glob replaces rather than merges, and
-  management tokens pass every check.
-- The "X or `host-volume-write`" alternatives in the API authorization
-  assertions are endpoint-level alternatives. Enforcement (a later phase)
-  checks them with OR semantics; they are not an implication in the policy
-  compiler.
+- The specification states the implications in the capability descriptions and
+  lists only `host-volume-write` in the `write` expansion. Wander applies the
+  implications to a capability however it was granted, including through a
+  shorthand.
 
-Consequence: an operator with `policy = "write"` on a namespace cannot manage
-host volumes until the policy also lists the explicit capabilities. This is the
-deny-by-default choice while the evidence is silent.
-
-Upgrade: a Wander server without this change rejects any policy containing a
-`host-volume-*` capability as an invalid namespace capability. During a rolling
-upgrade, token resolution for such a policy fails on servers not yet upgraded,
-and an upsert accepted by an upgraded leader replicates to them. Apply such
-policies only after every server runs the new version.
+Upgrade: a Wander server without this change rejects any policy that lists a
+`host-volume-*` capability as an invalid namespace capability, and its `read`
+and `write` shorthands do not include them. During a rolling upgrade, apply
+policies that list the capabilities only after every server runs the new
+version.
 
 Covered by `TestParse_HostVolumeNamespaceCapabilities` in `acl/policy_test.go`
 and `TestHostVolumeNamespaceCapabilities` in `acl/acl_test.go`. Enforcement in
@@ -247,13 +257,17 @@ scope here.
 ## Plugin discovery and fingerprinting (client) {#plugin-fingerprint}
 
 Implemented in `client/hostvolume` and `client/fingerprint/plugins_host_volume.go`.
-The evidence (DHV-B-079, DHV-B-080, DHV-B-084) resolves only: a candidate is an
-executable in `host_volume_plugin_dir`, it is called with first argument
-`fingerprint`, the version is on stdout, the time limit is five seconds, and
-`DHV_OPERATION` is a protocol variable. Everything else below is Wander policy
-chosen from this repository's own patterns, not taken from any later Nomad
-release. Third-party plugins written for a different stdout format or exit
-convention may not be recognised.
+The public plugin specification (`SRC-plugin`, re-read on 2026-11-15) resolves
+these points, recorded in DHV-B-079, DHV-B-080 and DHV-B-084: a candidate is an
+executable in `host_volume_plugin_dir`; it is called with first argument
+`fingerprint` and `DHV_OPERATION=fingerprint`; stdout is a JSON object with a
+`version` field that must be a valid version for the go-version library; the
+time limit is five seconds. An earlier version of this record accepted a plain
+version line because the output format had not yet been recorded. That was
+corrected on 2026-11-15.
+
+Everything marked as policy below is Wander policy chosen from this
+repository's own patterns, not taken from any later Nomad release.
 
 | Question | Wander policy |
 | --- | --- |
@@ -261,11 +275,11 @@ convention may not be recognised.
 | Windows | The execute bit has no meaning, so no external plugins are discovered on Windows (reason `unsupported_platform`). |
 | Plugin ID | The file name: 1 to 64 characters from `[A-Za-z0-9._-]`, not starting with a dot. Otherwise excluded with `invalid_id`. At most 32 candidates are run per pass (sorted by ID); the rest get `too_many_plugins`. |
 | Reserved ID | `mkdir` (DHV-B-103) is reserved for the built-in plugin. An external file named `mkdir` is excluded with `reserved_id`. The built-in plugin is not advertised yet; that is deferred to the task that implements it. |
-| stdout | Plain text. One trailing newline is trimmed. The remainder must be 1 to 64 characters from `[A-Za-z0-9._+-]`, a single line. Otherwise `invalid_version`. |
+| stdout | Evidence: one JSON object with a string `version`, valid for go-version. Policy: surrounding whitespace is allowed, unknown fields are ignored, data after the object is rejected, and the version is 1 to 64 characters from `[A-Za-z0-9._+-]` and is advertised exactly as printed. Output that is not one JSON object, or a `version` that is not a string, is `invalid_output`; a missing, empty, over-long, unsafe or unparseable version is `invalid_version`. |
 | Exit status | Exit 0 is healthy. Any other status is `nonzero_exit`. |
 | Output limits | stdout 1024 bytes, stderr 1024 bytes. Exceeding either kills the plugin: `output_too_large`. |
 | Timeout | 5 seconds (evidence). The plugin and its process group are killed: `timeout`. |
-| Environment | Exactly `DHV_OPERATION=fingerprint` and a fixed `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` (needed by script plugins). `DHV_PLUGIN_DIR` and `DHV_VOLUMES_DIR` are not set because the evidence does not tie them to fingerprint. The agent environment is not inherited. That `DHV_OPERATION` applies to fingerprint is a Wander choice. |
+| Environment | Exactly `DHV_OPERATION=fingerprint` and a fixed `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` (needed by script plugins). `DHV_OPERATION=fingerprint` is evidence; the fixed `PATH` is policy. `DHV_PLUGIN_DIR` and `DHV_VOLUMES_DIR` are not set because the specification lists them for create and delete only. The agent environment is not inherited. |
 | Working directory | The plugin directory. No shell is used; argv is `[path, "fingerprint"]`; stdin is empty. |
 | Diagnostics | A reason code plus at most 256 bytes of stderr or stdout with control characters and invalid UTF-8 replaced by spaces. A warning is logged when a plugin's reason changes, otherwise debug. |
 | Node representation | Node attribute `plugins.host_volume.version.<id>` = version, mirroring the inherited `plugins.cni.version.<name>`. Present means healthy; absent means unhealthy or not installed. `structs.Node` is unchanged, so no codec change. |

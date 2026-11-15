@@ -57,7 +57,7 @@ class ContractTests(unittest.TestCase):
         record = {
             "source_id": data["sources"][0]["id"], "binary_version": "synthetic-test-binary",
             "synthetic": True, "request": "GET synthetic volume data-a",
-            "response": "Synthetic response for data-a", "date": data["evidence_cutoff"],
+            "response": "Synthetic response for data-a", "date": data["sources"][0]["date"],
             "limitations": "Validator fixture only; no binary was executed.",
         }
         original_read = Path.read_text

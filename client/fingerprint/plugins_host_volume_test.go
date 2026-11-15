@@ -76,11 +76,11 @@ func TestPluginsHostVolumeFingerprint_EmptyAndMissing(t *testing.T) {
 func TestPluginsHostVolumeFingerprint_Advertise(t *testing.T) {
 	ci.Parallel(t)
 	dir := t.TempDir()
-	hvPlugin(t, dir, "alpha", "echo 1.2.3", 0o755)
-	hvPlugin(t, dir, "beta", "echo v2", 0o755)
+	hvPlugin(t, dir, "alpha", `echo '{"version":"1.2.3"}'`, 0o755)
+	hvPlugin(t, dir, "beta", `echo '{"version":"v2"}'`, 0o755)
 	// excluded in five different ways
-	hvPlugin(t, dir, "noexec", "echo 1", 0o644)
-	hvPlugin(t, dir, "malformed", "echo 'a b'", 0o755)
+	hvPlugin(t, dir, "noexec", `echo '{"version":"1"}'`, 0o644)
+	hvPlugin(t, dir, "malformed", `echo '{"version":"a b"}'`, 0o755)
 	hvPlugin(t, dir, "failing", "exit 1", 0o755)
 	hvPlugin(t, dir, "chatty", "exec yes 0123456789", 0o755)
 	hvPlugin(t, dir, "slow", "exec sleep 30", 0o755)
@@ -112,8 +112,8 @@ func TestPluginsHostVolumeFingerprint_NeverReturnsError(t *testing.T) {
 func TestPluginsHostVolumeFingerprint_HealthChange(t *testing.T) {
 	ci.Parallel(t)
 	dir := t.TempDir()
-	hvPlugin(t, dir, "alpha", "echo 1.0", 0o755)
-	hvPlugin(t, dir, "beta", "echo 2.0", 0o755)
+	hvPlugin(t, dir, "alpha", `echo '{"version":"1.0"}'`, 0o755)
+	hvPlugin(t, dir, "beta", `echo '{"version":"2.0"}'`, 0o755)
 	f := newHVFingerprinter(t)
 
 	node := &structs.Node{Attributes: map[string]string{"kernel.name": "linux"}}
@@ -139,7 +139,7 @@ func TestPluginsHostVolumeFingerprint_HealthChange(t *testing.T) {
 	must.False(t, touched)
 
 	// beta recovers
-	hvPlugin(t, dir, "beta", "echo 2.1", 0o755)
+	hvPlugin(t, dir, "beta", `echo '{"version":"2.1"}'`, 0o755)
 	resp = runHV(t, f, dir, node)
 	must.Eq(t, "2.1", resp.Attributes["plugins.host_volume.version.beta"])
 }
@@ -148,7 +148,7 @@ func TestPluginsHostVolumeFingerprint_ShuffledListing(t *testing.T) {
 	ci.Parallel(t)
 	dir := t.TempDir()
 	for _, n := range []string{"a", "b", "c"} {
-		hvPlugin(t, dir, n, "echo 1", 0o755)
+		hvPlugin(t, dir, n, `echo '{"version":"1"}'`, 0o755)
 	}
 	real, err := os.ReadDir(dir)
 	must.NoError(t, err)

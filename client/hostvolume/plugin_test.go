@@ -125,15 +125,38 @@ func TestRunner_Fingerprint(t *testing.T) {
 		version string
 		reason  string
 	}{
-		{"valid", `echo 1.2.3`, 0o755, true, "1.2.3", ""},
-		{"valid no newline", `printf v1+meta_2`, 0o755, true, "v1+meta_2", ""},
-		{"non-executable", `echo 1.0`, 0o644, false, "", ReasonStartFailed},
-		{"empty output", `exit 0`, 0o755, false, "", ReasonInvalidVersion},
-		{"multi-line", `printf '1.0\n2.0\n'`, 0o755, false, "", ReasonInvalidVersion},
-		{"bad characters", `echo 'a b;rm'`, 0o755, false, "", ReasonInvalidVersion},
-		{"control characters", `printf '1.0\033[31m\n'`, 0o755, false, "", ReasonInvalidVersion},
-		{"too long version", `echo ` + strings.Repeat("1", MaxVersionLen+1), 0o755, false, "", ReasonInvalidVersion},
-		{"non-zero exit", `echo 1.0; echo boom >&2; exit 3`, 0o755, false, "", ReasonNonZeroExit},
+		{"valid", `echo '{"version": "1.2.3"}'`, 0o755, true, "1.2.3", ""},
+		{"valid no newline", `printf '{"version":"v1.2.3-rc.1+meta"}'`, 0o755, true, "v1.2.3-rc.1+meta", ""},
+		{"valid surrounding whitespace", `printf '  \n\t{"version":"0.0.1"}\r\n\n'`, 0o755, true, "0.0.1", ""},
+		{"valid unknown fields", `echo '{"version":"1.0","extra":{"a":[1,2]},"n":null}'`, 0o755, true, "1.0", ""},
+		{"valid version kept as printed", `echo '{"version":"v1"}'`, 0o755, true, "v1", ""},
+		{"non-executable", `echo '{"version":"1.0"}'`, 0o644, false, "", ReasonStartFailed},
+		{"plain version line", `echo 1.2.3`, 0o755, false, "", ReasonInvalidOutput},
+		{"empty output", `exit 0`, 0o755, false, "", ReasonInvalidOutput},
+		{"whitespace only", `printf ' \n'`, 0o755, false, "", ReasonInvalidOutput},
+		{"array", `echo '["1.0"]'`, 0o755, false, "", ReasonInvalidOutput},
+		{"string", `echo '"1.0"'`, 0o755, false, "", ReasonInvalidOutput},
+		{"number", `echo '1.0'`, 0o755, false, "", ReasonInvalidOutput},
+		{"null", `echo 'null'`, 0o755, false, "", ReasonInvalidOutput},
+		{"truncated json", `echo '{"version":"1.0"'`, 0o755, false, "", ReasonInvalidOutput},
+		{"missing version", `echo '{"other":"1.0"}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"empty object", `echo '{}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"empty version", `echo '{"version":""}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"null version", `echo '{"version":null}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"version number", `echo '{"version":1.2}'`, 0o755, false, "", ReasonInvalidOutput},
+		{"version object", `echo '{"version":{"v":"1"}}'`, 0o755, false, "", ReasonInvalidOutput},
+		{"version invalid for go-version", `echo '{"version":"not-a-version"}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"version with space", `echo '{"version":"1.0 beta"}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"version with shell chars", `echo '{"version":"1.0;rm"}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"version with escaped control", `echo '{"version":"1.0\\u001b[31m"}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"too long version", `echo '{"version":"` + strings.Repeat("1", MaxVersionLen+1) + `"}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"trailing object", `echo '{"version":"1.0"}{"version":"2.0"}'`, 0o755, false, "", ReasonInvalidOutput},
+		{"trailing garbage", `echo '{"version":"1.0"} x'`, 0o755, false, "", ReasonInvalidOutput},
+		{"trailing line", `printf '{"version":"1.0"}\n2.0\n'`, 0o755, false, "", ReasonInvalidOutput},
+		{"raw control characters", `printf '{"version":"1.0\033[31m"}\n'`, 0o755, false, "", ReasonInvalidOutput},
+		{"control characters outside json", `printf '\033[31m{"version":"1.0"}\n'`, 0o755, false, "", ReasonInvalidOutput},
+		{"error object", `echo '{"error":"boom"}'`, 0o755, false, "", ReasonInvalidVersion},
+		{"non-zero exit", `echo '{"version":"1.0"}'; echo boom >&2; exit 3`, 0o755, false, "", ReasonNonZeroExit},
 		{"timeout", `exec sleep 30`, 0o755, false, "", ReasonTimeout},
 		{"timeout with grandchild", `sleep 30 & wait`, 0o755, false, "", ReasonTimeout},
 		{"oversized stdout", `exec yes 1234567890`, 0o755, false, "", ReasonOutputTooLarge},
@@ -182,7 +205,7 @@ func TestRunner_Fingerprint_ArgvAndEnv(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(t.TempDir(), "out")
 	p := writePlugin(t, dir, "plug",
-		`{ echo "argc=$#"; echo "arg1=$1"; echo "pwd=$(pwd -P)"; env | sort; } > '`+out+`'; echo 1.0`, 0o755)
+		`{ echo "argc=$#"; echo "arg1=$1"; echo "pwd=$(pwd -P)"; env | sort; } > '`+out+`'; echo '{"version":"1.0"}'`, 0o755)
 	res := Runner{}.Fingerprint(context.Background(), Candidate{ID: "plug", Path: p})
 	must.True(t, res.Healthy)
 
@@ -227,11 +250,13 @@ func TestRunner_Fingerprint_Canceled(t *testing.T) {
 
 func TestVersionAndID(t *testing.T) {
 	ci.Parallel(t)
-	for _, v := range []string{"1", "v1.2.3-rc.1+b5", "a_b"} {
-		_, err := ParseVersion([]byte(v + "\n"))
+	for _, v := range []string{"1", "v1.2.3-rc.1+b5", "0.0.1"} {
+		got, err := ParseVersion([]byte(`{"version":"` + v + `"}` + "\n"))
 		must.NoError(t, err, must.Sprint(v))
+		must.Eq(t, v, got)
 	}
-	for _, v := range []string{"", "\n", "\n\n", "a\nb", "a b", "a/b", strings.Repeat("x", 65), "é"} {
+	for _, v := range []string{"", "\n", "1.0", `"1.0"`, `{"version":"a b"}`, `{"version":"x"}`,
+		`{"version":"` + strings.Repeat("1", MaxVersionLen+1) + `"}`, `{"version":"é"}`} {
 		_, err := ParseVersion([]byte(v))
 		must.Error(t, err, must.Sprint(v))
 	}

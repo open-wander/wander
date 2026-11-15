@@ -12,8 +12,10 @@ package hostvolume
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -23,6 +25,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	goversion "github.com/hashicorp/go-version"
 )
 
 const (
@@ -62,7 +66,9 @@ const (
 	waitDelay = time.Second
 )
 
-// Reason codes for diagnostics.
+// Reason codes for diagnostics. invalid_output means stdout was not a single
+// JSON object (or its version was not a string); invalid_version means the
+// object carried a missing, empty, over-long, unsafe or non-go-version value.
 const (
 	ReasonListFailed     = "list_failed"
 	ReasonTooManyPlugins = "too_many_plugins"
@@ -74,6 +80,7 @@ const (
 	ReasonCanceled       = "canceled"
 	ReasonOutputTooLarge = "output_too_large"
 	ReasonNonZeroExit    = "nonzero_exit"
+	ReasonInvalidOutput  = "invalid_output"
 	ReasonInvalidVersion = "invalid_version"
 	ReasonUnsupportedOS  = "unsupported_platform"
 )
@@ -184,22 +191,54 @@ func idChar(c byte) bool {
 		c == '.' || c == '_' || c == '-'
 }
 
-// ParseVersion validates fingerprint stdout: a single line, one trailing
-// newline trimmed, 1 to MaxVersionLen characters from [A-Za-z0-9._+-].
+// errInvalidOutput and errInvalidVersion distinguish a stdout that is not a
+// single JSON object of the expected shape (ReasonInvalidOutput) from an
+// object whose version is missing or unacceptable (ReasonInvalidVersion).
+var (
+	errInvalidOutput  = errors.New("invalid fingerprint output")
+	errInvalidVersion = errors.New("invalid version")
+)
+
+// ParseVersion validates fingerprint stdout. It must be exactly one JSON
+// object, optionally surrounded by whitespace, with a string "version" field.
+// Unknown fields are ignored (Wander policy); anything after the object,
+// including a second object, is rejected. The version must be non-empty, at
+// most MaxVersionLen bytes, made only of [A-Za-z0-9._+-] (safe as a node
+// attribute value) and accepted by go-version. It is returned exactly as the
+// plugin printed it. A malformed envelope wraps errInvalidOutput, a bad
+// version wraps errInvalidVersion.
 func ParseVersion(stdout []byte) (string, error) {
-	s := string(stdout)
-	s = strings.TrimSuffix(s, "\n")
-	s = strings.TrimSuffix(s, "\r")
-	if s == "" || len(s) > MaxVersionLen {
-		return "", errors.New("invalid version")
+	dec := json.NewDecoder(bytes.NewReader(stdout))
+	var obj map[string]json.RawMessage
+	if err := dec.Decode(&obj); err != nil || obj == nil {
+		return "", errInvalidOutput
 	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !idChar(c) && c != '+' {
-			return "", errors.New("invalid version")
+	if _, err := dec.Token(); err != io.EOF {
+		return "", errInvalidOutput // trailing data
+	}
+	raw, ok := obj["version"]
+	if !ok {
+		return "", errInvalidVersion
+	}
+	var v string
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return "", errInvalidVersion
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return "", errInvalidOutput // not a string
+	}
+	if v == "" || len(v) > MaxVersionLen {
+		return "", errInvalidVersion
+	}
+	for i := 0; i < len(v); i++ {
+		if c := v[i]; !idChar(c) && c != '+' {
+			return "", errInvalidVersion
 		}
 	}
-	return s, nil
+	if _, err := goversion.NewVersion(v); err != nil {
+		return "", errInvalidVersion
+	}
+	return v, nil
 }
 
 // Limits bounds the captured output of a plugin run, in bytes.
@@ -294,7 +333,8 @@ type Runner struct {
 
 // Fingerprint runs the candidate's fingerprint operation: argv is
 // ["fingerprint"], the environment is DHV_OPERATION=fingerprint plus a fixed
-// PATH, and a healthy plugin exits 0 with a valid version on stdout.
+// PATH, and a healthy plugin exits 0 with a JSON object such as
+// {"version": "0.0.1"} on stdout (see ParseVersion).
 func (r Runner) Fingerprint(ctx context.Context, c Candidate) Result {
 	timeout := r.Timeout
 	if timeout <= 0 {
@@ -334,7 +374,11 @@ func (r Runner) Fingerprint(ctx context.Context, c Candidate) Result {
 
 	v, verr := ParseVersion(res.Stdout)
 	if verr != nil {
-		return fail(ReasonInvalidVersion, sanitize(res.Stdout))
+		reason := ReasonInvalidVersion
+		if errors.Is(verr, errInvalidOutput) {
+			reason = ReasonInvalidOutput
+		}
+		return fail(reason, sanitize(res.Stdout))
 	}
 	return Result{ID: c.ID, Version: v, Healthy: true}
 }

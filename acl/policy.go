@@ -247,6 +247,7 @@ func expandNamespacePolicy(policy string) []string {
 		NamespaceCapabilityReadJobScaling,
 		NamespaceCapabilityListScalingPolicies,
 		NamespaceCapabilityReadScalingPolicy,
+		NamespaceCapabilityHostVolumeRead,
 	}
 
 	write := make([]string, len(read))
@@ -263,6 +264,7 @@ func expandNamespacePolicy(policy string) []string {
 		NamespaceCapabilityCSIMountVolume,
 		NamespaceCapabilityCSIWriteVolume,
 		NamespaceCapabilitySubmitRecommendation,
+		NamespaceCapabilityHostVolumeWrite,
 	}...)
 
 	switch policy {
@@ -282,6 +284,65 @@ func expandNamespacePolicy(policy string) []string {
 	default:
 		return nil
 	}
+}
+
+// impliedHostVolumeCapabilities maps each host volume namespace capability to
+// the further host volume capabilities it grants. Capabilities that grant
+// nothing else are absent. Each entry lists the complete result, so no
+// transitive lookup is needed.
+var impliedHostVolumeCapabilities = map[string][]string{
+	NamespaceCapabilityHostVolumeWrite: {
+		NamespaceCapabilityHostVolumeRead,
+		NamespaceCapabilityHostVolumeCreate,
+		NamespaceCapabilityHostVolumeRegister,
+		NamespaceCapabilityHostVolumeDelete,
+	},
+	NamespaceCapabilityHostVolumeRegister: {
+		NamespaceCapabilityHostVolumeRead,
+		NamespaceCapabilityHostVolumeCreate,
+	},
+	NamespaceCapabilityHostVolumeCreate: {
+		NamespaceCapabilityHostVolumeRead,
+	},
+}
+
+// addImpliedHostVolumeCapabilities adds the host volume capabilities implied
+// by those already in caps, and removes duplicate host volume capabilities.
+// It runs after the policy shorthand is expanded, so it covers both explicit
+// capabilities and shorthands. Other capabilities are returned unchanged.
+func addImpliedHostVolumeCapabilities(caps []string) []string {
+	if len(caps) == 0 {
+		return caps
+	}
+	have := make(map[string]struct{})
+	out := make([]string, 0, len(caps))
+	add := func(c string) {
+		if _, ok := have[c]; !ok {
+			have[c] = struct{}{}
+			out = append(out, c)
+		}
+	}
+	isHostVolume := func(c string) bool {
+		switch c {
+		case NamespaceCapabilityHostVolumeCreate, NamespaceCapabilityHostVolumeRegister,
+			NamespaceCapabilityHostVolumeRead, NamespaceCapabilityHostVolumeWrite,
+			NamespaceCapabilityHostVolumeDelete:
+			return true
+		}
+		return false
+	}
+
+	for _, c := range caps {
+		if !isHostVolume(c) {
+			out = append(out, c)
+			continue
+		}
+		add(c)
+		for _, implied := range impliedHostVolumeCapabilities[c] {
+			add(implied)
+		}
+	}
+	return out
 }
 
 func isNodePoolCapabilityValid(cap string) bool {
@@ -393,6 +454,8 @@ func Parse(rules string) (*Policy, error) {
 			extraCap := expandNamespacePolicy(ns.Policy)
 			ns.Capabilities = append(ns.Capabilities, extraCap...)
 		}
+
+		ns.Capabilities = addImpliedHostVolumeCapabilities(ns.Capabilities)
 
 		if ns.Variables != nil {
 			if len(ns.Variables.Paths) == 0 {
