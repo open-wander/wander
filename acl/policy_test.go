@@ -898,3 +898,83 @@ func TestParse_BadInput(t *testing.T) {
 		})
 	}
 }
+
+var hostVolumeNamespaceCapabilities = []string{
+	NamespaceCapabilityHostVolumeCreate,
+	NamespaceCapabilityHostVolumeRegister,
+	NamespaceCapabilityHostVolumeRead,
+	NamespaceCapabilityHostVolumeWrite,
+	NamespaceCapabilityHostVolumeDelete,
+}
+
+func TestParse_HostVolumeNamespaceCapabilities(t *testing.T) {
+	ci.Parallel(t)
+
+	t.Run("names", func(t *testing.T) {
+		assert.Equal(t, []string{
+			"host-volume-create", "host-volume-register", "host-volume-read",
+			"host-volume-write", "host-volume-delete",
+		}, hostVolumeNamespaceCapabilities)
+	})
+
+	for _, capName := range hostVolumeNamespaceCapabilities {
+		t.Run("single "+capName, func(t *testing.T) {
+			p, err := Parse(fmt.Sprintf(`namespace "team-a" { capabilities = [%q] }`, capName))
+			assert.NoError(t, err)
+			assert.Equal(t, []string{capName}, p.Namespaces[0].Capabilities)
+		})
+	}
+
+	t.Run("all together", func(t *testing.T) {
+		raw := `namespace "team-a" { capabilities = ["host-volume-create", "host-volume-register", "host-volume-read", "host-volume-write", "host-volume-delete"] }`
+		p, err := Parse(raw)
+		assert.NoError(t, err)
+		assert.Equal(t, hostVolumeNamespaceCapabilities, p.Namespaces[0].Capabilities)
+	})
+
+	t.Run("policy shorthand plus explicit capabilities is the union", func(t *testing.T) {
+		p, err := Parse(`namespace "team-a" {
+			policy = "write"
+			capabilities = ["host-volume-read"]
+		}`)
+		assert.NoError(t, err)
+		caps := p.Namespaces[0].Capabilities
+		assert.Contains(t, caps, NamespaceCapabilityHostVolumeRead)
+		assert.Contains(t, caps, NamespaceCapabilitySubmitJob)
+	})
+
+	t.Run("shorthands do not expand to host-volume capabilities", func(t *testing.T) {
+		for _, pol := range []string{PolicyRead, PolicyWrite, PolicyScale} {
+			p, err := Parse(fmt.Sprintf(`namespace "team-a" { policy = %q }`, pol))
+			assert.NoError(t, err)
+			for _, capName := range hostVolumeNamespaceCapabilities {
+				assert.NotContains(t, p.Namespaces[0].Capabilities, capName, "policy %s", pol)
+			}
+		}
+	})
+
+	t.Run("unknown capabilities are rejected", func(t *testing.T) {
+		for _, capName := range []string{"host-volume-list", "csi-host-volume", "host-volume-mount", "host-volume"} {
+			_, err := Parse(fmt.Sprintf(`namespace "team-a" { capabilities = [%q] }`, capName))
+			if assert.Error(t, err, capName) {
+				assert.Contains(t, err.Error(), "Invalid namespace capability", capName)
+			}
+		}
+	})
+
+	t.Run("namespace capabilities are not host_volume block capabilities", func(t *testing.T) {
+		for _, capName := range hostVolumeNamespaceCapabilities {
+			_, err := Parse(fmt.Sprintf(`host_volume "data" { capabilities = [%q] }`, capName))
+			if assert.Error(t, err, capName) {
+				assert.Contains(t, err.Error(), "Invalid host volume capability", capName)
+			}
+		}
+	})
+
+	t.Run("mount capabilities are not namespace capabilities", func(t *testing.T) {
+		for _, capName := range []string{HostVolumeCapabilityMountReadOnly, HostVolumeCapabilityMountReadWrite} {
+			_, err := Parse(fmt.Sprintf(`namespace "team-a" { capabilities = [%q] }`, capName))
+			assert.Error(t, err, capName)
+		}
+	})
+}

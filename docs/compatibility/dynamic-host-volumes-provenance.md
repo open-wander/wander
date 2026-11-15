@@ -202,6 +202,48 @@ and claim has been deleted and a fresh snapshot taken first. The behaviour is
 covered by `TestFSM_SnapshotRestore_DynamicHostVolumes_DowngradeRejectsUnknownType`,
 which uses an unregistered type byte to stand in for the older binary.
 
+## ACL capabilities {#acl-capabilities}
+
+The five capabilities `host-volume-create`, `host-volume-register`,
+`host-volume-read`, `host-volume-write` and `host-volume-delete` are namespace
+capabilities, as the evidence records them in the HTTP API authorization
+assertions. The existing `mount-readonly` and `mount-readwrite` stay
+`host_volume` block capabilities keyed by volume name, and a read-only mount
+grant does not satisfy a read-write mount check. The ACL-surface assertions
+(DHV-B-137 to DHV-B-144) remain unresolved, so the model below is Wander policy,
+not recorded public behaviour.
+
+Wander policy:
+
+- The capabilities are independent. No capability implies another, including
+  `host-volume-write`.
+- The namespace shorthands `read`, `write` and `scale` grant none of them.
+  `deny` revokes them like any other namespace capability, and deny takes
+  precedence across merged policies.
+- Node policies grant none of them.
+- Wildcard and glob namespaces follow the existing namespace rules: an exact
+  match beats a glob, the closest glob replaces rather than merges, and
+  management tokens pass every check.
+- The "X or `host-volume-write`" alternatives in the API authorization
+  assertions are endpoint-level alternatives. Enforcement (a later phase)
+  checks them with OR semantics; they are not an implication in the policy
+  compiler.
+
+Consequence: an operator with `policy = "write"` on a namespace cannot manage
+host volumes until the policy also lists the explicit capabilities. This is the
+deny-by-default choice while the evidence is silent.
+
+Upgrade: a Wander server without this change rejects any policy containing a
+`host-volume-*` capability as an invalid namespace capability. During a rolling
+upgrade, token resolution for such a policy fails on servers not yet upgraded,
+and an upsert accepted by an upgraded leader replicates to them. Apply such
+policies only after every server runs the new version.
+
+Covered by `TestParse_HostVolumeNamespaceCapabilities` in `acl/policy_test.go`
+and `TestHostVolumeNamespaceCapabilities` in `acl/acl_test.go`. Enforcement in
+RPC, HTTP and CLI, wildcard-namespace list filtering and the UI are out of
+scope here.
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

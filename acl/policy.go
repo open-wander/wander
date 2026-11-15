@@ -51,6 +51,11 @@ const (
 	NamespaceCapabilityReadJobScaling       = "read-job-scaling"
 	NamespaceCapabilityScaleJob             = "scale-job"
 	NamespaceCapabilitySubmitRecommendation = "submit-recommendation"
+	NamespaceCapabilityHostVolumeCreate     = "host-volume-create"
+	NamespaceCapabilityHostVolumeRegister   = "host-volume-register"
+	NamespaceCapabilityHostVolumeRead       = "host-volume-read"
+	NamespaceCapabilityHostVolumeWrite      = "host-volume-write"
+	NamespaceCapabilityHostVolumeDelete     = "host-volume-delete"
 )
 
 var (
@@ -206,7 +211,9 @@ func isNamespaceCapabilityValid(cap string) bool {
 		NamespaceCapabilityReadFS, NamespaceCapabilityAllocLifecycle,
 		NamespaceCapabilityAllocExec, NamespaceCapabilityAllocNodeExec,
 		NamespaceCapabilityCSIReadVolume, NamespaceCapabilityCSIWriteVolume, NamespaceCapabilityCSIListVolume, NamespaceCapabilityCSIMountVolume, NamespaceCapabilityCSIRegisterPlugin,
-		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob:
+		NamespaceCapabilityListScalingPolicies, NamespaceCapabilityReadScalingPolicy, NamespaceCapabilityReadJobScaling, NamespaceCapabilityScaleJob,
+		NamespaceCapabilityHostVolumeCreate, NamespaceCapabilityHostVolumeRegister, NamespaceCapabilityHostVolumeRead,
+		NamespaceCapabilityHostVolumeWrite, NamespaceCapabilityHostVolumeDelete:
 		return true
 	// Separate the enterprise-only capabilities
 	case NamespaceCapabilitySentinelOverride, NamespaceCapabilitySubmitRecommendation:

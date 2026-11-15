@@ -211,3 +211,35 @@ restores still work.
 
 PATTERN: testing - Assert snapshot determinism on record order and decoded
 content, not bytes; simulate an older binary with an unregistered type byte.
+
+## 2026-11-15 — Task 3.1 complete
+
+- Added the namespace capabilities `host-volume-create`, `host-volume-register`,
+  `host-volume-read`, `host-volume-write` and `host-volume-delete` to the ACL
+  policy parser. The compiled ACL needed no change: the existing namespace
+  evaluation already handles exact, glob and wildcard namespaces, deny
+  precedence and management tokens.
+- The capabilities are independent, and the `read`, `write` and `scale`
+  namespace shorthands grant none of them. This is recorded as Wander policy
+  because the ACL-surface assertions DHV-B-137 to DHV-B-144 are unresolved. An
+  operator with `policy = "write"` must list the capabilities explicitly.
+  Revisit when the evidence resolves the shorthands.
+- The "X or host-volume-write" alternatives in the API evidence are
+  endpoint-level checks for phase 4, not implications in the policy compiler.
+- Mixed-version note recorded: a server without this change rejects a policy
+  that contains a `host-volume-*` capability, so such policies are applied only
+  after every server is upgraded.
+- The tests-first run failed to compile on the undefined constants. The parser
+  test and the table-driven matrix pass in normal and race-enabled modes.
+  Build, vet, contract and fixture guards, licence boundary and whitespace
+  passed. Advisor review returned PASS.
+- Ran in parallel with task 2.1 in a separate worktree. The harness created
+  the worktrees from `main`, not from the feature branch.
+
+PATTERN: acl - When evidence does not resolve a shorthand or implication, keep
+capabilities independent and deny by default, and record the choice as Wander
+policy with its operator-visible consequence.
+
+PATTERN: tooling - Workflow worktrees start from `main`; tell workers to
+fast-forward to the feature branch first, or export the diff against the
+worktree's own base.
