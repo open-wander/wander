@@ -244,6 +244,47 @@ and `TestHostVolumeNamespaceCapabilities` in `acl/acl_test.go`. Enforcement in
 RPC, HTTP and CLI, wildcard-namespace list filtering and the UI are out of
 scope here.
 
+## Plugin discovery and fingerprinting (client) {#plugin-fingerprint}
+
+Implemented in `client/hostvolume` and `client/fingerprint/plugins_host_volume.go`.
+The evidence (DHV-B-079, DHV-B-080, DHV-B-084) resolves only: a candidate is an
+executable in `host_volume_plugin_dir`, it is called with first argument
+`fingerprint`, the version is on stdout, the time limit is five seconds, and
+`DHV_OPERATION` is a protocol variable. Everything else below is Wander policy
+chosen from this repository's own patterns, not taken from any later Nomad
+release. Third-party plugins written for a different stdout format or exit
+convention may not be recognised.
+
+| Question | Wander policy |
+| --- | --- |
+| Candidates | Regular files (Lstat semantics) directly in the directory with any execute bit set. Directories, symlinks, FIFOs, sockets and names starting with a dot are skipped silently; a non-executable regular file is excluded with reason `not_executable`. No recursion. |
+| Windows | The execute bit has no meaning, so no external plugins are discovered on Windows (reason `unsupported_platform`). |
+| Plugin ID | The file name: 1 to 64 characters from `[A-Za-z0-9._-]`, not starting with a dot. Otherwise excluded with `invalid_id`. At most 32 candidates are run per pass (sorted by ID); the rest get `too_many_plugins`. |
+| Reserved ID | `mkdir` (DHV-B-103) is reserved for the built-in plugin. An external file named `mkdir` is excluded with `reserved_id`. The built-in plugin is not advertised yet; that is deferred to the task that implements it. |
+| stdout | Plain text. One trailing newline is trimmed. The remainder must be 1 to 64 characters from `[A-Za-z0-9._+-]`, a single line. Otherwise `invalid_version`. |
+| Exit status | Exit 0 is healthy. Any other status is `nonzero_exit`. |
+| Output limits | stdout 1024 bytes, stderr 1024 bytes. Exceeding either kills the plugin: `output_too_large`. |
+| Timeout | 5 seconds (evidence). The plugin and its process group are killed: `timeout`. |
+| Environment | Exactly `DHV_OPERATION=fingerprint` and a fixed `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` (needed by script plugins). `DHV_PLUGIN_DIR` and `DHV_VOLUMES_DIR` are not set because the evidence does not tie them to fingerprint. The agent environment is not inherited. That `DHV_OPERATION` applies to fingerprint is a Wander choice. |
+| Working directory | The plugin directory. No shell is used; argv is `[path, "fingerprint"]`; stdin is empty. |
+| Diagnostics | A reason code plus at most 256 bytes of stderr or stdout with control characters and invalid UTF-8 replaced by spaces. A warning is logged when a plugin's reason changes, otherwise debug. |
+| Node representation | Node attribute `plugins.host_volume.version.<id>` = version, mirroring the inherited `plugins.cni.version.<name>`. Present means healthy; absent means unhealthy or not installed. `structs.Node` is unchanged, so no codec change. |
+| Health change | The fingerprinter is periodic (one minute). Each pass advertises healthy plugins and removes every `plugins.host_volume.version.*` node attribute that is no longer healthy, so removal is correct after a client restart. It writes and deletes no volume records. |
+| Determinism | Candidates are sorted by ID before running, so the inventory does not depend on directory listing order. Plugins run with 4 workers; the worst-case pass is 32/4 timeouts (40 seconds). |
+| Empty or missing directory | Empty setting: fingerprinter reports not detected. Missing or empty directory: detected, no plugins, no error. The fingerprinter never returns an error for plugin or directory problems, because the inherited fingerprint manager stops re-running a periodic fingerprinter after one error. |
+| Directories differ | The agent rejects a configuration whose resolved plugin and volume directories are equal after making them absolute and cleaning them. The comparison is lexical: equality through a symlink, or directories that do not exist yet, are not resolved. |
+
+Accepted limits: a file swapped for a symlink between the directory check and
+execution is not detected (the directory is operator-owned); a plugin that
+detaches a grandchild from its process group can outlive its kill, though the
+client stops waiting after a one second grace period.
+
+Mixed versions: an older server stores node attributes as an opaque
+`map[string]string` and reads them only through job constraints, so it ignores
+the new `plugins.host_volume.version.*` attributes. No serialised struct
+changed, so there is no encode or decode round trip to test. An older client
+does not advertise the attributes, which a server must read as "no plugins".
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

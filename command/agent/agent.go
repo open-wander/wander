@@ -876,7 +876,36 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 	}
 	conf.Drain = drainConfig
 
+	if err := checkHostVolumeDirs(conf.HostVolumePluginDir, conf.HostVolumesDir); err != nil {
+		return nil, err
+	}
+
 	return conf, nil
+}
+
+// checkHostVolumeDirs rejects configurations where the resolved dynamic host
+// volume plugin directory and managed volume directory are the same path,
+// because a volume directory would then be discoverable as a plugin. Either
+// being empty means dynamic host volumes are unavailable and is not an error.
+// The comparison is lexical (absolute, cleaned) because the directories may
+// not exist yet; two different paths that reach the same directory through a
+// symlink are not detected.
+func checkHostVolumeDirs(pluginDir, volumesDir string) error {
+	if pluginDir == "" || volumesDir == "" {
+		return nil
+	}
+	p, err := filepath.Abs(pluginDir)
+	if err != nil {
+		return fmt.Errorf("invalid host_volume_plugin_dir: %w", err)
+	}
+	v, err := filepath.Abs(volumesDir)
+	if err != nil {
+		return fmt.Errorf("invalid host_volumes_dir: %w", err)
+	}
+	if p == v {
+		return fmt.Errorf("host_volume_plugin_dir and host_volumes_dir must be different directories, both resolve to %q", p)
+	}
+	return nil
 }
 
 // setupServer is used to setup the server if enabled

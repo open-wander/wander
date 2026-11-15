@@ -280,3 +280,48 @@ stay clean.
 
 PATTERN: docs - Do not add new material to the inherited `website/` tree; write
 operator documentation in Wander's own docs.
+
+## 2026-11-15 — Task 2.2 complete
+
+- Added `client/hostvolume`: discovery of regular executable files directly in
+  the plugin directory (no recursion, symlinks and other non-regular entries
+  skipped, sorted by ID, capped at 32) and a bounded runner. The runner uses an
+  explicit argv with no shell, an environment of `DHV_OPERATION=fingerprint`
+  plus a fixed PATH, a 5 second timeout, 1024-byte caps on stdout and stderr,
+  and a process-group kill on Unix.
+- Added the periodic `plugins_host_volume` client fingerprinter. Healthy
+  plugins are advertised as node attributes
+  `plugins.host_volume.version.<id>`. `structs.Node` is unchanged, so an older
+  server ignores the new data and no codecs were regenerated.
+- `convertClientConfig` now rejects resolved plugin and volume directories that
+  are equal. The check is lexical.
+- The built-in `mkdir` plugin is not advertised and the ID is reserved; that is
+  task 2.4. No external plugins are discovered on Windows.
+- Wander policy recorded in the provenance document for every point the
+  evidence leaves open: node representation, ID and version rules, exit
+  status, output limits, environment and working directory.
+- OPEN, must be settled before task 2.3: the fingerprint stdout encoding is
+  unresolved in the evidence (DHV-B-080 only says the version comes back on
+  stdout). The implementation accepts one plain version line. If the public
+  plugin specification defines a structured format, existing plugins will be
+  reported unhealthy. Record the public evidence and adjust the parser.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator added a test that a timeout kills the plugin's child
+  processes (confirmed by mutation: it fails without the group kill) and
+  lowered the expected unsupported-platform diagnostic to debug level.
+- Improvement notes: the first fingerprint pass runs synchronously during
+  client start under the node lock, so slow plugins can delay start by up to
+  40 seconds; the inherited fingerprint manager never re-runs a periodic
+  fingerprinter after one error, so this fingerprinter never returns one.
+  gosec reports G204 for the plugin exec, which is inherent to running a
+  plugin from the configured directory.
+- Focused tests pass in normal and race-enabled modes. Build, Windows compile,
+  vet, contract and fixture guards, licence boundary and whitespace passed.
+
+PATTERN: exec - Run plugins with an explicit argv and environment, bounded
+output writers, a deadline, and a process-group kill; test the group kill by
+checking that a child process is gone.
+
+PATTERN: fingerprint - A periodic fingerprinter must not return an error for
+expected faults, and should clear stale attributes by scanning the node's
+current attributes so it is correct after a restart.

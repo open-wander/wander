@@ -1,0 +1,358 @@
+// Copyright (c) Open Wander contributors.
+// SPDX-License-Identifier: MPL-2.0
+
+// Package hostvolume discovers and runs dynamic host volume plugins, the
+// operator-installed executables found in the client's host volume plugin
+// directory.
+//
+// Wander policy for everything the recorded public evidence leaves open is
+// documented in docs/compatibility/dynamic-host-volumes-provenance.md.
+package hostvolume
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+)
+
+const (
+	// OperationFingerprint is the first argument a plugin receives to
+	// report its version.
+	OperationFingerprint = "fingerprint"
+
+	// EnvOperation names the protocol variable carrying the operation.
+	EnvOperation = "DHV_OPERATION"
+
+	// DefaultFingerprintTimeout is the recorded fingerprint time limit.
+	DefaultFingerprintTimeout = 5 * time.Second
+
+	// DefaultStdoutLimit and DefaultStderrLimit bound captured output in
+	// bytes. Output beyond the limit kills the plugin.
+	DefaultStdoutLimit = 1024
+	DefaultStderrLimit = 1024
+
+	// MaxCandidates caps how many plugins one discovery pass returns.
+	MaxCandidates = 32
+
+	// MaxIDLen and MaxVersionLen bound advertised strings.
+	MaxIDLen      = 64
+	MaxVersionLen = 64
+
+	// MaxDiagDetail bounds the sanitised plugin output kept in a diagnostic.
+	MaxDiagDetail = 256
+
+	// BuiltinMkdirID is the identity reserved for the built-in directory
+	// plugin; an external file with this name is never run.
+	BuiltinMkdirID = "mkdir"
+
+	// pluginPath is the fixed PATH given to plugins so that script plugins
+	// can find basic tools. It is the only non-protocol variable.
+	pluginPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+	waitDelay = time.Second
+)
+
+// Reason codes for diagnostics.
+const (
+	ReasonListFailed     = "list_failed"
+	ReasonTooManyPlugins = "too_many_plugins"
+	ReasonNotExecutable  = "not_executable"
+	ReasonInvalidID      = "invalid_id"
+	ReasonReservedID     = "reserved_id"
+	ReasonStartFailed    = "start_failed"
+	ReasonTimeout        = "timeout"
+	ReasonCanceled       = "canceled"
+	ReasonOutputTooLarge = "output_too_large"
+	ReasonNonZeroExit    = "nonzero_exit"
+	ReasonInvalidVersion = "invalid_version"
+	ReasonUnsupportedOS  = "unsupported_platform"
+)
+
+// Candidate is an executable regular file found directly in the plugin
+// directory.
+type Candidate struct {
+	ID   string
+	Path string
+}
+
+// Diagnostic explains why a directory entry or plugin was excluded. It never
+// holds more than MaxDiagDetail bytes of plugin output and that output has
+// control characters removed.
+type Diagnostic struct {
+	ID     string
+	Reason string
+	Detail string
+}
+
+func (d Diagnostic) String() string {
+	if d.Detail == "" {
+		return d.ID + ": " + d.Reason
+	}
+	return d.ID + ": " + d.Reason + ": " + d.Detail
+}
+
+// Lister lists a directory, like os.ReadDir.
+type Lister func(string) ([]os.DirEntry, error)
+
+// Discover lists dir (top level only) and returns executable regular files
+// sorted by ID. An empty or missing dir yields no candidates and no
+// diagnostics. Only entries whose own type is regular qualify (Lstat
+// semantics), so symlinks, directories, sockets and FIFOs are skipped
+// silently, as are names starting with a dot. A time-of-check to time-of-use
+// swap of a file is accepted: the directory is operator-owned.
+func Discover(dir string) ([]Candidate, []Diagnostic) {
+	return DiscoverWith(dir, os.ReadDir)
+}
+
+// DiscoverWith is Discover with an injectable lister.
+func DiscoverWith(dir string, list Lister) ([]Candidate, []Diagnostic) {
+	if dir == "" {
+		return nil, nil
+	}
+	if !execBitMeaningful {
+		return nil, []Diagnostic{{ID: "-", Reason: ReasonUnsupportedOS}}
+	}
+	entries, err := list(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, []Diagnostic{{ID: "-", Reason: ReasonListFailed, Detail: sanitize([]byte(err.Error()))}}
+	}
+
+	var cands []Candidate
+	var diags []Diagnostic
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") || !entry.Type().IsRegular() {
+			continue
+		}
+		display := sanitize([]byte(name))
+		info, err := entry.Info()
+		if err != nil || info.Mode()&0o111 == 0 {
+			diags = append(diags, Diagnostic{ID: display, Reason: ReasonNotExecutable})
+			continue
+		}
+		if err := ValidateID(name); err != nil {
+			diags = append(diags, Diagnostic{ID: display, Reason: ReasonInvalidID})
+			continue
+		}
+		if name == BuiltinMkdirID {
+			diags = append(diags, Diagnostic{ID: name, Reason: ReasonReservedID})
+			continue
+		}
+		cands = append(cands, Candidate{ID: name, Path: filepath.Join(dir, name)})
+	}
+
+	sort.Slice(cands, func(i, j int) bool { return cands[i].ID < cands[j].ID })
+	sort.SliceStable(diags, func(i, j int) bool { return diags[i].ID < diags[j].ID })
+	if len(cands) > MaxCandidates {
+		for _, c := range cands[MaxCandidates:] {
+			diags = append(diags, Diagnostic{ID: c.ID, Reason: ReasonTooManyPlugins})
+		}
+		cands = cands[:MaxCandidates]
+	}
+	return cands, diags
+}
+
+// ValidateID checks a plugin ID: 1 to MaxIDLen characters from
+// [A-Za-z0-9._-], not starting with a dot.
+func ValidateID(id string) error {
+	if id == "" || len(id) > MaxIDLen || id[0] == '.' {
+		return errors.New("invalid plugin id")
+	}
+	for i := 0; i < len(id); i++ {
+		if !idChar(id[i]) {
+			return errors.New("invalid plugin id")
+		}
+	}
+	return nil
+}
+
+func idChar(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+		c == '.' || c == '_' || c == '-'
+}
+
+// ParseVersion validates fingerprint stdout: a single line, one trailing
+// newline trimmed, 1 to MaxVersionLen characters from [A-Za-z0-9._+-].
+func ParseVersion(stdout []byte) (string, error) {
+	s := string(stdout)
+	s = strings.TrimSuffix(s, "\n")
+	s = strings.TrimSuffix(s, "\r")
+	if s == "" || len(s) > MaxVersionLen {
+		return "", errors.New("invalid version")
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !idChar(c) && c != '+' {
+			return "", errors.New("invalid version")
+		}
+	}
+	return s, nil
+}
+
+// Limits bounds the captured output of a plugin run, in bytes.
+type Limits struct {
+	Stdout int
+	Stderr int
+}
+
+// RunResult holds bounded output of a plugin run.
+type RunResult struct {
+	Stdout   []byte
+	Stderr   []byte
+	Overflow bool // output exceeded a limit; the plugin was killed
+}
+
+// runPlugin runs path with an explicit argv and exactly the given
+// environment, never through a shell. Output is captured up to limits; if
+// either limit is exceeded the process is killed. On Unix the process group
+// is killed on cancellation. Later operations (create, delete) reuse this.
+func runPlugin(ctx context.Context, path string, args, env []string, limits Limits) (RunResult, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var out, errb boundedBuffer
+	out.limit, out.onOverflow = limits.Stdout, cancel
+	errb.limit, errb.onOverflow = limits.Stderr, cancel
+
+	cmd := exec.CommandContext(ctx, path, args...)
+	if env == nil {
+		env = []string{} // nil would inherit the agent environment
+	}
+	cmd.Env = env
+	cmd.Dir = filepath.Dir(path)
+	cmd.Stdin = nil
+	cmd.Stdout = &out
+	cmd.Stderr = &errb
+	cmd.WaitDelay = waitDelay
+	configureProcess(cmd)
+
+	err := cmd.Run()
+	// Run has returned, so the copying goroutines are done and the buffers
+	// can be read without further synchronisation.
+	res := RunResult{
+		Stdout:   out.buf.Bytes(),
+		Stderr:   errb.buf.Bytes(),
+		Overflow: out.overflow || errb.overflow,
+	}
+	return res, err
+}
+
+// boundedBuffer keeps at most limit bytes and discards the rest, always
+// reporting a full write so the child is never blocked on a pipe.
+type boundedBuffer struct {
+	buf        bytes.Buffer
+	limit      int
+	overflow   bool
+	onOverflow func()
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	room := b.limit - b.buf.Len()
+	if room < 0 {
+		room = 0
+	}
+	if len(p) > room {
+		b.buf.Write(p[:room])
+		if !b.overflow {
+			b.overflow = true
+			if b.onOverflow != nil {
+				b.onOverflow()
+			}
+		}
+		return len(p), nil
+	}
+	b.buf.Write(p)
+	return len(p), nil
+}
+
+// Result is the outcome of fingerprinting one candidate.
+type Result struct {
+	ID      string
+	Version string
+	Healthy bool
+	Diag    *Diagnostic
+}
+
+// Runner fingerprints plugins. Zero fields take their defaults.
+type Runner struct {
+	Timeout time.Duration
+	Limits  Limits
+}
+
+// Fingerprint runs the candidate's fingerprint operation: argv is
+// ["fingerprint"], the environment is DHV_OPERATION=fingerprint plus a fixed
+// PATH, and a healthy plugin exits 0 with a valid version on stdout.
+func (r Runner) Fingerprint(ctx context.Context, c Candidate) Result {
+	timeout := r.Timeout
+	if timeout <= 0 {
+		timeout = DefaultFingerprintTimeout
+	}
+	limits := r.Limits
+	if limits.Stdout <= 0 {
+		limits.Stdout = DefaultStdoutLimit
+	}
+	if limits.Stderr <= 0 {
+		limits.Stderr = DefaultStderrLimit
+	}
+
+	fail := func(reason, detail string) Result {
+		return Result{ID: c.ID, Diag: &Diagnostic{ID: c.ID, Reason: reason, Detail: detail}}
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	env := []string{EnvOperation + "=" + OperationFingerprint, "PATH=" + pluginPath}
+	res, err := runPlugin(tctx, c.Path, []string{OperationFingerprint}, env, limits)
+
+	switch {
+	case res.Overflow:
+		return fail(ReasonOutputTooLarge, "")
+	case ctx.Err() != nil:
+		return fail(ReasonCanceled, "")
+	case errors.Is(tctx.Err(), context.DeadlineExceeded):
+		return fail(ReasonTimeout, "")
+	case err != nil:
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			return fail(ReasonNonZeroExit, fmt.Sprintf("exit %d: %s", ee.ExitCode(), sanitize(res.Stderr)))
+		}
+		return fail(ReasonStartFailed, sanitize([]byte(err.Error())))
+	}
+
+	v, verr := ParseVersion(res.Stdout)
+	if verr != nil {
+		return fail(ReasonInvalidVersion, sanitize(res.Stdout))
+	}
+	return Result{ID: c.ID, Version: v, Healthy: true}
+}
+
+// sanitize returns at most MaxDiagDetail bytes of b with control characters
+// and invalid UTF-8 replaced by spaces.
+func sanitize(b []byte) string {
+	var sb strings.Builder
+	for len(b) > 0 && sb.Len() < MaxDiagDetail {
+		r, n := utf8.DecodeRune(b)
+		b = b[n:]
+		if r == utf8.RuneError || !unicode.IsPrint(r) {
+			r = ' '
+		}
+		if sb.Len()+utf8.RuneLen(r) > MaxDiagDetail {
+			break
+		}
+		sb.WriteRune(r)
+	}
+	return strings.TrimSpace(sb.String())
+}
