@@ -357,3 +357,25 @@ PATTERN: provenance - When the evidence file leaves a public interface point
 unresolved, stop and resolve it from the permitted public documentation before
 implementing, instead of choosing a narrower Wander policy. A deny-by-default
 or stricter-format guess breaks compatibility as surely as a wrong one.
+
+## 2026-11-15 — Task 2.3 blocked on evidence
+
+- The advisor returned REVISE and the worker reported BLOCKED before writing
+  code: five plugin-compatibility points were not settled by the evidence.
+- The public plugin specification was re-read with those questions. Settled
+  and recorded: capacity variables are byte counts; `DHV_PARAMETERS` is the
+  parameters as JSON text; the create example shows `bytes` as a number and
+  `path` may lie within `DHV_VOLUMES_DIR` or elsewhere; the optional `error`
+  object applies to create and delete and its message is returned to the user;
+  a failed create exits non-zero; the plugin runs as the agent's user.
+- Not stated by the documentation, so still open: the value of the capacity
+  variables when capacity is unset; the value of `DHV_PARAMETERS` when there
+  are no parameters; whether a variable with an empty value is set to an empty
+  string or omitted; whether `bytes` or `path` may be omitted; whether the
+  `error` object counts on a zero exit.
+- These need either a black-box observation with a synthetic plugin on an
+  official binary, or an owner decision to accept a tolerant Wander policy.
+- Task-text corrections to apply when 2.3 resumes: the orchestrator, not the
+  worker, updates `prds/`; delete stdout overflow truncates and does not kill
+  the plugin; create needs a larger stdout limit than fingerprint; the 60
+  second deadline starts after the per-volume lock is acquired.

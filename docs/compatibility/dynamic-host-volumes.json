@@ -1587,7 +1587,7 @@
       "assertions": {
         "contract": {"status":"documented","value":"First argument create; stdout path and bytes; sixty-second timeout.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
         "inputs_defaults": {"status":"documented","value":"Environment: DHV_OPERATION, DHV_VOLUMES_DIR, DHV_PLUGIN_DIR, DHV_NAMESPACE, DHV_VOLUME_NAME, DHV_VOLUME_ID, DHV_NODE_ID, DHV_NODE_POOL, DHV_CAPACITY_MIN_BYTES, DHV_CAPACITY_MAX_BYTES, DHV_PARAMETERS (JSON text of the parameters).","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
-        "outputs": {"status":"documented","value":"JSON object with path (created path) and bytes (volume size); the path is passed back as DHV_CREATED_PATH on delete.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
+        "outputs": {"status":"documented","value":"JSON object with path and bytes; the documented example shows bytes as a number. The plugin must create a path on disk, within DHV_VOLUMES_DIR or otherwise, and return it as path. The path is passed back as DHV_CREATED_PATH on delete. Whether either field may be omitted is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
@@ -1772,7 +1772,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for DHV_CAPACITY_MIN_BYTES that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"Protocol environment variable: DHV_CAPACITY_MIN_BYTES.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-092"]},
+        "contract": {"status":"documented","value":"Protocol environment variable: DHV_CAPACITY_MIN_BYTES; capacity_min from the volume specification expressed in bytes. The value when capacity_min is unset is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-092"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-092"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-092"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-092"]},
@@ -1789,7 +1789,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for DHV_CAPACITY_MAX_BYTES that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"Protocol environment variable: DHV_CAPACITY_MAX_BYTES.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-093"]},
+        "contract": {"status":"documented","value":"Protocol environment variable: DHV_CAPACITY_MAX_BYTES; capacity_max from the volume specification expressed in bytes. The value when capacity_max is unset is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-093"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-093"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-093"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-093"]},
@@ -1806,7 +1806,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for DHV_PARAMETERS that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"Protocol environment variable: DHV_PARAMETERS.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-094"]},
+        "contract": {"status":"documented","value":"Protocol environment variable: DHV_PARAMETERS; the parameters from the volume specification as JSON text. The value when there are no parameters is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-094"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-094"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-094"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-094"]},
@@ -1840,7 +1840,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for stdout-error that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"A plugin may print a JSON object with an error field on stdout; the message is returned to the user. Stdout and stderr appear in client debug logs.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-096"]},
+        "contract": {"status":"documented","value":"For create and delete a plugin may print a JSON object with an error field on stdout; returning it is optional and the message is included in the error returned to the user. Whether this depends on a non-zero exit is not stated. Stdout and stderr appear in client debug logs.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-096"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-096"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-096"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-096"]},
@@ -1857,7 +1857,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for exit-status that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"A failed create exits non-zero. No other exit-code meanings are documented.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-097"]},
+        "contract": {"status":"documented","value":"A create that fails partway must clean up and exit non-zero. No exit-code requirement is stated for delete. The plugin runs as the same user as the agent.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-097"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-097"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-097"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-097"]},
