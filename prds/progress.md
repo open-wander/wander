@@ -243,3 +243,40 @@ policy with its operator-visible consequence.
 PATTERN: tooling - Workflow worktrees start from `main`; tell workers to
 fast-forward to the feature branch first, or export the diff against the
 worktree's own base.
+
+## 2026-11-15 — Task 2.1 complete
+
+- Added the client settings `host_volume_plugin_dir` and `host_volumes_dir`
+  (names and default suffixes from evidence DHV-B-074 and DHV-B-075) to the
+  agent configuration, with merging, and carried the resolved values into
+  `client/config.Config`. Defaults are `data_dir/host_volume_plugins` and
+  `data_dir/host_volumes`, derived in `convertClientConfig` only.
+- Validation is pure and touches no filesystem: a relative path is rejected and
+  names the key, and identical explicit plugin and volume directories are
+  rejected as Wander policy.
+- Added `Config.StaticHostVolume` as the lookup seam for static and dynamic name
+  collisions. DHV-B-078 is unresolved, so no contract wording was added.
+- The criterion "empty explicitly required paths" was resolved against the
+  evidence: an empty value means use the default, so it is not an error.
+- A change to either directory needs an agent restart, because the client
+  reload path applies only TLS and fingerprinting. Recorded in field comments.
+- The tests-first run failed before implementation. Advisor review rejected the
+  first attempt (missing licence headers on new test files, a displaced doc
+  comment, and no test through `IsValidConfig`); the fix round passed with
+  MINOR notes. Focused tests pass in normal and race-enabled modes. Build, vet,
+  contract and fixture guards, licence boundary and whitespace passed.
+- The orchestrator dropped the worker's addition to
+  `website/content/docs/configuration/client.mdx`: that tree is inherited,
+  unpublished and under provenance review. Operator documentation for these
+  settings is still owed, in Wander's own docs.
+- Open items for 2.2 and 2.3: with no data_dir and no explicit value both
+  resolved directories are empty and must be treated as "dynamic host volumes
+  unavailable"; the equal-directory check compares explicit values only, so
+  check the resolved values too; directories are not created yet.
+
+PATTERN: config - Keep operator-written values in the agent config and derive
+defaults only in the converted client config, so merge and reload comparisons
+stay clean.
+
+PATTERN: docs - Do not add new material to the inherited `website/` tree; write
+operator documentation in Wander's own docs.
