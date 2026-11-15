@@ -166,3 +166,48 @@ updates in one transaction so every failure rolls back completely.
 PATTERN: state - Return isolated records without discarding iterator watches;
 record namespace-scoped node/name uniqueness as Wander policy, not upstream
 compatibility evidence.
+
+## 2026-11-15 — Task 1.6 complete
+
+- Added Wander-assigned snapshot types 29 (dynamic host volumes) and 30 (sticky
+  claims), persisted after namespaces with volumes before claims, each in
+  `(namespace, ID)` order through the copy-returning state iterators.
+- Added `DynamicHostVolumeRestore` and `DynamicHostVolumeClaimRestore`. Restore
+  rejects nil and invalid records, a duplicate `(namespace, ID)`, and a node and
+  name conflict, inserts copies, and returns sentinel errors only. It performs
+  no namespace or claim-to-volume referential checks so a filtered restore keeps
+  working. Table indexes come from the existing index snapshot entries.
+- No production change was needed for blocking queries. New tests cover every
+  read and list method for create, update and delete with strictly increasing
+  table indexes, and correct results for unrelated namespaces and tables.
+- FSM tests cover the full round trip including indexes, a pre-feature
+  snapshot, failed restores that leave the old state live and not abandoned,
+  the downgrade simulation with an unregistered type byte, and deterministic
+  persist order without mutating live records.
+- Documented the downgrade limitation in
+  `docs/compatibility/dynamic-host-volumes-provenance.md`: an older binary
+  refuses any snapshot that contains types 29 or 30.
+- The advisor revised the task before work began: determinism means record
+  order and decoded record set, not bytes, because the shared msgpack handle is
+  not canonical. `helper/raftutil` was left out of scope.
+- The tests-first run failed before implementation. Focused tests pass in
+  normal, race-enabled and `codegen_generated` modes. Build, vet, the contract
+  and fixture guards, the licence boundary, whitespace and gosec passed. Deslop
+  findings were reviewed: the two persist functions and the new tests follow
+  the existing per-type patterns in `fsm.go` and its tests and are retained.
+- Advisor review returned MINOR. Improvement notes: the persist isolation test
+  cannot observe aliasing because state reads already return copies; the copy
+  and index guards in restore are caught by the state-level tests, not the FSM
+  tests. Phase 1 is complete and collapsed into `TASKS-archive.md`. Next
+  unblocked tasks: 2.1 and 3.1.
+
+PATTERN: snapshot - Wander snapshot type bytes are append-only below the
+reserved 64+ range; an older binary refuses the whole snapshot on an unknown
+type, so every new type is a downgrade barrier that must be documented.
+
+PATTERN: restore - Check duplicates and unique keys explicitly because a MemDB
+insert replaces silently; keep cross-table checks out of restore so filtered
+restores still work.
+
+PATTERN: testing - Assert snapshot determinism on record order and decoded
+content, not bytes; simulate an older binary with an unregistered type byte.

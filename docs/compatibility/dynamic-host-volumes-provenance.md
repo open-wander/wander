@@ -157,10 +157,11 @@ The storage layer does not select create versus register validation, set wall
 clock values, invoke plugins, remove paths, authorize requests, enforce
 attachment modes, or decide public idempotency. It rejects volume deletion while
 a claim references that volume and rejects namespace deletion while any dynamic
-volume remains. Snapshot serialization, restore, Raft FSM commands, complete
-blocking-query response behavior, pagination, garbage collection, public APIs,
-and lifecycle transitions remain task 1.6 or later. No matrix runtime outcome is
-changed by these internal tests.
+volume remains. Snapshot serialization and restore are described in
+[Snapshots and downgrade](#snapshots-and-downgrade). Raft FSM commands,
+complete blocking-query response behavior, pagination, garbage collection,
+public APIs, and lifecycle transitions remain later work. No matrix runtime
+outcome is changed by these internal tests.
 
 The HTTP delete table includes a delete suffix while its example omits it.
 The claim delete table uses a plural collection while its example uses singular.
@@ -170,6 +171,36 @@ confirmation, CLI flag details, Go method names, full response schemas,
 pagination, wildcard visibility, ACL shorthand, claim retention, and UI flows
 remain unresolved where explicitly marked. Never infer host semantics from CSI.
 Documented fields alone do not define validation rules or default behavior.
+
+## Snapshots and downgrade {#snapshots-and-downgrade}
+
+Dynamic host volumes use Wander-assigned snapshot type bytes: 29 for volumes
+and 30 for sticky claims. They are written after namespaces, volumes before
+claims, each in `(namespace, ID)` order. The values are append-only and must
+never be renumbered or reused. Persisted order and the decoded record set are
+deterministic; the bytes are not guaranteed identical because the shared
+msgpack handle is not canonical. Table indexes travel in the existing index
+snapshot entries, so blocking queries resume from the saved index.
+
+Restore rejects a nil record, a record that breaks the stored-record
+invariants (volume type, required and NUL-free keys, create index set and not
+above the modify index, claim validation), a duplicate `(namespace, ID)`, and a
+node and name conflict between volumes. It performs no namespace or
+claim-to-volume referential checks, so a filtered restore keeps working. A
+failed restore leaves the previous state live; the new store is discarded.
+
+Upgrade: a snapshot written before this feature contains neither type and
+restores unchanged, leaving both tables empty.
+
+Downgrade limitation: once any dynamic volume or claim exists, every Raft
+snapshot contains types 29 and 30. An older Wander binary has no restorer for
+them, and its restore code refuses the whole snapshot with
+`Unrecognized snapshot type`. That binary cannot start from such a snapshot or
+install it from a leader, which affects all state, not only the volumes.
+Do not downgrade after creating the first dynamic volume unless every volume
+and claim has been deleted and a fresh snapshot taken first. The behaviour is
+covered by `TestFSM_SnapshotRestore_DynamicHostVolumes_DowngradeRejectsUnknownType`,
+which uses an unregistered type byte to stand in for the older binary.
 
 ## Extension workflow {#extension-workflow}
 

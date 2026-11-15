@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/open-wander/wander/nomad/structs"
@@ -370,4 +371,259 @@ func TestStateStore_DynamicHostVolumeNamespaceIntegrityAndConcurrentCAS(t *testi
 	require.NoError(t, store.DeleteDynamicHostVolumes(30, []DynamicHostVolumeDelete{{Namespace: updated.Namespace, ID: updated.ID, ExpectedModifyIndex: updated.ModifyIndex}}))
 	require.NoError(t, store.DeleteNamespaces(31, []string{"synthetic-b", "synthetic-c"}))
 	require.False(t, strings.Contains(ErrDynamicHostVolumeStateInUse.Error(), volume.HostPath))
+}
+
+func TestStateStore_DynamicHostVolumeBlockingQueries(t *testing.T) {
+	vol := func() *structs.DynamicHostVolume { return dynamicHostVolumeStateFixture("volume-a") }
+	type watchCase struct {
+		name  string
+		table string
+		query func(s *StateStore, ws memdb.WatchSet) error
+	}
+	iterQuery := func(f func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error)) func(*StateStore, memdb.WatchSet) error {
+		return func(s *StateStore, ws memdb.WatchSet) error {
+			iter, err := f(s, ws)
+			if err != nil {
+				return err
+			}
+			for iter.Next() != nil {
+			}
+			return nil
+		}
+	}
+	cases := []watchCase{
+		{"volume by id", TableDynamicHostVolumes, func(s *StateStore, ws memdb.WatchSet) error {
+			_, err := s.DynamicHostVolumeByID(ws, "default", "volume-a")
+			return err
+		}},
+		{"volumes", TableDynamicHostVolumes, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumes(ws)
+		})},
+		{"volumes by namespace", TableDynamicHostVolumes, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumesByNamespace(ws, "default")
+		})},
+		{"volumes by id prefix", TableDynamicHostVolumes, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumesByIDPrefix(ws, "default", "volume-")
+		})},
+		{"volumes by node id prefix", TableDynamicHostVolumes, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumesByNodeIDPrefix(ws, "default", "node-")
+		})},
+		{"volumes by plugin id prefix", TableDynamicHostVolumes, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumesByPluginIDPrefix(ws, "default", "plugin-")
+		})},
+		{"claim by id", TableDynamicHostVolumeClaims, func(s *StateStore, ws memdb.WatchSet) error {
+			_, err := s.DynamicHostVolumeClaimByID(ws, "default", "claim-a")
+			return err
+		}},
+		{"claims", TableDynamicHostVolumeClaims, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumeClaims(ws)
+		})},
+		{"claims by volume id", TableDynamicHostVolumeClaims, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumeClaimsByVolumeID(ws, "default", "volume-a")
+		})},
+		{"claims by job id", TableDynamicHostVolumeClaims, iterQuery(func(s *StateStore, ws memdb.WatchSet) (memdb.ResultIterator, error) {
+			return s.DynamicHostVolumeClaimsByJobID(ws, "default", "job-a")
+		})},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := TestStateStore(t)
+			claims := tc.table == TableDynamicHostVolumeClaims
+			require.NoError(t, store.UpsertDynamicHostVolumes(5, []*structs.DynamicHostVolume{vol()}))
+			if !claims {
+				// Start from an empty volume table for the create step.
+				require.NoError(t, store.DeleteDynamicHostVolumes(6, []DynamicHostVolumeDelete{{Namespace: "default", ID: "volume-a", ExpectedModifyIndex: 5}}))
+			}
+
+			fired := func(ws memdb.WatchSet) bool { return !ws.Watch(time.After(2 * time.Second)) }
+			prev := func() uint64 {
+				idx, err := store.Index(tc.table)
+				require.NoError(t, err)
+				return idx
+			}
+			write := func(index uint64, step string) {
+				switch {
+				case claims && step == "delete":
+					require.NoError(t, store.DeleteDynamicHostVolumeClaims(index, []DynamicHostVolumeClaimDelete{{Namespace: "default", ID: "claim-a", ExpectedModifyIndex: prev()}}))
+				case claims:
+					c := dynamicHostVolumeClaimStateFixture()
+					c.VolumeName = "data-volume-a"
+					if step == "update" {
+						existing, err := store.DynamicHostVolumeClaimByID(nil, "default", "claim-a")
+						require.NoError(t, err)
+						c = existing
+						c.AllocationID = "allocation-updated"
+					}
+					require.NoError(t, store.UpsertDynamicHostVolumeClaims(index, []*structs.DynamicHostVolumeClaim{c}))
+				case step == "delete":
+					require.NoError(t, store.DeleteDynamicHostVolumes(index, []DynamicHostVolumeDelete{{Namespace: "default", ID: "volume-a", ExpectedModifyIndex: prev()}}))
+				case step == "update":
+					existing, err := store.DynamicHostVolumeByID(nil, "default", "volume-a")
+					require.NoError(t, err)
+					existing.State = structs.DynamicHostVolumeStateReady
+					require.NoError(t, store.UpsertDynamicHostVolumes(index, []*structs.DynamicHostVolume{existing}))
+				default:
+					require.NoError(t, store.UpsertDynamicHostVolumes(index, []*structs.DynamicHostVolume{vol()}))
+				}
+			}
+			if claims {
+				// Claim references the stored volume name.
+				stored, err := store.DynamicHostVolumeByID(nil, "default", "volume-a")
+				require.NoError(t, err)
+				require.Equal(t, "data-volume-a", stored.Name)
+			}
+
+			before := prev()
+			for _, step := range []struct {
+				name  string
+				index uint64
+			}{{"create", 10}, {"update", 20}, {"delete", 30}} {
+				ws := memdb.NewWatchSet()
+				require.NoError(t, tc.query(store, ws))
+				write(step.index, step.name)
+				require.Truef(t, fired(ws), "watch did not fire on %s", step.name)
+				now := prev()
+				require.Greaterf(t, now, before, "table index must increase on %s", step.name)
+				require.Equal(t, step.index, now)
+				before = now
+			}
+		})
+	}
+}
+
+func TestStateStore_DynamicHostVolumeBlockingQueriesUnrelatedWrites(t *testing.T) {
+	store := TestStateStore(t)
+	require.NoError(t, store.UpsertNamespaces(1, []*structs.Namespace{{Name: "synthetic-b"}}))
+	require.NoError(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{dynamicHostVolumeStateFixture("volume-a")}))
+	require.NoError(t, store.UpsertDynamicHostVolumeClaims(11, []*structs.DynamicHostVolumeClaim{dynamicHostVolumeClaimStateFixture()}))
+	volumeBefore, err := store.DynamicHostVolumeByID(nil, "default", "volume-a")
+	require.NoError(t, err)
+	claimBefore, err := store.DynamicHostVolumeClaimByID(nil, "default", "claim-a")
+	require.NoError(t, err)
+
+	// A write in another namespace must not change what readers of the first
+	// namespace see; the watch itself may or may not fire.
+	other := dynamicHostVolumeStateFixture("volume-a")
+	other.Namespace = "synthetic-b"
+	require.NoError(t, store.UpsertDynamicHostVolumes(20, []*structs.DynamicHostVolume{other}))
+	volumeAfter, err := store.DynamicHostVolumeByID(nil, "default", "volume-a")
+	require.NoError(t, err)
+	require.True(t, volumeBefore.Equal(volumeAfter))
+	iter, err := store.DynamicHostVolumesByNamespace(nil, "default")
+	require.NoError(t, err)
+	require.Equal(t, "default", iter.Next().(*structs.DynamicHostVolume).Namespace)
+	require.Nil(t, iter.Next())
+	claimIndex, err := store.Index(TableDynamicHostVolumeClaims)
+	require.NoError(t, err)
+	require.Equal(t, uint64(11), claimIndex, "volume write must not move the claim table index")
+
+	// A claim write leaves the volume table index and volume record alone.
+	second := dynamicHostVolumeClaimStateFixture()
+	second.ID = "claim-b"
+	require.NoError(t, store.UpsertDynamicHostVolumeClaims(30, []*structs.DynamicHostVolumeClaim{second}))
+	volumeIndex, err := store.Index(TableDynamicHostVolumes)
+	require.NoError(t, err)
+	require.Equal(t, uint64(20), volumeIndex, "claim write must not move the volume table index")
+	claimAfter, err := store.DynamicHostVolumeClaimByID(nil, "default", "claim-a")
+	require.NoError(t, err)
+	require.Equal(t, claimBefore, claimAfter)
+
+	// An unrelated table write changes neither dynamic table index.
+	require.NoError(t, store.UpsertNamespaces(40, []*structs.Namespace{{Name: "synthetic-c"}}))
+	for table, want := range map[string]uint64{TableDynamicHostVolumes: 20, TableDynamicHostVolumeClaims: 30} {
+		got, err := store.Index(table)
+		require.NoError(t, err)
+		require.Equal(t, want, got, table)
+	}
+}
+
+func TestStateStore_DynamicHostVolumeRestoreRejectsInvalid(t *testing.T) {
+	validVolume := func() *structs.DynamicHostVolume {
+		v := dynamicHostVolumeStateFixture("volume-a")
+		v.CreateIndex, v.ModifyIndex = 5, 6
+		return v
+	}
+	validClaim := func() *structs.DynamicHostVolumeClaim {
+		c := dynamicHostVolumeClaimStateFixture()
+		c.CreateIndex, c.ModifyIndex = 5, 6
+		return c
+	}
+	volumeCases := []struct {
+		name    string
+		mutate  func(v *structs.DynamicHostVolume) *structs.DynamicHostVolume
+		wantErr error
+	}{
+		{"nil", func(*structs.DynamicHostVolume) *structs.DynamicHostVolume { return nil }, ErrDynamicHostVolumeStateInvalid},
+		{"wrong type", func(v *structs.DynamicHostVolume) *structs.DynamicHostVolume { v.Type = "csi"; return v }, ErrDynamicHostVolumeStateInvalid},
+		{"empty id", func(v *structs.DynamicHostVolume) *structs.DynamicHostVolume { v.ID = ""; return v }, ErrDynamicHostVolumeStateInvalid},
+		{"nul in namespace", func(v *structs.DynamicHostVolume) *structs.DynamicHostVolume { v.Namespace = "a\x00b"; return v }, ErrDynamicHostVolumeStateInvalid},
+		{"zero create index", func(v *structs.DynamicHostVolume) *structs.DynamicHostVolume { v.CreateIndex = 0; return v }, ErrDynamicHostVolumeStateInvalid},
+		{"create after modify", func(v *structs.DynamicHostVolume) *structs.DynamicHostVolume { v.CreateIndex = 9; return v }, ErrDynamicHostVolumeStateInvalid},
+	}
+	for _, tc := range volumeCases {
+		t.Run("volume "+tc.name, func(t *testing.T) {
+			restore, err := TestStateStore(t).Restore()
+			require.NoError(t, err)
+			defer restore.Abort()
+			require.ErrorIs(t, restore.DynamicHostVolumeRestore(tc.mutate(validVolume())), tc.wantErr)
+		})
+	}
+	claimCases := []struct {
+		name   string
+		mutate func(c *structs.DynamicHostVolumeClaim) *structs.DynamicHostVolumeClaim
+	}{
+		{"nil", func(*structs.DynamicHostVolumeClaim) *structs.DynamicHostVolumeClaim { return nil }},
+		{"fails validate", func(c *structs.DynamicHostVolumeClaim) *structs.DynamicHostVolumeClaim { c.JobID = ""; return c }},
+		{"nul in volume id", func(c *structs.DynamicHostVolumeClaim) *structs.DynamicHostVolumeClaim {
+			c.VolumeID = "a\x00"
+			return c
+		}},
+		{"zero create index", func(c *structs.DynamicHostVolumeClaim) *structs.DynamicHostVolumeClaim { c.CreateIndex = 0; return c }},
+		{"create after modify", func(c *structs.DynamicHostVolumeClaim) *structs.DynamicHostVolumeClaim { c.CreateIndex = 9; return c }},
+	}
+	for _, tc := range claimCases {
+		t.Run("claim "+tc.name, func(t *testing.T) {
+			restore, err := TestStateStore(t).Restore()
+			require.NoError(t, err)
+			defer restore.Abort()
+			require.ErrorIs(t, restore.DynamicHostVolumeClaimRestore(tc.mutate(validClaim())), ErrDynamicHostVolumeStateInvalid)
+		})
+	}
+
+	t.Run("duplicates and node name conflict", func(t *testing.T) {
+		restore, err := TestStateStore(t).Restore()
+		require.NoError(t, err)
+		defer restore.Abort()
+		require.NoError(t, restore.DynamicHostVolumeRestore(validVolume()))
+		require.ErrorIs(t, restore.DynamicHostVolumeRestore(validVolume()), ErrDynamicHostVolumeStateConflict)
+		clash := validVolume()
+		clash.ID = "volume-b"
+		clash.Name = validVolume().Name
+		require.ErrorIs(t, restore.DynamicHostVolumeRestore(clash), ErrDynamicHostVolumeStateConflict)
+
+		require.NoError(t, restore.DynamicHostVolumeClaimRestore(validClaim()))
+		require.ErrorIs(t, restore.DynamicHostVolumeClaimRestore(validClaim()), ErrDynamicHostVolumeStateConflict)
+	})
+
+	t.Run("no referential checks and copies input", func(t *testing.T) {
+		store := TestStateStore(t)
+		restore, err := store.Restore()
+		require.NoError(t, err)
+		orphan := validClaim()
+		orphan.Namespace = "missing-namespace"
+		require.NoError(t, restore.DynamicHostVolumeClaimRestore(orphan))
+		volume := validVolume()
+		require.NoError(t, restore.DynamicHostVolumeRestore(volume))
+		volume.Parameters["synthetic-key"] = "mutated-after-restore"
+		require.NoError(t, restore.Commit())
+		stored, err := store.DynamicHostVolumeByID(nil, "default", "volume-a")
+		require.NoError(t, err)
+		require.Equal(t, "synthetic-value", stored.Parameters["synthetic-key"])
+		require.Equal(t, uint64(5), stored.CreateIndex)
+		require.Equal(t, uint64(6), stored.ModifyIndex)
+		idx, err := store.Index(TableDynamicHostVolumes)
+		require.NoError(t, err)
+		require.Zero(t, idx, "restore methods must not write table indexes")
+	})
 }
