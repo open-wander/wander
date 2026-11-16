@@ -347,6 +347,12 @@ integration-test: dev ## Run Wander integration tests
 		-tags "$(GO_TAGS)" \
 		github.com/open-wander/wander/e2e/vaultcompat
 
+.PHONY: integration-cluster-test
+integration-cluster-test: templ-generate ## Run the multi-node cluster tests in integration/ (requires Docker)
+	@$(MAKE) -B pkg/linux_amd64/wander GO_TAGS=release CGO_ENABLED=1
+	@echo "==> Running Wander integration cluster tests..."
+	@cd integration && go test -tags integration -count=1 -v -timeout=20m ./...
+
 .PHONY: clean
 clean: GOPATH=$(shell go env GOPATH)
 clean: ## Remove build artifacts

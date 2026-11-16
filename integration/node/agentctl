@@ -1,0 +1,42 @@
+#!/bin/bash
+# -------------------------------------------------------------------------------
+# agentctl -- Stops, kills, starts or restarts the supervised Wander agent
+#
+# Project: Wander
+#
+# Drives the restart loop in node-entrypoint through its PID file and a hold
+# file. stop sends SIGINT and kill sends SIGKILL, and both leave the hold in
+# place so the loop does not restart the agent. start removes the hold, and
+# restart sends SIGINT and lets the loop start the agent again.
+# -------------------------------------------------------------------------------
+
+set -euo pipefail
+
+readonly pidfile=/run/agent.pid
+readonly hold=/run/agent.hold
+
+pid() { cat "$pidfile" 2>/dev/null || true; }
+
+wait_exit() {
+  local p=$1
+  for _ in $(seq 1 60); do kill -0 "$p" 2>/dev/null || return 0; sleep 0.5; done
+  echo "agent $p did not exit" >&2
+  return 1
+}
+
+signal_and_wait() {
+  local sig=$1 p
+  p=$(pid)
+  if [[ -n "$p" ]] && kill -0 "$p" 2>/dev/null; then
+    kill "-$sig" "$p"
+    wait_exit "$p"
+  fi
+}
+
+case "${1:-}" in
+  stop)    touch "$hold"; signal_and_wait INT ;;
+  kill)    touch "$hold"; signal_and_wait KILL ;;
+  start)   rm -f "$hold" ;;
+  restart) rm -f "$hold"; signal_and_wait INT ;;
+  *)       echo "usage: agentctl stop|kill|start|restart" >&2; exit 2 ;;
+esac
