@@ -245,6 +245,10 @@ func ParseVersion(stdout []byte) (string, error) {
 type Limits struct {
 	Stdout int
 	Stderr int
+	// TruncateStdout makes stdout overflow non-fatal: output beyond Stdout
+	// is discarded and reported in RunResult.StdoutTruncated, and the plugin
+	// keeps running. Stderr overflow still kills. Zero keeps the default.
+	TruncateStdout bool
 }
 
 // RunResult holds bounded output of a plugin run.
@@ -252,6 +256,10 @@ type RunResult struct {
 	Stdout   []byte
 	Stderr   []byte
 	Overflow bool // output exceeded a limit; the plugin was killed
+
+	// StdoutTruncated is set when Limits.TruncateStdout was in effect and
+	// stdout exceeded its limit. The plugin was not killed for it.
+	StdoutTruncated bool
 }
 
 // runPlugin runs path with an explicit argv and exactly the given
@@ -263,7 +271,10 @@ func runPlugin(ctx context.Context, path string, args, env []string, limits Limi
 	defer cancel()
 
 	var out, errb boundedBuffer
-	out.limit, out.onOverflow = limits.Stdout, cancel
+	out.limit = limits.Stdout
+	if !limits.TruncateStdout {
+		out.onOverflow = cancel
+	}
 	errb.limit, errb.onOverflow = limits.Stderr, cancel
 
 	cmd := exec.CommandContext(ctx, path, args...)
@@ -284,7 +295,9 @@ func runPlugin(ctx context.Context, path string, args, env []string, limits Limi
 	res := RunResult{
 		Stdout:   out.buf.Bytes(),
 		Stderr:   errb.buf.Bytes(),
-		Overflow: out.overflow || errb.overflow,
+		Overflow: (out.overflow && !limits.TruncateStdout) || errb.overflow,
+
+		StdoutTruncated: out.overflow && limits.TruncateStdout,
 	}
 	return res, err
 }

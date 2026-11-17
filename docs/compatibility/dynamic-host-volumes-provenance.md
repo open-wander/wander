@@ -299,6 +299,67 @@ the new `plugins.host_volume.version.*` attributes. No serialised struct
 changed, so there is no encode or decode round trip to test. An older client
 does not advertise the attributes, which a server must read as "no plugins".
 
+## Plugin create and delete (client) {#plugin-operations}
+
+Implemented in `client/hostvolume/operation.go` as a library (`Ops.Create`,
+`Ops.Delete`). Nothing calls it yet: no RPC, state store, FSM or snapshot code is
+touched. The built-in `mkdir` plugin, restart reconciliation and registering
+existing paths are later tasks; `mkdir` stays reserved and is rejected here
+(`reserved_id`).
+
+### Recorded evidence
+
+From the public plugin specification (`SRC-plugin`).
+
+| Id | What it settles |
+| --- | --- |
+| DHV-B-081 | Create is called with first argument `create`. It prints a JSON object with `path` and `bytes` (the example shows a number). The path may be inside `DHV_VOLUMES_DIR` or elsewhere. Time limit 60 seconds. |
+| DHV-B-082 | Delete is called with first argument `delete`. Stdout is discarded. Repeated deletion succeeds. Time limit 60 seconds. No capacity variables are listed. |
+| DHV-B-083 | Repeating create with the same inputs gives the same result. |
+| DHV-B-084 to DHV-B-095 | Variable names: `DHV_OPERATION`, `DHV_VOLUMES_DIR`, `DHV_PLUGIN_DIR`, `DHV_NAMESPACE`, `DHV_VOLUME_NAME`, `DHV_VOLUME_ID`, `DHV_NODE_ID`, `DHV_NODE_POOL`, `DHV_CAPACITY_MIN_BYTES`, `DHV_CAPACITY_MAX_BYTES` (bytes), `DHV_PARAMETERS` (JSON text), `DHV_CREATED_PATH` (delete, the path create returned). |
+| DHV-B-096 | A plugin may print a JSON object with an `error` field; the message is included in the error returned to the user. Whether this depends on a non-zero exit is not stated. |
+| DHV-B-097 | A failed create cleans up and exits non-zero. No exit code requirement is stated for delete. The plugin runs as the agent's user. |
+| DHV-B-098 | The plugin cleans up a failed create; partial creates are not deleted for it. Delete is called when the volume cannot be saved after an initial create. That call belongs to a later task. |
+| DHV-B-099 | Create and delete must be safe to run concurrently per volume name per node. This task serialises per volume ID inside one process. Two different IDs with the same name on one node are the server's responsibility and are not handled here. |
+| DHV-B-101 | No automatic retry; the caller retries. A plugin may retry inside its deadline. |
+
+DHV-B-100 (output limits) is unresolved in the evidence; the limits below are
+Wander policy.
+
+### Wander policy
+
+#### Wander policy pending black-box verification
+
+Decided by the owner on 2026-11-17 because the evidence does not state them.
+Each is one small function or constant in `operation.go` so that it is easy to
+change when black-box verification against a real implementation is allowed.
+
+| # | Point | Decision | Evidence ids |
+| --- | --- | --- | --- |
+| 1 | Capacity variables | Always set, base-10 integers. Unset capacity is `0` (`formatCapacity`). Negative input is rejected as `invalid_input`. | DHV-B-092, DHV-B-093 |
+| 2 | `DHV_PARAMETERS` with no parameters | Always set. Nil or empty is exactly `{}` (`encodeParameters`). | DHV-B-094 |
+| 3 | Empty values | Every documented variable for the operation is always set. An empty value is the empty string, never omitted (`buildEnv`). | DHV-B-084 to DHV-B-095 |
+| 4 | Create output | `path` is required and must be a JSON string. `bytes` is optional: missing is `0`; present it must be a non-negative JSON integer written as `0` or digits without a leading zero, fitting int64. Fractions, exponents, strings, negatives, `-0`, `null` and overflow are `invalid_output` (`parseCreateOutput`). | DHV-B-081 |
+| 5 | Error object | Read only when the plugin exits non-zero, for create and delete (`parsePluginError`). For delete this is the only use of stdout. On exit 0, create output is parsed as a result, so an object without a valid `path` is `invalid_output` even if it has an `error` field; delete succeeds on exit 0 whatever stdout says. | DHV-B-096, DHV-B-097 |
+
+#### Other policy
+
+| Question | Wander policy |
+| --- | --- |
+| Environment | Exactly the documented variables for the operation plus the fixed `PATH` used for fingerprint, in a fixed order. Create has no `DHV_CREATED_PATH`; delete has it and no capacity variables. The agent environment is never inherited. Working directory is the plugin directory, stdin is empty, argv is `[path, operation]`, no shell. |
+| Parameters encoding | Compact JSON, keys sorted, no HTML escaping (`<`, `>` and `&` are written as is), no trailing newline, so equal inputs give byte-identical text. Invalid UTF-8 in a key or value is rejected before encoding because `encoding/json` would replace it silently. At most 64 KiB encoded. |
+| Input validation | Done before the lock or any process: plugin ID valid and not `mkdir`, volume ID non-empty (it is the lock key), no NUL byte in any field, parameter key or value or in the created path, parameters valid UTF-8, capacities not negative, and for delete the created path passes the same path rules as a create result. Reason `invalid_input` (`reserved_id` for `mkdir`). Messages never carry a rejected value. |
+| Output limits | DHV-B-100 is unresolved. Create stdout 16 KiB (more than the 4096 byte path limit plus envelope and escaping); stderr 4 KiB for both operations. Exceeding the create stdout limit or any stderr limit kills the plugin: `output_too_large`. Delete keeps at most 4 KiB of stdout, only to read the error object; more stdout is discarded without killing the plugin. If delete stdout was truncated, the error object is not read and the message is `exit N`. |
+| Path rules | A create result path must be non-empty, at most 4096 bytes, valid UTF-8, free of NUL, control (below U+0020, U+007F), non-printable characters and U+FFFD, absolute, equal to its cleaned form (so `..`, `.`, `//` and a trailing slash are rejected) and not a filesystem root. It need not lie under `DHV_VOLUMES_DIR` (evidence). Reason `invalid_path`. The returned `bytes` is not compared with the requested capacity; the evidence gives no rule. |
+| JSON details | One object, surrounding whitespace allowed, unknown fields ignored, data after the object rejected, for a duplicate key the last one wins. A malformed envelope, a missing or non-string `path` or an invalid `bytes` is `invalid_output`. |
+| Per-volume lock | One operation at a time per volume ID within one client process; different IDs run concurrently. A channel semaphore with a reference count per ID, so waiting honours the caller context and entries are removed when nobody holds or waits. The lock is released on every path. The 60 second deadline starts after the lock is held; waiting is bounded only by the caller context (`canceled`, no plugin started). No cross-process or cross-restart locking. |
+| Reason codes | `invalid_input`, `reserved_id`, `invalid_path`, `invalid_output`, `output_too_large`, `nonzero_exit`, `timeout`, `canceled`, `start_failed`. Precedence: output overflow, caller context (a caller deadline is `canceled`), operation deadline (`timeout`), exit status, start failure. Every failure returns the zero result. |
+| Plugin error text | The message is the sanitised `error` string of a complete stdout object after a non-zero exit, at most 256 bytes, with control characters and invalid UTF-8 replaced by spaces; otherwise `exit N`. Stderr is never put in the error. |
+| Redaction | Every non-empty parameter value is replaced by `[redacted]` in plugin error text, longest first, before it is sanitised and cut to its bound, so a cut value cannot leak a prefix. Values never appear in errors. Keys are not secret. The library does not log. A short value such as `1` makes the replacement visible in unrelated text; that is accepted. |
+| Timeout and kill | 60 seconds for both, overridable on `Ops.Timeout` for tests. On expiry or cancellation the process group is killed on Unix, with the one second wait delay used by fingerprint. |
+| Retries | None (DHV-B-101). Retrying create with the same request runs the plugin again with identical inputs. |
+| Windows | The code compiles on Windows. External plugins are not discovered there, so the operations are not reachable; the shell based tests are excluded by build tag. |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

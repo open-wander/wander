@@ -379,3 +379,42 @@ or stricter-format guess breaks compatibility as surely as a wrong one.
   worker, updates `prds/`; delete stdout overflow truncates and does not kill
   the plugin; create needs a larger stdout limit than fingerprint; the 60
   second deadline starts after the per-volume lock is acquired.
+
+## 2026-11-17 — Task 2.3 complete
+
+- The owner chose to proceed with a tolerant policy for the five points the
+  public specification does not state, and to verify them later by black-box
+  observation on an official binary. An observation kit (synthetic recording
+  plugin, two volume specifications, record template) was handed to the owner;
+  it is not committed.
+- Added `Ops.Create` and `Ops.Delete` in `client/hostvolume/operation.go`. The
+  environment is an explicit allowlist of the documented variables plus the
+  fixed PATH. The deadline is 60 seconds and starts after the per-volume lock
+  is held; waiting for the lock honours the caller's context. The lock is a
+  reference-counted semaphore whose entries are removed when unused.
+- The five pending points each sit in one small function: `formatCapacity`
+  (unset is 0), `encodeParameters` (none is `{}`), `buildEnv` (every variable
+  always set, empty as an empty string), `parseCreateOutput` (path required,
+  bytes optional), `parsePluginError` (read only on a non-zero exit).
+- Create results are validated: the path must be absolute, clean, bounded, free
+  of control characters and not the root. It need not lie under the volumes
+  directory. Returned bytes are not checked against the requested capacity.
+- Delete stdout is truncated and discarded, so a chatty plugin is not killed.
+- Parameter values are redacted from every surfaced message before
+  truncation. A very short value is redacted wherever it appears.
+- `plugin.go` changed additively only; the fingerprint path is unchanged.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator tightened the redaction test so that it fails when
+  truncation runs before redaction (confirmed by mutation). The worker's
+  mutation checks covered the lock, the path clean check, the environment
+  allowlist and redaction.
+- Tests pass in normal and race-enabled modes (repeated runs). Build, Windows
+  compile, vet, guards, licence boundary and whitespace passed.
+- Follow-up: when the observation arrives, record it as a black-box source,
+  update DHV-B-081, 092 to 094 and 096, and adjust the five functions.
+
+PATTERN: redaction - Redact sensitive values before truncating, and test with
+a value that straddles the cut so a surviving prefix is detected.
+
+PATTERN: locking - Start an operation deadline only after the per-key lock is
+held, bound the wait by the caller's context, and remove unused lock entries.
