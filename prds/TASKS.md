@@ -13,7 +13,7 @@ must follow the clean-room and private-data rules in the linked PRD and
 | 2.1 | Add plugin and managed-volume client configuration | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-15) | Added host_volume_plugin_dir and host_volumes_dir with merge, data_dir defaults, validation, and a static-volume lookup seam |
 | 2.2 | Implement executable discovery, fingerprinting, and health reporting | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-15) | Added bounded plugin discovery and fingerprinting, advertised as node attributes; fingerprint output corrected to the documented JSON format |
 | 2.3 | Implement the bounded and cancellable plugin operation runner | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-17) | Added client-side create and delete plugin calls with validation and per-volume locking; five input and output encodings are policy pending black-box verification |
-| 2.4 | Implement the confined built-in directory plugin | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 2.3 |
+| 2.4 | Implement the confined built-in directory plugin | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-17) | Added the confined in-process mkdir plugin with mode, uid and gid, advertised on the node; disabled on Windows |
 | 2.5 | Add restart reconciliation and availability recovery | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.6, 2.3 |
 | 2.6 | Implement the client handshake for registering existing paths without modifying contents | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.6, 2.5 |
 

@@ -418,3 +418,45 @@ a value that straddles the cut so a surviving prefix is detected.
 
 PATTERN: locking - Start an operation deadline only after the per-key lock is
 held, bound the wait by the caller's context, and remove unused lock entries.
+
+## 2026-11-17 — Task 2.4 complete
+
+- The public volume specification was read for the built-in plugin before the
+  task started and recorded in DHV-B-103 to DHV-B-106: plugin id `mkdir`, a
+  directory in `host_volumes_dir` named after the volume ID, `mode` (string,
+  default 0700), `uid` and `gid` (integers, default the agent's user, ignored
+  on Windows), capacity ignored. Delete behaviour and unknown parameters are
+  not stated.
+- Added `Ops.CreateBuiltin` and `Ops.DeleteBuiltin`, sharing the per-volume
+  lock with external operations. Delete takes no path: it derives the
+  directory from the volume ID, so it cannot be aimed at a registered
+  external directory.
+- Confinement: the volume ID must match `[a-z0-9_-]{1,64}`; the root's final
+  element must not be a symlink; the root is opened once and the volume
+  directory is opened without following symlinks, with same-file checks;
+  ownership and mode are applied on the open descriptor, never by path.
+- Wander policy, recorded in the provenance document and still to be confirmed
+  by the owner: delete removes the directory and its contents and succeeds
+  when it is gone; create is idempotent; bytes is always 0; unknown parameters
+  are ignored; setuid, setgid and sticky bits are rejected; no uid or gid
+  lookup is made; a missing managed root is created with mode 0711; the
+  advertised version is 1.0.0; the plugin is disabled on Windows.
+- The fingerprinter advertises `plugins.host_volume.version.mkdir` when the
+  volumes directory is set, and now clears stale attributes whenever the node
+  is known.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator made the dangling-symlink case assert its reason
+  code, added a regular-file case, and marked two tests as not parallel.
+- Mutation checks by the worker turned the intended tests red for ID
+  validation, the root check, uid range, special mode bits and chown failure
+  handling. Removing a single symlink guard stays green because the guards
+  overlap; that redundancy is deliberate.
+- gosec reports G301 for the 0711 managed root. Other users need search
+  permission on the root to reach a volume directory they own.
+- Tests pass in normal and race-enabled modes. Build, Windows compile, vet,
+  guards, licence boundary and whitespace passed.
+
+PATTERN: confinement - Validate the untrusted name as one safe path element,
+open the root once, open children without following symlinks, and change
+mode and owner on the open descriptor; derive delete targets, never accept
+them.

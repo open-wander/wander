@@ -163,3 +163,59 @@ func TestPluginsHostVolumeFingerprint_ShuffledListing(t *testing.T) {
 	must.Eq(t, r1.Attributes, r2.Attributes)
 	must.MapLen(t, 3, r1.Attributes)
 }
+
+func runHVDirs(t *testing.T, f *PluginsHostVolumeFingerprint, pluginDir, volumesDir string, node *structs.Node) *FingerprintResponse {
+	t.Helper()
+	req := &FingerprintRequest{
+		Config: &config.Config{HostVolumePluginDir: pluginDir, HostVolumesDir: volumesDir},
+		Node:   node,
+	}
+	resp := new(FingerprintResponse)
+	must.NoError(t, f.Fingerprint(req, resp))
+	return resp
+}
+
+const hvMkdirAttr = "plugins.host_volume.version.mkdir"
+
+func TestPluginsHostVolumeFingerprint_BuiltinAdvertised(t *testing.T) {
+	ci.Parallel(t)
+	resp := runHVDirs(t, newHVFingerprinter(t), "", t.TempDir(), nil)
+	must.True(t, resp.Detected)
+	must.Eq(t, map[string]string{hvMkdirAttr: hostvolume.BuiltinMkdirVersion}, resp.Attributes)
+}
+
+func TestPluginsHostVolumeFingerprint_BuiltinNotAdvertisedAndStaleRemoved(t *testing.T) {
+	ci.Parallel(t)
+	f := newHVFingerprinter(t)
+	node := &structs.Node{Attributes: map[string]string{hvMkdirAttr: "1.0.0", "kernel.name": "linux"}}
+
+	// nothing configured: Detected is false, the stale attribute is removed
+	resp := runHVDirs(t, f, "", "", node)
+	must.False(t, resp.Detected)
+	must.Eq(t, map[string]string{hvMkdirAttr: ""}, resp.Attributes)
+
+	// only a plugin directory: still no built-in
+	resp = runHVDirs(t, f, t.TempDir(), "", node)
+	must.True(t, resp.Detected)
+	must.Eq(t, map[string]string{hvMkdirAttr: ""}, resp.Attributes)
+
+	// still advertised and left alone while configured
+	resp = runHVDirs(t, f, "", t.TempDir(), node)
+	must.Eq(t, map[string]string{hvMkdirAttr: hostvolume.BuiltinMkdirVersion}, resp.Attributes)
+}
+
+func TestPluginsHostVolumeFingerprint_ExternalMkdirExcluded(t *testing.T) {
+	ci.Parallel(t)
+	dir := t.TempDir()
+	hvPlugin(t, dir, "mkdir", `echo '{"version":"9.9.9"}'`, 0o755)
+	hvPlugin(t, dir, "alpha", `echo '{"version":"1.2.3"}'`, 0o755)
+	resp := runHVDirs(t, newHVFingerprinter(t), dir, t.TempDir(), nil)
+	must.Eq(t, map[string]string{
+		hvMkdirAttr:                         hostvolume.BuiltinMkdirVersion,
+		"plugins.host_volume.version.alpha": "1.2.3",
+	}, resp.Attributes)
+
+	// without a volumes dir the external mkdir must not appear at all
+	resp = runHVDirs(t, newHVFingerprinter(t), dir, "", nil)
+	must.Eq(t, map[string]string{"plugins.host_volume.version.alpha": "1.2.3"}, resp.Attributes)
+}

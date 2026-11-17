@@ -60,17 +60,22 @@ func (f *PluginsHostVolumeFingerprint) Periodic() (bool, time.Duration) {
 // are logged as bounded diagnostics, because an error from a periodic
 // fingerprinter stops it from running again.
 func (f *PluginsHostVolumeFingerprint) Fingerprint(req *FingerprintRequest, resp *FingerprintResponse) error {
-	if req.Config == nil || req.Config.HostVolumePluginDir == "" {
-		resp.Detected = false
-		return nil
+	pluginDir, volumesDir := "", ""
+	if req.Config != nil {
+		pluginDir, volumesDir = req.Config.HostVolumePluginDir, req.Config.HostVolumesDir
 	}
-	resp.Detected = true
+	builtin := volumesDir != "" && hostvolume.BuiltinSupported()
+	resp.Detected = pluginDir != "" || builtin
 
-	cands, diags := hostvolume.DiscoverWith(req.Config.HostVolumePluginDir, f.lister)
+	var cands []hostvolume.Candidate
 	seen := map[string]string{}
-	for _, d := range diags {
-		seen[d.ID] = d.Reason
-		f.logDiag(d)
+	if pluginDir != "" {
+		var diags []hostvolume.Diagnostic
+		cands, diags = hostvolume.DiscoverWith(pluginDir, f.lister)
+		for _, d := range diags {
+			seen[d.ID] = d.Reason
+			f.logDiag(d)
+		}
 	}
 
 	results := make([]hostvolume.Result, len(cands))
@@ -92,6 +97,14 @@ func (f *PluginsHostVolumeFingerprint) Fingerprint(req *FingerprintRequest, resp
 	wg.Wait()
 
 	healthy := map[string]string{}
+	// The built-in plugin is in-process, so it is healthy whenever the
+	// managed volumes directory is configured. An external file named mkdir
+	// is excluded in discovery and never reaches here.
+	if builtin {
+		k := hostVolumePluginAttribute + hostvolume.BuiltinMkdirID
+		healthy[k] = hostvolume.BuiltinMkdirVersion
+		resp.AddAttribute(k, hostvolume.BuiltinMkdirVersion)
+	}
 	for _, r := range results {
 		if r.Healthy {
 			healthy[hostVolumePluginAttribute+r.ID] = r.Version

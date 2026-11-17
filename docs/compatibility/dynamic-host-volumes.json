@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "feature": "dynamic-host-volumes",
-  "evidence_cutoff": "2026-11-15",
+  "evidence_cutoff": "2026-11-17",
   "synthetic_only": true,
   "sources": [
     {"id":"SRC-api","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-08","scope":"HTTP and claim operation tables; conflicting examples","summary":"Public operation tables only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
-    {"id":"SRC-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/volume/host","date":"2026-11-08","scope":"Volume fields and mkdir parameters","summary":"Specification field descriptions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
+    {"id":"SRC-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/volume/host","date":"2026-11-17","scope":"Volume fields and mkdir parameters","summary":"Specification field descriptions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-plugin","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/plugins/author/host-volume#specification","date":"2026-11-15","scope":"Plugin protocol specification only; implementation examples excluded","summary":"Executable protocol interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-job","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/job-specification/volume#parameters","date":"2026-11-08","scope":"Dynamic host job fields","summary":"Job field contract only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-config","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/configuration/client","date":"2026-11-08","scope":"Host volume directory settings","summary":"Directory configuration interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
@@ -1959,7 +1959,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for mkdir that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"Creates host_volumes_dir/<volume-ID>; capacity bounds ignored.","evidence_refs":["SRC-spec"],"test_ids":["DHV-T-103"]},
+        "contract": {"status":"documented","value":"Built-in plugin with plugin_id mkdir; creates a directory in host_volumes_dir named after the volume ID; capacity_min and capacity_max are ignored because they cannot be enforced. Delete behaviour is not stated.","evidence_refs":["SRC-spec"],"test_ids":["DHV-T-103"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-103"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-103"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-103"]},
@@ -1976,7 +1976,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for mkdir.mode that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"documented","value":"Default 0700.","evidence_refs":["SRC-spec"],"test_ids":["DHV-T-104"]},
+        "contract": {"status":"documented","value":"Parameter mode: optional string in numeric notation applied to the created directory; default 0700. On Windows only the owner-writable bit is used.","evidence_refs":["SRC-spec"],"test_ids":["DHV-T-104"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-104"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-104"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-104"]},
@@ -1993,7 +1993,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for mkdir.uid that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-105"]},
+        "contract": {"status":"documented","value":"Parameter uid: optional integer user ID to own the directory; defaults to the user running the client agent. The ID must be present on the node. Ignored on Windows.","evidence_refs":["SRC-spec"],"test_ids":["DHV-T-105"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-105"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-105"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-105"]},
@@ -2010,7 +2010,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for mkdir.gid that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-106"]},
+        "contract": {"status":"documented","value":"Parameter gid: optional integer group ID to own the directory; defaults as for uid. The ID must be present on the node. Ignored on Windows.","evidence_refs":["SRC-spec"],"test_ids":["DHV-T-106"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-106"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-106"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-106"]},

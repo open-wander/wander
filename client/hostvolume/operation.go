@@ -224,6 +224,21 @@ func validateRequest(op string, c Candidate, req OpRequest, createdPath string) 
 	if c.Path == "" || strings.IndexByte(c.Path, 0) >= 0 {
 		return "", opErr(op, ReasonInvalidInput, "invalid plugin path")
 	}
+	params, oerr := validateFields(op, req)
+	if oerr != nil {
+		return "", oerr
+	}
+	if op == OperationDelete {
+		if err := validatePath(createdPath); err != nil {
+			return "", opErr(op, ReasonInvalidInput, "created path: "+err.Error())
+		}
+	}
+	return params, nil
+}
+
+// validateFields holds the request checks shared with the built-in plugin
+// and returns the encoded parameters.
+func validateFields(op string, req OpRequest) (string, *OpError) {
 	if req.VolumeID == "" {
 		return "", opErr(op, ReasonInvalidInput, "volume id is empty")
 	}
@@ -242,11 +257,6 @@ func validateRequest(op string, c Candidate, req OpRequest, createdPath string) 
 	params, perr := encodeParameters(req.Parameters)
 	if perr != nil {
 		return "", opErr(op, ReasonInvalidInput, perr.Error())
-	}
-	if op == OperationDelete {
-		if err := validatePath(createdPath); err != nil {
-			return "", opErr(op, ReasonInvalidInput, "created path: "+err.Error())
-		}
 	}
 	return params, nil
 }

@@ -1,9 +1,8 @@
 # Dynamic host volume provenance
 
 This record accompanies [the JSON matrix](dynamic-host-volumes.json).
-It captures interface evidence on 2026-11-08 and 2026-11-15, not an implemented
-feature or a
-complete verified contract. Every runtime acceptance test is currently planned.
+It captures interface evidence on 2026-11-08, 2026-11-15 and 2026-11-17, not an
+implemented feature or a complete verified contract. Every runtime acceptance test is currently planned.
 The offline validator tests the ledger itself only.
 
 ## Evidence rules {#evidence-rules}
@@ -274,7 +273,7 @@ repository's own patterns, not taken from any later Nomad release.
 | Candidates | Regular files (Lstat semantics) directly in the directory with any execute bit set. Directories, symlinks, FIFOs, sockets and names starting with a dot are skipped silently; a non-executable regular file is excluded with reason `not_executable`. No recursion. |
 | Windows | The execute bit has no meaning, so no external plugins are discovered on Windows (reason `unsupported_platform`). |
 | Plugin ID | The file name: 1 to 64 characters from `[A-Za-z0-9._-]`, not starting with a dot. Otherwise excluded with `invalid_id`. At most 32 candidates are run per pass (sorted by ID); the rest get `too_many_plugins`. |
-| Reserved ID | `mkdir` (DHV-B-103) is reserved for the built-in plugin. An external file named `mkdir` is excluded with `reserved_id`. The built-in plugin is not advertised yet; that is deferred to the task that implements it. |
+| Reserved ID | `mkdir` (DHV-B-103) is reserved for the built-in plugin. An external file named `mkdir` is excluded with `reserved_id`. The built-in plugin is advertised separately, in-process, as `plugins.host_volume.version.mkdir`; see [Built-in mkdir plugin](#builtin-mkdir). An external `mkdir` never affects that attribute. |
 | stdout | Evidence: one JSON object with a string `version`, valid for go-version. Policy: surrounding whitespace is allowed, unknown fields are ignored, data after the object is rejected, and the version is 1 to 64 characters from `[A-Za-z0-9._+-]` and is advertised exactly as printed. Output that is not one JSON object, or a `version` that is not a string, is `invalid_output`; a missing, empty, over-long, unsafe or unparseable version is `invalid_version`. |
 | Exit status | Exit 0 is healthy. Any other status is `nonzero_exit`. |
 | Output limits | stdout 1024 bytes, stderr 1024 bytes. Exceeding either kills the plugin: `output_too_large`. |
@@ -303,9 +302,10 @@ does not advertise the attributes, which a server must read as "no plugins".
 
 Implemented in `client/hostvolume/operation.go` as a library (`Ops.Create`,
 `Ops.Delete`). Nothing calls it yet: no RPC, state store, FSM or snapshot code is
-touched. The built-in `mkdir` plugin, restart reconciliation and registering
-existing paths are later tasks; `mkdir` stays reserved and is rejected here
-(`reserved_id`).
+touched. The built-in `mkdir` plugin is in [its own section](#builtin-mkdir); restart
+reconciliation and registering existing paths are later tasks. `Ops.Create` and
+`Ops.Delete` still reject the id `mkdir` (`reserved_id`), because it names no
+external executable.
 
 ### Recorded evidence
 
@@ -359,6 +359,45 @@ change when black-box verification against a real implementation is allowed.
 | Timeout and kill | 60 seconds for both, overridable on `Ops.Timeout` for tests. On expiry or cancellation the process group is killed on Unix, with the one second wait delay used by fingerprint. |
 | Retries | None (DHV-B-101). Retrying create with the same request runs the plugin again with identical inputs. |
 | Windows | The code compiles on Windows. External plugins are not discovered there, so the operations are not reachable; the shell based tests are excluded by build tag. |
+
+## Built-in mkdir plugin (client) {#builtin-mkdir}
+
+Implemented in `client/hostvolume/builtin.go` (`Ops.CreateBuiltin`,
+`Ops.DeleteBuiltin`) with `builtin_unix.go` and `builtin_windows.go`. It runs in
+the client process, with no executable, and returns the same `CreateResult` as
+external plugins. It shares the per-volume lock of `Ops`, so built-in and
+external operations on one volume ID never interleave. Nothing calls it yet: no
+RPC, state store, FSM or snapshot code is touched.
+
+### Recorded evidence
+
+| ID | Evidence |
+| --- | --- |
+| DHV-B-103 | Plugin id `mkdir` creates a directory in the host volumes directory named after the volume ID. `capacity_min` and `capacity_max` are ignored because they cannot be enforced. Delete behaviour is not stated. |
+| DHV-B-104 | Parameter `mode`: optional string in numeric notation applied to the created directory, default `0700`. On Windows only the owner-writable bit is used. |
+| DHV-B-105 | Parameter `uid`: optional integer, defaults to the user running the agent. The ID must be present on the node. Ignored on Windows. |
+| DHV-B-106 | Parameter `gid`: optional integer, defaults as for `uid`. The ID must be present on the node. Ignored on Windows. |
+
+### Wander policy
+
+Everything below is Wander policy, not recorded evidence.
+
+| Point | Decision |
+| --- | --- |
+| Create result (DHV-B-103) | `Path` is `<volumes dir>/<volume id>`; `Bytes` is always 0. Capacity is ignored and is never an error. |
+| Idempotency (DHV-B-103) | Create for an existing plain directory reuses it: no second directory, same result, and ownership and mode are applied again. Contents are untouched. |
+| Delete (DHV-B-103, DHV-B-110) | Removes the volume directory and its contents; succeeds when the directory or the volumes directory is already gone, and never creates the root. It takes no path: it derives `<volumes dir>/<volume id>` itself, so a registered external directory cannot be targeted. Symlinks are never followed. A symlink or regular file found at the volume name is itself removed (harmless and confined), not its target. A directory with no owner write or search permission (mode such as `0500` or `0`) may fail to delete for a non-root agent; that reports `filesystem_failed`. |
+| Volume ID (DHV-B-108) | One safe path element, 1 to 64 bytes of `[a-z0-9_-]`. This excludes separators, NUL, empty, `.`, `..`, a leading dot, absolute paths and Windows device names structurally. Upper case is excluded because the lock is keyed on the exact string while macOS and Windows filesystems fold case. Server-generated IDs are lower-case UUIDs. Reason `invalid_input`. |
+| Mode (DHV-B-104) | 1 to 4 octal digits (`755`, `0755`). Text with a `0o` prefix, sign, whitespace, or digits 8 and 9 is rejected, as is the empty string. Only permission bits `0777` are accepted: setuid, setgid and sticky are rejected, so the rule is "permission bits and nothing else". The mode is applied with an explicit chmod, so the process umask does not change it. A mode without owner access (for example `0`) is accepted but can make later re-creation or deletion fail for a non-root agent. |
+| uid and gid (DHV-B-105, DHV-B-106) | Decimal digits only, no sign or space, in 0 to 2147483647. 4294967295 is rejected because chown reads it as "no change". Absent values default to the agent uid and gid, and ownership is always applied explicitly because BSD and macOS give a new directory the parent group. |
+| Presence check (DHV-B-107) | None. The numeric ID is passed to chown as is. `os/user` lookups need cgo or NSS and would reject LDAP or SSSD users in pure-Go builds. That the ID exists on the node is the operator's responsibility; an ID the kernel refuses fails the create with `filesystem_failed`. |
+| Failure of chown or chmod (DHV-B-107) | The create fails with `filesystem_failed` and returns the zero result. A directory created by this call is removed (`Remove`, not `RemoveAll`); a directory that existed before is left in place with whatever state it had. If removal fails the message says so. |
+| Symlinks (DHV-B-109) | The managed root's final element must be a plain directory, not a symlink (`invalid_path`); ancestors are the operator's and may be links. The root is opened once with `os.OpenRoot` and checked with `os.SameFile` against the earlier `Lstat`. The volume path is `Lstat`ed (a symlink, file or anything else than a directory is `invalid_path`), opened with `O_NOFOLLOW|O_DIRECTORY`, and compared with `SameFile` again. Ownership and mode are applied to the open descriptor, never by path. |
+| Managed root | Created with `MkdirAll` mode `0711` if missing on create, because the default `data_dir/host_volumes` does not exist on a fresh agent. |
+| Unknown parameters | Ignored, so a specification written for another version still works. Only `mode`, `uid` and `gid` are read. |
+| Advertised version | `plugins.host_volume.version.mkdir` = `1.0.0` (`BuiltinMkdirVersion`), set whenever the volumes directory is configured and the platform is supported; not advertised otherwise, and a stale attribute is removed on the next pass. |
+| Windows | Disabled: both operations return `unsupported_platform` and nothing is advertised. External plugins are already disabled there, and symlink, junction and reparse-point semantics plus the read-only attribute make the owner-writable-bit-only behaviour hard to confine and to test. |
+| Reason codes | `invalid_input` (bad ID, parameter or volumes directory), `invalid_path` (confinement), `filesystem_failed` (any other filesystem error, new), `canceled`, `unsupported_platform`. Messages are fixed text and never carry a parameter value or a raw OS error. |
 
 ## Extension workflow {#extension-workflow}
 
