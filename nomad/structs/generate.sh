@@ -4,8 +4,12 @@
 
 set -e
 
+# The generated code follows the order of these files, so sort them the same
+# way in every locale.
+export LC_ALL=C
+
 FILES="$(ls ./*.go | grep -v -e _test.go -e .generated.go | tr '\n' ' ')"
-codecgen \
+../../scripts/codecgen.sh \
     -c github.com/hashicorp/go-msgpack/codec \
     -st codec \
     -d 100 \
