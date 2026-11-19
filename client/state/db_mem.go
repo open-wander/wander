@@ -11,6 +11,7 @@ import (
 	"github.com/open-wander/wander/client/allocrunner/taskrunner/state"
 	dmstate "github.com/open-wander/wander/client/devicemanager/state"
 	"github.com/open-wander/wander/client/dynamicplugins"
+	hvstate "github.com/open-wander/wander/client/hostvolume/state"
 	driverstate "github.com/open-wander/wander/client/pluginmanager/drivermanager/state"
 	"github.com/open-wander/wander/client/serviceregistration/checks"
 	cstructs "github.com/open-wander/wander/client/structs"
@@ -56,6 +57,9 @@ type MemDB struct {
 	nodeMeta map[string]*string
 
 	nodeRegistration *cstructs.NodeRegistration
+
+	// volume_id -> dynamic host volume record
+	hostVolumes map[string]*hvstate.Record
 
 	logger hclog.Logger
 
@@ -334,6 +338,33 @@ func (m *MemDB) GetNodeRegistration() (*cstructs.NodeRegistration, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.nodeRegistration, nil
+}
+
+func (m *MemDB) PutHostVolume(r *hvstate.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.hostVolumes == nil {
+		m.hostVolumes = make(map[string]*hvstate.Record)
+	}
+	m.hostVolumes[r.VolumeID] = r.Copy()
+	return nil
+}
+
+func (m *MemDB) GetHostVolumes() ([]*hvstate.Record, map[string]error, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	recs := make([]*hvstate.Record, 0, len(m.hostVolumes))
+	for _, r := range m.hostVolumes {
+		recs = append(recs, r.Copy())
+	}
+	return recs, map[string]error{}, nil
+}
+
+func (m *MemDB) DeleteHostVolume(volumeID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.hostVolumes, volumeID)
+	return nil
 }
 
 func (m *MemDB) Close() error {

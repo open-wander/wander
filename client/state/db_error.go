@@ -10,6 +10,7 @@ import (
 	"github.com/open-wander/wander/client/allocrunner/taskrunner/state"
 	dmstate "github.com/open-wander/wander/client/devicemanager/state"
 	"github.com/open-wander/wander/client/dynamicplugins"
+	hvstate "github.com/open-wander/wander/client/hostvolume/state"
 	driverstate "github.com/open-wander/wander/client/pluginmanager/drivermanager/state"
 	"github.com/open-wander/wander/client/serviceregistration/checks"
 	cstructs "github.com/open-wander/wander/client/structs"
@@ -144,6 +145,18 @@ func (m *ErrDB) PutNodeRegistration(reg *cstructs.NodeRegistration) error {
 
 func (m *ErrDB) GetNodeRegistration() (*cstructs.NodeRegistration, error) {
 	return nil, fmt.Errorf("Error!")
+}
+
+func (m *ErrDB) PutHostVolume(*hvstate.Record) error {
+	return fmt.Errorf("Error!")
+}
+
+func (m *ErrDB) GetHostVolumes() ([]*hvstate.Record, map[string]error, error) {
+	return nil, nil, fmt.Errorf("Error!")
+}
+
+func (m *ErrDB) DeleteHostVolume(string) error {
+	return fmt.Errorf("Error!")
 }
 
 func (m *ErrDB) Close() error {

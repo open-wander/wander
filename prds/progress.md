@@ -512,3 +512,77 @@ PATTERN: testing - A negative test that asserts only "an error was returned"
 keeps passing when a different rule rejects the input. Assert the specific
 error or rule, and give each guard one input that is valid in every other
 respect.
+
+## 2026-11-19 — Task 2.5 complete
+
+- Owner decision: a client reports each ready dynamic volume in the node's
+  existing `HostVolumes` map (option A), so the inherited scheduler check
+  keeps jobs off a node where the volume is unavailable. No new RPC and no
+  new top-level node field.
+- Added `client/hostvolume/manager.go`, the only writer of client volume
+  records, with a record type in `client/hostvolume/state` and three new
+  methods on the client state store (bucket `hostvolumes`, no state version
+  change). The manager restores records at start, reconciles them every 30
+  seconds and publishes the ready set only when it changes. The client runs
+  restore and the periodic loop in its shutdown group.
+- `ClientHostVolumeConfig` gained `ID`, set to the volume ID for a dynamic
+  volume and empty for a static one. An agent `host_volume` block cannot set
+  it. Without a marker the scheduler could not tell a dynamic volume from a
+  static one and so could not enforce its namespace.
+- Wander policy, recorded in the provenance document and still to be
+  confirmed by the owner: names are unique per node and a static volume wins
+  a conflict; between dynamic volumes the lower volume ID wins; a record for
+  another node is never reported; a registered path is only stat-checked;
+  restore re-runs the plugin's create once; a create that returns another
+  path is not retried until the next client start; a plugin-created volume
+  whose directory disappeared is created again, empty, on the next pass;
+  restore runs in the background with a five minute bound; the manager's
+  delete applies only to plugin-created volumes.
+- First run reported BLOCKED before writing code: regenerating
+  `structs.generated.go` reordered about 3,300 lines. Two causes: the
+  generator's input order came from `ls` and so depended on the locale, and
+  the pinned go-msgpack 1.1.5 generator panics on current Go. With a C locale
+  and a patched temporary copy of the module, the unmodified tree regenerates
+  byte for byte and the new field changes 75 added and 26 removed lines, all
+  in the `ClientHostVolumeConfig` functions. PR #63 puts that fix into
+  `make generate-structs`, together with a bump of the pinned `stringer`,
+  which also crashed.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator then:
+  - made the store load happen once, before restore or the first entry point
+    call, so a volume created before the background restore finishes is not
+    replaced by a later read of the store, and restored only records read
+    from the store;
+  - stopped periodic retries of a `path_changed` volume, because each retry
+    is another create;
+  - added tests for the request restore passes to create, a plugin installed
+    after start, a logged unreadable record, the `path_changed` rule and a
+    create that runs before restore;
+  - raised the timeout of two process-kill tests from 500 ms to 3 s. They
+    read a PID file the plugin writes, and on a loaded machine the plugin was
+    killed before it wrote it.
+- Known limits: the diagnostic for an unavailable volume stays on the client
+  (logs and the manager); the server only sees that the volume is absent from
+  the node. No client-level test asserts that the host volume goroutine stops
+  on shutdown; the manager-level test covers the loop.
+- Build, Windows compile, vet, focused tests in normal, race-enabled and
+  `codegen_generated` modes, both guards, the licence boundary and whitespace
+  checks passed. gosec reports only the findings accepted earlier.
+
+## 2026-11-19 — Follow-ups opened outside the task list
+
+- PR #62 adds a test for each of the ten gaps the Phase 1 sweep confirmed.
+  Each test fails when its guard is removed.
+- PR #63 fixes `make generate-structs` on current Go.
+
+PATTERN: generation - Run the codec generator with `LC_ALL=C`; its output
+order follows the order of the input files. Require a byte-identical
+regeneration of the unmodified tree before trusting a diff.
+
+PATTERN: concurrency - When restore runs in the background, load persisted
+state once before any entry point can write, and mark which records came from
+the store so the restore pass does not repeat work done in the same run.
+
+PATTERN: testing - A test that reads a file its child process writes must
+give the child time to start on a loaded machine; a short operation timeout
+turns it into a flaky test.

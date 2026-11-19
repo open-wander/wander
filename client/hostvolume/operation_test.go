@@ -368,7 +368,9 @@ func TestOps_NonZeroExitMessage(t *testing.T) {
 func TestOps_Create_Timeout_KillsProcessGroup(t *testing.T) {
 	ci.Parallel(t)
 	e := newOpEnv(t)
-	e.ops.Timeout = 500 * time.Millisecond
+	// The timeout must leave a loaded machine time to start the plugin and
+	// write the child's PID; the test reads that file afterwards.
+	e.ops.Timeout = 3 * time.Second
 	c := e.plugin(t, `sleep 30 & echo $! > child.pid; wait`)
 
 	res, err := e.ops.Create(context.Background(), c, baseReq())

@@ -276,7 +276,9 @@ func TestRunner_Fingerprint_TimeoutKillsProcessGroup(t *testing.T) {
 	pidFile := filepath.Join(dir, "child.pid")
 	p := writePlugin(t, dir, "plug", `sleep 30 & echo $! > child.pid; wait`, 0o755)
 
-	runner := Runner{Timeout: 500 * time.Millisecond, Limits: Limits{Stdout: 128, Stderr: 64}}
+	// The timeout must leave a loaded machine time to start the plugin and
+	// write the child's PID; the test reads that file afterwards.
+	runner := Runner{Timeout: 3 * time.Second, Limits: Limits{Stdout: 128, Stderr: 64}}
 	res := runner.Fingerprint(context.Background(), Candidate{ID: "plug", Path: p})
 	must.False(t, res.Healthy)
 	must.NotNil(t, res.Diag)

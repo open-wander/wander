@@ -399,6 +399,87 @@ Everything below is Wander policy, not recorded evidence.
 | Windows | Disabled: both operations return `unsupported_platform` and nothing is advertised. External plugins are already disabled there, and symlink, junction and reparse-point semantics plus the read-only attribute make the owner-writable-bit-only behaviour hard to confine and to test. |
 | Reason codes | `invalid_input` (bad ID, parameter or volumes directory), `invalid_path` (confinement), `filesystem_failed` (any other filesystem error, new), `canceled`, `unsupported_platform`. Messages are fixed text and never carry a parameter value or a raw OS error. |
 
+## Restart reconciliation and availability (client) {#restart-reconciliation}
+
+The only recorded evidence about restart is DHV-B-102: a create failure while
+restoring volumes at agent start is logged, the client keeps running and the
+volume is not available on the node. DHV-B-118 records that a volume name is
+required and unique per node. The rest of this section is Wander policy, not a
+statement about Nomad behaviour, and is implemented in `client/hostvolume`
+(`manager.go`) with the record type in `client/hostvolume/state`.
+
+### Wander policy
+
+1. Node entry. `ClientHostVolumeConfig` gains `ID`: the volume ID for a dynamic
+   volume, empty for a static one. It is not an agent setting (the HCL tag is
+   `-` and the agent clears it when it converts `host_volume` blocks). The
+   field is not added to the public `api` package. A dynamic volume is
+   reported as `{Name, Path, ReadOnly: false, ID}` in the node's existing
+   `HostVolumes` map, only while it is ready, so the existing scheduler check
+   keeps jobs off a node where the volume is unavailable.
+2. Records. The client keeps one persisted record per dynamic volume in the
+   client state store (bucket `hostvolumes`, keyed by volume ID, no state
+   version change). The manager is the only code that writes or removes
+   records. A record that cannot be decoded or fails validation is skipped
+   and logged by key, never by content.
+3. Names. A ready dynamic record whose name equals a static `host_volume` name
+   is not reported (reason `name_conflict`) and the static entry is never
+   replaced. Between dynamic records on this node, in any namespace, the lower
+   volume ID is reported and the others get `name_conflict`. Records are
+   compared only among those that would otherwise be ready.
+4. Node. A record whose node ID is not this node is never reported (reason
+   `node_mismatch`).
+5. Registered records. Restore and reconcile only `os.Stat` the path and never
+   write under it (reason `missing_path`).
+6. Plugin-created records. Restore runs the plugin's create once with the
+   persisted request and volume ID (the built-in mkdir plugin through
+   `CreateBuiltin`). A missing plugin or an unhealthy fingerprint gives
+   `plugin_unavailable`, a failed create gives `restore_failed`, and a create
+   that returns another path gives `path_changed` while the persisted path is
+   kept. For the built-in plugin a changed volumes directory gives
+   `path_changed` without calling create, so no second directory appears.
+7. Periodic pass. Every 30 seconds (fixed, injectable for tests, not a
+   setting) every record is checked again. A ready record is only stat-checked
+   and create is not re-run for it. An unavailable record is retried as in
+   restore, with two exceptions. A record held back only by `name_conflict` is
+   stat-checked. A record with `path_changed` is left as it is until the next
+   client start, because every retry is another create and a plugin that
+   keeps returning new paths would keep making storage that nothing removes.
+   A plugin-created volume whose directory disappeared (`missing_path`) is
+   retried, so its plugin creates it again, empty.
+8. Diagnostics. Each record keeps its last status (`ready` or `unavailable`),
+   a reason code, a sanitized message of at most 256 bytes and the time of the
+   last check. Parameter values are replaced before the message is cut to its
+   bound and never appear in logs, messages or error strings. The status and
+   reason are written when they change; the check time is kept in memory on
+   every pass and written with the next change, so a quiet node does not write
+   to the state store every interval.
+9. Start. Restore runs in the client's shutdown group and never delays or
+   fails client start. The store is read once, by restore or by the first
+   entry point call, whichever comes first, and only records read from the
+   store are restored: a volume created in the same run is not created again. It is bounded by a total deadline of 5 minutes and by
+   the Ops timeouts of each plugin call. A volume not verified within the
+   deadline is unavailable (`restore_failed`) until the next periodic pass.
+   Shutdown cancels it and publishes nothing.
+
+### Other policy
+
+- Create entry point. It checks that the name is unused on the node, runs
+  create, and persists the record only after create succeeds. If persisting
+  fails after a successful create, the matching delete runs as a best-effort
+  rollback (not when a record for the volume ID already existed) and the error
+  is returned.
+- Delete entry point. It applies only to plugin-created records. For a
+  registered record it returns an error and changes nothing on disk or in the
+  store; removing a registered record belongs to a later task and DHV-B-179,
+  DHV-B-180 and DHV-B-187 stay unresolved. A failed plugin delete keeps the
+  record and its status.
+- Registration. The in-process `AddRegistered` entry point requires that the
+  path exists and records it. The server handshake is a later task.
+- Locking. The manager has its own per-volume lock, separate from the lock
+  table of `Ops`, and re-reads the record after taking it, so a pass that
+  waited for a delete does not re-create the volume.
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior
