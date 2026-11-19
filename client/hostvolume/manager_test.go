@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,11 +36,13 @@ const (
 type faultStore struct {
 	Store
 	mu      sync.Mutex
+	puts    int
 	failPut error
 }
 
 func (f *faultStore) PutHostVolume(r *hvstate.Record) error {
 	f.mu.Lock()
+	f.puts++
 	err := f.failPut
 	f.mu.Unlock()
 	if err != nil {
@@ -261,7 +265,7 @@ func TestManager_RegisteredSurvivesRestart(t *testing.T) {
 	must.NoError(t, os.Chtimes(markerPath, old, old))
 
 	m1 := e.manager()
-	_, err := m1.AddRegistered(ctx5(t), RegisterRequest{VolumeID: "vol-reg", Namespace: "ns", Name: "data", Path: dir})
+	_, err := m1.AddRegistered(ctx5(t), RegisterRequest{NodeID: testNode, VolumeID: "vol-reg", Namespace: "ns", Name: "data", Path: dir})
 	must.NoError(t, err)
 
 	m2 := e.manager()
@@ -652,7 +656,7 @@ func TestManager_CreateAndDelete(t *testing.T) {
 		dir := t.TempDir()
 		must.NoError(t, os.WriteFile(filepath.Join(dir, "f"), []byte("x"), 0o600))
 		m := e.manager()
-		_, err := m.AddRegistered(ctx5(t), RegisterRequest{VolumeID: "vol-r", Name: "reg", Path: dir})
+		_, err := m.AddRegistered(ctx5(t), RegisterRequest{NodeID: testNode, Namespace: "ns-synthetic", VolumeID: "vol-r", Name: "reg", Path: dir})
 		must.NoError(t, err)
 		err = m.Delete(ctx5(t), "vol-r")
 		must.True(t, errors.Is(err, ErrRegisteredVolume))
@@ -666,7 +670,7 @@ func TestManager_CreateAndDelete(t *testing.T) {
 	t.Run("registered path must exist", func(t *testing.T) {
 		e := newMgrEnv(t)
 		m := e.manager()
-		_, err := m.AddRegistered(ctx5(t), RegisterRequest{VolumeID: "vol-r", Name: "reg", Path: filepath.Join(t.TempDir(), "gone")})
+		_, err := m.AddRegistered(ctx5(t), RegisterRequest{NodeID: testNode, Namespace: "ns-synthetic", VolumeID: "vol-r", Name: "reg", Path: filepath.Join(t.TempDir(), "gone")})
 		asOpError(t, err, "register", hvstate.ReasonMissingPath)
 		must.Nil(t, e.stored("vol-r"))
 	})
@@ -991,4 +995,212 @@ func TestNewManager_RequiredFields(t *testing.T) {
 		_, err := NewManager(c)
 		must.Error(t, err, must.Sprint(name))
 	}
+}
+
+func (f *faultStore) putCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.puts
+}
+
+func (e *mgrEnv) regReq(id, name, path string) RegisterRequest {
+	return RegisterRequest{NodeID: testNode, Namespace: "ns-synthetic", VolumeID: id, Name: name, NodePool: "pool-a", Path: path}
+}
+
+func TestManager_AddRegisteredRejections(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	dir := t.TempDir()
+	other := t.TempDir()
+	m := e.manager()
+	_, err := m.Create(ctx5(t), "plug", e.req("vol-plug", "plugname"))
+	must.NoError(t, err)
+	_, err = m.AddRegistered(ctx5(t), e.regReq("vol-dyn", "dynname", other))
+	must.NoError(t, err)
+	e.setStatic("staticname", true)
+	puts, pubs := e.store.putCount(), e.pubCount()
+	creates, deletes := e.lines("creates"), e.lines("deletes")
+
+	cases := []struct {
+		name   string
+		mutate func(*RegisterRequest)
+		reason string
+	}{
+		{"relative path", func(r *RegisterRequest) { r.Path = "rel/dir" }, ReasonInvalidPath},
+		{"unclean path", func(r *RegisterRequest) { r.Path = dir + "/../" + filepath.Base(dir) }, ReasonInvalidPath},
+		{"nul path", func(r *RegisterRequest) { r.Path = dir + "\x00x" }, ReasonInvalidPath},
+		{"missing path", func(r *RegisterRequest) { r.Path = filepath.Join(dir, "gone") }, hvstate.ReasonMissingPath},
+		{"empty id", func(r *RegisterRequest) { r.VolumeID = "" }, ReasonInvalidInput},
+		{"empty name", func(r *RegisterRequest) { r.Name = "" }, ReasonInvalidInput},
+		{"empty namespace", func(r *RegisterRequest) { r.Namespace = "" }, ReasonInvalidInput},
+		{"other node", func(r *RegisterRequest) { r.NodeID = otherTestNode }, hvstate.ReasonNodeMismatch},
+		{"static name", func(r *RegisterRequest) { r.Name = "staticname" }, hvstate.ReasonNameConflict},
+		{"dynamic name other namespace", func(r *RegisterRequest) { r.Name = "dynname"; r.Namespace = "ns-other" }, hvstate.ReasonNameConflict},
+		{"plugin volume id", func(r *RegisterRequest) { r.VolumeID = "vol-plug" }, ReasonVolumeKindConflict},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := e.regReq("vol-new", "newname", dir)
+			tc.mutate(&req)
+			_, err := m.AddRegistered(ctx5(t), req)
+			asOpError(t, err, "register", tc.reason)
+			must.Nil(t, e.stored("vol-new"))
+			must.Eq(t, puts, e.store.putCount())
+			must.Eq(t, pubs, e.pubCount())
+			must.Nil(t, e.published()["newname"])
+			// A rejected registration never reaches a plugin.
+			must.Eq(t, creates, e.lines("creates"))
+			must.Eq(t, deletes, e.lines("deletes"))
+		})
+	}
+}
+
+func TestManager_AddRegisteredRepeat(t *testing.T) {
+	e := newMgrEnv(t)
+	dir := t.TempDir()
+	other := t.TempDir()
+	m := e.manager()
+	_, err := m.AddRegistered(ctx5(t), e.regReq("vol-r", "data", dir))
+	must.NoError(t, err)
+	puts, pubs := e.store.putCount(), e.pubCount()
+
+	t.Run("identical", func(t *testing.T) {
+		req := e.regReq("vol-r", "data", dir)
+		req.NodePool = "pool-changed"
+		st, err := m.AddRegistered(ctx5(t), req)
+		must.NoError(t, err)
+		must.Eq(t, hvstate.StatusReady, st.Status)
+		must.Eq(t, puts, e.store.putCount())
+		must.Eq(t, pubs, e.pubCount())
+		must.Len(t, 1, m.Statuses())
+	})
+
+	for name, mutate := range map[string]func(*RegisterRequest){
+		"namespace": func(r *RegisterRequest) { r.Namespace = "ns-other" },
+		"name":      func(r *RegisterRequest) { r.Name = "renamed" },
+		"path":      func(r *RegisterRequest) { r.Path = other },
+	} {
+		t.Run("differs in "+name, func(t *testing.T) {
+			req := e.regReq("vol-r", "data", dir)
+			mutate(&req)
+			_, err := m.AddRegistered(ctx5(t), req)
+			asOpError(t, err, "register", ReasonRegistrationMismatch)
+			rec := e.stored("vol-r")
+			must.Eq(t, "ns-synthetic", rec.Namespace)
+			must.Eq(t, "data", rec.Name)
+			must.Eq(t, dir, rec.Path)
+			must.Eq(t, puts, e.store.putCount())
+			must.Eq(t, pubs, e.pubCount())
+			must.Eq(t, dir, e.published()["data"].Path)
+		})
+	}
+
+	t.Run("identical after the path vanished", func(t *testing.T) {
+		gone := filepath.Join(t.TempDir(), "d")
+		must.NoError(t, os.Mkdir(gone, 0o700))
+		_, err := m.AddRegistered(ctx5(t), e.regReq("vol-g", "gone", gone))
+		must.NoError(t, err)
+		must.NoError(t, os.Remove(gone))
+		n := e.store.putCount()
+		_, err = m.AddRegistered(ctx5(t), e.regReq("vol-g", "gone", gone))
+		must.NoError(t, err)
+		must.Eq(t, n, e.store.putCount())
+	})
+}
+
+func TestManager_AddRegisteredNoPluginNoWrites(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "marker")
+	must.NoError(t, os.WriteFile(marker, []byte("keep"), 0o640))
+	old := time.Now().Add(-72 * time.Hour).Truncate(time.Second)
+	must.NoError(t, os.Chtimes(marker, old, old))
+	must.NoError(t, os.Chtimes(dir, old, old))
+	must.NoError(t, os.Chmod(dir, 0o750))
+	m := e.manager()
+
+	snap := func() string {
+		di, err := os.Stat(dir)
+		must.NoError(t, err)
+		mi, err := os.Stat(marker)
+		must.NoError(t, err)
+		b, err := os.ReadFile(marker)
+		must.NoError(t, err)
+		ents, err := os.ReadDir(dir)
+		must.NoError(t, err)
+		var names []string
+		for _, en := range ents {
+			names = append(names, en.Name())
+		}
+		return fmt.Sprint(names, string(b), di.Mode(), di.ModTime().UnixNano(), mi.Mode(), mi.ModTime().UnixNano())
+	}
+	before := snap()
+
+	bad := e.regReq("vol-r", "data", dir)
+	bad.NodeID = otherTestNode
+	_, err := m.AddRegistered(ctx5(t), bad)
+	must.Error(t, err)
+	must.Eq(t, before, snap())
+
+	_, err = m.AddRegistered(ctx5(t), e.regReq("vol-r", "data", dir))
+	must.NoError(t, err)
+	_, err = m.AddRegistered(ctx5(t), e.regReq("vol-r", "data", dir))
+	must.NoError(t, err)
+	must.Eq(t, before, snap())
+	must.Eq(t, 0, e.lines("creates")+e.lines("deletes"))
+	_, statErr := os.Stat(filepath.Join(e.scratch, "creates"))
+	must.True(t, errors.Is(statErr, fs.ErrNotExist))
+}
+
+func TestManager_AddRegisteredConcurrent(t *testing.T) {
+	e := newMgrEnv(t)
+	dir := t.TempDir()
+	m := e.manager()
+
+	t.Run("identical", func(t *testing.T) {
+		var wg sync.WaitGroup
+		errs := make([]error, 8)
+		for i := range errs {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, errs[i] = m.AddRegistered(ctx5(t), e.regReq("vol-same", "same", dir))
+			}()
+		}
+		wg.Wait()
+		for _, err := range errs {
+			must.NoError(t, err)
+		}
+		must.Len(t, 1, m.Statuses())
+	})
+
+	t.Run("same name different ids", func(t *testing.T) {
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		for i, id := range []string{"vol-a", "vol-b"} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, errs[i] = m.AddRegistered(ctx5(t), e.regReq(id, "contested", dir))
+			}()
+		}
+		wg.Wait()
+		ok := 0
+		for _, err := range errs {
+			if err == nil {
+				ok++
+				continue
+			}
+			asOpError(t, err, "register", hvstate.ReasonNameConflict)
+		}
+		must.Eq(t, 1, ok)
+		n := 0
+		for _, id := range []string{"vol-a", "vol-b"} {
+			if e.stored(id) != nil {
+				n++
+			}
+		}
+		must.Eq(t, 1, n)
+	})
 }

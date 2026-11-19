@@ -15,7 +15,7 @@ must follow the clean-room and private-data rules in the linked PRD and
 | 2.3 | Implement the bounded and cancellable plugin operation runner | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-17) | Added client-side create and delete plugin calls with validation and per-volume locking; five input and output encodings are policy pending black-box verification |
 | 2.4 | Implement the confined built-in directory plugin | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-17) | Added the confined in-process mkdir plugin with mode, uid and gid, advertised on the node; disabled on Windows |
 | 2.5 | Add restart reconciliation and availability recovery | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-19) | Added a client volume manager that persists records, restores and reconciles them after restart, and reports ready volumes in the node host volume list with their volume ID |
-| 2.6 | Implement the client handshake for registering existing paths without modifying contents | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.6, 2.5 |
+| 2.6 | Implement the client handshake for registering existing paths without modifying contents | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-19) | Added the client RPC endpoint HostVolume.Register, which adopts an existing path through the volume manager without running a plugin or touching the path |
 
 ## Phase 3: Scheduling and claims
 

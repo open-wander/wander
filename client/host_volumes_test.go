@@ -127,10 +127,10 @@ func TestClient_DynamicHostVolumesWiring(t *testing.T) {
 	must.MapLen(t, 1, c.GetConfig().Node.HostVolumes)
 
 	ctx := context.Background()
-	_, err := c.hostVolumeManager.AddRegistered(ctx, hostvolume.RegisterRequest{VolumeID: "vol-a", Name: "static", Path: dynDir})
+	_, err := c.hostVolumeManager.AddRegistered(ctx, hostvolume.RegisterRequest{NodeID: c.NodeID(), Namespace: "default", VolumeID: "vol-a", Name: "static", Path: dynDir})
 	must.Error(t, err)
 
-	_, err = c.hostVolumeManager.AddRegistered(ctx, hostvolume.RegisterRequest{VolumeID: "vol-a", Name: "dyn", Path: dynDir})
+	_, err = c.hostVolumeManager.AddRegistered(ctx, hostvolume.RegisterRequest{NodeID: c.NodeID(), Namespace: "default", VolumeID: "vol-a", Name: "dyn", Path: dynDir})
 	must.NoError(t, err)
 	hv := c.GetConfig().Node.HostVolumes
 	must.Eq(t, structs.ClientHostVolumeConfig{Name: "dyn", Path: dynDir, ID: "vol-a"}, *hv["dyn"])

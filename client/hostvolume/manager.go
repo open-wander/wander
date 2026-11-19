@@ -99,6 +99,7 @@ type RegisterRequest struct {
 	VolumeID  string
 	Namespace string
 	Name      string
+	NodeID    string
 	NodePool  string
 	Path      string
 }
@@ -702,7 +703,7 @@ func (m *Manager) Create(ctx context.Context, pluginID string, req OpRequest) (V
 	rec.Path = res.Path
 	rec.CheckedAt = m.cfg.Clock()
 
-	if err := m.commit(rec); err != nil {
+	if err := m.commit(op, rec); err != nil {
 		// A volume that already had a record is not removed: the create
 		// reused it.
 		if !existed {
@@ -733,14 +734,14 @@ func (m *Manager) precheck(op, id, name string, kind hvstate.Kind) (bool, *OpErr
 
 // commit stores the record and makes it visible. The name is checked again
 // because a volume with another ID may have taken it since precheck.
-func (m *Manager) commit(rec *hvstate.Record) error {
+func (m *Manager) commit(op string, rec *hvstate.Record) error {
 	if err := validateRecord(rec); err != nil {
-		return opErr(OperationCreate, ReasonInvalidPath, err.Error())
+		return opErr(op, ReasonInvalidPath, err.Error())
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.nameTakenLocked(rec.Name, rec.VolumeID) {
-		return opErr(OperationCreate, hvstate.ReasonNameConflict, "the name is already used on this node")
+		return opErr(op, hvstate.ReasonNameConflict, "the name is already used on this node")
 	}
 	if err := m.cfg.Store.PutHostVolume(rec); err != nil {
 		return fmt.Errorf("host volume %s: store record: %s", rec.VolumeID, errClass(err))
@@ -816,33 +817,72 @@ func (m *Manager) Delete(ctx context.Context, volumeID string) error {
 	return nil
 }
 
-// AddRegistered records an existing external path as a volume. The path must
-// exist and is never written to. The server handshake that triggers this is
-// not part of the manager.
+// AddRegistered records an existing external path as a volume. It is Wander
+// policy and never writes to the path: it only inspects it with os.Stat.
+//
+// Checks run in this order and the first failure decides the reason code:
+// field validation (invalid_input, invalid_path), the node (node_mismatch),
+// the rules for an existing record with the same ID, the name
+// (name_conflict) and last that the path exists (missing_path). Repeating a
+// registration with the same ID and the same namespace, name and path
+// succeeds at once, returns the current status and writes and publishes
+// nothing, even if the path has since disappeared. A repeat that differs
+// in namespace, name or path is rejected with ReasonRegistrationMismatch. An
+// ID that belongs to a plugin-created volume is rejected with
+// ReasonVolumeKindConflict. NodePool is not compared on a repeat. The
+// request's NodeID must be this node; it is never defaulted.
 func (m *Manager) AddRegistered(ctx context.Context, req RegisterRequest) (VolumeStatus, error) {
 	const op = "register"
 	m.ensureLoaded()
+
+	// Validate before the lock so that untrusted input is bounded before it
+	// becomes a lock table key.
+	rec := &hvstate.Record{
+		VolumeID: req.VolumeID, Namespace: req.Namespace, Name: req.Name,
+		NodeID: req.NodeID, NodePool: req.NodePool,
+		Kind: hvstate.KindRegistered, Path: req.Path, Status: hvstate.StatusReady,
+	}
+	if req.Namespace == "" {
+		return VolumeStatus{}, opErr(op, ReasonInvalidInput, "namespace is empty")
+	}
+	if err := validatePath(req.Path); err != nil {
+		return VolumeStatus{}, opErr(op, ReasonInvalidPath, err.Error())
+	}
+	if err := rec.Validate(); err != nil {
+		return VolumeStatus{}, opErr(op, ReasonInvalidInput, err.Error())
+	}
+	if req.NodeID != m.cfg.NodeID {
+		return VolumeStatus{}, opErr(op, hvstate.ReasonNodeMismatch, "")
+	}
+
 	if err := m.locks.acquire(ctx, req.VolumeID); err != nil {
 		return VolumeStatus{}, opErr(op, ReasonCanceled, "")
 	}
 	defer m.locks.release(req.VolumeID)
 
-	rec := &hvstate.Record{
-		VolumeID: req.VolumeID, Namespace: req.Namespace, Name: req.Name,
-		NodeID: m.cfg.NodeID, NodePool: req.NodePool,
-		Kind: hvstate.KindRegistered, Path: req.Path, Status: hvstate.StatusReady,
-		CheckedAt: m.cfg.Clock(),
+	if old, _, ok := m.snapshot(req.VolumeID); ok {
+		switch {
+		case old.Kind != hvstate.KindRegistered:
+			return VolumeStatus{}, opErr(op, ReasonVolumeKindConflict, "volume id is used by a volume of another kind")
+		case old.NodeID == m.cfg.NodeID && old.Namespace == req.Namespace && old.Name == req.Name && old.Path == req.Path:
+			return statusOf(old), nil
+		default:
+			return VolumeStatus{}, opErr(op, ReasonRegistrationMismatch, "volume id is registered with other values")
+		}
 	}
-	if err := validateRecord(rec); err != nil {
-		return VolumeStatus{}, opErr(op, ReasonInvalidInput, err.Error())
+
+	m.mu.Lock()
+	taken := m.nameTakenLocked(rec.Name, rec.VolumeID)
+	m.mu.Unlock()
+	if taken {
+		return VolumeStatus{}, opErr(op, hvstate.ReasonNameConflict, "the name is already used on this node")
 	}
 	if res := statPath(rec.Path); res.status != hvstate.StatusReady {
 		return VolumeStatus{}, opErr(op, res.reason, res.message)
 	}
-	if _, oerr := m.precheck(op, rec.VolumeID, rec.Name, hvstate.KindRegistered); oerr != nil {
-		return VolumeStatus{}, oerr
-	}
-	if err := m.commit(rec); err != nil {
+
+	rec.CheckedAt = m.cfg.Clock()
+	if err := m.commit(op, rec); err != nil {
 		return VolumeStatus{}, err
 	}
 	m.finalize(nil)

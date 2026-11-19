@@ -586,3 +586,52 @@ the store so the restore pass does not repeat work done in the same run.
 PATTERN: testing - A test that reads a file its child process writes must
 give the child time to start on a loaded machine; a short operation timeout
 turns it into a flaky test.
+
+## 2026-11-19 — Owner decisions
+
+- The owner accepted the Wander policy choices of task 2.4 (built-in mkdir
+  plugin) and task 2.5 (restart reconciliation) as recorded in the provenance
+  document.
+- The black-box observation of plugin inputs (five points from task 2.3) is
+  deferred until the owner can run it. The orchestrator does not run an
+  official Nomad binary itself without the owner's explicit approval.
+- PR #62 (sweep gap tests) and PR #63 (`make generate-structs`) merged to
+  `main`.
+
+## 2026-11-19 — Task 2.6 complete
+
+- Added the client RPC endpoint `HostVolume.Register` in
+  `client/host_volume_endpoint.go`, with request and response types in
+  `client/structs/host_volume.go` (outside the code generator's input, so no
+  generated file changed). It is for servers only, adds no HTTP route and
+  performs no ACL check. Nothing on the server calls it yet.
+- `Manager.AddRegistered` now validates the request before taking the volume
+  lock and applies the repeat rules: an identical repeat returns the current
+  status and writes nothing; a repeat that differs in namespace, name or path
+  is rejected; an ID that belongs to a plugin-created volume is rejected.
+- Advisor verdict was REVISE, because a typed error does not survive the RPC
+  transport. Adopted as Wander policy: a classified rejection returns no RPC
+  error and carries a reason code and message in the response; only internal
+  failures return an RPC error. The reason-code table and the check order are
+  in the provenance document. This policy is still to be confirmed by the
+  owner.
+- Registration never runs a plugin and only calls `os.Stat` on the path. A
+  regular file is accepted, as for static host volumes.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator added a check to every rejection case that no plugin
+  was invoked and corrected the reason-code table for a malformed node ID.
+- Not covered at endpoint level, only at manager level: the persisted record,
+  restart, and the plugin-volume-ID rejection.
+- Build, Windows compile, the `codegen_generated` build, vet, focused tests in
+  normal and race-enabled modes, both guards, the licence boundary and
+  whitespace checks passed. gosec reports only the findings accepted earlier.
+
+PATTERN: rpc - An error returned from a client RPC reaches the caller as text
+only. Carry a rejection the caller must classify in the response, and keep
+the RPC error for failures of the call itself.
+
+## Resume point
+
+- Next task: 3.2 (node selection for volume creation). Phase 2 is complete
+  with 2.6; collapse it and offer the sweep before starting Phase 3.
+- `feat/dhv-phase-2` is local only and has no pull request.

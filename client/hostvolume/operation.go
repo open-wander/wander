@@ -81,6 +81,12 @@ const (
 const (
 	ReasonInvalidInput = "invalid_input"
 	ReasonInvalidPath  = "invalid_path"
+
+	// ReasonVolumeKindConflict means a registration used the ID of a
+	// plugin-created volume. ReasonRegistrationMismatch means a repeat
+	// registration differs in namespace, name or path.
+	ReasonVolumeKindConflict   = "volume_kind_conflict"
+	ReasonRegistrationMismatch = "registration_mismatch"
 )
 
 // OpRequest holds the values for one create or delete call. Zero capacities

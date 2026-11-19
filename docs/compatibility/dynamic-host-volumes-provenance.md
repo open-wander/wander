@@ -480,6 +480,53 @@ statement about Nomad behaviour, and is implemented in `client/hostvolume`
   table of `Ops`, and re-reads the record after taking it, so a pass that
   waited for a delete does not re-create the volume.
 
+## Registration handshake (client) {#register-handshake}
+
+The server-to-client exchange is internal to Wander and is not a
+compatibility question. The only public evidence is the register endpoint,
+its ACL capability, that `host_path` is the registration path, that `node_id`
+is required and that a name is required and unique per node.
+
+### Wander policy
+
+1. The client RPC method is `HostVolume.Register`. It is for servers only: it
+   adds no HTTP route and performs no ACL check, because the server
+   authorizes before it calls the node.
+2. The request carries VolumeID, Namespace, Name, NodeID, NodePool and
+   HostPath. The response carries VolumeID, HostPath, Status, Reason and
+   Message.
+3. Register never runs a plugin and never creates, renames, copies, truncates,
+   chowns, chmods, formats or removes anything at or under the path. It only
+   calls `os.Stat`.
+4. Path rules are those of the path validator (absolute, clean, no NUL or
+   control characters, not a filesystem root, at most 4096 bytes) plus
+   existence. A regular file is accepted.
+5. NodeID must be this node and is never defaulted. Namespace, name and volume
+   ID must not be empty.
+6. A name used by a static host volume, or by another dynamic volume on this
+   node in any namespace, is rejected.
+7. Repeating a registration with the same volume ID and the same namespace,
+   name and path succeeds, returns the current status (even if the path has
+   since disappeared), writes nothing and triggers no node update. NodePool is
+   not compared. A repeat that differs in namespace, name or path is rejected
+   and changes nothing. An ID that belongs to a plugin-created volume is
+   rejected.
+8. A classified rejection returns a nil RPC error with Reason set and an empty
+   Status. Only transport or internal failures (store write failure, canceled
+   or timed-out lock wait, missing manager) return an RPC error.
+9. Check order: field validation, then node, then the existing record for the
+   ID, then the name, then `os.Stat`. The first failure decides the code.
+
+| Reason code | Cases |
+| --- | --- |
+| `invalid_path` | relative, unclean, NUL or otherwise invalid path |
+| `missing_path` | the path does not exist |
+| `invalid_input` | empty or malformed volume ID, name, namespace or node ID |
+| `node_mismatch` | well-formed NodeID of another node |
+| `name_conflict` | static or dynamic name already used on this node |
+| `volume_kind_conflict` | the ID belongs to a plugin-created volume |
+| `registration_mismatch` | a repeat differs in namespace, name or path |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior
