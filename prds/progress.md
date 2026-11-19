@@ -460,3 +460,55 @@ PATTERN: confinement - Validate the untrusted name as one safe path element,
 open the root once, open children without following symlinks, and change
 mode and owner on the open descriptor; derive delete targets, never accept
 them.
+
+## 2026-11-19 — Phase 1 merged; sweep of Phase 1
+
+- Phase 1 merged to `main` as `775094619e` (PR #59). `feat/dhv-phase-2` was
+  rebased onto `main`.
+- Comments: no change. The Phase 1 Go files hold 43 comment lines against
+  1,785 lines of code, the longest block is three lines, and no task, phase or
+  requirement numbers remain in comments.
+- Invariants: 71 guards were broken one at a time, Go through `go test
+  -overlay` and Python in a throwaway checkout. 61 are caught by an existing
+  test. 10 survived, and two independent verifiers confirmed all 10 with an
+  input that the unmodified code rejects and the broken code accepts. None was
+  refuted. These are gaps in test coverage, not defects: the code is correct
+  today.
+- State store (`nomad/state`), none reachable yet because only tests call
+  these functions:
+  - `DynamicHostVolumeClaimsByNamespace` can return every namespace's claims
+    and no test notices. No test stores a claim outside `default`, so the
+    other claim listers are probably in the same position. Medium.
+  - `UpsertDynamicHostVolumes` can accept a type other than `host` and no test
+    notices. Restore rejects such a record, so one stored record would make
+    every later snapshot fail to restore. Medium.
+  - `UpsertDynamicHostVolumeClaims` can skip `Validate` and no test notices.
+    Only an empty `TaskGroupName` becomes storable; the other five fields are
+    still rejected, three of them with a different error code. Same snapshot
+    cost. Low.
+- Evidence ledger validator (`ci/validate_dynamic_host_volume_contract.py`):
+  - A source with a prohibited category passes when its locator is the
+    provenance record. The eight "prohibited category" test cases are rejected
+    by a different rule. High.
+  - A local source can point at any file that contains the anchor. Medium.
+  - A behaviour can be marked implemented or verified while citing planned
+    tests. Medium.
+  - A test can be marked implemented against a function that does not exist.
+    The existing case fails the name pattern first. Medium.
+- Fixture guard (`ci/check_dynamic_host_volume_fixtures.py`):
+  - A fixture can state an invented expected status or value on a resolved
+    case. High.
+  - A repeated JSON key lets a shadowed first value go unchecked, including
+    `synthetic_only: false`. The contract validator does not check for
+    repeated keys at all. High.
+  - The catch-all error branch can print exception text. Only type and key
+    names leak today. Low.
+- Shared cause for five of the ten: the tests assert that some error is
+  raised, not which rule raised it, so a case rejected by a different rule
+  still passes.
+- No tests were added. Which gaps are worth a test is the owner's decision.
+
+PATTERN: testing - A negative test that asserts only "an error was returned"
+keeps passing when a different rule rejects the input. Assert the specific
+error or rule, and give each guard one input that is valid in every other
+respect.
