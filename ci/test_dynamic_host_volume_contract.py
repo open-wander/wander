@@ -147,5 +147,66 @@ class ContractTests(unittest.TestCase):
                     self.module.validate(changed, ROOT)
 
 
+    # The cases below are valid in every respect except the rule under test,
+    # and assert that rule's message. A case that only expects some ValueError
+    # keeps passing when a different rule rejects it.
+
+    def local_source(self, data):
+        return next(source for source in data["sources"] if source["category"] == "wander_requirement")
+
+    def test_prohibited_category_with_permitted_locator(self):
+        permitted = self.local_source(self.data)
+        for category in ("source", "tests", "patch", "commit", "repository",
+                         "generated_asset", "private", "implementation", None):
+            with self.subTest(category=category):
+                changed = copy.deepcopy(self.data)
+                changed["sources"].append(dict(permitted, id="SRC-synthetic-prohibited", category=category))
+                unresolved = next(assertion for behavior in changed["behaviors"]
+                                  for assertion in behavior["assertions"].values()
+                                  if assertion["status"] == "unresolved")
+                unresolved["evidence_refs"].append("SRC-synthetic-prohibited")
+                with self.assertRaisesRegex(ValueError, "^prohibited source category$"):
+                    self.module.validate(changed, ROOT)
+
+    def test_local_evidence_must_be_the_provenance_record(self):
+        changed = copy.deepcopy(self.data)
+        source = self.local_source(changed)
+        # Same file and anchor, reached through a different spelling of the path.
+        source["locator"] = "./" + source["locator"]
+        with self.assertRaisesRegex(ValueError, "^prohibited evidence path$"):
+            self.module.validate(changed, ROOT)
+
+    def test_implemented_behavior_needs_implemented_tests(self):
+        changed = copy.deepcopy(self.data)
+        requirement = self.local_source(changed)["id"]
+        behavior = changed["behaviors"][0]
+        cited = set()
+        for assertion in behavior["assertions"].values():
+            if assertion["status"] == "unresolved":
+                assertion.update(status="requirement", value="Synthetic resolved requirement.")
+                assertion["evidence_refs"].append(requirement)
+            cited.update(assertion["test_ids"])
+        behavior["implementation_status"] = "implemented"
+        tests = [test for test in changed["test_cases"] if test["id"] in cited]
+        for test in tests:
+            test.update(status="implemented", path="ci/test_dynamic_host_volume_contract.py",
+                        name="test_contract_exists_and_validates")
+        self.module.validate(changed, ROOT)
+        tests[0]["status"] = "planned"
+        del tests[0]["path"], tests[0]["name"]
+        with self.assertRaisesRegex(ValueError, "^implemented behavior needs implemented tests$"):
+            self.module.validate(changed, ROOT)
+
+    def test_implemented_test_must_be_defined(self):
+        changed = copy.deepcopy(self.data)
+        # A well-formed name with no matching function in the named file.
+        changed["test_cases"][0].update(
+            status="implemented", path="ci/test_dynamic_host_volume_contract.py",
+            name="test_synthetic_absent_definition",
+        )
+        with self.assertRaisesRegex(ValueError, "^implemented test definition missing$"):
+            self.module.validate(changed, ROOT)
+
+
 if __name__ == "__main__":
     unittest.main()
