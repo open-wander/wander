@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "synthetic_only": true,
+  "resources": {
+    "namespaces": [
+      "dhv-synthetic-a",
+      "dhv-synthetic-b"
+    ],
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "name": "node-a",
+        "pool": "pool-a"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "name": "node-b",
+        "pool": "pool-b"
+      }
+    ],
+    "volumes": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "data-a",
+        "namespace": "dhv-synthetic-a",
+        "node": "node-a",
+        "host_path": "/srv/wander-synthetic/data-a",
+        "capacity_min_bytes": 1048576,
+        "capacity_max_bytes": 2097152,
+        "plugin_id": "mkdir",
+        "parameters": {
+          "mode": "0700"
+        },
+        "marker": "wander-synthetic-marker-a"
+      },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "data-b",
+        "namespace": "dhv-synthetic-b",
+        "node": "node-b",
+        "host_path": "/srv/wander-synthetic/data-b",
+        "capacity_min_bytes": 2097152,
+        "capacity_max_bytes": 4194304,
+        "plugin_id": "mkdir",
+        "parameters": {
+          "mode": "0750"
+        },
+        "marker": "wander-synthetic-marker-b"
+      }
+    ],
+    "job": {
+      "id": "job-synthetic-a",
+      "task_group": "group-synthetic-a"
+    }
+  },
+  "cases": [
+    {
+      "id": "DHV-F-001",
+      "scenario": "create",
+      "behavior_id": "DHV-B-003",
+      "test_id": "DHV-T-003",
+      "facet": "contract",
+      "inputs": {
+        "namespace": "dhv-synthetic-a",
+        "node": "node-a",
+        "capacity_min_bytes": 1048576,
+        "capacity_max_bytes": 2097152,
+        "parameters": {
+          "mode": "0700"
+        },
+        "marker": "wander-synthetic-marker-a",
+        "volume": "data-a",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "not-run"
+      },
+      "expected": {
+        "status": "documented",
+        "value": "PUT /v1/volume/host/create"
+      }
+    },
+    {
+      "id": "DHV-F-002",
+      "scenario": "register-existing",
+      "behavior_id": "DHV-B-004",
+      "test_id": "DHV-T-004",
+      "facet": "contract",
+      "inputs": {
+        "namespace": "dhv-synthetic-b",
+        "node": "node-b",
+        "capacity_min_bytes": 2097152,
+        "capacity_max_bytes": 4194304,
+        "parameters": {
+          "mode": "0750"
+        },
+        "marker": "wander-synthetic-marker-b",
+        "volume": "data-b",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "not-run"
+      },
+      "expected": {
+        "status": "documented",
+        "value": "PUT /v1/volume/host/register"
+      }
+    },
+    {
+      "id": "DHV-F-003",
+      "scenario": "namespace-isolation",
+      "behavior_id": "DHV-B-012",
+      "test_id": "DHV-T-012",
+      "facet": "outputs",
+      "inputs": {
+        "namespace": "dhv-synthetic-b",
+        "node": "node-a",
+        "capacity_min_bytes": 1048576,
+        "capacity_max_bytes": 2097152,
+        "parameters": {
+          "mode": "0700"
+        },
+        "marker": "wander-synthetic-marker-a",
+        "volume": "data-a",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "not-run"
+      },
+      "expected": {
+        "status": "unresolved",
+        "value": null
+      }
+    },
+    {
+      "id": "DHV-F-004",
+      "scenario": "missing-inputs",
+      "behavior_id": "DHV-B-018",
+      "test_id": "DHV-T-018",
+      "facet": "errors",
+      "inputs": {
+        "namespace": "dhv-synthetic-a",
+        "node": null,
+        "capacity_min_bytes": 1048576,
+        "capacity_max_bytes": 2097152,
+        "parameters": {
+          "mode": "0700"
+        },
+        "marker": "wander-synthetic-marker-a",
+        "volume": "data-a",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "not-run"
+      },
+      "expected": {
+        "status": "unresolved",
+        "value": null
+      }
+    },
+    {
+      "id": "DHV-F-005",
+      "scenario": "incompatible-ranges",
+      "behavior_id": "DHV-B-112",
+      "test_id": "DHV-T-112",
+      "facet": "errors",
+      "inputs": {
+        "namespace": "dhv-synthetic-a",
+        "node": "node-a",
+        "capacity_min_bytes": 2097152,
+        "capacity_max_bytes": 1048576,
+        "parameters": {
+          "mode": "0700"
+        },
+        "marker": "wander-synthetic-marker-a",
+        "volume": "data-a",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "not-run"
+      },
+      "expected": {
+        "status": "unresolved",
+        "value": null
+      }
+    },
+    {
+      "id": "DHV-F-006",
+      "scenario": "plugin-failure",
+      "behavior_id": "DHV-B-096",
+      "test_id": "DHV-T-096",
+      "facet": "errors",
+      "inputs": {
+        "namespace": "dhv-synthetic-a",
+        "node": "node-a",
+        "capacity_min_bytes": 1048576,
+        "capacity_max_bytes": 2097152,
+        "parameters": {
+          "mode": "0700"
+        },
+        "marker": "wander-synthetic-marker-a",
+        "volume": "data-a",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "synthetic-failure"
+      },
+      "expected": {
+        "status": "unresolved",
+        "value": null
+      }
+    },
+    {
+      "id": "DHV-F-007",
+      "scenario": "delete-in-use",
+      "behavior_id": "DHV-B-022",
+      "test_id": "DHV-T-022",
+      "facet": "contract",
+      "inputs": {
+        "namespace": "dhv-synthetic-a",
+        "node": "node-a",
+        "capacity_min_bytes": 1048576,
+        "capacity_max_bytes": 2097152,
+        "parameters": {
+          "mode": "0700"
+        },
+        "marker": "wander-synthetic-marker-a",
+        "volume": "data-a",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "not-run"
+      },
+      "expected": {
+        "status": "documented",
+        "value": "An in-use volume cannot be deleted."
+      }
+    },
+    {
+      "id": "DHV-F-008",
+      "scenario": "registered-path-restriction",
+      "behavior_id": "DHV-B-110",
+      "test_id": "DHV-T-110",
+      "facet": "lifecycle",
+      "inputs": {
+        "namespace": "dhv-synthetic-b",
+        "node": "node-b",
+        "capacity_min_bytes": 2097152,
+        "capacity_max_bytes": 4194304,
+        "parameters": {
+          "mode": "0750"
+        },
+        "marker": "wander-synthetic-marker-b",
+        "volume": "data-b",
+        "job": "job-synthetic-a",
+        "task_group": "group-synthetic-a",
+        "plugin_result": "not-run"
+      },
+      "expected": {
+        "status": "requirement",
+        "value": "Wander must never treat registered external storage as a managed disposable directory."
+      }
+    }
+  ]
+}

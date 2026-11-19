@@ -66,6 +66,11 @@ const (
 	ACLBindingRuleSnapshot               SnapshotType = 27
 	NodePoolSnapshot                     SnapshotType = 28
 
+	// Wander-assigned snapshot types. These values are append-only and must
+	// never be renumbered or reused: they are written into Raft snapshots.
+	DynamicHostVolumeSnapshot      SnapshotType = 29
+	DynamicHostVolumeClaimSnapshot SnapshotType = 30
+
 	// Namespace appliers were moved from enterprise and therefore start at 64
 	NamespaceSnapshot SnapshotType = 64
 )
@@ -1882,6 +1887,28 @@ func (n *nomadFSM) restoreImpl(old io.ReadCloser, filter *FSMFilter) error {
 				return err
 			}
 
+		case DynamicHostVolumeSnapshot:
+			volume := new(structs.DynamicHostVolume)
+			if err := dec.Decode(volume); err != nil {
+				return err
+			}
+			if filter.Include(volume) {
+				if err := restore.DynamicHostVolumeRestore(volume); err != nil {
+					return err
+				}
+			}
+
+		case DynamicHostVolumeClaimSnapshot:
+			claim := new(structs.DynamicHostVolumeClaim)
+			if err := dec.Decode(claim); err != nil {
+				return err
+			}
+			if filter.Include(claim) {
+				if err := restore.DynamicHostVolumeClaimRestore(claim); err != nil {
+					return err
+				}
+			}
+
 		default:
 			// Check if this is an enterprise only object being restored
 			restorer, ok := n.enterpriseRestorers[snapType]
@@ -2408,6 +2435,14 @@ func (s *nomadSnapshot) Persist(sink raft.SnapshotSink) error {
 		sink.Cancel()
 		return err
 	}
+	if err := s.persistDynamicHostVolumes(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+	if err := s.persistDynamicHostVolumeClaims(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
 	if err := s.persistEnterpriseTables(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
@@ -2840,6 +2875,39 @@ func (s *nomadSnapshot) persistNamespaces(sink raft.SnapshotSink, encoder *codec
 		// Write out a namespace registration
 		sink.Write([]byte{byte(NamespaceSnapshot)})
 		if err := encoder.Encode(namespace); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// persistDynamicHostVolumes persists all dynamic host volumes in (namespace,
+// ID) order. The state iterator returns copies, so live records are not
+// aliased.
+func (s *nomadSnapshot) persistDynamicHostVolumes(sink raft.SnapshotSink, encoder *codec.Encoder) error {
+	volumes, err := s.snap.DynamicHostVolumes(memdb.NewWatchSet())
+	if err != nil {
+		return err
+	}
+	for raw := volumes.Next(); raw != nil; raw = volumes.Next() {
+		sink.Write([]byte{byte(DynamicHostVolumeSnapshot)})
+		if err := encoder.Encode(raw.(*structs.DynamicHostVolume)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// persistDynamicHostVolumeClaims persists all sticky claims in (namespace, ID)
+// order, after the volumes.
+func (s *nomadSnapshot) persistDynamicHostVolumeClaims(sink raft.SnapshotSink, encoder *codec.Encoder) error {
+	claims, err := s.snap.DynamicHostVolumeClaims(memdb.NewWatchSet())
+	if err != nil {
+		return err
+	}
+	for raw := claims.Next(); raw != nil; raw = claims.Next() {
+		sink.Write([]byte{byte(DynamicHostVolumeClaimSnapshot)})
+		if err := encoder.Encode(raw.(*structs.DynamicHostVolumeClaim)); err != nil {
 			return err
 		}
 	}

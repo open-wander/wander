@@ -6844,6 +6844,14 @@ func (s *StateStore) DeleteNamespaces(index uint64, names []string) error {
 				"All variables in namespace must be deleted before it can be deleted", name)
 		}
 
+		dynamicVolumes, err := txn.Get(TableDynamicHostVolumes, indexID+"_prefix", name, "")
+		if err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+		if dynamicVolumes.Next() != nil {
+			return ErrDynamicHostVolumeStateInUse
+		}
+
 		// Delete the namespace
 		if err := txn.Delete(TableNamespaces, existing); err != nil {
 			return fmt.Errorf("namespace deletion failed: %v", err)
