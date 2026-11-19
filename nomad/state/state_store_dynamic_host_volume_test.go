@@ -627,3 +627,104 @@ func TestStateStore_DynamicHostVolumeRestoreRejectsInvalid(t *testing.T) {
 		require.Zero(t, idx, "restore methods must not write table indexes")
 	})
 }
+
+func dynamicHostVolumeClaimKeys(iter memdb.ResultIterator) []string {
+	var keys []string
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		claim := raw.(*structs.DynamicHostVolumeClaim)
+		keys = append(keys, claim.Namespace+"/"+claim.ID)
+	}
+	return keys
+}
+
+// Both namespaces hold the same volume ID, job ID and claim ID prefix. Claims
+// in a single namespace cannot tell a scoped lister from an unscoped one.
+func TestStateStore_DynamicHostVolumeClaimsNamespaceScoped(t *testing.T) {
+	store := TestStateStore(t)
+	// "defaul" is a string prefix of "default" and must not match it.
+	require.NoError(t, store.UpsertNamespaces(1, []*structs.Namespace{{Name: "synthetic-b"}, {Name: "defaul"}}))
+	require.NoError(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{
+		{ID: "volume-a", Name: "data-a", Namespace: "default", Type: structs.VolumeTypeHost},
+		{ID: "volume-a", Name: "data-a", Namespace: "synthetic-b", Type: structs.VolumeTypeHost},
+	}))
+	require.NoError(t, store.UpsertDynamicHostVolumeClaims(11, []*structs.DynamicHostVolumeClaim{
+		{ID: "claim-a", Namespace: "default", JobID: "job-a", TaskGroupName: "group-a", VolumeName: "data-a", VolumeID: "volume-a"},
+		{ID: "claim-b", Namespace: "synthetic-b", JobID: "job-a", TaskGroupName: "group-a", VolumeName: "data-a", VolumeID: "volume-a"},
+	}))
+	listers := map[string]func(string) (memdb.ResultIterator, error){
+		"by namespace": func(namespace string) (memdb.ResultIterator, error) {
+			return store.DynamicHostVolumeClaimsByNamespace(nil, namespace)
+		},
+		"by id prefix": func(namespace string) (memdb.ResultIterator, error) {
+			return store.DynamicHostVolumeClaimsByIDPrefix(nil, namespace, "claim-")
+		},
+		"by volume id": func(namespace string) (memdb.ResultIterator, error) {
+			return store.DynamicHostVolumeClaimsByVolumeID(nil, namespace, "volume-a")
+		},
+		"by job id": func(namespace string) (memdb.ResultIterator, error) {
+			return store.DynamicHostVolumeClaimsByJobID(nil, namespace, "job-a")
+		},
+	}
+	expected := map[string][]string{
+		"default":     {"default/claim-a"},
+		"synthetic-b": {"synthetic-b/claim-b"},
+		"defaul":      nil,
+		"absent":      nil,
+	}
+	for name, list := range listers {
+		for namespace, want := range expected {
+			iter, err := list(namespace)
+			require.NoError(t, err, "%s in namespace %q", name, namespace)
+			require.Equal(t, want, dynamicHostVolumeClaimKeys(iter), "%s in namespace %q", name, namespace)
+		}
+		for _, namespace := range []string{"", "default\x00hidden"} {
+			_, err := list(namespace)
+			require.ErrorIs(t, err, ErrDynamicHostVolumeStateInvalid, "%s with namespace %q", name, namespace)
+		}
+	}
+}
+
+// Restore rejects a volume of any other type, so one stored record of another
+// type would make every later snapshot fail to restore.
+func TestStateStore_DynamicHostVolumeRejectsNonHostType(t *testing.T) {
+	for _, volumeType := range []string{"csi", "", "Host", "synthetic-other"} {
+		t.Run("type "+volumeType, func(t *testing.T) {
+			store := TestStateStore(t)
+			candidate := &structs.DynamicHostVolume{ID: "volume-a", Name: "data-a", Namespace: "default", Type: volumeType}
+			require.ErrorIs(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{candidate}),
+				ErrDynamicHostVolumeStateInvalid)
+			stored, err := store.DynamicHostVolumeByID(nil, "default", "volume-a")
+			require.NoError(t, err)
+			require.Nil(t, stored)
+		})
+	}
+	store := TestStateStore(t)
+	control := &structs.DynamicHostVolume{ID: "volume-a", Name: "data-a", Namespace: "default", Type: structs.VolumeTypeHost}
+	require.NoError(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{control}))
+}
+
+// Each field that DynamicHostVolumeClaim.Validate requires must be rejected as
+// an invalid record. A later lookup or index error would also stop most of
+// them, but with a different error, and would let an empty task group through.
+func TestStateStore_DynamicHostVolumeClaimRequiredFields(t *testing.T) {
+	seeded := func(t *testing.T) *StateStore {
+		store := TestStateStore(t)
+		require.NoError(t, store.UpsertDynamicHostVolumes(10,
+			[]*structs.DynamicHostVolume{dynamicHostVolumeStateFixture("volume-a")}))
+		return store
+	}
+	for _, field := range []string{"ID", "Namespace", "JobID", "TaskGroupName", "VolumeName", "VolumeID"} {
+		t.Run(field, func(t *testing.T) {
+			store := seeded(t)
+			candidate := dynamicHostVolumeClaimStateFixture()
+			reflect.ValueOf(candidate).Elem().FieldByName(field).SetString("")
+			require.ErrorIs(t, store.UpsertDynamicHostVolumeClaims(11, []*structs.DynamicHostVolumeClaim{candidate}),
+				ErrDynamicHostVolumeStateInvalid)
+			iter, err := store.DynamicHostVolumeClaims(nil)
+			require.NoError(t, err)
+			require.Nil(t, iter.Next())
+		})
+	}
+	require.NoError(t, seeded(t).UpsertDynamicHostVolumeClaims(11,
+		[]*structs.DynamicHostVolumeClaim{dynamicHostVolumeClaimStateFixture()}))
+}

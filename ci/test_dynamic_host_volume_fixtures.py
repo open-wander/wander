@@ -157,5 +157,70 @@ class FixtureTests(unittest.TestCase):
                 self.assertIn(tokens[2], self.guard.SAFE_FIELDS)
 
 
+    def ledger_assertion(self, case):
+        _, behavior_id, _, facet, _ = self.guard.CASE_SPECS[case["id"]]
+        behavior = next(b for b in self.matrix["behaviors"] if b["id"] == behavior_id)
+        return behavior["assertions"][facet]
+
+    def test_expected_outcome_must_match_ledger(self):
+        resolved = [index for index, case in enumerate(self.data["cases"])
+                    if self.ledger_assertion(case)["status"] != "unresolved"]
+        unresolved = [index for index, case in enumerate(self.data["cases"])
+                      if self.ledger_assertion(case)["status"] == "unresolved"]
+        self.assertTrue(resolved and unresolved, "catalog needs resolved and unresolved cases")
+        mutations = [
+            (("cases", resolved[0], "expected", "value"), "Synthetic invented outcome."),
+            (("cases", resolved[0], "expected", "value"), None),
+            (("cases", resolved[0], "expected", "status"), "unresolved"),
+            # The value stays null, so only the status disagrees with the ledger.
+            (("cases", unresolved[0], "expected", "status"), "documented"),
+        ]
+        for path, value in mutations:
+            with self.subTest(path=path, value=value):
+                changed = mutate_json(self.data, path, value)
+                with self.assertRaises(self.guard.GuardError) as caught:
+                    self.guard.validate(changed, self.matrix)
+                self.assertEqual(caught.exception.rule, "DHV-G-OUTCOME")
+
+    def test_repeated_json_key_is_rejected(self):
+        # Each file is valid apart from one repeated key. A JSON parser keeps the
+        # last value, so the first one would otherwise never be inspected.
+        catalog, matrix = json.dumps(self.data), json.dumps(self.matrix)
+        nested = catalog.replace('"expected": {', '"expected": {"value": "' + SENTINEL + '", ', 1)
+        self.assertNotEqual(nested, catalog)
+        raw_files = (
+            ("cases.json", '{"synthetic_only": false, ' + catalog[1:]),
+            ("cases.json", '{"resources": {"note": "' + SENTINEL + '"}, ' + catalog[1:]),
+            ("cases.json", nested),
+            ("matrix", '{"synthetic_only": false, ' + matrix[1:]),
+        )
+        for number, (name, raw) in enumerate(raw_files):
+            with self.subTest(file=name, number=number), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                directory = self.prepare_tree(root)
+                target = directory / name if name == "cases.json" else root / self.guard.MATRIX_PATH
+                target.write_text(raw)
+                with self.assertRaises(self.guard.GuardError) as caught:
+                    self.guard.check(root)
+                self.assertEqual(str(caught.exception), "DHV-G-SCHEMA catalog json")
+
+    def test_cli_prints_fixed_text_for_unexpected_errors(self):
+        # A structurally wrong ledger entry raises outside the guard's own rules.
+        for number, entry in enumerate((SENTINEL, {SENTINEL: SENTINEL}, 0)):
+            with self.subTest(entry=number), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                self.prepare_tree(root)
+                matrix = copy.deepcopy(self.matrix)
+                matrix["behaviors"][0] = entry
+                (root / self.guard.MATRIX_PATH).write_text(json.dumps(matrix))
+                script = root / "ci/check_dynamic_host_volume_fixtures.py"
+                script.parent.mkdir()
+                script.write_bytes((ROOT / "ci/check_dynamic_host_volume_fixtures.py").read_bytes())
+                result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(result.stderr, "DHV-G-INTERNAL catalog catalog\n")
+
+
 if __name__ == "__main__":
     unittest.main()
