@@ -66,7 +66,8 @@ read the [Wander 0.1.0 operator runbook](docs/operations/0.1.0-runbook.md).
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Wander
 does not accept code copied from the HashiCorp Nomad repository. Every commit
-needs a `Signed-off-by` line.
+needs a `Signed-off-by` line, which certifies the
+[Developer Certificate of Origin](DCO).
 
 See the [`contributing`](contributing/) directory for developer documentation.
 
