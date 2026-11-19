@@ -34,6 +34,25 @@ These checks prevent accidental reintroduction of the known prohibited
 boundary, but do not replace the provenance review recorded in
 `docs/plans/license-provenance-audit.md`.
 
+## Synthetic dynamic host volume checks
+
+The security job also runs the offline dynamic host volume contract and fixture
+checks, using Python's standard library:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s ci -p 'test_dynamic_host_volume_*.py'
+python3 ci/validate_dynamic_host_volume_contract.py
+python3 ci/check_dynamic_host_volume_fixtures.py
+```
+
+The fixture guard admits only the registered synthetic catalog, validates its
+matrix references and assertion outcomes, and emits diagnostics without rejected
+values or raw parser errors. Unknown files and symlinks fail before content
+reads. It reads no private artifact or identifier denylist. These checks do not
+implement or verify runtime volume compatibility. See
+[`dynamic-host-volumes-fixtures.md`](../docs/compatibility/dynamic-host-volumes-fixtures.md)
+for scope, limits, synthetic vocabulary, and the extension workflow.
+
 ## Steps
 
 1. When a branch is pushed, GHA triggers `.github/workflows/test-core.yaml`.

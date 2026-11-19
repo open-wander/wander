@@ -195,6 +195,71 @@ func (r *StateRestore) CSIVolumeRestore(volume *structs.CSIVolume) error {
 	return nil
 }
 
+// DynamicHostVolumeRestore restores one dynamic host volume. A plain memdb
+// insert would silently replace a record with the same ID and would not reject
+// another record's unique key, so those cases are checked explicitly.
+//
+// Restore validates per-record invariants, duplicate (namespace, ID) and
+// node/name uniqueness only. It deliberately performs no namespace or
+// claim-to-volume referential checks: RestoreWithFilter may drop parent
+// records, and such a check would turn a valid filtered restore into a
+// failure. Table indexes are restored from the index snapshot entries.
+// Errors carry no record values.
+func (r *StateRestore) DynamicHostVolumeRestore(volume *structs.DynamicHostVolume) error {
+	if volume == nil || volume.Type != structs.VolumeTypeHost ||
+		volume.CreateIndex == 0 || volume.CreateIndex > volume.ModifyIndex {
+		return ErrDynamicHostVolumeStateInvalid
+	}
+	if err := dynamicHostVolumeKeys(3, volume.Namespace, volume.ID, volume.Name, volume.NodeID, volume.PluginID); err != nil {
+		return err
+	}
+	existing, err := r.txn.First(TableDynamicHostVolumes, indexID, volume.Namespace, volume.ID)
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	if existing != nil {
+		return ErrDynamicHostVolumeStateConflict
+	}
+	if volume.NodeID != "" {
+		conflict, err := r.txn.First(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, volume.Namespace, volume.NodeID, volume.Name)
+		if err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+		if conflict != nil && conflict.(*structs.DynamicHostVolume).ID != volume.ID {
+			return ErrDynamicHostVolumeStateConflict
+		}
+	}
+	if err := r.txn.Insert(TableDynamicHostVolumes, volume.Copy()); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
+}
+
+// DynamicHostVolumeClaimRestore restores one sticky claim, with the same
+// checks and the same deliberate absence of referential checks as
+// DynamicHostVolumeRestore.
+func (r *StateRestore) DynamicHostVolumeClaimRestore(claim *structs.DynamicHostVolumeClaim) error {
+	if claim == nil || claim.Validate() != nil ||
+		claim.CreateIndex == 0 || claim.CreateIndex > claim.ModifyIndex {
+		return ErrDynamicHostVolumeStateInvalid
+	}
+	if err := dynamicHostVolumeKeys(2, claim.Namespace, claim.ID, claim.JobID, claim.VolumeID,
+		claim.TaskGroupName, claim.VolumeName, claim.AllocationID); err != nil {
+		return err
+	}
+	existing, err := r.txn.First(TableDynamicHostVolumeClaims, indexID, claim.Namespace, claim.ID)
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	if existing != nil {
+		return ErrDynamicHostVolumeStateConflict
+	}
+	if err := r.txn.Insert(TableDynamicHostVolumeClaims, claim.Copy()); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
+}
+
 // ScalingEventsRestore is used to restore scaling events for a job
 func (r *StateRestore) ScalingEventsRestore(jobEvents *structs.JobScalingEvents) error {
 	if err := r.txn.Insert("scaling_event", jobEvents); err != nil {
