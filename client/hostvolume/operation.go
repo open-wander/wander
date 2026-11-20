@@ -150,7 +150,7 @@ func (o *Ops) Create(ctx context.Context, c Candidate, req OpRequest) (CreateRes
 		return CreateResult{}, err
 	}
 	env := o.buildEnv(OperationCreate, req, params, "")
-	res, oerr := o.run(ctx, OperationCreate, c, req, env, Limits{Stdout: CreateStdoutLimit, Stderr: OpStderrLimit}, DefaultCreateTimeout)
+	res, oerr := o.run(ctx, OperationCreate, c, req, env, Limits{Stdout: CreateStdoutLimit, Stderr: OpStderrLimit})
 	if oerr != nil {
 		return CreateResult{}, oerr
 	}
@@ -172,15 +172,27 @@ func (o *Ops) Delete(ctx context.Context, c Candidate, req OpRequest, createdPat
 	}
 	env := o.buildEnv(OperationDelete, req, params, createdPath)
 	limits := Limits{Stdout: DeleteStdoutCapture, Stderr: OpStderrLimit, TruncateStdout: true}
-	if _, oerr := o.run(ctx, OperationDelete, c, req, env, limits, DefaultDeleteTimeout); oerr != nil {
+	if _, oerr := o.run(ctx, OperationDelete, c, req, env, limits); oerr != nil {
 		return oerr
 	}
 	return nil
 }
 
+// timeout returns the time limit of an operation: the configured one, or the
+// recorded default of the operation when none is set.
+func (o *Ops) timeout(op string) time.Duration {
+	switch {
+	case o.Timeout > 0:
+		return o.Timeout
+	case op == OperationDelete:
+		return DefaultDeleteTimeout
+	}
+	return DefaultCreateTimeout
+}
+
 // run takes the per-volume lock, starts the operation deadline and runs the
 // plugin. It returns a classified error for every outcome except exit 0.
-func (o *Ops) run(ctx context.Context, op string, c Candidate, req OpRequest, env []string, limits Limits, def time.Duration) (RunResult, *OpError) {
+func (o *Ops) run(ctx context.Context, op string, c Candidate, req OpRequest, env []string, limits Limits) (RunResult, *OpError) {
 	if err := o.locks.acquire(ctx, req.VolumeID); err != nil {
 		return RunResult{}, opErr(op, ReasonCanceled, "")
 	}
@@ -189,11 +201,7 @@ func (o *Ops) run(ctx context.Context, op string, c Candidate, req OpRequest, en
 		return RunResult{}, opErr(op, ReasonCanceled, "")
 	}
 
-	timeout := o.Timeout
-	if timeout <= 0 {
-		timeout = def
-	}
-	tctx, cancel := context.WithTimeout(ctx, timeout)
+	tctx, cancel := context.WithTimeout(ctx, o.timeout(op))
 	defer cancel()
 	res, err := runPlugin(tctx, c.Path, []string{op}, env, limits)
 
