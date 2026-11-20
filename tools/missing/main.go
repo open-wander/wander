@@ -165,6 +165,9 @@ var uninteresting = []string{
 	"demo",
 	"tools",
 	"version",
+	// separate module with its own tests, run outside the core test groups;
+	// the slash keeps the integrations directory covered
+	"integration/",
 }
 
 func skip(p string) bool {
