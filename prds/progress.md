@@ -629,9 +629,100 @@ PATTERN: rpc - An error returned from a client RPC reaches the caller as text
 only. Carry a rejection the caller must classify in the response, and keep
 the RPC error for failures of the call itself.
 
+## 2026-11-20 — Phase 2 merged; sweep of Phase 2
+
+- Phase 2 merged to `main` as `ce8b08584b` (PR #66). CI found three things
+  the local checks had not covered: the repository's Semgrep rule for loop
+  variables in goroutines, the rule that every package with tests is in a CI
+  test group, and `hclfmt` formatting of a test configuration file. Semgrep
+  and the steps of `make check` are now run locally before a pull request.
+- Comments: the 26 new Go files hold 588 comment lines against 5,278 lines of
+  code (ratio 0.11). Two comments and five passages of the provenance record
+  still described the work as pending ("a later task", "nothing calls it
+  yet") and were rewritten to state the current facts. The one block over ten
+  lines, on `Manager.AddRegistered`, was left alone: it is the check order and
+  the repeat rules, and every sentence is a separate promise.
+- Invariants: four agents listed 94 guards with an exact one-edit break each;
+  the orchestrator ran the breaks one at a time through `go test -overlay`.
+  71 are caught by an existing test. 23 survived their whole package and went
+  to three verifiers told to refute them: 21 are confirmed gaps, 1 is
+  confirmed but cannot be tested without a new test seam, and 1 was refuted
+  (a second guard still stops it).
+- A defect, found while reading the manager and confirmed on unmodified code:
+  records loaded at start keep the status the previous run stored, and the
+  create, register and delete entry points publish the ready set. A call that
+  arrives before the background restore has re-checked the records publishes
+  volumes whose path is gone or whose plugin has not been asked again. Restore
+  corrects it when it finishes, which can take up to five minutes. No server
+  calls the client yet, so it cannot happen today. Suggested fix: publish a
+  record only after it was created or checked in the current run.
+- Confirmed gaps, plugin execution and configuration:
+  - the five second fingerprint default is never exercised; every test sets
+    its own timeout. This path is live: a hung plugin holds the node lock at
+    client start for as long as the default says. High.
+  - redaction replaces the longest parameter value first; no test has one
+    value inside another, and with the order reversed most of the longer
+    value leaks. High.
+  - the sixty second operation default is never exercised. Medium.
+  - the one second wait after a kill is never exercised by a helper that
+    leaves the process group while holding the output pipes. Medium.
+  - an unclean plugin directory equal to the derived volumes directory is not
+    tested. Low.
+- Confirmed gaps, volume manager, store and endpoint:
+  - a repeated create whose store write fails could run the plugin's delete
+    on a live volume. High impact, low likelihood.
+  - at the restore deadline, records the pass never reached keep the stored
+    status. Medium.
+  - a result computed before a re-create can overwrite the new record.
+    Medium.
+  - a pass waiting on a delete could re-create the deleted volume; the
+    existing test uses a ready record created in the same run, which neither
+    create branch would touch. Medium.
+  - a changed path or owner under an already published name is not
+    republished. Medium.
+  - a cancelled lock wait in the register endpoint could be answered as a
+    final rejection. Low to medium.
+  - a record of another node could be published in the window of the defect
+    above; it becomes an equivalent mutant once the defect is fixed. Low.
+  - a name-conflicted plugin volume is created again on every pass. Low.
+  - a stored record under another key is returned. Low.
+- Confirmed gaps, built-in mkdir plugin:
+  - a relative symlink inside the managed root is followed when both the
+    directory check and the same-file check are removed; the existing symlink
+    cases use absolute targets, which `os.Root` refuses by itself. Medium.
+  - a failed chmod is not tested; only chown is. Medium.
+  - a failed removal on delete is not tested. Medium.
+  - an inspection error on the managed root is not tested; delete would
+    report success. Medium.
+  - an inspection error on the volume directory is not tested; only a macOS
+    ACL reaches it without a new seam. Low.
+  - create and delete holding the volume lock for their whole duration is not
+    tested at the `Ops` level. The manager's own lock masks both today. Low.
+- Confirmed, not testable today: without `O_DIRECTORY` a FIFO swapped in at
+  the volume name blocks create while it holds the volume lock. Reaching it
+  needs a hook between the inspection and the open. Low.
+- Refuted: removing only the plain-directory check at the volume name; the
+  open flags, `os.Root` and the same-file check still reject every
+  non-directory.
+- Unit tests run as root in CI, so tests that rely on permission bits protect
+  local runs only unless a seam is added.
+- Unrelated to the sweep: `wander executor` and `logmon` processes from
+  `TestE2E` runs on 2026-11-14 are still running on the development machine.
+- No tests were added and the defect was not fixed. Both wait for the owner.
+
+PATTERN: sweep - Let agents write the breaks as exact one-edit entries that
+only have to compile, then run them from one place, one at a time; concurrent
+test runs on a package with timing-sensitive tests would turn noise into
+verdicts.
+
+PATTERN: testing - A default that every test overrides is untested. Exercise
+the zero value at least once, or assert the default through a small function.
+
+PATTERN: state - A status restored from disk is a claim from the previous
+run. Do not act on it, or publish it, until the current run has checked it.
+
 ## Resume point
 
-- Phase 2 is complete and archived. Owner decision of 2026-11-20: open a pull
-  request for `feat/dhv-phase-2`, and run the sweep of Phase 2 after that pull
-  request merges.
+- Phases 1 and 2 are merged and swept. Waiting for the owner: which Phase 2
+  gaps get a test, and the fix for the early publish defect.
 - Next task: 3.2 (node selection for volume creation).

@@ -102,7 +102,7 @@ type OpRequest struct {
 	Parameters       map[string]string
 }
 
-// CreateResult is a validated create response for a later task to commit.
+// CreateResult is a validated create response.
 type CreateResult struct {
 	Path  string
 	Bytes int64
