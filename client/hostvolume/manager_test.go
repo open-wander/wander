@@ -1180,10 +1180,10 @@ func TestManager_AddRegisteredConcurrent(t *testing.T) {
 		errs := make([]error, 2)
 		for i, id := range []string{"vol-a", "vol-b"} {
 			wg.Add(1)
-			go func() {
+			go func(i int, id string) {
 				defer wg.Done()
 				_, errs[i] = m.AddRegistered(ctx5(t), e.regReq(id, "contested", dir))
-			}()
+			}(i, id)
 		}
 		wg.Wait()
 		ok := 0

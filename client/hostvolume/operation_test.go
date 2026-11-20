@@ -432,14 +432,14 @@ func TestOps_Canceled(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			errc := make(chan error, 1)
-			go func() {
+			go func(op string) {
 				if op == OperationCreate {
 					_, err := e.ops.Create(ctx, c, baseReq())
 					errc <- err
 					return
 				}
 				errc <- e.ops.Delete(ctx, c, baseReq(), "/srv/v")
-			}()
+			}(op)
 			eventually(t, func() bool { _, err := os.Stat(started); return err == nil }, 10*time.Second)
 			cancel()
 			asOpError(t, <-errc, op, ReasonCanceled)
