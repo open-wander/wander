@@ -1,3 +1,6 @@
+// Copyright (c) Open Wander contributors
+// SPDX-License-Identifier: MPL-2.0
+
 //go:build integration
 
 // Package integration runs Wander's multi-node tests against a real cluster in

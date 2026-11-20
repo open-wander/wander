@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Open Wander contributors
+# SPDX-License-Identifier: MPL-2.0
+
 # -------------------------------------------------------------------------------
 # node-entrypoint -- Boots one integration node: cgroups, dockerd, Consul, agent
 #
@@ -65,10 +68,6 @@ if [[ "$ROLE" == client ]]; then
           >/var/log/dockerd.log 2>&1 &
   for _ in $(seq 1 60); do docker info >/dev/null 2>&1 && break; sleep 1; done
   docker info >/dev/null 2>&1 || { log "dockerd did not start"; tail -50 /var/log/dockerd.log; exit 1; }
-  # --- preloaded images; no Docker Hub pulls from nested daemons ---
-  if [[ -f /preload/images.tar ]]; then
-    docker load -q -i /preload/images.tar | sed "s/^/[entrypoint $(hostname)] /"
-  fi
 fi
 
 # -------------------------------------------------------------------------

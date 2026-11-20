@@ -1,3 +1,6 @@
+// Copyright (c) Open Wander contributors
+// SPDX-License-Identifier: MPL-2.0
+
 // -------------------------------------------------------------------------------
 // Integration Cluster Fixture
 //
@@ -7,7 +10,7 @@
 // NOMAD_*, WANDER_*, CONSUL_* and VAULT_* variables, builds the node image from
 // the checkout's linux/amd64 binary, starts compose.yml through Testcontainers,
 // and removes the stack when the run ends. A failed run saves each container's
-// log under results/.
+// log, and the Consul and dockerd logs from inside the nodes, under results/.
 // -------------------------------------------------------------------------------
 
 //go:build integration
@@ -40,7 +43,7 @@ const (
 	nodeTag      = "local"
 	nodeImage    = nodeRepo + ":" + nodeTag
 	stackName    = "wander-integration"
-	wanderBinary = "../pkg/linux_amd64/wander"
+	wanderBinary = "../pkg/integration/wander"
 	upTimeout    = 5 * time.Minute
 )
 
@@ -225,8 +228,7 @@ func serverClients(ctx context.Context, stack *compose.DockerCompose) (map[strin
 	return clients, nil
 }
 
-// newClient returns an API client for addr from an explicit config. It never
-// calls api.DefaultConfig, which reads NOMAD_* and WANDER_* variables.
+// newClient returns an API client for addr; run scrubClusterEnv first.
 func newClient(addr string) (*api.Client, error) {
 	return api.NewClient(&api.Config{Address: addr})
 }
@@ -235,8 +237,8 @@ func newClient(addr string) (*api.Client, error) {
 // FAILURE LOGS
 // -------------------------------------------------------------------------
 
-// saveLogs writes each service's container log to results/<UTC time>/, so a
-// failed run leaves something to attach to a report.
+// saveLogs writes each service's container log, and the log files the node
+// entrypoint keeps inside the container, to results/<UTC time>/.
 func saveLogs(ctx context.Context, stack *compose.DockerCompose) {
 	dir := filepath.Join("results", time.Now().UTC().Format("20060102T150405Z"))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -244,30 +246,63 @@ func saveLogs(ctx context.Context, stack *compose.DockerCompose) {
 		return
 	}
 	for _, svc := range stack.Services() {
-		if err := saveServiceLog(ctx, stack, svc, dir); err != nil {
+		ctr, err := stack.ServiceContainer(ctx, svc)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "integration: find %s: %v\n", svc, err)
+			continue
+		}
+		if err := saveContainerLog(ctx, ctr, filepath.Join(dir, svc+".log")); err != nil {
 			fmt.Fprintf(os.Stderr, "integration: log for %s: %v\n", svc, err)
+		}
+		for _, path := range entrypointLogs(svc) {
+			dst := filepath.Join(dir, svc+"."+filepath.Base(path))
+			if err := saveContainerFile(ctx, ctr, path, dst); err != nil {
+				fmt.Fprintf(os.Stderr, "integration: %s from %s: %v\n", path, svc, err)
+			}
 		}
 	}
 	fmt.Fprintf(os.Stderr, "integration: container logs saved to %s\n", dir)
 }
 
-// saveServiceLog copies one service's container log into dir.
-func saveServiceLog(ctx context.Context, stack *compose.DockerCompose, svc, dir string) error {
-	ctr, err := stack.ServiceContainer(ctx, svc)
-	if err != nil {
-		return err
+// entrypointLogs returns the files the node entrypoint logs to inside svc's
+// container: the Consul agent on every Wander node, and dockerd on clients.
+func entrypointLogs(svc string) []string {
+	switch {
+	case strings.HasPrefix(svc, "wander-server-"):
+		return []string{"/var/log/consul.log"}
+	case strings.HasPrefix(svc, "wander-client-"):
+		return []string{"/var/log/consul.log", "/var/log/dockerd.log"}
 	}
+	return nil
+}
+
+// saveContainerLog writes the container's stdout and stderr to dst.
+func saveContainerLog(ctx context.Context, ctr testcontainers.Container, dst string) error {
 	logs, err := ctr.Logs(ctx)
 	if err != nil {
 		return err
 	}
-	defer logs.Close()
+	return writeFile(dst, logs)
+}
 
-	out, err := os.Create(filepath.Join(dir, svc+".log"))
+// saveContainerFile copies the file at path inside the container to dst.
+func saveContainerFile(ctx context.Context, ctr testcontainers.Container, path, dst string) error {
+	file, err := ctr.CopyFileFromContainer(ctx, path)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, logs); err != nil {
+	return writeFile(dst, file)
+}
+
+// writeFile copies r to a new file at dst and closes r.
+func writeFile(dst string, r io.ReadCloser) error {
+	defer r.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, r); err != nil {
 		out.Close()
 		return err
 	}

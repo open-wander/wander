@@ -23,7 +23,7 @@ make integration-cluster-test
 ```
 
 Run it from the repository root. The target generates the templ templates,
-builds `pkg/linux_amd64/wander` from this checkout with cgo (the exec driver
+builds `pkg/integration/wander` from this checkout with cgo (the exec driver
 needs it), and runs `go test -tags integration` in this directory. `TestMain`
 then builds the `wander-it-node:local` image around that binary, starts
 `compose.yml` through Testcontainers, runs the tests and removes the stack,
@@ -40,7 +40,9 @@ this directory runs the tests alone.
 variable before it starts**, and the API clients are built from explicit
 addresses, so a shell configured for a real cluster cannot reach it from here.
 
-When a test fails, every container's log is saved under `results/`.
+When a test fails, every container's log is saved under `results/`, along
+with the local Consul agent's log from each Wander node and dockerd's log from
+each client, which the entrypoint writes inside the container.
 
 ## What the tests cover
 

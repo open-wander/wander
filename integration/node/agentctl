@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Open Wander contributors
+# SPDX-License-Identifier: MPL-2.0
+
 # -------------------------------------------------------------------------------
 # agentctl -- Stops, kills, starts or restarts the supervised Wander agent
 #

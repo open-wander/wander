@@ -1,3 +1,6 @@
+# Copyright (c) Open Wander contributors
+# SPDX-License-Identifier: MPL-2.0
+
 # -------------------------------------------------------------------------------
 # client.hcl -- Wander client agent config for the integration cluster
 #
