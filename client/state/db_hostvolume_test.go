@@ -141,6 +141,37 @@ func TestStateDB_HostVolumes_BoltCorruptRecord(t *testing.T) {
 	must.MapContainsKey(t, errs, "vol-b")
 }
 
+// A record stored under a key that is not its volume ID is reported by key
+// and not returned. Returned as a record, it would outlive the delete of its
+// volume and come back at the next client start.
+func TestStateDB_HostVolumes_BoltRecordUnderOtherKey(t *testing.T) {
+	ci.Parallel(t)
+
+	db := setupBoltStateDB(t)
+	must.NoError(t, db.PutHostVolume(syntheticHostVolume("vol-a")))
+	stray := syntheticHostVolume("vol-a")
+	stray.Path = "/synthetic/stray"
+	must.NoError(t, db.db.Update(func(tx *boltdd.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(hostVolumesBucket)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte("vol-z"), stray)
+	}))
+
+	recs, errs, err := db.GetHostVolumes()
+	must.NoError(t, err)
+	must.Len(t, 1, recs)
+	must.Eq(t, "/synthetic/vol-a", recs[0].Path)
+	must.MapLen(t, 1, errs)
+	must.MapContainsKey(t, errs, "vol-z")
+
+	must.NoError(t, db.DeleteHostVolume("vol-a"))
+	recs, _, err = db.GetHostVolumes()
+	must.NoError(t, err)
+	must.Len(t, 0, recs)
+}
+
 func TestStateDB_HostVolumes_NoopAndErr(t *testing.T) {
 	ci.Parallel(t)
 

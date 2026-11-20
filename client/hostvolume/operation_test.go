@@ -603,6 +603,28 @@ func TestOps_ParameterValuesNeverLeak(t *testing.T) {
 	})
 }
 
+// A value that contains another must be replaced whole. Replacing the
+// shorter one first leaves the rest of the longer one readable.
+func TestRedact_LongestValueFirst(t *testing.T) {
+	ci.Parallel(t)
+	params := map[string]string{"region": "eu", "zone": "eu-west", "token": "eu-west-9f3a7c21"}
+	// Map order is random; the result must not depend on it.
+	for range 32 {
+		got := redact("auth failed for eu-west-9f3a7c21 in eu-west (eu)", params)
+		must.Eq(t, "auth failed for [redacted] in [redacted] ([redacted])", got)
+	}
+}
+
+// Every other test sets Ops.Timeout. The zero value, which the client uses,
+// must select the recorded sixty seconds for both operations.
+func TestOps_DefaultTimeout(t *testing.T) {
+	ci.Parallel(t)
+	must.Eq(t, 60*time.Second, (&Ops{}).timeout(OperationCreate))
+	must.Eq(t, 60*time.Second, (&Ops{}).timeout(OperationDelete))
+	must.Eq(t, 2*time.Second, (&Ops{Timeout: 2 * time.Second}).timeout(OperationCreate))
+	must.Eq(t, 2*time.Second, (&Ops{Timeout: 2 * time.Second}).timeout(OperationDelete))
+}
+
 func TestOps_InvalidInputRunsNothing(t *testing.T) {
 	ci.Parallel(t)
 	cases := []struct {

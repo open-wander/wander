@@ -115,6 +115,10 @@ type entry struct {
 	// loaded marks a record read from the store at start, as opposed to one
 	// created in this run. Only loaded records are restored.
 	loaded bool
+	// checked marks a record that this run created or evaluated. Only
+	// checked records are published: a status loaded from the store is what
+	// an earlier run saw.
+	checked bool
 }
 
 type diag struct {
@@ -526,6 +530,7 @@ func (m *Manager) finalize(results map[string]result) {
 			continue
 		}
 		e.rec.Status, e.rec.Reason, e.rec.Message, e.rec.CheckedAt = res.status, res.reason, res.message, res.at
+		e.checked = true
 	}
 	m.resolveNamesLocked()
 
@@ -580,12 +585,14 @@ func (m *Manager) persistDiagLocked(e *entry) {
 	e.stored = now
 }
 
-// buildSetLocked returns the entries to publish: ready volumes of this node.
+// buildSetLocked returns the entries to publish: ready volumes of this node
+// that this run has created or evaluated.
 func (m *Manager) buildSetLocked() map[string]*structs.ClientHostVolumeConfig {
 	set := make(map[string]*structs.ClientHostVolumeConfig)
 	for _, id := range slices.Sorted(maps.Keys(m.entries)) {
-		r := m.entries[id].rec
-		if r.NodeID != m.cfg.NodeID || r.Status != hvstate.StatusReady || m.cfg.StaticName(r.Name) {
+		e := m.entries[id]
+		r := e.rec
+		if !e.checked || r.NodeID != m.cfg.NodeID || r.Status != hvstate.StatusReady || m.cfg.StaticName(r.Name) {
 			continue
 		}
 		if _, taken := set[r.Name]; taken {
@@ -747,7 +754,7 @@ func (m *Manager) commit(op string, rec *hvstate.Record) error {
 		return fmt.Errorf("host volume %s: store record: %s", rec.VolumeID, errClass(err))
 	}
 	m.nextRev++
-	m.entries[rec.VolumeID] = &entry{rec: rec, rev: m.nextRev, stored: diag{rec.Status, rec.Reason, rec.Message}}
+	m.entries[rec.VolumeID] = &entry{rec: rec, rev: m.nextRev, stored: diag{rec.Status, rec.Reason, rec.Message}, checked: true}
 	return nil
 }
 
