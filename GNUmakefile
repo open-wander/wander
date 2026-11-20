@@ -268,6 +268,7 @@ tidy: ## Tidy up the go mod files
 	@echo "==> Tidy up submodules"
 	@cd tools && go mod tidy
 	@cd api && go mod tidy
+	@cd integration && go mod tidy
 	@echo "==> Tidy wander module"
 	@go mod tidy
 
@@ -346,6 +347,13 @@ integration-test: dev ## Run Wander integration tests
 		-count=1 \
 		-tags "$(GO_TAGS)" \
 		github.com/open-wander/wander/e2e/vaultcompat
+
+.PHONY: integration-cluster-test
+integration-cluster-test: templ-generate ## Run the multi-node cluster tests in integration/ (requires Docker)
+	@$(MAKE) -B pkg/linux_amd64/wander GO_TAGS=release CGO_ENABLED=1 \
+		GO_OUT=$(PROJECT_ROOT)/pkg/integration/wander
+	@echo "==> Running Wander integration cluster tests..."
+	@cd integration && go test -tags integration -count=1 -v -timeout=20m ./...
 
 .PHONY: clean
 clean: GOPATH=$(shell go env GOPATH)

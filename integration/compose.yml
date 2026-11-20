@@ -1,0 +1,147 @@
+# -------------------------------------------------------------------------------
+# compose.yml -- Wander integration cluster
+#
+# Project: Wander
+#
+# Three Consul servers (10.77.0.11-13), three Wander servers (10.77.0.31-33)
+# and three Wander clients (10.77.0.41-43). TestMain builds the node image,
+# sets CONSUL_IMAGE and NODE_IMAGE, and starts this stack through
+# Testcontainers. Tests reach the servers on the host ports published for 4646.
+# -------------------------------------------------------------------------------
+
+# -------------------------------------------------------------------------
+# SHARED SETTINGS
+# -------------------------------------------------------------------------
+
+x-consul-server: &consul-server
+  image: ${CONSUL_IMAGE:?set by TestMain}
+  healthcheck:
+    test: ["CMD-SHELL", "consul operator raft list-peers | grep -q leader"]
+    interval: 2s
+    timeout: 2s
+    retries: 60
+
+# --- built by TestMain from node/, never pulled ---
+x-wander: &wander
+  image: ${NODE_IMAGE:?set by TestMain}
+  pull_policy: never
+  privileged: true
+  cgroup: private
+  depends_on:
+    consul-server-1: { condition: service_healthy }
+
+x-wander-server: &wander-server
+  <<: *wander
+  ports: ["4646"]
+  volumes:
+    - ./config/server.hcl:/etc/wander/agent.hcl:ro
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://127.0.0.1:4646/v1/status/leader | grep -q 4647"]
+    interval: 2s
+    timeout: 2s
+    retries: 90
+
+x-wander-client: &wander-client
+  <<: *wander
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://127.0.0.1:4646/v1/agent/self | jq -e '.stats.client.known_servers != \"\"' >/dev/null"]
+    interval: 2s
+    timeout: 2s
+    retries: 120
+
+x-consul-args: &consul-args
+  - agent
+  - -server
+  - -bootstrap-expect=3
+  - -client=0.0.0.0
+  - -retry-join=10.77.0.11
+  - -retry-join=10.77.0.12
+  - -retry-join=10.77.0.13
+
+# -------------------------------------------------------------------------
+# SERVICES
+# -------------------------------------------------------------------------
+
+services:
+  # --- Consul servers ---
+  consul-server-1:
+    <<: *consul-server
+    hostname: consul-server-1
+    command: *consul-args
+    environment: { CONSUL_BIND_INTERFACE: eth0 }
+    networks: { it: { ipv4_address: 10.77.0.11 } }
+  consul-server-2:
+    <<: *consul-server
+    hostname: consul-server-2
+    command: *consul-args
+    environment: { CONSUL_BIND_INTERFACE: eth0 }
+    networks: { it: { ipv4_address: 10.77.0.12 } }
+  consul-server-3:
+    <<: *consul-server
+    hostname: consul-server-3
+    command: *consul-args
+    environment: { CONSUL_BIND_INTERFACE: eth0 }
+    networks: { it: { ipv4_address: 10.77.0.13 } }
+
+  # --- Wander servers ---
+  wander-server-1:
+    <<: *wander-server
+    hostname: wander-server-1
+    environment: &server-env
+      ROLE: server
+      CONSUL_JOIN: 10.77.0.11 10.77.0.12 10.77.0.13
+    networks: { it: { ipv4_address: 10.77.0.31 } }
+  wander-server-2:
+    <<: *wander-server
+    hostname: wander-server-2
+    environment: *server-env
+    networks: { it: { ipv4_address: 10.77.0.32 } }
+  wander-server-3:
+    <<: *wander-server
+    hostname: wander-server-3
+    environment: *server-env
+    networks: { it: { ipv4_address: 10.77.0.33 } }
+
+  # --- Wander clients, each with its own Docker data volume ---
+  wander-client-1:
+    <<: *wander-client
+    hostname: wander-client-1
+    environment: &client-env
+      ROLE: client
+      CONSUL_JOIN: 10.77.0.11 10.77.0.12 10.77.0.13
+    volumes:
+      - ./config/client.hcl:/etc/wander/agent.hcl:ro
+      - client-1-docker:/var/lib/docker
+    networks: { it: { ipv4_address: 10.77.0.41 } }
+  wander-client-2:
+    <<: *wander-client
+    hostname: wander-client-2
+    environment: *client-env
+    volumes:
+      - ./config/client.hcl:/etc/wander/agent.hcl:ro
+      - client-2-docker:/var/lib/docker
+    networks: { it: { ipv4_address: 10.77.0.42 } }
+  wander-client-3:
+    <<: *wander-client
+    hostname: wander-client-3
+    environment: *client-env
+    volumes:
+      - ./config/client.hcl:/etc/wander/agent.hcl:ro
+      - client-3-docker:/var/lib/docker
+    networks: { it: { ipv4_address: 10.77.0.43 } }
+
+# -------------------------------------------------------------------------
+# VOLUMES AND NETWORK
+# -------------------------------------------------------------------------
+
+volumes:
+  client-1-docker:
+  client-2-docker:
+  client-3-docker:
+
+networks:
+  it:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.77.0.0/24

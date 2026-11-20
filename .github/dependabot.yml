@@ -13,6 +13,12 @@ updates:
     labels:
       - "theme/dependencies"
       - "theme/api"
+  - package-ecosystem: gomod
+    directory: "/integration"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "theme/dependencies"
   - package-ecosystem: npm
     directory: "/ui"
     schedule:
