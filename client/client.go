@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -32,6 +33,7 @@ import (
 	"github.com/open-wander/wander/client/devicemanager"
 	"github.com/open-wander/wander/client/dynamicplugins"
 	"github.com/open-wander/wander/client/fingerprint"
+	"github.com/open-wander/wander/client/hostvolume"
 	cinterfaces "github.com/open-wander/wander/client/interfaces"
 	"github.com/open-wander/wander/client/lib/cgutil"
 	"github.com/open-wander/wander/client/pluginmanager"
@@ -288,6 +290,14 @@ type Client struct {
 	// devicemanger is responsible for managing device plugins.
 	devicemanager devicemanager.Manager
 
+	// hostVolumeOps runs dynamic host volume plugin operations. It holds the
+	// per-volume lock table, so there is one per client and it is not
+	// copied.
+	hostVolumeOps *hostvolume.Ops
+
+	// hostVolumeManager owns the dynamic host volume records of this node.
+	hostVolumeManager *hostvolume.Manager
+
 	// drivermanager is responsible for managing driver plugins
 	drivermanager drivermanager.Manager
 
@@ -432,6 +442,10 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 		return nil, fmt.Errorf("node setup failed: %v", err)
 	}
 
+	if err := c.setupHostVolumes(); err != nil {
+		return nil, fmt.Errorf("host volume setup failed: %v", err)
+	}
+
 	c.fingerprintManager = NewFingerprintManager(
 		cfg.PluginSingletonLoader, c.GetConfig, cfg.Node,
 		c.shutdownCh, c.updateNodeFromFingerprint, c.logger)
@@ -570,6 +584,10 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 		return nil, fmt.Errorf("failed to restore state")
 	}
 
+	// Restore and then keep reconciling the dynamic host volumes. This never
+	// blocks the start of the client and cannot fail it.
+	c.shutdownGroup.Go(c.runHostVolumes)
+
 	// Begin periodic snapshotting of state.
 	c.shutdownGroup.Go(c.periodicSnapshot)
 
@@ -586,6 +604,48 @@ func NewClient(cfg *config.Config, consulCatalog consul.CatalogAPI, consulProxie
 
 	c.logger.Info("started client", "node_id", c.NodeID())
 	return c, nil
+}
+
+// setupHostVolumes creates the dynamic host volume manager. The node ID and
+// the state database must be known.
+func (c *Client) setupHostVolumes() error {
+	conf := c.GetConfig()
+	c.hostVolumeOps = &hostvolume.Ops{
+		PluginDir:  conf.HostVolumePluginDir,
+		VolumesDir: conf.HostVolumesDir,
+	}
+	m, err := hostvolume.NewManager(hostvolume.ManagerConfig{
+		Logger: c.logger,
+		Store:  c.stateDB,
+		Ops:    c.hostVolumeOps,
+		NodeID: conf.Node.ID,
+		StaticName: func(name string) bool {
+			_, ok := c.GetConfig().StaticHostVolume(name)
+			return ok
+		},
+		Publish: c.updateNodeFromHostVolumes,
+	})
+	if err != nil {
+		return err
+	}
+	c.hostVolumeManager = m
+	return nil
+}
+
+// runHostVolumes restores the dynamic host volumes and then reconciles them
+// periodically until the client shuts down.
+func (c *Client) runHostVolumes() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		select {
+		case <-c.shutdownCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	c.hostVolumeManager.Restore(ctx)
+	c.hostVolumeManager.Run(ctx)
 }
 
 // Ready returns a chan that is closed when the client is fully initialized

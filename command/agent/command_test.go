@@ -452,6 +452,17 @@ func TestIsValidConfig(t *testing.T) {
 			err: "Missing path in host_volume config",
 		},
 		{
+			name: "RelativeHostVolumesDir",
+			conf: Config{
+				DataDir: "/tmp",
+				Client: &ClientConfig{
+					Enabled:        true,
+					HostVolumesDir: "relative/volumes",
+				},
+			},
+			err: "client.host_volumes_dir must be given as an absolute path",
+		},
+		{
 			name: "ValidHostVolumeConfig",
 			conf: Config{
 				DataDir: "/tmp",

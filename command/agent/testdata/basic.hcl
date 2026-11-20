@@ -42,11 +42,13 @@ advertise {
 }
 
 client {
-  enabled    = true
-  state_dir  = "/tmp/client-state"
-  alloc_dir  = "/tmp/alloc"
-  servers    = ["a.b.c:80", "127.0.0.1:1234"]
-  node_class = "linux-medium-64bit"
+  enabled                = true
+  state_dir              = "/tmp/client-state"
+  alloc_dir              = "/tmp/alloc"
+  host_volume_plugin_dir = "/tmp/host-volume-plugins"
+  host_volumes_dir       = "/tmp/host-volumes"
+  servers                = ["a.b.c:80", "127.0.0.1:1234"]
+  node_class             = "linux-medium-64bit"
 
   meta {
     foo = "bar"

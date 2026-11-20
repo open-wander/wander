@@ -24,6 +24,7 @@ import (
 type rpcEndpoints struct {
 	ClientStats *ClientStats
 	CSI         *CSI
+	HostVolume  *HostVolume
 	FileSystem  *FileSystem
 	Allocations *Allocations
 	Agent       *Agent
@@ -289,6 +290,7 @@ func (c *Client) setupClientRpc(rpcs map[string]interface{}) {
 	} else {
 		c.endpoints.ClientStats = &ClientStats{c}
 		c.endpoints.CSI = &CSI{c}
+		c.endpoints.HostVolume = &HostVolume{c}
 		c.endpoints.FileSystem = NewFileSystemEndpoint(c)
 		c.endpoints.Allocations = NewAllocationsEndpoint(c)
 		c.endpoints.Agent = NewAgentEndpoint(c)
@@ -304,6 +306,7 @@ func (c *Client) setupClientRpcServer(server *rpc.Server) {
 	// Register the endpoints
 	server.Register(c.endpoints.ClientStats)
 	server.Register(c.endpoints.CSI)
+	server.Register(c.endpoints.HostVolume)
 	server.Register(c.endpoints.FileSystem)
 	server.Register(c.endpoints.Allocations)
 	server.Register(c.endpoints.Agent)
