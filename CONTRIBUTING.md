@@ -51,8 +51,9 @@ which Nomad names Wander keeps for compatibility and which names new code uses.
 - If you have read the later Nomad implementation of the behaviour you are
   changing, say so in the pull request.
 - Sign off every commit with `git commit -s`. The DCO check requires a
-  `Signed-off-by` line. The sign-off certifies that you have the right to
-  submit the work under MPL-2.0.
+  `Signed-off-by` line. The sign-off certifies the statements in the
+  [Developer Certificate of Origin 1.1](DCO), including that you have the
+  right to submit the work under MPL-2.0.
 - Add tests for new behaviour and run the checks in
   [`contributing/testing.md`](contributing/testing.md).
 

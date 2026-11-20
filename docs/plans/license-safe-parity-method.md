@@ -18,25 +18,38 @@ the provenance audit and allowed source baseline remains a release gate.
   file-level provenance has been approved.
 - Public documentation that describes 1.6.5 behavior without exposing later
   implementation source.
+- Publicly documented post-1.6.5 interfaces and independently observed
+  black-box behavior, used solely as clean-room compatibility evidence and
+  never as implementation guidance.
 - Current Wander source, tests, release artifacts, and Git history after the
   documented BUSL cleanup boundary.
 - User-reported behavior and independently written acceptance criteria.
+- Private infrastructure artifacts supplied by their owner, used locally only
+  to derive acceptance criteria. They must not be committed, published, or
+  sent to external services, and every public test or fixture derived from
+  them must use synthetic data.
 
 ## Prohibited implementation inputs
 
 - The 45 BUSL-1.1 files identified by the provenance audit, including the 37
   files from the former UI.
-- Source, patches, commits, generated assets, tests, or implementation details
-  from later Nomad releases.
+- Source code, tests, patches, generated assets, commits, or implementation
+  details from post-1.6.5 Nomad releases, even when they are publicly
+  accessible.
 - Copying DOM, templates, JavaScript, styles, route implementations, or tests
   from the mixed-license baseline UI.
 - Treating a matching filename, route name, screenshot, or API operation as
   permission to copy its implementation.
+- Committing, publishing, or sending private infrastructure artifacts or their
+  identifying data to issues, pull requests, CI systems, or external services.
 
 ## Feature workflow
 
-1. Record the baseline behavior and its evidence in the parity matrix.
-2. Describe the behavior as an implementation-neutral acceptance test.
+1. Record the baseline behavior, evidence type, and provenance in the parity
+   matrix.
+2. Describe the behavior as an implementation-neutral acceptance test. When
+   private evidence is involved, first replace every private value and
+   relationship with synthetic test data.
 3. Confirm that the inherited API can support it without a new incompatible
    server contract.
 4. Implement it independently using Wander's Go, Templ, HTMX, and vendored
@@ -45,6 +58,8 @@ the provenance audit and allowed source baseline remains a release gate.
    where applicable.
 6. Record the test evidence and classification in the matrix.
 7. Run the licence-boundary check and Deslop before committing code.
+8. Verify that fixtures, logs, screenshots, and test output contain no private
+   infrastructure data before publishing them.
 
 ## Decision rules
 
@@ -55,10 +70,16 @@ the provenance audit and allowed source baseline remains a release gate.
 - Enterprise-only or unavailable behavior must be recorded as not applicable
   with evidence rather than inferred from a missing Wander route.
 - New convenience features and new server behavior remain post-0.1.
+- The project-owner approval for public post-1.6.5 interface documentation and
+  independently observed black-box behavior permits clean-room compatibility
+  work only; it does not permit source-derived implementation.
 
 ## Review record
 
 - Engineering method recorded: 2026-10-22.
+- Project-owner approval for public post-1.6.5 interface documentation,
+  independent black-box behavior, and local-only private acceptance evidence:
+  2026-11-08.
 - Project-owner provenance approval: pending.
 - Complete source/dependency engineering inventory: recorded 2026-10-23 in
   `docs/licenses`; blocker remediation and project-owner approval remain

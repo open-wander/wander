@@ -44,11 +44,13 @@ var basicConfig = &Config{
 		Serf: "127.0.0.4",
 	},
 	Client: &ClientConfig{
-		Enabled:   true,
-		StateDir:  "/tmp/client-state",
-		AllocDir:  "/tmp/alloc",
-		Servers:   []string{"a.b.c:80", "127.0.0.1:1234"},
-		NodeClass: "linux-medium-64bit",
+		Enabled:             true,
+		StateDir:            "/tmp/client-state",
+		AllocDir:            "/tmp/alloc",
+		HostVolumePluginDir: "/tmp/host-volume-plugins",
+		HostVolumesDir:      "/tmp/host-volumes",
+		Servers:             []string{"a.b.c:80", "127.0.0.1:1234"},
+		NodeClass:           "linux-medium-64bit",
 		ServerJoin: &ServerJoin{
 			RetryJoin:        []string{"1.1.1.1", "2.2.2.2"},
 			RetryInterval:    time.Duration(15) * time.Second,

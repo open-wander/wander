@@ -314,6 +314,61 @@ func (c *Client) updateNodeFromDevicesLocked(devices []*structs.NodeDeviceResour
 	return false
 }
 
+// updateNodeFromHostVolumes publishes the ready dynamic host volumes in the
+// node's HostVolumes map next to the static ones, and triggers a node update
+// only when the map changes. Static entries (empty ID) are kept and never
+// replaced by a dynamic one. The map is rebuilt, never changed in place, as
+// the registration and heartbeat code share it. This is Wander policy.
+func (c *Client) updateNodeFromHostVolumes(dyn map[string]*structs.ClientHostVolumeConfig) {
+	c.configLock.Lock()
+	defer c.configLock.Unlock()
+
+	current := c.config.Node.HostVolumes
+	next := make(map[string]*structs.ClientHostVolumeConfig, len(current)+len(dyn))
+	for name, v := range current {
+		if v != nil && v.ID == "" {
+			next[name] = v.Copy()
+		}
+	}
+	for name, v := range dyn {
+		if _, static := next[name]; static || v == nil || v.ID == "" {
+			continue
+		}
+		next[name] = v.Copy()
+	}
+
+	if hostVolumesEqual(current, next) {
+		return
+	}
+	c.logger.Debug("dynamic host volumes changed", "dynamic", len(dyn))
+	newConfig := c.config.Copy()
+	if len(next) == 0 {
+		next = nil
+	}
+	newConfig.Node.HostVolumes = next
+	c.config = newConfig
+	c.updateNode()
+}
+
+func hostVolumesEqual(a, b map[string]*structs.ClientHostVolumeConfig) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		w, ok := b[k]
+		if !ok || v == nil || w == nil {
+			if ok && v == nil && w == nil {
+				continue
+			}
+			return false
+		}
+		if *v != *w {
+			return false
+		}
+	}
+	return true
+}
+
 // batchNodeUpdates allows for batching multiple Node updates from fingerprinting.
 // Once ready, the batches can be flushed and toggled to stop batching and forward
 // all updates to a configured callback to be performed incrementally

@@ -367,6 +367,11 @@ func (c *Command) IsValidConfig(config, cmdConfig *Config) bool {
 		}
 	}
 
+	if err := config.Client.validateHostVolumeDirs(); err != nil {
+		c.Ui.Error(err.Error())
+		return false
+	}
+
 	if config.Client.Enabled {
 		for k := range config.Client.Meta {
 			if !helper.IsValidInterpVariable(k) {

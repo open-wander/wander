@@ -11,10 +11,12 @@ import (
 	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-msgpack/codec"
 	arstate "github.com/open-wander/wander/client/allocrunner/state"
 	trstate "github.com/open-wander/wander/client/allocrunner/taskrunner/state"
 	dmstate "github.com/open-wander/wander/client/devicemanager/state"
 	"github.com/open-wander/wander/client/dynamicplugins"
+	hvstate "github.com/open-wander/wander/client/hostvolume/state"
 	driverstate "github.com/open-wander/wander/client/pluginmanager/drivermanager/state"
 	"github.com/open-wander/wander/client/serviceregistration/checks"
 	cstructs "github.com/open-wander/wander/client/structs"
@@ -56,6 +58,9 @@ nodemeta/
 
 node/
 |--> registration -> *cstructs.NodeRegistration
+
+hostvolumes/
+|--> <volume-id> -> *hvstate.Record
 */
 
 var (
@@ -127,6 +132,11 @@ var (
 
 	// nodeMetaKey is the key at which dynamic node metadata is stored.
 	nodeMetaKey = []byte("meta")
+
+	// hostVolumesBucket is the bucket name in which dynamic host volume
+	// records are stored, keyed by volume ID. Stores created before the
+	// bucket existed simply do not have it.
+	hostVolumesBucket = []byte("hostvolumes")
 
 	// nodeBucket is the bucket name in which data about the node is stored.
 	nodeBucket = []byte("node")
@@ -989,6 +999,65 @@ func (s *BoltStateDB) GetNodeRegistration() (*cstructs.NodeRegistration, error) 
 	}
 
 	return &reg, err
+}
+
+// PutHostVolume stores a dynamic host volume record.
+func (s *BoltStateDB) PutHostVolume(r *hvstate.Record) error {
+	return s.db.Update(func(tx *boltdd.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(hostVolumesBucket)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(r.VolumeID), r)
+	})
+}
+
+// GetHostVolumes returns all readable records. Each record is decoded on its
+// own: a value that cannot be decoded is reported by key and does not stop
+// the others. The error text never includes the stored bytes.
+func (s *BoltStateDB) GetHostVolumes() ([]*hvstate.Record, map[string]error, error) {
+	var recs []*hvstate.Record
+	errs := map[string]error{}
+
+	err := s.db.View(func(tx *boltdd.Tx) error {
+		b := tx.Bucket(hostVolumesBucket)
+		if b == nil {
+			return nil
+		}
+		c := b.BoltBucket().Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if v == nil {
+				errs[string(k)] = fmt.Errorf("unexpected nested bucket")
+				continue
+			}
+			var r hvstate.Record
+			if err := codec.NewDecoderBytes(v, structs.MsgpackHandle).Decode(&r); err != nil {
+				errs[string(k)] = fmt.Errorf("failed to decode host volume record")
+				continue
+			}
+			if r.VolumeID != string(k) {
+				errs[string(k)] = fmt.Errorf("host volume record does not match its key")
+				continue
+			}
+			recs = append(recs, &r)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return recs, errs, nil
+}
+
+// DeleteHostVolume removes a record.
+func (s *BoltStateDB) DeleteHostVolume(volumeID string) error {
+	return s.db.Update(func(tx *boltdd.Tx) error {
+		b := tx.Bucket(hostVolumesBucket)
+		if b == nil {
+			return nil
+		}
+		return b.Delete([]byte(volumeID))
+	})
 }
 
 // init initializes metadata entries in a newly created state database.

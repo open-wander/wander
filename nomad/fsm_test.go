@@ -6,6 +6,7 @@ package nomad
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	memdb "github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/raft"
 	"github.com/kr/pretty"
 	"github.com/shoenig/test/must"
@@ -3839,4 +3841,302 @@ func TestFSM_DeleteACLBindingRules(t *testing.T) {
 	out, err = fsm.State().GetACLBindingRule(ws, aclBindingRule2.ID)
 	must.NoError(t, err)
 	must.Nil(t, out)
+}
+
+func dynamicHostVolumeFSMFixtures(t *testing.T, fsm *nomadFSM) {
+	t.Helper()
+	st := fsm.State()
+	must.NoError(t, st.UpsertNamespaces(900, []*structs.Namespace{{Name: "synthetic-b"}}))
+	volumes := []*structs.DynamicHostVolume{
+		{ID: "volume-b", Name: "data-b", Namespace: "default", Type: structs.VolumeTypeHost, NodeID: "node-a", PluginID: "plugin-a",
+			HostPath: "/srv/wander-synthetic/b", CapacityBytes: 1024, RequestedCapacityMinBytes: 512, RequestedCapacityMaxBytes: 2048,
+			Parameters:            map[string]string{"synthetic-key": "synthetic-value"},
+			Constraints:           []*structs.Constraint{{LTarget: "synthetic-left", RTarget: "synthetic-right", Operand: "="}},
+			RequestedCapabilities: []*structs.DynamicHostVolumeCapability{{AttachmentMode: structs.DynamicHostVolumeAttachmentModeFilesystem, AccessMode: structs.DynamicHostVolumeAccessModeSingleNodeWriter}},
+			Attachments:           []*structs.DynamicHostVolumeAttachment{{AllocationID: "allocation-a", NodeID: "node-a"}},
+			State:                 structs.DynamicHostVolumeStateReady, Origin: structs.DynamicHostVolumeOriginRegistered, CreateTime: 111, ModifyTime: 222},
+		{ID: "volume-a", Name: "data-a", Namespace: "default", Type: structs.VolumeTypeHost, NodeID: "node-a", PluginID: "plugin-a"},
+		{ID: "volume-a", Name: "data-a", Namespace: "synthetic-b", Type: structs.VolumeTypeHost},
+	}
+	must.NoError(t, st.UpsertDynamicHostVolumes(1000, volumes))
+	must.NoError(t, st.UpsertDynamicHostVolumeClaims(1001, []*structs.DynamicHostVolumeClaim{
+		{ID: "claim-b", Namespace: "default", JobID: "job-a", TaskGroupName: "group-a", VolumeName: "data-b", VolumeID: "volume-b", AllocationID: "allocation-a", AllocationIndex: 2},
+		{ID: "claim-a", Namespace: "default", JobID: "job-a", TaskGroupName: "group-a", VolumeName: "data-a", VolumeID: "volume-a", AllocationIndex: 1},
+	}))
+	// A later update so create and modify indexes differ.
+	updated, err := st.DynamicHostVolumeByID(nil, "default", "volume-a")
+	must.NoError(t, err)
+	updated.State = structs.DynamicHostVolumeStateReady
+	must.NoError(t, st.UpsertDynamicHostVolumes(1002, []*structs.DynamicHostVolume{updated}))
+}
+
+func dynamicHostVolumeFSMDump(t *testing.T, st *state.StateStore) (volumes []*structs.DynamicHostVolume, claims []*structs.DynamicHostVolumeClaim) {
+	t.Helper()
+	iter, err := st.DynamicHostVolumes(nil)
+	must.NoError(t, err)
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		volumes = append(volumes, raw.(*structs.DynamicHostVolume))
+	}
+	citer, err := st.DynamicHostVolumeClaims(nil)
+	must.NoError(t, err)
+	for raw := citer.Next(); raw != nil; raw = citer.Next() {
+		claims = append(claims, raw.(*structs.DynamicHostVolumeClaim))
+	}
+	return volumes, claims
+}
+
+func persistToBuffer(t *testing.T, fsm *nomadFSM) *MockSink {
+	t.Helper()
+	snap, err := fsm.Snapshot()
+	must.NoError(t, err)
+	defer snap.Release()
+	sink := &MockSink{bytes.NewBuffer(nil), false}
+	must.NoError(t, snap.Persist(sink))
+	return sink
+}
+
+func TestFSM_SnapshotRestore_DynamicHostVolumes(t *testing.T) {
+	ci.Parallel(t)
+
+	fsm := testFSM(t)
+	dynamicHostVolumeFSMFixtures(t, fsm)
+	wantVolumes, wantClaims := dynamicHostVolumeFSMDump(t, fsm.State())
+	must.Len(t, 3, wantVolumes)
+	must.Len(t, 2, wantClaims)
+	volumeIndex, err := fsm.State().Index(state.TableDynamicHostVolumes)
+	must.NoError(t, err)
+	claimIndex, err := fsm.State().Index(state.TableDynamicHostVolumeClaims)
+	must.NoError(t, err)
+	must.Eq(t, uint64(1002), volumeIndex)
+	must.Eq(t, uint64(1001), claimIndex)
+
+	fsm2 := testSnapshotRestore(t, fsm)
+	gotVolumes, gotClaims := dynamicHostVolumeFSMDump(t, fsm2.State())
+	must.Len(t, len(wantVolumes), gotVolumes)
+	must.Len(t, len(wantClaims), gotClaims)
+	for i := range wantVolumes {
+		must.True(t, wantVolumes[i].Equal(gotVolumes[i]))
+		must.Eq(t, wantVolumes[i], gotVolumes[i])
+		byID, err := fsm2.State().DynamicHostVolumeByID(nil, wantVolumes[i].Namespace, wantVolumes[i].ID)
+		must.NoError(t, err)
+		must.Eq(t, wantVolumes[i], byID)
+		must.NotEq(t, uint64(0), byID.CreateIndex)
+	}
+	for i := range wantClaims {
+		must.Eq(t, wantClaims[i], gotClaims[i])
+		byID, err := fsm2.State().DynamicHostVolumeClaimByID(nil, wantClaims[i].Namespace, wantClaims[i].ID)
+		must.NoError(t, err)
+		must.Eq(t, wantClaims[i], byID)
+	}
+
+	// Table indexes equal their values at save time.
+	gotVolumeIndex, err := fsm2.State().Index(state.TableDynamicHostVolumes)
+	must.NoError(t, err)
+	gotClaimIndex, err := fsm2.State().Index(state.TableDynamicHostVolumeClaims)
+	must.NoError(t, err)
+	must.Eq(t, volumeIndex, gotVolumeIndex)
+	must.Eq(t, claimIndex, gotClaimIndex)
+
+	// A blocking query registered after restore fires on the next write.
+	ws := memdb.NewWatchSet()
+	_, err = fsm2.State().DynamicHostVolumeByID(ws, "default", "volume-a")
+	must.NoError(t, err)
+	changed := gotVolumes[0].Copy()
+	for _, v := range gotVolumes {
+		if v.Namespace == "default" && v.ID == "volume-a" {
+			changed = v
+		}
+	}
+	changed.State = structs.DynamicHostVolumeStateUnavailable
+	must.NoError(t, fsm2.State().UpsertDynamicHostVolumes(2000, []*structs.DynamicHostVolume{changed}))
+	must.False(t, ws.Watch(time.After(2*time.Second)))
+}
+
+func TestFSM_SnapshotRestore_DynamicHostVolumes_PreFeatureSnapshot(t *testing.T) {
+	ci.Parallel(t)
+
+	fsm := testFSM(t)
+	node := mock.Node()
+	must.NoError(t, fsm.State().UpsertNode(structs.MsgTypeTestSetup, 1000, node))
+
+	fsm2 := testSnapshotRestore(t, fsm)
+	out, err := fsm2.State().NodeByID(nil, node.ID)
+	must.NoError(t, err)
+	must.NotNil(t, out)
+	volumes, claims := dynamicHostVolumeFSMDump(t, fsm2.State())
+	must.Len(t, 0, volumes)
+	must.Len(t, 0, claims)
+	for _, table := range []string{state.TableDynamicHostVolumes, state.TableDynamicHostVolumeClaims} {
+		idx, err := fsm2.State().Index(table)
+		must.NoError(t, err)
+		must.Eq(t, uint64(0), idx)
+	}
+}
+
+// restoreExpectingFailure restores the stream into an FSM that already holds
+// a node, and checks that the old state is still live and was not abandoned.
+func restoreExpectingFailure(t *testing.T, stream *bytes.Buffer) error {
+	t.Helper()
+	fsm := testFSM(t)
+	node := mock.Node()
+	must.NoError(t, fsm.State().UpsertNode(structs.MsgTypeTestSetup, 1000, node))
+	oldState := fsm.State()
+	abandonCh := oldState.AbandonCh()
+
+	err := fsm.Restore(&MockSink{stream, false})
+	must.Error(t, err)
+
+	must.True(t, fsm.State() == oldState)
+	select {
+	case <-abandonCh:
+		t.Fatal("old state was abandoned by a failed restore")
+	default:
+	}
+	out, nerr := fsm.State().NodeByID(nil, node.ID)
+	must.NoError(t, nerr)
+	must.NotNil(t, out)
+	volumes, claims := dynamicHostVolumeFSMDump(t, fsm.State())
+	must.Len(t, 0, volumes)
+	must.Len(t, 0, claims)
+	return err
+}
+
+func TestFSM_SnapshotRestore_DynamicHostVolumes_InvalidRecordsFailRestore(t *testing.T) {
+	ci.Parallel(t)
+
+	src := testFSM(t)
+	dynamicHostVolumeFSMFixtures(t, src)
+	volumes, claims := dynamicHostVolumeFSMDump(t, src.State())
+
+	appendRecord := func(buf *bytes.Buffer, snapType SnapshotType, record interface{}) {
+		buf.WriteByte(byte(snapType))
+		must.NoError(t, codec.NewEncoder(buf, structs.MsgpackHandle).Encode(record))
+	}
+	invalidVolume := volumes[0].Copy()
+	invalidVolume.ID = "volume-invalid"
+	invalidVolume.Name = "data-invalid"
+	invalidVolume.Type = "csi"
+	nodeNameClash := volumes[0].Copy()
+	nodeNameClash.ID = "volume-clash"
+
+	cases := []struct {
+		name   string
+		append func(buf *bytes.Buffer)
+	}{
+		{"duplicate volume", func(buf *bytes.Buffer) { appendRecord(buf, DynamicHostVolumeSnapshot, volumes[0]) }},
+		{"duplicate claim", func(buf *bytes.Buffer) { appendRecord(buf, DynamicHostVolumeClaimSnapshot, claims[0]) }},
+		{"invalid volume", func(buf *bytes.Buffer) { appendRecord(buf, DynamicHostVolumeSnapshot, invalidVolume) }},
+		{"invalid claim", func(buf *bytes.Buffer) {
+			bad := claims[0].Copy()
+			bad.ID, bad.JobID = "claim-invalid", ""
+			appendRecord(buf, DynamicHostVolumeClaimSnapshot, bad)
+		}},
+		{"node name conflict", func(buf *bytes.Buffer) { appendRecord(buf, DynamicHostVolumeSnapshot, nodeNameClash) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sink := persistToBuffer(t, src)
+			tc.append(sink.Buffer)
+			err := restoreExpectingFailure(t, sink.Buffer)
+			must.True(t, errors.Is(err, state.ErrDynamicHostVolumeStateConflict) || errors.Is(err, state.ErrDynamicHostVolumeStateInvalid))
+		})
+	}
+}
+
+// An older Wander binary has no restorer for snapshot types 29 and 30, so its
+// default branch refuses the whole snapshot. An unregistered type byte
+// simulates that.
+func TestFSM_SnapshotRestore_DynamicHostVolumes_DowngradeRejectsUnknownType(t *testing.T) {
+	ci.Parallel(t)
+
+	src := testFSM(t)
+	dynamicHostVolumeFSMFixtures(t, src)
+	sink := persistToBuffer(t, src)
+
+	must.False(t, func() bool { _, ok := testFSM(t).enterpriseRestorers[SnapshotType(200)]; return ok }())
+	sink.WriteByte(200)
+	err := restoreExpectingFailure(t, sink.Buffer)
+	must.StrContains(t, err.Error(), "Unrecognized snapshot type")
+}
+
+func TestFSM_SnapshotRestore_DynamicHostVolumes_PersistDeterministicAndIsolated(t *testing.T) {
+	ci.Parallel(t)
+
+	fsm := testFSM(t)
+	dynamicHostVolumeFSMFixtures(t, fsm)
+	beforeVolumes, beforeClaims := dynamicHostVolumeFSMDump(t, fsm.State())
+
+	snap, err := fsm.Snapshot()
+	must.NoError(t, err)
+	defer snap.Release()
+
+	decode := func() (vols []*structs.DynamicHostVolume, cls []*structs.DynamicHostVolumeClaim) {
+		sink := &MockSink{bytes.NewBuffer(nil), false}
+		must.NoError(t, snap.Persist(sink))
+		restoreFSM := testFSM(t)
+		must.NoError(t, restoreFSM.Restore(sink))
+		return dynamicHostVolumeFSMDump(t, restoreFSM.State())
+	}
+	v1, c1 := decode()
+	v2, c2 := decode()
+	must.Eq(t, v1, v2)
+	must.Eq(t, c1, c2)
+
+	// Order in the stream is (namespace, ID), volumes before claims.
+	orderA := persistedRecordOrder(t, snap)
+	orderB := persistedRecordOrder(t, snap)
+	must.Eq(t, orderA, orderB)
+	must.Eq(t, []string{
+		"volume default/volume-a", "volume default/volume-b", "volume synthetic-b/volume-a",
+		"claim default/claim-a", "claim default/claim-b",
+	}, orderA)
+
+	// Persisting must not change or alias live records.
+	afterVolumes, afterClaims := dynamicHostVolumeFSMDump(t, fsm.State())
+	must.Eq(t, beforeVolumes, afterVolumes)
+	must.Eq(t, beforeClaims, afterClaims)
+	live, err := fsm.State().DynamicHostVolumeByID(nil, "default", "volume-b")
+	must.NoError(t, err)
+	must.True(t, live.Equal(beforeVolumes[1]))
+}
+
+// recordingSink keeps each Write call separate so the persisted order of the
+// dynamic host volume records can be read back.
+type recordingSink struct {
+	writes [][]byte
+}
+
+func (r *recordingSink) ID() string    { return "recording" }
+func (r *recordingSink) Cancel() error { return nil }
+func (r *recordingSink) Close() error  { return nil }
+func (r *recordingSink) Write(p []byte) (int, error) {
+	r.writes = append(r.writes, bytes.Clone(p))
+	return len(p), nil
+}
+
+// persistedRecordOrder lists the dynamic host volume and claim records of one
+// Persist call in the order they were written. A type byte is a one-byte write
+// followed by the encoded record.
+func persistedRecordOrder(t *testing.T, snap raft.FSMSnapshot) []string {
+	t.Helper()
+	sink := &recordingSink{}
+	must.NoError(t, snap.Persist(sink))
+	var order []string
+	for i := 0; i+1 < len(sink.writes); i++ {
+		w := sink.writes[i]
+		if len(w) != 1 {
+			continue
+		}
+		switch SnapshotType(w[0]) {
+		case DynamicHostVolumeSnapshot:
+			v := new(structs.DynamicHostVolume)
+			must.NoError(t, codec.NewDecoderBytes(sink.writes[i+1], structs.MsgpackHandle).Decode(v))
+			order = append(order, "volume "+v.Namespace+"/"+v.ID)
+		case DynamicHostVolumeClaimSnapshot:
+			c := new(structs.DynamicHostVolumeClaim)
+			must.NoError(t, codec.NewDecoderBytes(sink.writes[i+1], structs.MsgpackHandle).Decode(c))
+			order = append(order, "claim "+c.Namespace+"/"+c.ID)
+		}
+	}
+	return order
 }

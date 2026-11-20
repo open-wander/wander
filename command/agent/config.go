@@ -203,6 +203,16 @@ type ClientConfig struct {
 	// AllocDir is the directory for storing allocation data
 	AllocDir string `hcl:"alloc_dir"`
 
+	// HostVolumePluginDir is the absolute directory searched for dynamic host
+	// volume plugins. When empty the client uses data_dir/host_volume_plugins.
+	// A change requires an agent restart: reload does not re-read it.
+	HostVolumePluginDir string `hcl:"host_volume_plugin_dir"`
+
+	// HostVolumesDir is the absolute directory under which dynamic host
+	// volumes are stored. When empty the client uses data_dir/host_volumes.
+	// A change requires an agent restart: reload does not re-read it.
+	HostVolumesDir string `hcl:"host_volumes_dir"`
+
 	// Servers is a list of known server addresses. These are as "host:port"
 	Servers []string `hcl:"servers"`
 
@@ -2081,6 +2091,29 @@ func (s *ServerConfig) Merge(b *ServerConfig) *ServerConfig {
 	return &result
 }
 
+// validateHostVolumeDirs checks the dynamic host volume directory settings
+// without touching the filesystem. Empty values are valid and mean "derive
+// from data_dir". Only explicit values are compared: an explicit directory that
+// equals the other setting's derived default is not detected here. Rejecting
+// equal plugin and volume directories is Wander policy so volume data never
+// sits where plugin executables are looked up.
+func (a *ClientConfig) validateHostVolumeDirs() error {
+	dirs := []struct{ key, val string }{
+		{"client.host_volume_plugin_dir", a.HostVolumePluginDir},
+		{"client.host_volumes_dir", a.HostVolumesDir},
+	}
+	for _, d := range dirs {
+		if d.val != "" && !filepath.IsAbs(d.val) {
+			return fmt.Errorf("%s must be given as an absolute path: got %v", d.key, d.val)
+		}
+	}
+	if a.HostVolumePluginDir != "" && a.HostVolumesDir != "" &&
+		filepath.Clean(a.HostVolumePluginDir) == filepath.Clean(a.HostVolumesDir) {
+		return fmt.Errorf("client.host_volume_plugin_dir and client.host_volumes_dir must be different directories: both are %v", a.HostVolumesDir)
+	}
+	return nil
+}
+
 // Merge is used to merge two client configs together
 func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	result := *a
@@ -2093,6 +2126,12 @@ func (a *ClientConfig) Merge(b *ClientConfig) *ClientConfig {
 	}
 	if b.AllocDir != "" {
 		result.AllocDir = b.AllocDir
+	}
+	if b.HostVolumePluginDir != "" {
+		result.HostVolumePluginDir = b.HostVolumePluginDir
+	}
+	if b.HostVolumesDir != "" {
+		result.HostVolumesDir = b.HostVolumesDir
 	}
 	if b.NodeClass != "" {
 		result.NodeClass = b.NodeClass

@@ -98,6 +98,15 @@ type Config struct {
 	// AllocDir is where we store data for allocations
 	AllocDir string
 
+	// HostVolumePluginDir is the directory searched for dynamic host volume
+	// plugins. Empty means dynamic host volumes have no plugin directory (no
+	// data_dir and no explicit setting). Changes need an agent restart.
+	HostVolumePluginDir string
+
+	// HostVolumesDir is the directory under which dynamic host volumes are
+	// stored. Empty means unavailable, as for HostVolumePluginDir.
+	HostVolumesDir string
+
 	// Logger provides a logger to the client
 	Logger log.InterceptLogger
 
@@ -735,6 +744,20 @@ func (rc *RetryConfig) ToConsulTemplate() (*config.RetryConfig, error) {
 	}
 
 	return result, nil
+}
+
+// StaticHostVolume returns the statically configured host_volume with the
+// given name. Names are case-sensitive. Later tasks use it to detect a static
+// volume that would share a name with a dynamic volume on the same node.
+func (c *Config) StaticHostVolume(name string) (*structs.ClientHostVolumeConfig, bool) {
+	if c == nil {
+		return nil, false
+	}
+	v, ok := c.HostVolumes[name]
+	if !ok || v == nil {
+		return nil, false
+	}
+	return v, true
 }
 
 func (c *Config) Copy() *Config {

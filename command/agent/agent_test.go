@@ -1738,3 +1738,48 @@ func TestAgent_ServerConfig_JobDefaultPriority_Bad(t *testing.T) {
 		})
 	}
 }
+
+func TestAgent_ClientConfig_HostVolumeDirsDiffer(t *testing.T) {
+	ci.Parallel(t)
+
+	dataDir := t.TempDir()
+	cases := []struct {
+		name      string
+		dataDir   string
+		plugin    string
+		volumes   string
+		wantErr   bool
+		wantEmpty bool
+	}{
+		{name: "derived from data_dir differ", dataDir: dataDir},
+		{name: "explicit differ", dataDir: dataDir, plugin: filepath.Join(dataDir, "p"), volumes: filepath.Join(dataDir, "v")},
+		{name: "explicit plugin equals derived volumes", dataDir: dataDir,
+			plugin: filepath.Join(dataDir, "host_volumes"), wantErr: true},
+		{name: "explicit volumes equals derived plugins", dataDir: dataDir,
+			volumes: filepath.Join(dataDir, "host_volume_plugins"), wantErr: true},
+		{name: "both explicit equal unclean", dataDir: dataDir,
+			plugin: filepath.Join(dataDir, "x"), volumes: filepath.Join(dataDir, "y", "..", "x") + "/", wantErr: true},
+		{name: "no data_dir no settings", wantEmpty: true},
+		{name: "no data_dir only plugin set", plugin: filepath.Join(dataDir, "p")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := DefaultConfig()
+			conf.DataDir = tc.dataDir
+			conf.Client.Enabled = true
+			conf.Client.HostVolumePluginDir = tc.plugin
+			conf.Client.HostVolumesDir = tc.volumes
+			c, err := convertClientConfig(conf)
+			if tc.wantErr {
+				must.Error(t, err)
+				must.StrContains(t, err.Error(), "must be different")
+				return
+			}
+			must.NoError(t, err)
+			if tc.wantEmpty {
+				must.Eq(t, "", c.HostVolumePluginDir)
+				must.Eq(t, "", c.HostVolumesDir)
+			}
+		})
+	}
+}
