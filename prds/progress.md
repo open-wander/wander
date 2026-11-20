@@ -721,8 +721,48 @@ the zero value at least once, or assert the default through a small function.
 PATTERN: state - A status restored from disk is a claim from the previous
 run. Do not act on it, or publish it, until the current run has checked it.
 
+## 2026-11-21 — Phase 2 sweep follow-up: defect fixed, gaps tested
+
+- Owner decision: fix the early publish defect and add a test for every
+  confirmed gap.
+- Defect. An entry keeps a `checked` flag, set when this run creates the
+  record or a pass evaluates it, and only checked records are published. The
+  new test fails on the code before the fix: a registered volume whose path
+  was gone was published by a create, register or delete call that ran before
+  restore.
+- 20 of the 21 gaps have a test that fails when the guard is removed. The
+  21st, a record of another node published before restore, is closed by the
+  fix: such a record is never published now, and the node check in the set
+  builder became a second defence.
+- The case recorded as not testable (a FIFO swapped in at the volume name) is
+  tested as well, through the inspection hook added for the other mkdir cases.
+- Test hooks in the built-in plugin: `applyMode`, `inspectVolume` and
+  `removeTree`, beside the existing `applyOwner`. Unit tests run as root in
+  CI, so a permission failure cannot be arranged through the filesystem.
+- The operation time limit moved into `Ops.timeout(op)`, so the 60 second
+  default of create and of delete is asserted without waiting for it. The
+  5 second fingerprint default is exercised for real, which adds 5 seconds to
+  the package's tests.
+- Correction to the entry above. It reported 94 breaks. A further 12 had been
+  written for the manager and the record type and were only compiled, never
+  run. They are run now: 8 were caught and 4 were not. The 4 have tests too: a
+  plugin create over a registered volume's ID, a restore cancelled by
+  shutdown, a quiet pass that must not write to the store, and the length
+  bound of a reason code.
+- Final run: 110 breaks (the 106 above, one more for the delete default and
+  three for the fix). 108 fail a test. The other two are the refuted break
+  and the node check that the fix made redundant.
+- The same three gosec findings as on `main` (running a plugin, the 0711
+  managed root, an unchecked close on an error path); none is new.
+
+PATTERN: sweep - Count the breaks that ran, not the ones written. A list that
+was only compiled reports nothing.
+
+PATTERN: testing - A hook that replaces one filesystem step can also act
+between two steps, which makes a race window testable without a race.
+
 ## Resume point
 
-- Phases 1 and 2 are merged and swept. Waiting for the owner: which Phase 2
-  gaps get a test, and the fix for the early publish defect.
+- Phases 1 and 2 are merged and swept, and the Phase 2 sweep follow-up is in
+  review.
 - Next task: 3.2 (node selection for volume creation).

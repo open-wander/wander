@@ -458,10 +458,15 @@ statement about Nomad behaviour, and is implemented in `client/hostvolume`
 9. Start. Restore runs in the client's shutdown group and never delays or
    fails client start. The store is read once, by restore or by the first
    entry point call, whichever comes first, and only records read from the
-   store are restored: a volume created in the same run is not created again. It is bounded by a total deadline of 5 minutes and by
-   the Ops timeouts of each plugin call. A volume not verified within the
-   deadline is unavailable (`restore_failed`) until the next periodic pass.
-   Shutdown cancels it and publishes nothing.
+   store are restored: a volume created in the same run is not created
+   again. A record read from the store is not reported until this run has
+   checked it, whatever status the earlier run stored, so an entry point
+   call that arrives before restore has reached a record reports only the
+   volumes created or checked in this run. Restore is bounded by a total
+   deadline of 5 minutes and by the Ops timeouts of each plugin call. A
+   volume not verified within the deadline is unavailable (`restore_failed`)
+   until the next periodic pass. Shutdown cancels it and stores and
+   publishes nothing.
 
 ### Other policy
 
