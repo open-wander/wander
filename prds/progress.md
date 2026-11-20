@@ -211,3 +211,427 @@ restores still work.
 
 PATTERN: testing - Assert snapshot determinism on record order and decoded
 content, not bytes; simulate an older binary with an unregistered type byte.
+
+## 2026-11-15 — Task 3.1 complete
+
+- Added the namespace capabilities `host-volume-create`, `host-volume-register`,
+  `host-volume-read`, `host-volume-write` and `host-volume-delete` to the ACL
+  policy parser. The compiled ACL needed no change: the existing namespace
+  evaluation already handles exact, glob and wildcard namespaces, deny
+  precedence and management tokens.
+- The capabilities are independent, and the `read`, `write` and `scale`
+  namespace shorthands grant none of them. This is recorded as Wander policy
+  because the ACL-surface assertions DHV-B-137 to DHV-B-144 are unresolved. An
+  operator with `policy = "write"` must list the capabilities explicitly.
+  Revisit when the evidence resolves the shorthands.
+- The "X or host-volume-write" alternatives in the API evidence are
+  endpoint-level checks for phase 4, not implications in the policy compiler.
+- Mixed-version note recorded: a server without this change rejects a policy
+  that contains a `host-volume-*` capability, so such policies are applied only
+  after every server is upgraded.
+- The tests-first run failed to compile on the undefined constants. The parser
+  test and the table-driven matrix pass in normal and race-enabled modes.
+  Build, vet, contract and fixture guards, licence boundary and whitespace
+  passed. Advisor review returned PASS.
+- Ran in parallel with task 2.1 in a separate worktree. The harness created
+  the worktrees from `main`, not from the feature branch.
+
+PATTERN: acl - When evidence does not resolve a shorthand or implication, keep
+capabilities independent and deny by default, and record the choice as Wander
+policy with its operator-visible consequence.
+
+PATTERN: tooling - Workflow worktrees start from `main`; tell workers to
+fast-forward to the feature branch first, or export the diff against the
+worktree's own base.
+
+## 2026-11-15 — Task 2.1 complete
+
+- Added the client settings `host_volume_plugin_dir` and `host_volumes_dir`
+  (names and default suffixes from evidence DHV-B-074 and DHV-B-075) to the
+  agent configuration, with merging, and carried the resolved values into
+  `client/config.Config`. Defaults are `data_dir/host_volume_plugins` and
+  `data_dir/host_volumes`, derived in `convertClientConfig` only.
+- Validation is pure and touches no filesystem: a relative path is rejected and
+  names the key, and identical explicit plugin and volume directories are
+  rejected as Wander policy.
+- Added `Config.StaticHostVolume` as the lookup seam for static and dynamic name
+  collisions. DHV-B-078 is unresolved, so no contract wording was added.
+- The criterion "empty explicitly required paths" was resolved against the
+  evidence: an empty value means use the default, so it is not an error.
+- A change to either directory needs an agent restart, because the client
+  reload path applies only TLS and fingerprinting. Recorded in field comments.
+- The tests-first run failed before implementation. Advisor review rejected the
+  first attempt (missing licence headers on new test files, a displaced doc
+  comment, and no test through `IsValidConfig`); the fix round passed with
+  MINOR notes. Focused tests pass in normal and race-enabled modes. Build, vet,
+  contract and fixture guards, licence boundary and whitespace passed.
+- The orchestrator dropped the worker's addition to
+  `website/content/docs/configuration/client.mdx`: that tree is inherited,
+  unpublished and under provenance review. Operator documentation for these
+  settings is still owed, in Wander's own docs.
+- Open items for 2.2 and 2.3: with no data_dir and no explicit value both
+  resolved directories are empty and must be treated as "dynamic host volumes
+  unavailable"; the equal-directory check compares explicit values only, so
+  check the resolved values too; directories are not created yet.
+
+PATTERN: config - Keep operator-written values in the agent config and derive
+defaults only in the converted client config, so merge and reload comparisons
+stay clean.
+
+PATTERN: docs - Do not add new material to the inherited `website/` tree; write
+operator documentation in Wander's own docs.
+
+## 2026-11-15 — Task 2.2 complete
+
+- Added `client/hostvolume`: discovery of regular executable files directly in
+  the plugin directory (no recursion, symlinks and other non-regular entries
+  skipped, sorted by ID, capped at 32) and a bounded runner. The runner uses an
+  explicit argv with no shell, an environment of `DHV_OPERATION=fingerprint`
+  plus a fixed PATH, a 5 second timeout, 1024-byte caps on stdout and stderr,
+  and a process-group kill on Unix.
+- Added the periodic `plugins_host_volume` client fingerprinter. Healthy
+  plugins are advertised as node attributes
+  `plugins.host_volume.version.<id>`. `structs.Node` is unchanged, so an older
+  server ignores the new data and no codecs were regenerated.
+- `convertClientConfig` now rejects resolved plugin and volume directories that
+  are equal. The check is lexical.
+- The built-in `mkdir` plugin is not advertised and the ID is reserved; that is
+  task 2.4. No external plugins are discovered on Windows.
+- Wander policy recorded in the provenance document for every point the
+  evidence leaves open: node representation, ID and version rules, exit
+  status, output limits, environment and working directory.
+- OPEN, must be settled before task 2.3: the fingerprint stdout encoding is
+  unresolved in the evidence (DHV-B-080 only says the version comes back on
+  stdout). The implementation accepts one plain version line. If the public
+  plugin specification defines a structured format, existing plugins will be
+  reported unhealthy. Record the public evidence and adjust the parser.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator added a test that a timeout kills the plugin's child
+  processes (confirmed by mutation: it fails without the group kill) and
+  lowered the expected unsupported-platform diagnostic to debug level.
+- Improvement notes: the first fingerprint pass runs synchronously during
+  client start under the node lock, so slow plugins can delay start by up to
+  40 seconds; the inherited fingerprint manager never re-runs a periodic
+  fingerprinter after one error, so this fingerprinter never returns one.
+  gosec reports G204 for the plugin exec, which is inherent to running a
+  plugin from the configured directory.
+- Focused tests pass in normal and race-enabled modes. Build, Windows compile,
+  vet, contract and fixture guards, licence boundary and whitespace passed.
+
+PATTERN: exec - Run plugins with an explicit argv and environment, bounded
+output writers, a deadline, and a process-group kill; test the group kill by
+checking that a child process is gone.
+
+PATTERN: fingerprint - A periodic fingerprinter must not return an error for
+expected faults, and should clear stale attributes by scanning the node's
+current attributes so it is correct after a restart.
+
+## 2026-11-15 — Corrections to tasks 3.1 and 2.2 from public documentation
+
+- The project owner authorised reading the public documentation to settle two
+  points the evidence file left unresolved. Read on 2026-11-15: the plugin
+  authoring specification (`SRC-plugin`), the API volumes page (`SRC-api`) and
+  the ACL policy specification (new source `SRC-acl-spec`). The evidence cutoff
+  moved to 2026-11-15 and the validator allow-list gained the ACL policy
+  specification path. Only interface facts were recorded; example plugin code
+  on the page was not read into the record.
+- Task 3.1 corrected: `host-volume-write` grants all five capabilities,
+  `host-volume-register` grants create and read, `host-volume-create` grants
+  read, the `read` shorthand includes `host-volume-read` and the `write`
+  shorthand includes `host-volume-write`. The earlier independent,
+  deny-by-default model would have stopped tokens with `policy = "write"` from
+  managing volumes.
+- Task 2.2 corrected: fingerprint stdout is one JSON object with a string
+  `version` that go-version accepts. A plain version line is now rejected.
+  Added reason code `invalid_output`.
+- Recorded for task 2.3 in DHV-B-081, 082 and 096 to 102: the create and delete
+  environment variables, the create output (`path`, `bytes`), the discarded
+  delete output, the optional `error` object, 60 second timeouts, idempotency,
+  per-name concurrency safety, no automatic retries, and cleanup rules.
+- A validator test assumed the first source's date equals the evidence cutoff;
+  it now uses the source's own date.
+- Tests were changed first and failed before each fix. ACL, plugin, fingerprint
+  and dependent server tests pass, with race detection where applicable.
+
+PATTERN: provenance - When the evidence file leaves a public interface point
+unresolved, stop and resolve it from the permitted public documentation before
+implementing, instead of choosing a narrower Wander policy. A deny-by-default
+or stricter-format guess breaks compatibility as surely as a wrong one.
+
+## 2026-11-15 — Task 2.3 blocked on evidence
+
+- The advisor returned REVISE and the worker reported BLOCKED before writing
+  code: five plugin-compatibility points were not settled by the evidence.
+- The public plugin specification was re-read with those questions. Settled
+  and recorded: capacity variables are byte counts; `DHV_PARAMETERS` is the
+  parameters as JSON text; the create example shows `bytes` as a number and
+  `path` may lie within `DHV_VOLUMES_DIR` or elsewhere; the optional `error`
+  object applies to create and delete and its message is returned to the user;
+  a failed create exits non-zero; the plugin runs as the agent's user.
+- Not stated by the documentation, so still open: the value of the capacity
+  variables when capacity is unset; the value of `DHV_PARAMETERS` when there
+  are no parameters; whether a variable with an empty value is set to an empty
+  string or omitted; whether `bytes` or `path` may be omitted; whether the
+  `error` object counts on a zero exit.
+- These need either a black-box observation with a synthetic plugin on an
+  official binary, or an owner decision to accept a tolerant Wander policy.
+- Task-text corrections to apply when 2.3 resumes: the orchestrator, not the
+  worker, updates `prds/`; delete stdout overflow truncates and does not kill
+  the plugin; create needs a larger stdout limit than fingerprint; the 60
+  second deadline starts after the per-volume lock is acquired.
+
+## 2026-11-17 — Task 2.3 complete
+
+- The owner chose to proceed with a tolerant policy for the five points the
+  public specification does not state, and to verify them later by black-box
+  observation on an official binary. An observation kit (synthetic recording
+  plugin, two volume specifications, record template) was handed to the owner;
+  it is not committed.
+- Added `Ops.Create` and `Ops.Delete` in `client/hostvolume/operation.go`. The
+  environment is an explicit allowlist of the documented variables plus the
+  fixed PATH. The deadline is 60 seconds and starts after the per-volume lock
+  is held; waiting for the lock honours the caller's context. The lock is a
+  reference-counted semaphore whose entries are removed when unused.
+- The five pending points each sit in one small function: `formatCapacity`
+  (unset is 0), `encodeParameters` (none is `{}`), `buildEnv` (every variable
+  always set, empty as an empty string), `parseCreateOutput` (path required,
+  bytes optional), `parsePluginError` (read only on a non-zero exit).
+- Create results are validated: the path must be absolute, clean, bounded, free
+  of control characters and not the root. It need not lie under the volumes
+  directory. Returned bytes are not checked against the requested capacity.
+- Delete stdout is truncated and discarded, so a chatty plugin is not killed.
+- Parameter values are redacted from every surfaced message before
+  truncation. A very short value is redacted wherever it appears.
+- `plugin.go` changed additively only; the fingerprint path is unchanged.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator tightened the redaction test so that it fails when
+  truncation runs before redaction (confirmed by mutation). The worker's
+  mutation checks covered the lock, the path clean check, the environment
+  allowlist and redaction.
+- Tests pass in normal and race-enabled modes (repeated runs). Build, Windows
+  compile, vet, guards, licence boundary and whitespace passed.
+- Follow-up: when the observation arrives, record it as a black-box source,
+  update DHV-B-081, 092 to 094 and 096, and adjust the five functions.
+
+PATTERN: redaction - Redact sensitive values before truncating, and test with
+a value that straddles the cut so a surviving prefix is detected.
+
+PATTERN: locking - Start an operation deadline only after the per-key lock is
+held, bound the wait by the caller's context, and remove unused lock entries.
+
+## 2026-11-17 — Task 2.4 complete
+
+- The public volume specification was read for the built-in plugin before the
+  task started and recorded in DHV-B-103 to DHV-B-106: plugin id `mkdir`, a
+  directory in `host_volumes_dir` named after the volume ID, `mode` (string,
+  default 0700), `uid` and `gid` (integers, default the agent's user, ignored
+  on Windows), capacity ignored. Delete behaviour and unknown parameters are
+  not stated.
+- Added `Ops.CreateBuiltin` and `Ops.DeleteBuiltin`, sharing the per-volume
+  lock with external operations. Delete takes no path: it derives the
+  directory from the volume ID, so it cannot be aimed at a registered
+  external directory.
+- Confinement: the volume ID must match `[a-z0-9_-]{1,64}`; the root's final
+  element must not be a symlink; the root is opened once and the volume
+  directory is opened without following symlinks, with same-file checks;
+  ownership and mode are applied on the open descriptor, never by path.
+- Wander policy, recorded in the provenance document and still to be confirmed
+  by the owner: delete removes the directory and its contents and succeeds
+  when it is gone; create is idempotent; bytes is always 0; unknown parameters
+  are ignored; setuid, setgid and sticky bits are rejected; no uid or gid
+  lookup is made; a missing managed root is created with mode 0711; the
+  advertised version is 1.0.0; the plugin is disabled on Windows.
+- The fingerprinter advertises `plugins.host_volume.version.mkdir` when the
+  volumes directory is set, and now clears stale attributes whenever the node
+  is known.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator made the dangling-symlink case assert its reason
+  code, added a regular-file case, and marked two tests as not parallel.
+- Mutation checks by the worker turned the intended tests red for ID
+  validation, the root check, uid range, special mode bits and chown failure
+  handling. Removing a single symlink guard stays green because the guards
+  overlap; that redundancy is deliberate.
+- gosec reports G301 for the 0711 managed root. Other users need search
+  permission on the root to reach a volume directory they own.
+- Tests pass in normal and race-enabled modes. Build, Windows compile, vet,
+  guards, licence boundary and whitespace passed.
+
+PATTERN: confinement - Validate the untrusted name as one safe path element,
+open the root once, open children without following symlinks, and change
+mode and owner on the open descriptor; derive delete targets, never accept
+them.
+
+## 2026-11-19 — Phase 1 merged; sweep of Phase 1
+
+- Phase 1 merged to `main` as `775094619e` (PR #59). `feat/dhv-phase-2` was
+  rebased onto `main`.
+- Comments: no change. The Phase 1 Go files hold 43 comment lines against
+  1,785 lines of code, the longest block is three lines, and no task, phase or
+  requirement numbers remain in comments.
+- Invariants: 71 guards were broken one at a time, Go through `go test
+  -overlay` and Python in a throwaway checkout. 61 are caught by an existing
+  test. 10 survived, and two independent verifiers confirmed all 10 with an
+  input that the unmodified code rejects and the broken code accepts. None was
+  refuted. These are gaps in test coverage, not defects: the code is correct
+  today.
+- State store (`nomad/state`), none reachable yet because only tests call
+  these functions:
+  - `DynamicHostVolumeClaimsByNamespace` can return every namespace's claims
+    and no test notices. No test stores a claim outside `default`, so the
+    other claim listers are probably in the same position. Medium.
+  - `UpsertDynamicHostVolumes` can accept a type other than `host` and no test
+    notices. Restore rejects such a record, so one stored record would make
+    every later snapshot fail to restore. Medium.
+  - `UpsertDynamicHostVolumeClaims` can skip `Validate` and no test notices.
+    Only an empty `TaskGroupName` becomes storable; the other five fields are
+    still rejected, three of them with a different error code. Same snapshot
+    cost. Low.
+- Evidence ledger validator (`ci/validate_dynamic_host_volume_contract.py`):
+  - A source with a prohibited category passes when its locator is the
+    provenance record. The eight "prohibited category" test cases are rejected
+    by a different rule. High.
+  - A local source can point at any file that contains the anchor. Medium.
+  - A behaviour can be marked implemented or verified while citing planned
+    tests. Medium.
+  - A test can be marked implemented against a function that does not exist.
+    The existing case fails the name pattern first. Medium.
+- Fixture guard (`ci/check_dynamic_host_volume_fixtures.py`):
+  - A fixture can state an invented expected status or value on a resolved
+    case. High.
+  - A repeated JSON key lets a shadowed first value go unchecked, including
+    `synthetic_only: false`. The contract validator does not check for
+    repeated keys at all. High.
+  - The catch-all error branch can print exception text. Only type and key
+    names leak today. Low.
+- Shared cause for five of the ten: the tests assert that some error is
+  raised, not which rule raised it, so a case rejected by a different rule
+  still passes.
+- No tests were added. Which gaps are worth a test is the owner's decision.
+
+PATTERN: testing - A negative test that asserts only "an error was returned"
+keeps passing when a different rule rejects the input. Assert the specific
+error or rule, and give each guard one input that is valid in every other
+respect.
+
+## 2026-11-19 — Task 2.5 complete
+
+- Owner decision: a client reports each ready dynamic volume in the node's
+  existing `HostVolumes` map (option A), so the inherited scheduler check
+  keeps jobs off a node where the volume is unavailable. No new RPC and no
+  new top-level node field.
+- Added `client/hostvolume/manager.go`, the only writer of client volume
+  records, with a record type in `client/hostvolume/state` and three new
+  methods on the client state store (bucket `hostvolumes`, no state version
+  change). The manager restores records at start, reconciles them every 30
+  seconds and publishes the ready set only when it changes. The client runs
+  restore and the periodic loop in its shutdown group.
+- `ClientHostVolumeConfig` gained `ID`, set to the volume ID for a dynamic
+  volume and empty for a static one. An agent `host_volume` block cannot set
+  it. Without a marker the scheduler could not tell a dynamic volume from a
+  static one and so could not enforce its namespace.
+- Wander policy, recorded in the provenance document and still to be
+  confirmed by the owner: names are unique per node and a static volume wins
+  a conflict; between dynamic volumes the lower volume ID wins; a record for
+  another node is never reported; a registered path is only stat-checked;
+  restore re-runs the plugin's create once; a create that returns another
+  path is not retried until the next client start; a plugin-created volume
+  whose directory disappeared is created again, empty, on the next pass;
+  restore runs in the background with a five minute bound; the manager's
+  delete applies only to plugin-created volumes.
+- First run reported BLOCKED before writing code: regenerating
+  `structs.generated.go` reordered about 3,300 lines. Two causes: the
+  generator's input order came from `ls` and so depended on the locale, and
+  the pinned go-msgpack 1.1.5 generator panics on current Go. With a C locale
+  and a patched temporary copy of the module, the unmodified tree regenerates
+  byte for byte and the new field changes 75 added and 26 removed lines, all
+  in the `ClientHostVolumeConfig` functions. PR #63 puts that fix into
+  `make generate-structs`, together with a bump of the pinned `stringer`,
+  which also crashed.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator then:
+  - made the store load happen once, before restore or the first entry point
+    call, so a volume created before the background restore finishes is not
+    replaced by a later read of the store, and restored only records read
+    from the store;
+  - stopped periodic retries of a `path_changed` volume, because each retry
+    is another create;
+  - added tests for the request restore passes to create, a plugin installed
+    after start, a logged unreadable record, the `path_changed` rule and a
+    create that runs before restore;
+  - raised the timeout of two process-kill tests from 500 ms to 3 s. They
+    read a PID file the plugin writes, and on a loaded machine the plugin was
+    killed before it wrote it.
+- Known limits: the diagnostic for an unavailable volume stays on the client
+  (logs and the manager); the server only sees that the volume is absent from
+  the node. No client-level test asserts that the host volume goroutine stops
+  on shutdown; the manager-level test covers the loop.
+- Build, Windows compile, vet, focused tests in normal, race-enabled and
+  `codegen_generated` modes, both guards, the licence boundary and whitespace
+  checks passed. gosec reports only the findings accepted earlier.
+
+## 2026-11-19 — Follow-ups opened outside the task list
+
+- PR #62 adds a test for each of the ten gaps the Phase 1 sweep confirmed.
+  Each test fails when its guard is removed.
+- PR #63 fixes `make generate-structs` on current Go.
+
+PATTERN: generation - Run the codec generator with `LC_ALL=C`; its output
+order follows the order of the input files. Require a byte-identical
+regeneration of the unmodified tree before trusting a diff.
+
+PATTERN: concurrency - When restore runs in the background, load persisted
+state once before any entry point can write, and mark which records came from
+the store so the restore pass does not repeat work done in the same run.
+
+PATTERN: testing - A test that reads a file its child process writes must
+give the child time to start on a loaded machine; a short operation timeout
+turns it into a flaky test.
+
+## 2026-11-19 — Owner decisions
+
+- The owner accepted the Wander policy choices of task 2.4 (built-in mkdir
+  plugin) and task 2.5 (restart reconciliation) as recorded in the provenance
+  document.
+- The black-box observation of plugin inputs (five points from task 2.3) is
+  deferred until the owner can run it. The orchestrator does not run an
+  official Nomad binary itself without the owner's explicit approval.
+- PR #62 (sweep gap tests) and PR #63 (`make generate-structs`) merged to
+  `main`.
+
+## 2026-11-19 — Task 2.6 complete
+
+- Added the client RPC endpoint `HostVolume.Register` in
+  `client/host_volume_endpoint.go`, with request and response types in
+  `client/structs/host_volume.go` (outside the code generator's input, so no
+  generated file changed). It is for servers only, adds no HTTP route and
+  performs no ACL check. Nothing on the server calls it yet.
+- `Manager.AddRegistered` now validates the request before taking the volume
+  lock and applies the repeat rules: an identical repeat returns the current
+  status and writes nothing; a repeat that differs in namespace, name or path
+  is rejected; an ID that belongs to a plugin-created volume is rejected.
+- Advisor verdict was REVISE, because a typed error does not survive the RPC
+  transport. Adopted as Wander policy: a classified rejection returns no RPC
+  error and carries a reason code and message in the response; only internal
+  failures return an RPC error. The reason-code table and the check order are
+  in the provenance document. The owner accepted this policy on 2026-11-20.
+- Registration never runs a plugin and only calls `os.Stat` on the path. A
+  regular file is accepted, as for static host volumes.
+- The tests-first run failed before implementation. Advisor review returned
+  MINOR. The orchestrator added a check to every rejection case that no plugin
+  was invoked and corrected the reason-code table for a malformed node ID.
+- Not covered at endpoint level, only at manager level: the persisted record,
+  restart, and the plugin-volume-ID rejection.
+- Build, Windows compile, the `codegen_generated` build, vet, focused tests in
+  normal and race-enabled modes, both guards, the licence boundary and
+  whitespace checks passed. gosec reports only the findings accepted earlier.
+
+PATTERN: rpc - An error returned from a client RPC reaches the caller as text
+only. Carry a rejection the caller must classify in the response, and keep
+the RPC error for failures of the call itself.
+
+## Resume point
+
+- Phase 2 is complete and archived. Owner decision of 2026-11-20: open a pull
+  request for `feat/dhv-phase-2`, and run the sweep of Phase 2 after that pull
+  request merges.
+- Next task: 3.2 (node selection for volume creation).

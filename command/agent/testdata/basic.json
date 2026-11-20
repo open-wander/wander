@@ -135,6 +135,8 @@
         "127.0.0.1:1234"
       ],
       "state_dir": "/tmp/client-state",
+      "host_volume_plugin_dir": "/tmp/host-volume-plugins",
+      "host_volumes_dir": "/tmp/host-volumes",
       "stats": [
         {
           "collection_interval": "5s",

@@ -8,6 +8,7 @@ import (
 	"github.com/open-wander/wander/client/allocrunner/taskrunner/state"
 	dmstate "github.com/open-wander/wander/client/devicemanager/state"
 	"github.com/open-wander/wander/client/dynamicplugins"
+	hvstate "github.com/open-wander/wander/client/hostvolume/state"
 	driverstate "github.com/open-wander/wander/client/pluginmanager/drivermanager/state"
 	"github.com/open-wander/wander/client/serviceregistration/checks"
 	cstructs "github.com/open-wander/wander/client/structs"
@@ -135,6 +136,18 @@ func (n NoopDB) PutNodeRegistration(reg *cstructs.NodeRegistration) error {
 
 func (n NoopDB) GetNodeRegistration() (*cstructs.NodeRegistration, error) {
 	return nil, nil
+}
+
+func (n NoopDB) PutHostVolume(*hvstate.Record) error {
+	return nil
+}
+
+func (n NoopDB) GetHostVolumes() ([]*hvstate.Record, map[string]error, error) {
+	return nil, nil, nil
+}
+
+func (n NoopDB) DeleteHostVolume(string) error {
+	return nil
 }
 
 func (n NoopDB) Close() error {

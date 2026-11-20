@@ -8,6 +8,7 @@ import (
 	"github.com/open-wander/wander/client/allocrunner/taskrunner/state"
 	dmstate "github.com/open-wander/wander/client/devicemanager/state"
 	"github.com/open-wander/wander/client/dynamicplugins"
+	hvstate "github.com/open-wander/wander/client/hostvolume/state"
 	driverstate "github.com/open-wander/wander/client/pluginmanager/drivermanager/state"
 	"github.com/open-wander/wander/client/serviceregistration/checks"
 	cstructs "github.com/open-wander/wander/client/structs"
@@ -129,6 +130,18 @@ type StateDB interface {
 
 	PutNodeRegistration(*cstructs.NodeRegistration) error
 	GetNodeRegistration() (*cstructs.NodeRegistration, error)
+
+	// PutHostVolume stores the record of a dynamic host volume, replacing
+	// any record with the same volume ID.
+	PutHostVolume(*hvstate.Record) error
+
+	// GetHostVolumes returns every readable dynamic host volume record and a
+	// map of volume IDs to decode errors. A store with no records returns no
+	// error.
+	GetHostVolumes() ([]*hvstate.Record, map[string]error, error)
+
+	// DeleteHostVolume removes a record. A missing record is not an error.
+	DeleteHostVolume(volumeID string) error
 
 	// Close the database. Unsafe for further use after calling regardless
 	// of return value.

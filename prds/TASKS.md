@@ -6,22 +6,13 @@ must follow the clean-room and private-data rules in the linked PRD and
 
 ## Phase 1: Clean-room foundation — 6 tasks completed 2026-11-15 (see [TASKS-archive.md](TASKS-archive.md))
 
-## Phase 2: Client and plugins
-
-| # | Task | PRD | Status | Notes |
-|---|------|-----|--------|-------|
-| 2.1 | Add plugin and managed-volume client configuration | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.4 |
-| 2.2 | Implement executable discovery, fingerprinting, and health reporting | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 2.1 |
-| 2.3 | Implement the bounded and cancellable plugin operation runner | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 2.2 |
-| 2.4 | Implement the confined built-in directory plugin | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 2.3 |
-| 2.5 | Add restart reconciliation and availability recovery | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.6, 2.3 |
-| 2.6 | Implement the client handshake for registering existing paths without modifying contents | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.6, 2.5 |
+## Phase 2: Client and plugins — 6 tasks completed 2026-11-19 (see [TASKS-archive.md](TASKS-archive.md))
 
 ## Phase 3: Scheduling and claims
 
 | # | Task | PRD | Status | Notes |
 |---|------|-----|--------|-------|
-| 3.1 | Add the complete host-volume ACL capability model | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.4 |
+| 3.1 | Add the complete host-volume ACL capability model | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-15) | Added the five host-volume namespace capabilities with the documented implications and read/write shorthands, and a table-driven allow/deny matrix |
 | 3.2 | Implement node selection for volume creation | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.5, 2.2, 3.1 |
 | 3.3 | Add scheduler feasibility checks for capabilities and access modes | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.5, 2.5, 3.1 |
 | 3.4 | Add atomic writer and attachment accounting | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 3.3 |

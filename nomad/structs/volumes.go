@@ -33,6 +33,11 @@ type ClientHostVolumeConfig struct {
 	Name     string `hcl:",key"`
 	Path     string `hcl:"path"`
 	ReadOnly bool   `hcl:"read_only"`
+
+	// ID is Wander policy: the volume ID for a dynamic host volume and empty
+	// for a static one. The client sets it. It is not an agent
+	// configuration setting, so HCL never fills it.
+	ID string `hcl:"-"`
 }
 
 func (p *ClientHostVolumeConfig) Copy() *ClientHostVolumeConfig {
