@@ -287,7 +287,9 @@ func formatCapacity(n int64) string {
 // byte-identical text. Errors never include a key or value.
 func encodeParameters(p map[string]string) (string, error) {
 	if len(p) == 0 {
-		return "{}", nil
+		// The JSON text for "no parameters", as observed (see the provenance
+		// record). A plugin must accept it; "{}" would be a different input.
+		return "null", nil
 	}
 	// json would silently replace invalid UTF-8 with U+FFFD, so check.
 	for k, v := range p {
