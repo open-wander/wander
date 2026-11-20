@@ -613,8 +613,7 @@ turns it into a flaky test.
   transport. Adopted as Wander policy: a classified rejection returns no RPC
   error and carries a reason code and message in the response; only internal
   failures return an RPC error. The reason-code table and the check order are
-  in the provenance document. This policy is still to be confirmed by the
-  owner.
+  in the provenance document. The owner accepted this policy on 2026-11-20.
 - Registration never runs a plugin and only calls `os.Stat` on the path. A
   regular file is accepted, as for static host volumes.
 - The tests-first run failed before implementation. Advisor review returned
@@ -632,6 +631,7 @@ the RPC error for failures of the call itself.
 
 ## Resume point
 
-- Next task: 3.2 (node selection for volume creation). Phase 2 is complete
-  with 2.6; collapse it and offer the sweep before starting Phase 3.
-- `feat/dhv-phase-2` is local only and has no pull request.
+- Phase 2 is complete and archived. Owner decision of 2026-11-20: open a pull
+  request for `feat/dhv-phase-2`, and run the sweep of Phase 2 after that pull
+  request merges.
+- Next task: 3.2 (node selection for volume creation).
