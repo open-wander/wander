@@ -763,6 +763,6 @@ between two steps, which makes a race window testable without a race.
 
 ## Resume point
 
-- Phases 1 and 2 are merged and swept, and the Phase 2 sweep follow-up is in
-  review.
+- Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
+  `4259fbe38b` (PR #70).
 - Next task: 3.2 (node selection for volume creation).
