@@ -301,9 +301,10 @@ does not advertise the attributes, which a server must read as "no plugins".
 ## Plugin create and delete (client) {#plugin-operations}
 
 Implemented in `client/hostvolume/operation.go` as a library (`Ops.Create`,
-`Ops.Delete`). Nothing calls it yet: no RPC, state store, FSM or snapshot code is
-touched. The built-in `mkdir` plugin is in [its own section](#builtin-mkdir); restart
-reconciliation and registering existing paths are later tasks. `Ops.Create` and
+`Ops.Delete`). The volume manager is its only caller, and no server RPC
+reaches it yet. The built-in `mkdir` plugin is in [its own section](#builtin-mkdir);
+restart reconciliation is in [another](#restart-reconciliation) and registering
+existing paths in [a third](#register-handshake). `Ops.Create` and
 `Ops.Delete` still reject the id `mkdir` (`reserved_id`), because it names no
 external executable.
 
@@ -319,7 +320,7 @@ From the public plugin specification (`SRC-plugin`).
 | DHV-B-084 to DHV-B-095 | Variable names: `DHV_OPERATION`, `DHV_VOLUMES_DIR`, `DHV_PLUGIN_DIR`, `DHV_NAMESPACE`, `DHV_VOLUME_NAME`, `DHV_VOLUME_ID`, `DHV_NODE_ID`, `DHV_NODE_POOL`, `DHV_CAPACITY_MIN_BYTES`, `DHV_CAPACITY_MAX_BYTES` (bytes), `DHV_PARAMETERS` (JSON text), `DHV_CREATED_PATH` (delete, the path create returned). |
 | DHV-B-096 | A plugin may print a JSON object with an `error` field; the message is included in the error returned to the user. Whether this depends on a non-zero exit is not stated. |
 | DHV-B-097 | A failed create cleans up and exits non-zero. No exit code requirement is stated for delete. The plugin runs as the agent's user. |
-| DHV-B-098 | The plugin cleans up a failed create; partial creates are not deleted for it. Delete is called when the volume cannot be saved after an initial create. That call belongs to a later task. |
+| DHV-B-098 | The plugin cleans up a failed create; partial creates are not deleted for it. Delete is called when the volume cannot be saved after an initial create. The volume manager makes that call when it cannot store the record of a new volume. |
 | DHV-B-099 | Create and delete must be safe to run concurrently per volume name per node. This task serialises per volume ID inside one process. Two different IDs with the same name on one node are the server's responsibility and are not handled here. |
 | DHV-B-101 | No automatic retry; the caller retries. A plugin may retry inside its deadline. |
 
@@ -366,8 +367,8 @@ Implemented in `client/hostvolume/builtin.go` (`Ops.CreateBuiltin`,
 `Ops.DeleteBuiltin`) with `builtin_unix.go` and `builtin_windows.go`. It runs in
 the client process, with no executable, and returns the same `CreateResult` as
 external plugins. It shares the per-volume lock of `Ops`, so built-in and
-external operations on one volume ID never interleave. Nothing calls it yet: no
-RPC, state store, FSM or snapshot code is touched.
+external operations on one volume ID never interleave. The volume manager is
+its only caller, and no server RPC reaches it yet.
 
 ### Recorded evidence
 
@@ -457,10 +458,15 @@ statement about Nomad behaviour, and is implemented in `client/hostvolume`
 9. Start. Restore runs in the client's shutdown group and never delays or
    fails client start. The store is read once, by restore or by the first
    entry point call, whichever comes first, and only records read from the
-   store are restored: a volume created in the same run is not created again. It is bounded by a total deadline of 5 minutes and by
-   the Ops timeouts of each plugin call. A volume not verified within the
-   deadline is unavailable (`restore_failed`) until the next periodic pass.
-   Shutdown cancels it and publishes nothing.
+   store are restored: a volume created in the same run is not created
+   again. A record read from the store is not reported until this run has
+   checked it, whatever status the earlier run stored, so an entry point
+   call that arrives before restore has reached a record reports only the
+   volumes created or checked in this run. Restore is bounded by a total
+   deadline of 5 minutes and by the Ops timeouts of each plugin call. A
+   volume not verified within the deadline is unavailable (`restore_failed`)
+   until the next periodic pass. Shutdown cancels it and stores and
+   publishes nothing.
 
 ### Other policy
 
@@ -471,11 +477,12 @@ statement about Nomad behaviour, and is implemented in `client/hostvolume`
   is returned.
 - Delete entry point. It applies only to plugin-created records. For a
   registered record it returns an error and changes nothing on disk or in the
-  store; removing a registered record belongs to a later task and DHV-B-179,
+  store; removing a registered record is not implemented, and DHV-B-179,
   DHV-B-180 and DHV-B-187 stay unresolved. A failed plugin delete keeps the
   record and its status.
 - Registration. The in-process `AddRegistered` entry point requires that the
-  path exists and records it. The server handshake is a later task.
+  path exists and records it. The client RPC that calls it is described under
+  [Registration handshake](#register-handshake).
 - Locking. The manager has its own per-volume lock, separate from the lock
   table of `Ops`, and re-reads the record after taking it, so a pass that
   waited for a delete does not re-create the volume.

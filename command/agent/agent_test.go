@@ -1759,6 +1759,10 @@ func TestAgent_ClientConfig_HostVolumeDirsDiffer(t *testing.T) {
 			volumes: filepath.Join(dataDir, "host_volume_plugins"), wantErr: true},
 		{name: "both explicit equal unclean", dataDir: dataDir,
 			plugin: filepath.Join(dataDir, "x"), volumes: filepath.Join(dataDir, "y", "..", "x") + "/", wantErr: true},
+		{name: "unclean plugin equals derived volumes", dataDir: dataDir,
+			plugin: dataDir + "/x/../host_volumes/", wantErr: true},
+		{name: "unclean plugin equals explicit volumes", dataDir: dataDir,
+			plugin: dataDir + "/y/../x/", volumes: filepath.Join(dataDir, "x"), wantErr: true},
 		{name: "no data_dir no settings", wantEmpty: true},
 		{name: "no data_dir only plugin set", plugin: filepath.Join(dataDir, "p")},
 	}

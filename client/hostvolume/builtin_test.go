@@ -197,6 +197,30 @@ func TestBuiltin_ChownFailureRemovesNewDirectory(t *testing.T) {
 	must.Eq(t, os.FileMode(0o750), modeOf(t, filepath.Join(e.volumes, "v")).Perm())
 }
 
+// Not parallel: it swaps the package-level applyMode.
+func TestBuiltin_ModeFailureRemovesNewDirectory(t *testing.T) {
+	old := applyMode
+	defer func() { applyMode = old }()
+	applyMode = func(*os.File, os.FileMode) error { return errors.New("boom " + secretValue) }
+
+	e := newOpEnv(t)
+	res, err := e.ops.CreateBuiltin(context.Background(), bReq("v", map[string]string{"mode": "0755"}))
+	oe := asOpError(t, err, "create", ReasonFilesystem)
+	must.Eq(t, CreateResult{}, res)
+	must.StrNotContains(t, err.Error(), secretValue)
+	must.StrNotContains(t, oe.Message, "boom")
+	must.SliceEmpty(t, entries(t, e.volumes))
+
+	// an existing directory is left in place, with its mode
+	applyMode = old
+	_, err = e.ops.CreateBuiltin(context.Background(), bReq("v", map[string]string{"mode": "0750"}))
+	must.NoError(t, err)
+	applyMode = func(*os.File, os.FileMode) error { return errors.New("boom") }
+	_, err = e.ops.CreateBuiltin(context.Background(), bReq("v", map[string]string{"mode": "0700"}))
+	asOpError(t, err, "create", ReasonFilesystem)
+	must.Eq(t, os.FileMode(0o750), modeOf(t, filepath.Join(e.volumes, "v")).Perm())
+}
+
 func TestBuiltin_ChownFailsNaturallyWithoutRoot(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root can chown anywhere")
@@ -267,12 +291,15 @@ func TestBuiltin_RegularFileAtVolumeName(t *testing.T) {
 	must.Eq(t, os.FileMode(0o600), modeOf(t, f).Perm())
 }
 
+// The relative kinds matter on their own: a link with an absolute target is
+// refused by the managed root itself, while a relative link that stays inside
+// the root is followed by it and is stopped only by the checks in create.
 func TestBuiltin_PlantedSymlinkAtVolumeName(t *testing.T) {
-	for _, kind := range []string{"outside", "sibling", "file", "dangling"} {
+	for _, kind := range []string{"outside", "sibling", "file", "dangling", "relative sibling", "relative nested"} {
 		t.Run(kind, func(t *testing.T) {
 			e := newOpEnv(t)
 			outside, mk := marker(t, e.scratch)
-			var target string
+			var target, link string // link is the text of the symlink when it differs from target
 			switch kind {
 			case "outside":
 				target = outside
@@ -283,8 +310,17 @@ func TestBuiltin_PlantedSymlinkAtVolumeName(t *testing.T) {
 				target = mk
 			case "dangling":
 				target = filepath.Join(e.scratch, "nowhere")
+			case "relative sibling":
+				target, link = filepath.Join(e.volumes, "other"), "other"
+				must.NoError(t, os.Mkdir(target, 0o750))
+			case "relative nested":
+				target, link = filepath.Join(e.volumes, "other", "sub"), "other/sub"
+				must.NoError(t, os.MkdirAll(target, 0o750))
 			}
-			must.NoError(t, os.Symlink(target, filepath.Join(e.volumes, "v")))
+			if link == "" {
+				link = target
+			}
+			must.NoError(t, os.Symlink(link, filepath.Join(e.volumes, "v")))
 			var before *syscall.Stat_t
 			if kind != "dangling" {
 				before = statOf(t, target)
@@ -327,6 +363,126 @@ func TestBuiltin_DeleteMissingRoot(t *testing.T) {
 	must.NoError(t, e.ops.DeleteBuiltin(context.Background(), bReq("v", nil)))
 	_, err := os.Lstat(e.ops.VolumesDir)
 	must.True(t, errors.Is(err, os.ErrNotExist)) // delete does not create the root
+}
+
+// A managed root that cannot be inspected is not a missing root: delete must
+// not report success. The parent is a regular file, which fails for root too.
+func TestBuiltin_RootInspectFailureIsNotMissing(t *testing.T) {
+	e := newOpEnv(t)
+	file := filepath.Join(e.scratch, "file")
+	must.NoError(t, os.WriteFile(file, nil, 0o600))
+	e.ops.VolumesDir = filepath.Join(file, "host_volumes")
+
+	asOpError(t, e.ops.DeleteBuiltin(context.Background(), bReq("v", nil)), "delete", ReasonFilesystem)
+	_, err := e.ops.CreateBuiltin(context.Background(), bReq("v", nil))
+	asOpError(t, err, "create", ReasonFilesystem)
+}
+
+// Not parallel: it swaps the package-level inspectVolume.
+func TestBuiltin_DeleteInspectFailureIsNotMissing(t *testing.T) {
+	old := inspectVolume
+	defer func() { inspectVolume = old }()
+
+	e := newOpEnv(t)
+	res, err := e.ops.CreateBuiltin(context.Background(), bReq("v", nil))
+	must.NoError(t, err)
+	data := filepath.Join(res.Path, "data")
+	must.NoError(t, os.WriteFile(data, []byte("x"), 0o600))
+
+	inspectVolume = func(*os.Root, string) (os.FileInfo, error) { return nil, errors.New("boom " + secretValue) }
+	err = e.ops.DeleteBuiltin(context.Background(), bReq("v", nil))
+	oe := asOpError(t, err, "delete", ReasonFilesystem)
+	must.StrNotContains(t, err.Error(), secretValue)
+	must.StrNotContains(t, oe.Message, "boom")
+	_, serr := os.Stat(data)
+	must.NoError(t, serr)
+}
+
+// Not parallel: it swaps the package-level removeTree.
+func TestBuiltin_DeleteRemoveFailure(t *testing.T) {
+	old := removeTree
+	defer func() { removeTree = old }()
+
+	e := newOpEnv(t)
+	_, err := e.ops.CreateBuiltin(context.Background(), bReq("v", nil))
+	must.NoError(t, err)
+
+	removeTree = func(*os.Root, string) error { return errors.New("boom " + secretValue) }
+	err = e.ops.DeleteBuiltin(context.Background(), bReq("v", nil))
+	oe := asOpError(t, err, "delete", ReasonFilesystem)
+	must.StrNotContains(t, err.Error(), secretValue)
+	must.StrNotContains(t, oe.Message, "boom")
+	must.Eq(t, []string{"v"}, entries(t, e.volumes))
+
+	// removed by something else in between: already gone is success
+	removeTree = func(*os.Root, string) error { return os.ErrNotExist }
+	must.NoError(t, e.ops.DeleteBuiltin(context.Background(), bReq("v", nil)))
+}
+
+// Create and delete hold the volume lock for all of their filesystem work,
+// not only while they validate. Not parallel: it swaps package-level steps.
+func TestBuiltin_HoldsVolumeLockDuringWork(t *testing.T) {
+	oldOwner, oldRemove := applyOwner, removeTree
+	defer func() { applyOwner, removeTree = oldOwner, oldRemove }()
+
+	e := newOpEnv(t)
+	held := -1
+	applyOwner = func(f *os.File, uid, gid int) error {
+		held = e.ops.locks.refs("v")
+		return oldOwner(f, uid, gid)
+	}
+	_, err := e.ops.CreateBuiltin(context.Background(), bReq("v", nil))
+	must.NoError(t, err)
+	must.Eq(t, 1, held, must.Sprint("create released the volume lock before its filesystem work"))
+
+	held = -1
+	removeTree = func(root *os.Root, name string) error {
+		held = e.ops.locks.refs("v")
+		return oldRemove(root, name)
+	}
+	must.NoError(t, e.ops.DeleteBuiltin(context.Background(), bReq("v", nil)))
+	must.Eq(t, 1, held, must.Sprint("delete released the volume lock before its filesystem work"))
+	must.Eq(t, 0, e.ops.locks.len())
+}
+
+// The volume directory is replaced by a FIFO after it was inspected. Opening
+// a FIFO for reading waits for a writer, so create must refuse it at the open
+// and never wait while it holds the volume lock. Not parallel: it swaps the
+// package-level inspectVolume.
+func TestBuiltin_FifoSwappedInAfterInspection(t *testing.T) {
+	old := inspectVolume
+	defer func() { inspectVolume = old }()
+
+	e := newOpEnv(t)
+	v := filepath.Join(e.volumes, "v")
+	inspectVolume = func(root *os.Root, name string) (os.FileInfo, error) {
+		fi, err := old(root, name)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.Remove(v); err != nil {
+			return nil, err
+		}
+		return fi, syscall.Mkfifo(v, 0o600)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := e.ops.CreateBuiltin(context.Background(), bReq("v", nil))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		asOpError(t, err, "create", ReasonInvalidPath)
+	case <-time.After(5 * time.Second):
+		// give the waiting open its writer so the goroutine can end
+		if w, err := os.OpenFile(v, os.O_RDWR, 0); err == nil {
+			defer w.Close()
+		}
+		<-done
+		t.Fatal("create waited on a FIFO at the volume name")
+	}
+	must.Eq(t, 0, e.ops.locks.len())
 }
 
 func TestBuiltin_DeleteNeverFollowsSymlinks(t *testing.T) {

@@ -37,8 +37,15 @@ const (
 // BuiltinSupported reports whether the built-in mkdir plugin works here.
 func BuiltinSupported() bool { return builtinSupported }
 
-// applyOwner is the ownership step; tests replace it to force a failure.
-var applyOwner = func(f *os.File, uid, gid int) error { return f.Chown(uid, gid) }
+// These are the filesystem steps tests replace to force a failure or to act
+// between two steps. Unit tests can run as root, where permission bits stop
+// nothing, so a failure cannot be arranged through the filesystem alone.
+var (
+	applyOwner    = func(f *os.File, uid, gid int) error { return f.Chown(uid, gid) }
+	applyMode     = func(f *os.File, mode os.FileMode) error { return f.Chmod(mode) }
+	inspectVolume = func(root *os.Root, name string) (os.FileInfo, error) { return root.Lstat(name) }
+	removeTree    = func(root *os.Root, name string) error { return root.RemoveAll(name) }
+)
 
 type builtinParams struct {
 	mode     os.FileMode
@@ -236,7 +243,7 @@ func (o *Ops) CreateBuiltin(ctx context.Context, req OpRequest) (CreateResult, e
 		return CreateResult{}, e
 	}
 
-	li, err := root.Lstat(id)
+	li, err := inspectVolume(root, id)
 	if err != nil {
 		return fail(opErr(op, ReasonFilesystem, "volume directory cannot be inspected"))
 	}
@@ -259,7 +266,7 @@ func (o *Ops) CreateBuiltin(ctx context.Context, req OpRequest) (CreateResult, e
 	if err := applyOwner(f, bp.uid, bp.gid); err != nil {
 		return fail(opErr(op, ReasonFilesystem, "ownership of the volume directory cannot be set"))
 	}
-	if err := f.Chmod(bp.mode); err != nil {
+	if err := applyMode(f, bp.mode); err != nil {
 		return fail(opErr(op, ReasonFilesystem, "mode of the volume directory cannot be set"))
 	}
 	return CreateResult{Path: filepath.Join(o.VolumesDir, id), Bytes: 0}, nil
@@ -293,13 +300,13 @@ func (o *Ops) DeleteBuiltin(ctx context.Context, req OpRequest) error {
 	if id == "" || id == "." || id == ".." || filepath.Base(id) != id {
 		return opErr(op, ReasonInvalidInput, "volume id is not a valid built-in volume id")
 	}
-	if _, err := root.Lstat(id); err != nil {
+	if _, err := inspectVolume(root, id); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 		return opErr(op, ReasonFilesystem, "volume directory cannot be inspected")
 	}
-	if err := root.RemoveAll(id); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := removeTree(root, id); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return opErr(op, ReasonFilesystem, "volume directory cannot be removed")
 	}
 	return nil

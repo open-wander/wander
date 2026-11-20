@@ -747,8 +747,8 @@ func (rc *RetryConfig) ToConsulTemplate() (*config.RetryConfig, error) {
 }
 
 // StaticHostVolume returns the statically configured host_volume with the
-// given name. Names are case-sensitive. Later tasks use it to detect a static
-// volume that would share a name with a dynamic volume on the same node.
+// given name. Names are case-sensitive. The volume manager uses it to detect
+// a static volume that shares a name with a dynamic volume on the same node.
 func (c *Config) StaticHostVolume(name string) (*structs.ClientHostVolumeConfig, bool) {
 	if c == nil {
 		return nil, false

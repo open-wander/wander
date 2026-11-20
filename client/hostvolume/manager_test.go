@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -1203,4 +1205,293 @@ func TestManager_AddRegisteredConcurrent(t *testing.T) {
 		}
 		must.Eq(t, 1, n)
 	})
+}
+
+func (e *mgrEnv) publishedNames() []string {
+	return slices.Sorted(maps.Keys(e.published()))
+}
+
+// A status loaded from the store is what an earlier run saw. Restore runs in
+// the background, so an entry point can publish before the records are
+// checked: it must publish none of them, whatever their stored status.
+func TestManager_EntryPointBeforeRestorePublishesOnlyCheckedVolumes(t *testing.T) {
+	cases := []struct {
+		name         string
+		call         func(t *testing.T, e *mgrEnv, m *Manager)
+		want         []string // published by the entry point
+		wantRestored []string // published once restore has checked the records
+	}{
+		{"register", func(t *testing.T, e *mgrEnv, m *Manager) {
+			_, err := m.AddRegistered(ctx5(t), e.regReq("vol-new", "new", t.TempDir()))
+			must.NoError(t, err)
+		}, []string{"new"}, []string{"del", "kept", "new"}},
+		{"create", func(t *testing.T, e *mgrEnv, m *Manager) {
+			_, err := m.Create(ctx5(t), "plug", e.req("vol-new", "new"))
+			must.NoError(t, err)
+		}, []string{"new"}, []string{"del", "kept", "new"}},
+		{"delete", func(t *testing.T, e *mgrEnv, m *Manager) {
+			must.NoError(t, m.Delete(ctx5(t), "vol-del"))
+		}, nil, []string{"kept"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newMgrEnv(t)
+			e.installPlugin()
+			// All stored as ready by the earlier run. The first path is gone,
+			// the second still exists, the third belongs to another node.
+			e.seed(e.registeredRec("vol-gone", "gone", filepath.Join(t.TempDir(), "gone")))
+			e.seed(e.registeredRec("vol-kept", "kept", t.TempDir()))
+			foreign := e.registeredRec("vol-foreign", "foreign", t.TempDir())
+			foreign.NodeID = otherTestNode
+			e.seed(foreign)
+			e.seed(e.pluginRec("vol-del", "del"))
+			must.NoError(t, os.Mkdir(filepath.Join(e.volumes, "vol-del"), 0o700))
+
+			m := e.manager()
+			tc.call(t, e, m)
+			must.Eq(t, tc.want, e.publishedNames())
+
+			m.Restore(ctx5(t))
+			must.Eq(t, tc.wantRestored, e.publishedNames())
+			must.Eq(t, hvstate.ReasonMissingPath, mustStatus(t, m, "vol-gone").Reason)
+			must.Eq(t, hvstate.ReasonNodeMismatch, mustStatus(t, m, "vol-foreign").Reason)
+		})
+	}
+}
+
+// The restore pass waits on the first volume until its deadline, so it never
+// reaches the second. Neither was verified: both are marked and stored as
+// restore_failed, whatever status the earlier run stored.
+func TestManager_RestoreDeadlineMarksUnverifiedVolumes(t *testing.T) {
+	e := newMgrEnv(t)
+	e.seed(e.registeredRec("vol-a", "first", t.TempDir()))
+	e.seed(e.registeredRec("vol-b", "second", filepath.Join(t.TempDir(), "gone")))
+
+	m := e.manager(func(c *ManagerConfig) { c.RestoreTimeout = 300 * time.Millisecond })
+	must.NoError(t, m.locks.acquire(ctx5(t), "vol-a"))
+	m.Restore(ctx5(t))
+	m.locks.release("vol-a")
+
+	for _, id := range []string{"vol-a", "vol-b"} {
+		st := mustStatus(t, m, id)
+		must.Eq(t, hvstate.StatusUnavailable, st.Status, must.Sprint(id))
+		must.Eq(t, hvstate.ReasonRestoreFailed, st.Reason, must.Sprint(id))
+		must.Eq(t, hvstate.ReasonRestoreFailed, e.stored(id).Reason, must.Sprint(id))
+	}
+	must.MapLen(t, 0, e.published())
+
+	// The next periodic pass checks them.
+	m.reconcile(ctx5(t), false)
+	must.Eq(t, hvstate.StatusReady, mustStatus(t, m, "vol-a").Status)
+	must.Eq(t, hvstate.ReasonMissingPath, mustStatus(t, m, "vol-b").Reason)
+	must.Eq(t, []string{"first"}, e.publishedNames())
+}
+
+// A pass finds the directory of vol-a gone and then waits on vol-b before it
+// applies its results. Meanwhile vol-a is created again, which replaces its
+// record. The older result must not land on the new record.
+func TestManager_StaleResultDoesNotOverwriteNewerRecord(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	m := e.manager()
+	_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+	must.NoError(t, err)
+	_, err = m.AddRegistered(ctx5(t), e.regReq("vol-b", "other", t.TempDir()))
+	must.NoError(t, err)
+	must.NoError(t, os.RemoveAll(filepath.Join(e.volumes, "vol-a")))
+
+	must.NoError(t, m.locks.acquire(ctx5(t), "vol-b"))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		m.reconcile(ctx5(t), false)
+	}()
+	// IDs are walked in sorted order: a pass that waits on vol-b has
+	// evaluated vol-a and released its lock.
+	eventually(t, func() bool { return m.locks.refs("vol-b") == 2 }, 5*time.Second)
+
+	st, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+	must.NoError(t, err)
+	must.Eq(t, hvstate.StatusReady, st.Status)
+
+	m.locks.release("vol-b")
+	<-done
+	must.Eq(t, hvstate.StatusReady, mustStatus(t, m, "vol-a").Status)
+	must.Eq(t, hvstate.StatusReady, e.stored("vol-a").Status)
+	must.Eq(t, "vol-a", e.published()["data"].ID)
+}
+
+// As TestManager_DeleteWaitingPassDoesNotRecreate, but with an unavailable
+// volume and a periodic pass: the combination in which a pass runs create.
+func TestManager_DeleteWaitingPeriodicPassDoesNotRecreate(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	m := e.manager()
+	_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+	must.NoError(t, err)
+	dir := filepath.Join(e.volumes, "vol-a")
+	must.NoError(t, os.RemoveAll(dir))
+	m.reconcile(ctx5(t), false)
+	must.Eq(t, hvstate.ReasonMissingPath, mustStatus(t, m, "vol-a").Reason)
+	before := e.lines("creates")
+
+	must.NoError(t, m.locks.acquire(ctx5(t), "vol-a"))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		m.reconcile(ctx5(t), false)
+	}()
+	eventually(t, func() bool { return m.locks.refs("vol-a") == 2 }, 5*time.Second)
+	m.mu.Lock()
+	must.NoError(t, m.cfg.Store.DeleteHostVolume("vol-a"))
+	delete(m.entries, "vol-a")
+	m.mu.Unlock()
+	m.locks.release("vol-a")
+	<-done
+
+	must.Eq(t, before, e.lines("creates"), must.Sprint("the waiting pass ran create for the deleted volume"))
+	_, statErr := os.Stat(dir)
+	must.True(t, errors.Is(statErr, fs.ErrNotExist))
+}
+
+// A repeated create of an existing volume whose record cannot be stored must
+// not roll back: the rollback is the plugin's delete, and the volume is live.
+func TestManager_RepeatedCreateStoreFailureKeepsVolume(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	m := e.manager()
+	st, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+	must.NoError(t, err)
+	payload := filepath.Join(st.Path, "payload")
+	must.NoError(t, os.WriteFile(payload, []byte("keep"), 0o600))
+
+	e.store.setPutError(errors.New("synthetic store failure"))
+	_, err = m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+	must.Error(t, err)
+
+	must.Eq(t, 2, e.lines("creates"))
+	must.Eq(t, 0, e.lines("deletes"), must.Sprint("the rollback deleted a volume that already had a record"))
+	b, err := os.ReadFile(payload)
+	must.NoError(t, err)
+	must.Eq(t, "keep", string(b))
+	must.Eq(t, hvstate.StatusReady, mustStatus(t, m, "vol-a").Status)
+}
+
+// A plugin volume held back only by a name conflict is checked on a periodic
+// pass, not created again.
+func TestManager_NameConflictIsNotRecreated(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	e.seed(e.pluginRec("vol-a", "data"))
+	e.setStatic("data", true)
+
+	m := e.manager()
+	m.Restore(ctx5(t))
+	must.Eq(t, hvstate.ReasonNameConflict, mustStatus(t, m, "vol-a").Reason)
+	must.Eq(t, 1, e.lines("creates"), must.Sprint("restore runs create once"))
+
+	for range 3 {
+		m.reconcile(ctx5(t), false)
+	}
+	must.Eq(t, hvstate.ReasonNameConflict, mustStatus(t, m, "vol-a").Reason)
+	must.Eq(t, 1, e.lines("creates"))
+	must.Eq(t, 0, e.pubCount())
+}
+
+// The volume that owns a name loses its path and, in the same pass, another
+// volume takes the name. The set keeps its one key, but the entry under it
+// changed and must be published.
+func TestManager_ChangedEntryIsRepublished(t *testing.T) {
+	e := newMgrEnv(t)
+	dirA := filepath.Join(t.TempDir(), "a")
+	must.NoError(t, os.Mkdir(dirA, 0o700))
+	dirB := t.TempDir()
+	e.seed(e.registeredRec("vol-a", "data", dirA))
+	e.seed(e.registeredRec("vol-b", "data", dirB))
+
+	m := e.manager()
+	m.Restore(ctx5(t))
+	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dirA, ID: "vol-a"}, *e.published()["data"])
+	pubs := e.pubCount()
+
+	must.NoError(t, os.Remove(dirA))
+	m.reconcile(ctx5(t), false)
+	must.Eq(t, pubs+1, e.pubCount())
+	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dirB, ID: "vol-b"}, *e.published()["data"])
+}
+
+// A plugin create with the ID of a registered volume would replace the
+// operator's registration with a record that Delete acts on.
+func TestManager_CreateOverRegisteredVolumeIsRejected(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	m := e.manager()
+	dir := t.TempDir()
+	_, err := m.AddRegistered(ctx5(t), e.regReq("vol-a", "data", dir))
+	must.NoError(t, err)
+
+	_, err = m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+	var oe *OpError
+	must.True(t, errors.As(err, &oe))
+	must.Eq(t, ReasonInvalidInput, oe.Reason)
+	must.Eq(t, 0, e.lines("creates"))
+	st := mustStatus(t, m, "vol-a")
+	must.Eq(t, hvstate.KindRegistered, st.Kind)
+	must.Eq(t, dir, st.Path)
+	must.Eq(t, hvstate.KindRegistered, e.stored("vol-a").Kind)
+}
+
+// Shutdown cancels a restore that is waiting on its first volume. The pass
+// was not finished, so it must store and publish nothing: the records keep
+// what the earlier run stored and the next start checks them.
+func TestManager_CanceledRestoreStoresAndPublishesNothing(t *testing.T) {
+	e := newMgrEnv(t)
+	e.seed(e.registeredRec("vol-a", "first", t.TempDir()))
+	e.seed(e.registeredRec("vol-b", "second", filepath.Join(t.TempDir(), "gone")))
+
+	m := e.manager()
+	must.NoError(t, m.locks.acquire(ctx5(t), "vol-a"))
+	ctx, cancel := context.WithCancel(ctx5(t))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		m.Restore(ctx)
+	}()
+	eventually(t, func() bool { return m.locks.refs("vol-a") == 2 }, 5*time.Second)
+	puts := e.store.putCount()
+	cancel()
+	<-done
+	m.locks.release("vol-a")
+
+	must.Eq(t, puts, e.store.putCount())
+	must.Eq(t, 0, e.pubCount())
+	for _, id := range []string{"vol-a", "vol-b"} {
+		must.Eq(t, hvstate.StatusReady, e.stored(id).Status, must.Sprint(id))
+	}
+}
+
+// The record is written when its status, reason or message changes. A pass
+// that finds nothing changed writes nothing, so a quiet node does not write
+// to the state store every interval.
+func TestManager_QuietPassWritesNothing(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	m := e.manager()
+	_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+	must.NoError(t, err)
+	_, err = m.AddRegistered(ctx5(t), e.regReq("vol-b", "other", t.TempDir()))
+	must.NoError(t, err)
+	// one unavailable volume too: its unchanged diagnostic is not rewritten
+	must.NoError(t, os.RemoveAll(filepath.Join(e.volumes, "vol-a")))
+	e.flag("fail", true)
+	m.reconcile(ctx5(t), false)
+	m.reconcile(ctx5(t), false)
+	must.Eq(t, hvstate.ReasonRestoreFailed, mustStatus(t, m, "vol-a").Reason)
+
+	puts, pubs := e.store.putCount(), e.pubCount()
+	for range 3 {
+		m.reconcile(ctx5(t), false)
+	}
+	must.Eq(t, puts, e.store.putCount())
+	must.Eq(t, pubs, e.pubCount())
 }

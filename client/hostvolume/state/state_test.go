@@ -40,6 +40,7 @@ func TestRecord_Validate(t *testing.T) {
 		"nul in path":      func(r *Record) { r.Path = "/a\x00b" },
 		"status unknown":   func(r *Record) { r.Status = "gone" },
 		"message too long": func(r *Record) { r.Message = strings.Repeat("m", MaxMessageLen+1) },
+		"reason too long":  func(r *Record) { r.Reason = strings.Repeat("r", MaxIDLen+1) },
 	}
 	for name, mod := range cases {
 		t.Run(name, func(t *testing.T) {

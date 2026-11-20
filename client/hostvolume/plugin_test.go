@@ -302,3 +302,92 @@ func TestRunner_Fingerprint_TimeoutKillsProcessGroup(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+// Every other test sets its own timeout. This one runs the zero Runner, as
+// the client does at start, against a plugin that never answers: it must be
+// stopped by the recorded five seconds. The caller's deadline only bounds the
+// test; if it fires first the reason is canceled, not timeout.
+func TestRunner_Fingerprint_DefaultTimeout(t *testing.T) {
+	ci.Parallel(t)
+	dir := t.TempDir()
+	p := writePlugin(t, dir, "plug", `exec sleep 60`, 0o755)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	res := Runner{}.Fingerprint(ctx, Candidate{ID: "plug", Path: p})
+	elapsed := time.Since(start)
+
+	must.NotNil(t, res.Diag)
+	must.Eq(t, ReasonTimeout, res.Diag.Reason)
+	must.True(t, elapsed >= 5*time.Second, must.Sprintf("stopped after %s", elapsed))
+	must.True(t, elapsed < 10*time.Second, must.Sprintf("stopped after %s", elapsed))
+}
+
+const helperEnv = "HOSTVOLUME_TEST_HELPER"
+
+// TestHelperLeaveGroup is not a test. A plugin script starts it with
+// HOSTVOLUME_TEST_HELPER=leave-group. It leaves the plugin's session and
+// process group, keeps the inherited stdout and stderr open, writes its PID
+// to the file "left-group" and waits to be killed.
+func TestHelperLeaveGroup(t *testing.T) {
+	if os.Getenv(helperEnv) != "leave-group" {
+		t.Skip("helper process only")
+	}
+	if _, err := syscall.Setsid(); err != nil {
+		os.Exit(3)
+	}
+	if err := os.WriteFile("left-group.tmp", []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+		os.Exit(4)
+	}
+	if err := os.Rename("left-group.tmp", "left-group"); err != nil {
+		os.Exit(5)
+	}
+	time.Sleep(time.Minute)
+	os.Exit(0)
+}
+
+// A process that leaves the plugin's process group survives the kill and
+// keeps the output pipes open. The wait for those pipes must be bounded, or
+// the caller waits, holding the volume lock, for as long as that process
+// lives.
+func TestRunPlugin_WaitIsBoundedAfterKill(t *testing.T) {
+	ci.Parallel(t)
+	dir := t.TempDir()
+	bin, err := os.Executable()
+	must.NoError(t, err)
+	p := writePlugin(t, dir, "plug", helperEnv+`=leave-group '`+bin+`' -test.run='^TestHelperLeaveGroup$' &
+wait`, 0o755)
+	killHelper := func() {
+		raw, err := os.ReadFile(filepath.Join(dir, "left-group"))
+		if err != nil {
+			return
+		}
+		if pid, err := strconv.Atoi(string(raw)); err == nil && pid > 1 {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+		}
+	}
+	t.Cleanup(killHelper)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = runPlugin(ctx, p, nil, nil, Limits{Stdout: 64, Stderr: 64})
+	}()
+	// Only once the helper has left the group does the kill leave it alive.
+	eventually(t, func() bool {
+		_, err := os.Stat(filepath.Join(dir, "left-group"))
+		return err == nil
+	}, 20*time.Second)
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(waitDelay + 5*time.Second):
+		killHelper()
+		<-done
+		t.Fatal("runPlugin kept waiting for the output pipes after the plugin was killed")
+	}
+}
