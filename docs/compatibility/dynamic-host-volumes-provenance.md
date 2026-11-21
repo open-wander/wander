@@ -1,7 +1,8 @@
 # Dynamic host volume provenance
 
 This record accompanies [the JSON matrix](dynamic-host-volumes.json).
-It captures interface evidence on 2026-11-08, 2026-11-15 and 2026-11-17, not an
+It captures interface evidence on 2026-11-08, 2026-11-15, 2026-11-17 and
+2026-11-20, not an
 implemented feature or a complete verified contract. Every runtime acceptance test is currently planned.
 The offline validator tests the ledger itself only.
 
@@ -329,19 +330,44 @@ Wander policy.
 
 ### Wander policy
 
-#### Wander policy pending black-box verification
+#### Points the specification does not state
 
-Decided by the owner on 2026-11-17 because the evidence does not state them.
-Each is one small function or constant in `operation.go` so that it is easy to
-change when black-box verification against a real implementation is allowed.
+The owner decided these on 2026-11-17 because the public specification does
+not state them. They were compared with an official release binary on
+2026-11-20 ([observation](#observation-plugin-inputs)). Each is one small
+function or constant in `operation.go`.
 
-| # | Point | Decision | Evidence ids |
-| --- | --- | --- | --- |
-| 1 | Capacity variables | Always set, base-10 integers. Unset capacity is `0` (`formatCapacity`). Negative input is rejected as `invalid_input`. | DHV-B-092, DHV-B-093 |
-| 2 | `DHV_PARAMETERS` with no parameters | Always set. Nil or empty is exactly `{}` (`encodeParameters`). | DHV-B-094 |
-| 3 | Empty values | Every documented variable for the operation is always set. An empty value is the empty string, never omitted (`buildEnv`). | DHV-B-084 to DHV-B-095 |
-| 4 | Create output | `path` is required and must be a JSON string. `bytes` is optional: missing is `0`; present it must be a non-negative JSON integer written as `0` or digits without a leading zero, fitting int64. Fractions, exponents, strings, negatives, `-0`, `null` and overflow are `invalid_output` (`parseCreateOutput`). | DHV-B-081 |
-| 5 | Error object | Read only when the plugin exits non-zero, for create and delete (`parsePluginError`). For delete this is the only use of stdout. On exit 0, create output is parsed as a result, so an object without a valid `path` is `invalid_output` even if it has an `error` field; delete succeeds on exit 0 whatever stdout says. | DHV-B-096, DHV-B-097 |
+| # | Point | Wander | Observed | Evidence ids |
+| --- | --- | --- | --- | --- |
+| 1 | Capacity variables | Set on create as base-10 integers; unset capacity is `0` (`formatCapacity`). Not set on delete. Negative input is rejected as `invalid_input`. | The same. | DHV-B-092, DHV-B-093 |
+| 2 | `DHV_PARAMETERS` with no parameters | The JSON text `null` (`encodeParameters`). It was `{}` until the observation; the owner chose to match on 2026-11-20. | `null`, on create and delete. | DHV-B-094 |
+| 3 | Empty values | Every variable of the operation is set; an empty value is the empty string (`buildEnv`). `DHV_CREATED_PATH` is not set on create. | The same for the cases seen: `DHV_CREATED_PATH` is not set on create and is the empty string on delete when create returned no path. | DHV-B-084 to DHV-B-095 |
+| 4 | Create output | `path` is required and must be a JSON string. `bytes` is optional: missing is `0`; present it must be a non-negative JSON integer written as `0` or digits without a leading zero, fitting int64. Fractions, exponents, strings, negatives, `-0`, `null` and overflow are `invalid_output` (`parseCreateOutput`). | A result without `bytes` is accepted and the capacity is reported as 0. | DHV-B-081 |
+| 5 | Error object | Read only when the plugin exits non-zero, for create and delete (`parsePluginError`). On exit 0, create output is parsed as a result, so an object without a valid `path` is `invalid_output` even if it has an `error` field; delete succeeds on exit 0 whatever stdout says. | An error object with exit 0 is treated as a successful create: the volume is reported ready with no host path. Wander deliberately differs (owner decision, 2026-11-20), because a ready volume without a path cannot be mounted. | DHV-B-096, DHV-B-097 |
+
+Two more differences were seen and are kept (owner decision, 2026-11-20). The
+observed agent passes no `PATH` to the plugin and runs it in the agent's
+working directory. Wander passes a fixed `PATH` and runs the plugin in the
+plugin directory.
+
+#### Observation of plugin inputs {#observation-plugin-inputs}
+
+A synthetic plugin that records its arguments and environment was installed on
+a development-mode agent of an official release binary, on a workstation with
+no other cluster. Four synthetic volumes were created and deleted. The plugin
+and the volumes held no real data, and identifiers are not recorded here.
+
+```json
+{
+  "source_id": "SRC-observe-plugin-inputs",
+  "binary_version": "Nomad v2.0.2 (official release binary, darwin/arm64)",
+  "synthetic": true,
+  "request": "Create and delete of four synthetic host volumes through a synthetic plugin that records its arguments and environment: one with no capacity and no parameters, one with both, one whose create result omits bytes, and one whose create prints an error object and exits 0.",
+  "response": "Fingerprint: one argument, only DHV_OPERATION set. Create: one argument; DHV_CAPACITY_MIN_BYTES and DHV_CAPACITY_MAX_BYTES are 0 when unset and byte counts when set; DHV_PARAMETERS is null with no parameters and a JSON object otherwise; DHV_CREATED_PATH is not set. Delete: capacity variables are not set; DHV_PARAMETERS as on create; DHV_CREATED_PATH is the created path, or the empty string when create returned none. No PATH is passed and the working directory is the agent's. A create result without bytes succeeds with capacity 0. A create that prints an error object and exits 0 succeeds and the volume is ready with no host path.",
+  "date": "2026-11-20",
+  "limitations": "One client, one version, one platform, development mode; behaviour may differ elsewhere."
+}
+```
 
 #### Other policy
 

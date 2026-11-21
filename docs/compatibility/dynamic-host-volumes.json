@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "feature": "dynamic-host-volumes",
-  "evidence_cutoff": "2026-11-17",
+  "evidence_cutoff": "2026-11-20",
   "synthetic_only": true,
   "sources": [
     {"id":"SRC-api","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-08","scope":"HTTP and claim operation tables; conflicting examples","summary":"Public operation tables only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
@@ -12,6 +12,7 @@
     {"id":"SRC-cli","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/commands/volume","date":"2026-11-08","scope":"Command family index","summary":"Command family existence only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-acl","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/secure/acl/policies#host-volume-rules","date":"2026-11-08","scope":"Host volume mount policy","summary":"Mount permissions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-acl-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/acl-policy","date":"2026-11-15","scope":"Namespace host-volume capabilities, their implications, and the read, write and scale shorthands","summary":"Capability names, descriptions and shorthand expansions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
+    {"id":"SRC-observe-plugin-inputs","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-plugin-inputs","date":"2026-11-20","scope":"Arguments, environment and result handling of the create and delete plugin calls","summary":"What an official release binary passed to a synthetic recording plugin, and how it treated two unusual create outputs.","limitations":"One client, one version, one platform, development mode; behaviour may differ elsewhere."},
     {"id":"SRC-requirements","category":"wander_requirement","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#requirements","date":"2026-11-08","scope":"Authorized PRD inventory; US-001..018, FR-1..36, section 6.5","summary":"Wander intended acceptance criteria; not upstream behavior.","limitations":"Does not resolve missing public contract evidence."}
   ],
   "test_cases": [
@@ -1588,7 +1589,7 @@
         "contract": {"status":"documented","value":"First argument create; stdout path and bytes; sixty-second timeout.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
         "inputs_defaults": {"status":"documented","value":"Environment: DHV_OPERATION, DHV_VOLUMES_DIR, DHV_PLUGIN_DIR, DHV_NAMESPACE, DHV_VOLUME_NAME, DHV_VOLUME_ID, DHV_NODE_ID, DHV_NODE_POOL, DHV_CAPACITY_MIN_BYTES, DHV_CAPACITY_MAX_BYTES, DHV_PARAMETERS (JSON text of the parameters).","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
         "outputs": {"status":"documented","value":"JSON object with path and bytes; the documented example shows bytes as a number. The plugin must create a path on disk, within DHV_VOLUMES_DIR or otherwise, and return it as path. The path is passed back as DHV_CREATED_PATH on delete. Whether either field may be omitted is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-081"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
+        "errors": {"status":"observed","value":"A create that prints a JSON object with only an error field and exits 0 is treated as a success: the volume is reported ready with no host path. A create result without bytes is accepted and the capacity is reported as 0.","evidence_refs":["SRC-observe-plugin-inputs"],"test_ids":["DHV-T-081"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-081"]}
@@ -1773,7 +1774,7 @@
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for DHV_CAPACITY_MIN_BYTES that remain null? Consult permitted evidence before implementation."],
       "assertions": {
         "contract": {"status":"documented","value":"Protocol environment variable: DHV_CAPACITY_MIN_BYTES; capacity_min from the volume specification expressed in bytes. The value when capacity_min is unset is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-092"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-092"]},
+        "inputs_defaults": {"status":"observed","value":"With capacity_min unset the variable is set to 0 on create. It is not set on delete.","evidence_refs":["SRC-observe-plugin-inputs"],"test_ids":["DHV-T-092"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-092"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-092"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-092"]},
@@ -1790,7 +1791,7 @@
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for DHV_CAPACITY_MAX_BYTES that remain null? Consult permitted evidence before implementation."],
       "assertions": {
         "contract": {"status":"documented","value":"Protocol environment variable: DHV_CAPACITY_MAX_BYTES; capacity_max from the volume specification expressed in bytes. The value when capacity_max is unset is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-093"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-093"]},
+        "inputs_defaults": {"status":"observed","value":"With capacity_max unset the variable is set to 0 on create. It is not set on delete.","evidence_refs":["SRC-observe-plugin-inputs"],"test_ids":["DHV-T-093"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-093"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-093"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-093"]},
@@ -1807,7 +1808,7 @@
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for DHV_PARAMETERS that remain null? Consult permitted evidence before implementation."],
       "assertions": {
         "contract": {"status":"documented","value":"Protocol environment variable: DHV_PARAMETERS; the parameters from the volume specification as JSON text. The value when there are no parameters is not stated.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-094"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-094"]},
+        "inputs_defaults": {"status":"observed","value":"With no parameters the variable is set to the JSON text null, on create and on delete.","evidence_refs":["SRC-observe-plugin-inputs"],"test_ids":["DHV-T-094"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-094"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-094"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-094"]},
@@ -1824,7 +1825,7 @@
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for DHV_CREATED_PATH that remain null? Consult permitted evidence before implementation."],
       "assertions": {
         "contract": {"status":"documented","value":"Protocol environment variable: DHV_CREATED_PATH.","evidence_refs":["SRC-plugin"],"test_ids":["DHV-T-095"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-095"]},
+        "inputs_defaults": {"status":"observed","value":"Not set on create. Set on delete to the path create returned, and to the empty string when create returned no path.","evidence_refs":["SRC-observe-plugin-inputs"],"test_ids":["DHV-T-095"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-095"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-095"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-095"]},
