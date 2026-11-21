@@ -504,3 +504,48 @@ func (b *batchNodeUpdates) batchDevicesUpdates(f devicemanager.UpdateNodeDevices
 	f(b.devices)
 	return nil
 }
+
+// hostVolumesFor returns the host volumes of the node as they are now that an
+// allocation of the namespace may mount. Node.HostVolumes carries no
+// namespace, so a dynamic entry is kept only when the record that the volume
+// manager holds for its ID is in that namespace. An entry whose record is
+// missing, for example because the volume was deleted since the node was
+// updated, is dropped too. This is Wander policy: the server already places
+// an allocation only on a volume of its namespace, and this keeps a client
+// from mounting a volume of another namespace if that check were bypassed.
+//
+// The node's map is rebuilt for every update and never changed in place, so
+// it is read without the config lock and is not modified here.
+func (c *Client) hostVolumesFor(namespace string) map[string]*structs.ClientHostVolumeConfig {
+	all := c.GetConfig().Node.HostVolumes
+	if c.hostVolumeManager == nil {
+		return all
+	}
+
+	out := make(map[string]*structs.ClientHostVolumeConfig, len(all))
+	for name, v := range all {
+		if v != nil && v.ID != "" {
+			if ns, ok := c.hostVolumeManager.Namespace(v.ID); !ok || ns != namespace {
+				continue
+			}
+		}
+		out[name] = v
+	}
+	return out
+}
+
+var closedHostVolumesRestored = func() <-chan struct{} {
+	ch := make(chan struct{})
+	close(ch)
+	return ch
+}()
+
+// hostVolumesRestored returns a channel that is closed once the volume
+// manager has ended its first restore. Without a manager there is nothing to
+// restore, so the channel is already closed.
+func (c *Client) hostVolumesRestored() <-chan struct{} {
+	if c.hostVolumeManager == nil {
+		return closedHostVolumesRestored
+	}
+	return c.hostVolumeManager.Restored()
+}

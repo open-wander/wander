@@ -469,6 +469,9 @@ the scheduler host volume checker and from `evaluateNodePlan` in
 | Preemption | Wander policy | The checker runs before ranking and preemption, so a holder is never preempted to free a volume. Preempted allocations stop counting in both places. |
 | Blocked evaluations | Existing mechanism, no new code | The checker is a per-node availability check, so a filtered node does not mark its computed class ineligible and the blocked evaluation records the class as eligible. When the holder's client reports it complete or failed, `applyAllocClientUpdate` unblocks the class and the node, which re-queues the waiting evaluation. A job stop alone does not wake it; the wake comes when the client reports the allocation terminal. |
 | Plan rejection tracking | Wander policy | With node plan rejection tracking enabled (off by default), repeated writer conflicts count towards marking a node ineligible, as with capacity races. |
+| Release point | Wander policy | An attachment is released when the client reports the allocation complete, failed or lost. An allocation the server has stopped but that still runs on its client keeps the volume in the scheduler, so a second writer is not placed while the first can still have the volume mounted. |
+| Unlinked replacement in one plan | Known gap | The scheduler removes the allocations a plan stops before it counts holders. A plan that stops a holder and places a writer that is not its replacement (another task group on the same source, or a system job) is accepted, and nothing on the client makes the new allocation wait for the old one. A linked replacement does wait, through the previous-allocation watcher. Counting stopped allocations would refuse every same-node destructive update, so the gap is left open. |
+| Lost holder | Known gap | A holder reported lost does not wake a blocked evaluation by itself. The waiting evaluation is re-queued when the node returns or by another unblocking event. |
 
 ### Observation of scheduling {#observation-scheduling}
 
@@ -492,6 +495,29 @@ Known differences that are kept. Wander rejects `block-device` on a host
 volume request at submission, where the observed binary accepts it and never
 places it. Wander reports a separate reason for each kind of dynamic volume
 failure, where the observed binary reports one reason for all of them.
+
+## Task mounts (client) {#task-mounts}
+
+Implemented in `client/allocrunner/taskrunner/volume_hook.go`,
+`client/node_updater.go` (`hostVolumesFor`) and `client/hostvolume/manager.go`
+(`Restored`, `Namespace`).
+
+### Recorded evidence
+
+A group volume request of type `host` whose source names a dynamic host volume
+is mounted through the task's `volume_mount`, as for a static host volume
+(`SRC-job`). No public source describes the timing of the mount on the client.
+
+### Wander policy
+
+| Topic | Rule |
+| --- | --- |
+| Current set | The volume hook reads the host volumes of the node as they are at prestart, through a function the client passes to the task runner. Without that function it uses the configuration captured when the task runner was built, which holds static volumes only. |
+| Agent restart | A restored allocation can reach prestart before the volume manager has restored the dynamic volumes. When a requested source is missing, the hook waits until the first restore has ended, bounded by the restore timeout and by the task's kill context, and reads the set again. It does not return a recoverable error: prestart also runs for a task that is still running after the restart, and an exhausted restart policy would kill it. A task whose volumes are all present does not wait. |
+| Missing volume | A source that is still missing after the wait fails the task with `missing <source>`, as before. A static name that is not configured fails with the same message, after the same wait when the agent has just started. |
+| Read-only | The mount is read-only when the volume entry, the group request or the task mount says so. A dynamic entry is published read/write, so for it the request and the mount decide. Propagation mode is passed through unchanged. |
+| Namespace | A node's host volume entries carry no namespace. The client offers a dynamic entry to an allocation only when the manager's record for its ID exists and is in the allocation's namespace. Another entry counts as missing. The server already places an allocation only on a volume of its namespace; this is a second check on the client. |
+| Logging | A missing volume is logged with the sorted missing sources and their count. The set of host volumes, which holds paths, is no longer logged. |
 
 ## Built-in mkdir plugin (client) {#builtin-mkdir}
 

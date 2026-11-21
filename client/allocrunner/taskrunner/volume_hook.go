@@ -6,6 +6,7 @@ package taskrunner
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	log "github.com/hashicorp/go-hclog"
 	multierror "github.com/hashicorp/go-multierror"
@@ -35,8 +36,10 @@ func (*volumeHook) Name() string {
 	return "volumes"
 }
 
-func validateHostVolumes(requestedByAlias map[string]*structs.VolumeRequest, clientVolumesByName map[string]*structs.ClientHostVolumeConfig, allocName string) error {
-	var result error
+// missingHostVolumes returns the sorted sources of the requested host volumes
+// that the client does not offer. Only sources are returned, never paths.
+func missingHostVolumes(requestedByAlias map[string]*structs.VolumeRequest, clientVolumesByName map[string]*structs.ClientHostVolumeConfig, allocName string) []string {
+	var missing []string
 
 	for _, req := range requestedByAlias {
 		// This is a defensive check, but this function should only ever receive
@@ -50,10 +53,20 @@ func validateHostVolumes(requestedByAlias map[string]*structs.VolumeRequest, cli
 			source = source + structs.AllocSuffix(allocName)
 		}
 
-		_, ok := clientVolumesByName[source]
-		if !ok {
-			result = multierror.Append(result, fmt.Errorf("missing %s", source))
+		if _, ok := clientVolumesByName[source]; !ok {
+			missing = append(missing, source)
 		}
+	}
+
+	slices.Sort(missing)
+	return missing
+}
+
+func validateHostVolumes(requestedByAlias map[string]*structs.VolumeRequest, clientVolumesByName map[string]*structs.ClientHostVolumeConfig, allocName string) error {
+	var result error
+
+	for _, source := range missingHostVolumes(requestedByAlias, clientVolumesByName, allocName) {
+		result = multierror.Append(result, fmt.Errorf("missing %s", source))
 	}
 
 	return result
@@ -118,13 +131,52 @@ func partitionVolumesByType(xs map[string]*structs.VolumeRequest) map[string]map
 	return result
 }
 
-func (h *volumeHook) prepareHostVolumes(req *interfaces.TaskPrestartRequest, volumes map[string]*structs.VolumeRequest) ([]*drivers.MountConfig, error) {
-	hostVolumes := h.runner.clientConfig.Node.HostVolumes
+// liveHostVolumes returns the host volumes of the client that the allocation
+// may mount. Without an injected getter it is the set captured when the task
+// runner was built, as for static volumes only.
+//
+// Wander policy: dynamic host volumes are published after the task runner is
+// built, and after an agent restart a restored allocation can reach prestart
+// before the volume manager has restored them. When a requested source is
+// missing the hook therefore waits for the first restore to end, bounded by
+// the restore timeout and by ctx, and looks again. It does not return a
+// recoverable error instead: prestart also runs for a task that is still
+// running after the restart, and a failed restart decision would kill it
+// because of start ordering. A static name that is not configured is delayed
+// by the same wait and then fails with the same error. A task whose volumes
+// are all present never waits.
+func (h *volumeHook) liveHostVolumes(ctx context.Context, req *interfaces.TaskPrestartRequest, volumes map[string]*structs.VolumeRequest) (map[string]*structs.ClientHostVolumeConfig, error) {
+	if h.runner.hostVolumes == nil {
+		return h.runner.clientConfig.Node.HostVolumes, nil
+	}
+
+	ns := req.Alloc.Namespace
+	hostVolumes := h.runner.hostVolumes(ns)
+	if h.runner.hostVolumesRestored == nil || len(missingHostVolumes(volumes, hostVolumes, req.Alloc.Name)) == 0 {
+		return hostVolumes, nil
+	}
+
+	select {
+	case <-h.runner.hostVolumesRestored():
+	case <-ctx.Done():
+		return nil, fmt.Errorf("waiting for host volumes: %w", ctx.Err())
+	}
+	return h.runner.hostVolumes(ns), nil
+}
+
+func (h *volumeHook) prepareHostVolumes(ctx context.Context, req *interfaces.TaskPrestartRequest, volumes map[string]*structs.VolumeRequest) ([]*drivers.MountConfig, error) {
+	hostVolumes, err := h.liveHostVolumes(ctx, req, volumes)
+	if err != nil {
+		return nil, err
+	}
 
 	// Always validate volumes to ensure that we do not allow volumes to be used
 	// if a host is restarted and loses the host volume configuration.
 	if err := validateHostVolumes(volumes, hostVolumes, req.Alloc.Name); err != nil {
-		h.logger.Error("Requested Host Volume does not exist", "existing", hostVolumes, "requested", volumes)
+		// Only the missing sources are logged: the set of the client holds
+		// paths, including those of volumes of other namespaces.
+		missing := missingHostVolumes(volumes, hostVolumes, req.Alloc.Name)
+		h.logger.Error("Requested Host Volume does not exist", "missing", missing, "missing_count", len(missing))
 		return nil, fmt.Errorf("host volume validation error: %v", err)
 	}
 
@@ -214,7 +266,7 @@ func (h *volumeHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartR
 
 	volumes := partitionVolumesByType(h.alloc.Job.LookupTaskGroup(h.alloc.TaskGroup).Volumes)
 
-	hostVolumeMounts, err := h.prepareHostVolumes(req, volumes[structs.VolumeTypeHost])
+	hostVolumeMounts, err := h.prepareHostVolumes(ctx, req, volumes[structs.VolumeTypeHost])
 	if err != nil {
 		return err
 	}
