@@ -138,7 +138,7 @@ func TestOps_Create_ArgvAndEnv(t *testing.T) {
 		must.Eq(t, "", env["DHV_NODE_POOL"])
 		must.Eq(t, "0", env["DHV_CAPACITY_MIN_BYTES"])
 		must.Eq(t, "0", env["DHV_CAPACITY_MAX_BYTES"])
-		must.Eq(t, "{}", env["DHV_PARAMETERS"])
+		must.Eq(t, "null", env["DHV_PARAMETERS"])
 		must.MapLen(t, 12, env)
 		for _, k := range []string{"DHV_NODE_POOL", "DHV_NAMESPACE", "DHV_PARAMETERS"} {
 			_, ok := env[k]
@@ -174,7 +174,7 @@ func TestOps_Delete_ArgvAndEnv(t *testing.T) {
 	req := OpRequest{VolumeID: "vol-1"}
 	must.NoError(t, e.ops.Delete(context.Background(), c, req, "/srv/v"))
 	_, env = readDump(t, dump)
-	must.Eq(t, "{}", env["DHV_PARAMETERS"])
+	must.Eq(t, "null", env["DHV_PARAMETERS"])
 	must.MapLen(t, 11, env)
 }
 
@@ -189,8 +189,8 @@ func TestEncodings(t *testing.T) {
 		in   map[string]string
 		want string
 	}{
-		{"nil", nil, "{}"},
-		{"empty", map[string]string{}, "{}"},
+		{"nil", nil, "null"},
+		{"empty", map[string]string{}, "null"},
 		{"sorted", map[string]string{"z": "1", "a": "2", "m": "3"}, `{"a":"2","m":"3","z":"1"}`},
 		{"no html escaping", map[string]string{"k": "<a&b>"}, `{"k":"<a&b>"}`},
 		{"empty value", map[string]string{"k": ""}, `{"k":""}`},
