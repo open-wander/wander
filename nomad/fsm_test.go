@@ -4140,3 +4140,63 @@ func persistedRecordOrder(t *testing.T, snap raft.FSMSnapshot) []string {
 	}
 	return order
 }
+
+// A blocked evaluation that is eligible for the class of the node is
+// unblocked when an allocation on that node ends. A waiter on a single-writer
+// volume is such an evaluation, as the scheduler tests show. A holder that is
+// lost does not unblock it, as for every blocked evaluation: the node comes
+// back through the node status path.
+func TestFSM_UpdateAllocFromClient_UnblocksWriterWaiter(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		name      string
+		status    string
+		unblocked bool
+	}{
+		{"holder complete", structs.AllocClientStatusComplete, true},
+		{"holder failed", structs.AllocClientStatusFailed, true},
+		{"holder still running", structs.AllocClientStatusRunning, false},
+		{"holder lost", structs.AllocClientStatusLost, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fsm := testFSM(t)
+			fsm.blockedEvals.SetEnabled(true)
+			state := fsm.State()
+
+			node := mock.Node()
+			must.NoError(t, state.UpsertNode(structs.MsgTypeTestSetup, 1, node))
+
+			holder := mock.Alloc()
+			holder.NodeID = node.ID
+			must.NoError(t, state.UpsertJobSummary(8, mock.JobSummary(holder.JobID)))
+			must.NoError(t, state.UpsertAllocs(structs.MsgTypeTestSetup, 10, []*structs.Allocation{holder}))
+
+			// The waiting evaluation, as the scheduler blocks it: eligible
+			// for the class of the node.
+			eval := mock.Eval()
+			eval.Status = structs.EvalStatusBlocked
+			eval.ClassEligibility = map[string]bool{node.ComputedClass: true}
+			fsm.blockedEvals.Block(eval)
+			must.Eq(t, 1, fsm.blockedEvals.Stats().TotalBlocked)
+
+			update := &structs.Allocation{ID: holder.ID, NodeID: node.ID, ClientStatus: tc.status}
+			buf, err := structs.Encode(structs.AllocClientUpdateRequestType, structs.AllocUpdateRequest{Alloc: []*structs.Allocation{update}})
+			must.NoError(t, err)
+			must.Nil(t, fsm.Apply(makeLog(buf)))
+
+			if tc.unblocked {
+				testutil.WaitForResult(func() (bool, error) {
+					if got := fsm.blockedEvals.Stats().TotalBlocked; got != 0 {
+						return false, fmt.Errorf("still blocked: %d", got)
+					}
+					return true, nil
+				}, func(err error) { t.Fatalf("err: %s", err) })
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+			must.Eq(t, 1, fsm.blockedEvals.Stats().TotalBlocked)
+		})
+	}
+}

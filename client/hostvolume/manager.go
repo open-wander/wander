@@ -163,6 +163,12 @@ type Manager struct {
 	// set is never delivered after a newer one.
 	pubMu     sync.Mutex
 	published map[string]*structs.ClientHostVolumeConfig
+
+	// restored is closed when the first Restore ends, however it ends, so
+	// that a caller that needs the restored set can wait for it. Restore
+	// closes it after the first publish has returned.
+	restored     chan struct{}
+	restoredOnce sync.Once
 }
 
 // NewManager returns a manager. Store, Ops, NodeID and Publish are required.
@@ -193,9 +199,10 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		cfg.StaticName = func(string) bool { return false }
 	}
 	m := &Manager{
-		cfg:     cfg,
-		logger:  cfg.Logger.Named("host_volumes"),
-		entries: make(map[string]*entry),
+		cfg:      cfg,
+		logger:   cfg.Logger.Named("host_volumes"),
+		entries:  make(map[string]*entry),
+		restored: make(chan struct{}),
 	}
 	if cfg.Lookup == nil {
 		m.cfg.Lookup = m.defaultLookup
@@ -225,9 +232,32 @@ func (m *Manager) defaultLookup(ctx context.Context, pluginID string) (Candidate
 func (m *Manager) Restore(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.RestoreTimeout)
 	defer cancel()
+	defer m.restoredOnce.Do(func() { close(m.restored) })
 
 	m.ensureLoaded()
 	m.reconcile(ctx, true)
+}
+
+// Restored returns a channel that is closed when the first Restore has ended,
+// after it published the volumes it verified. It is also closed when that
+// Restore was cut short by its deadline or by shutdown, so a waiter is
+// bounded by RestoreTimeout.
+func (m *Manager) Restored() <-chan struct{} {
+	return m.restored
+}
+
+// Namespace returns the namespace of the record of a volume. A volume the
+// manager does not know, for example one that was deleted meanwhile, reports
+// false. The namespace of a record never changes.
+func (m *Manager) Namespace(volumeID string) (string, bool) {
+	m.ensureLoaded()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e := m.entries[volumeID]
+	if e == nil {
+		return "", false
+	}
+	return e.rec.Namespace, true
 }
 
 // ensureLoaded reads the store once. Restore and every entry point call it

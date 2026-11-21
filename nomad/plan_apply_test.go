@@ -1358,6 +1358,46 @@ func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
 			fit: true,
 		},
 		{
+			// Wander policy: the applier counts only allocations that are not
+			// terminal, so a holder that is desired stop is not counted here
+			// even while it still runs on the client. This is safe because the
+			// scheduler counts such a holder, from any snapshot, and refuses
+			// the placement; the applier only has to catch two placements
+			// that are both proposed.
+			name: "writer next to a desired-stop writer that still runs is left to the scheduler",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				old.DesiredStatus = structs.AllocDesiredStatusStop
+				old.ClientStatus = structs.AllocClientStatusRunning
+				f.upsertAllocs(old)
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}}}
+			},
+			fit: true,
+		},
+		{
+			name: "writer next to a client-complete writer",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				old.ClientStatus = structs.AllocClientStatusComplete
+				f.upsertAllocs(old)
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}}}
+			},
+			fit: true,
+		},
+		{
+			name: "writer next to a running writer and a desired-stop one",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				stopping := f.alloc()
+				stopping.DesiredStatus = structs.AllocDesiredStatusStop
+				stopping.ClientStatus = structs.AllocClientStatusRunning
+				running := f.alloc()
+				running.ClientStatus = structs.AllocClientStatusRunning
+				f.upsertAllocs(stopping, running)
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}}}
+			},
+			reason: reasonConflict,
+		},
+		{
 			name: "single writer on a free volume",
 			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
 				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.alloc()}}}

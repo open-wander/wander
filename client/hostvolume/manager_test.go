@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -1494,4 +1495,81 @@ func TestManager_QuietPassWritesNothing(t *testing.T) {
 	}
 	must.Eq(t, puts, e.store.putCount())
 	must.Eq(t, pubs, e.pubCount())
+}
+
+func isClosed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Restored closes only after the first restore has published its set, so a
+// waiter that wakes up sees the restored volumes.
+func TestManager_RestoredClosesAfterFirstPublish(t *testing.T) {
+	e := newMgrEnv(t)
+	e.seed(e.registeredRec("vol-a", "first", t.TempDir()))
+
+	var m *Manager
+	var closedAtPublish atomic.Bool
+	m = e.manager(func(c *ManagerConfig) {
+		inner := c.Publish
+		c.Publish = func(set map[string]*structs.ClientHostVolumeConfig) {
+			closedAtPublish.Store(isClosed(m.Restored()))
+			inner(set)
+		}
+	})
+	must.False(t, isClosed(m.Restored()))
+	m.Restore(ctx5(t))
+
+	must.True(t, isClosed(m.Restored()))
+	must.False(t, closedAtPublish.Load())
+	must.Eq(t, []string{"first"}, e.publishedNames())
+
+	// A second restore, and the same accessor, are safe.
+	m.Restore(ctx5(t))
+	must.True(t, isClosed(m.Restored()))
+}
+
+func TestManager_RestoredClosesWhenRestoreEnds(t *testing.T) {
+	cases := []struct {
+		name string
+		run  func(t *testing.T, m *Manager)
+	}{
+		{"deadline", func(t *testing.T, m *Manager) {
+			must.NoError(t, m.locks.acquire(ctx5(t), "vol-a"))
+			defer m.locks.release("vol-a")
+			m.Restore(ctx5(t))
+		}},
+		{"cancelled", func(t *testing.T, m *Manager) {
+			ctx, cancel := context.WithCancel(ctx5(t))
+			cancel()
+			m.Restore(ctx)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newMgrEnv(t)
+			e.seed(e.registeredRec("vol-a", "first", t.TempDir()))
+			m := e.manager(func(c *ManagerConfig) { c.RestoreTimeout = 200 * time.Millisecond })
+			must.False(t, isClosed(m.Restored()))
+			tc.run(t, m)
+			must.True(t, isClosed(m.Restored()))
+		})
+	}
+}
+
+func TestManager_Namespace(t *testing.T) {
+	e := newMgrEnv(t)
+	e.seed(e.registeredRec("vol-a", "first", t.TempDir()))
+	m := e.manager()
+
+	ns, ok := m.Namespace("vol-a")
+	must.True(t, ok)
+	must.Eq(t, "ns-synthetic", ns)
+
+	_, ok = m.Namespace("vol-missing")
+	must.False(t, ok)
 }

@@ -93,6 +93,12 @@ type AllocRunnerConfig struct {
 	// CpusetManager configures the cpuset cgroup if supported by the platform
 	CpusetManager cgutil.CpusetManager
 
+	// HostVolumes and HostVolumesRestored give the task runners the host
+	// volumes of the client as they are now, and a channel that is closed
+	// once its dynamic host volumes are restored. See taskrunner.Config.
+	HostVolumes         func(namespace string) map[string]*structs.ClientHostVolumeConfig
+	HostVolumesRestored func() <-chan struct{}
+
 	// ServersContactedCh is closed when the first GetClientAllocs call to
 	// servers succeeds and allocs are synced.
 	ServersContactedCh chan struct{}

@@ -863,9 +863,46 @@ two of four access modes.
 PATTERN: observation - Wait for an allocation line or a placement failure, not
 for the word "running", which also appears in the deployment status.
 
+## 2026-11-21 — Task 3.5 complete
+
+- The task volume hook read the host volumes captured when the task runner
+  was built, so it missed volumes published later and, after an agent restart,
+  ran before the dynamic volumes were restored. It now reads the current set
+  through a function the client injects (same route as the cpuset path
+  getter); a nil function keeps the old behaviour.
+- Restart ordering uses a bounded wait on `Manager.Restored()`, only when a
+  requested source is missing. A recoverable prestart error was rejected:
+  prestart also runs for restored running tasks, and an exhausted restart
+  policy would kill them.
+- The client offers a dynamic volume only to allocations of the record's
+  namespace (`Manager.Namespace`); anything else is `missing <source>`.
+- The missing-volume error log no longer prints the host volume set, which
+  held paths. It logs the missing sources and a count.
+- Release point pinned with tests in the scheduler, the plan applier and the
+  FSM: a holder releases the volume when its client reports it complete,
+  failed or lost; a holder stopped by the server but still running keeps it.
+  No production change was needed on the server.
+- Open gaps recorded in the provenance document (`#writer-accounting`), for
+  6.1: a plan that stops a holder and places an unlinked writer (another task
+  group on the same source, a system job) can start the new writer while the
+  old one still runs; a holder reported lost does not wake a blocked
+  evaluation by itself.
+- A static volume name that is not configured now fails after the first
+  restore ends when the agent has just started, with the same message.
+- The ledger JSON is unchanged: no new public evidence was gathered. The
+  policy is in `#task-mounts`.
+- Review returned MINOR; the orchestrator stopped one test from changing the
+  node's map in place and corrected a test comment.
+- The Semgrep rules report the same 45 findings on the changed files on
+  `main` (existing `time.After` uses in `client.go` and `task_runner.go`).
+
+PATTERN: client - Hooks must not read state through the config pointer
+captured at construction when that state changes at run time; inject a
+function.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
   `4259fbe38b` (PR #70).
-- Tasks 3.2, 3.3 and 3.4 are done.
-- Next task: 3.5 (mount selected dynamic paths and release attachments).
+- Tasks 3.2, 3.3, 3.4 and 3.5 are done.
+- Next task: 3.6 (sticky task-group claims).
