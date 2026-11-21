@@ -520,9 +520,11 @@ of its own live allocations. When it has none, any compatible volume of the
 name is allowed, and a claim is created if the group has none on that volume.
 This reading fits every case above; it is an inference, not a documented rule.
 
-Known difference, undecided. Wander's state store refuses to delete a volume
-that still has a claim. The observed binary deleted a claimed volume of a
-stopped job and kept the claim.
+Known difference, decided by the project owner on 2026-11-21. The observed
+binary deleted a claimed volume of a stopped job and kept the claim. Wander
+will allow the delete when no allocation uses the volume and remove the
+volume's claims in the same step, so no stale claim remains. Until that is
+implemented the state store refuses to delete a volume that has a claim.
 
 ## Sticky claims (server) {#sticky-claims}
 

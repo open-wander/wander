@@ -922,10 +922,10 @@ function.
 - Open, for later tasks: claim removal on purge and garbage collection (3.7);
   the partial-plan and plan-rejection-tracking gaps (6.1); mixed-version
   servers drop claims silently (6.4 upgrade note).
-- OWNER DECISION NEEDED before 4.3: Wander's state store refuses to delete a
-  volume that has a claim; the observed binary allows it for a stopped job
-  and keeps the stale claim. Options: match, keep the refusal, or delete the
-  volume's claims with it (orchestrator's recommendation).
+- Owner decision (2026-11-21): deleting a volume that no allocation uses
+  also deletes the volume's claims. The observed binary keeps the stale
+  claim; Wander will not. Today the state store still refuses the delete
+  while a claim exists; change it with the delete path (3.7 or 4.3).
 - Reviews returned MINOR for both halves; the orchestrator corrected two test
   comments, renamed a helper and removed a dead branch.
 
