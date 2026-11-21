@@ -3174,6 +3174,8 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 	fs := structs.DynamicHostVolumeAttachmentModeFilesystem
 	writer := structs.DynamicHostVolumeAccessModeSingleNodeWriter
 	reader := structs.DynamicHostVolumeAccessModeSingleNodeReader
+	singleWriter := structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter
+	multiWriter := structs.DynamicHostVolumeAccessModeSingleNodeMultiWriter
 
 	cases := []struct {
 		name      string
@@ -3300,7 +3302,7 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 			reason:    fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, "data-a"),
 		},
 		{
-			name:      "static volume with explicit access mode",
+			name:      "static volume ignores explicit access mode",
 			namespace: "ns-a",
 			request: &structs.VolumeRequest{
 				Type: "host", Source: "data-a",
@@ -3309,10 +3311,10 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
 				node.HostVolumes["data-a"].ID = ""
 			},
-			reason: FilterConstraintHostVolumes,
+			feasible: true,
 		},
 		{
-			name:      "static volume with explicit attachment mode",
+			name:      "static volume ignores explicit attachment mode",
 			namespace: "ns-a",
 			request: &structs.VolumeRequest{
 				Type: "host", Source: "data-a",
@@ -3321,7 +3323,99 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
 				node.HostVolumes["data-a"].ID = ""
 			},
+			feasible: true,
+		},
+		{
+			name:      "read-only static volume refuses read-write request with explicit modes",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem,
+				AccessMode:     structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				node.HostVolumes["data-a"].ID = ""
+				node.HostVolumes["data-a"].ReadOnly = true
+			},
 			reason: FilterConstraintHostVolumes,
+		},
+		{
+			name:      "read-only request with explicit writer mode on writer capability",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
+		},
+		{
+			name:      "read-only request with explicit writer mode does not fall through to reader capability",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = append(capability(fs, reader), capability(fs, writer)...)
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
+		},
+		{
+			name:      "single-writer capability read-write request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessMode(singleWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, singleWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "single-writer capability read-only request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessMode(singleWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, singleWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "multi-writer capability read-write request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessMode(multiWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, multiWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "multi-writer capability read-only request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessMode(multiWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, multiWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "single-writer request does not match writer-only capability",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessMode(singleWriter),
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
 		},
 		{
 			name:      "static volume without modes",

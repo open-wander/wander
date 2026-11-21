@@ -237,14 +237,11 @@ func (h *HostVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 }
 
 // staticHostVolumeFeasible applies the rules for a host volume from the agent
-// configuration. A static volume declares no capabilities, so a request that
-// names an attachment or access mode cannot be met by it.
+// configuration. A static volume declares no capabilities, so the attachment
+// and access modes of a request are ignored and only the name and read-only
+// rules apply.
 func staticHostVolumeFeasible(volume *structs.ClientHostVolumeConfig, requests []*structs.VolumeRequest) bool {
 	for _, req := range requests {
-		if req.AttachmentMode != structs.CSIVolumeAttachmentModeUnknown ||
-			req.AccessMode != structs.CSIVolumeAccessModeUnknown {
-			return false
-		}
 		// A volume that can only be mounted read-only cannot serve a
 		// read-write request.
 		if volume.ReadOnly && !req.ReadOnly {
@@ -278,7 +275,10 @@ func (h *HostVolumeChecker) dynamicHostVolumeReason(n *structs.Node, source, id 
 				break
 			}
 		}
-		if !matched {
+		// The direction rule applies to the matched mode, so an explicit
+		// single-node-writer request that is read-only is refused rather than
+		// falling through to another capability.
+		if !matched || !structs.DynamicHostVolumeAccessAllows(access, req.ReadOnly) {
 			return fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, source)
 		}
 	}

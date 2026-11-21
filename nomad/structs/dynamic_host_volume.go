@@ -43,10 +43,30 @@ const (
 type DynamicHostVolumeAccessMode string
 
 const (
-	DynamicHostVolumeAccessModeUnknown          DynamicHostVolumeAccessMode = ""
-	DynamicHostVolumeAccessModeSingleNodeReader DynamicHostVolumeAccessMode = "single-node-reader-only"
-	DynamicHostVolumeAccessModeSingleNodeWriter DynamicHostVolumeAccessMode = "single-node-writer"
+	DynamicHostVolumeAccessModeUnknown                DynamicHostVolumeAccessMode = ""
+	DynamicHostVolumeAccessModeSingleNodeReader       DynamicHostVolumeAccessMode = "single-node-reader-only"
+	DynamicHostVolumeAccessModeSingleNodeWriter       DynamicHostVolumeAccessMode = "single-node-writer"
+	DynamicHostVolumeAccessModeSingleNodeSingleWriter DynamicHostVolumeAccessMode = "single-node-single-writer"
+	DynamicHostVolumeAccessModeSingleNodeMultiWriter  DynamicHostVolumeAccessMode = "single-node-multi-writer"
 )
+
+// DynamicHostVolumeAccessAllows reports whether a request with the given
+// read-only setting may use a volume capability with the given access mode.
+// A writer capability serves read/write requests only, a reader-only
+// capability serves read-only requests only, and the single-writer and
+// multi-writer capabilities serve both. Unknown modes serve nothing.
+func DynamicHostVolumeAccessAllows(access DynamicHostVolumeAccessMode, readOnly bool) bool {
+	switch access {
+	case DynamicHostVolumeAccessModeSingleNodeReader:
+		return readOnly
+	case DynamicHostVolumeAccessModeSingleNodeWriter:
+		return !readOnly
+	case DynamicHostVolumeAccessModeSingleNodeSingleWriter, DynamicHostVolumeAccessModeSingleNodeMultiWriter:
+		return true
+	default:
+		return false
+	}
+}
 
 // DynamicHostVolume is storage metadata, independent of any operation request.
 type DynamicHostVolume struct {

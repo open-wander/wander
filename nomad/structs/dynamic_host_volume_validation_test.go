@@ -159,7 +159,8 @@ func TestDynamicHostVolumePathValidation(t *testing.T) {
 }
 
 func TestDynamicHostVolumeCapabilityAndAttachmentValidation(t *testing.T) {
-	for _, access := range []DynamicHostVolumeAccessMode{DynamicHostVolumeAccessModeSingleNodeReader, DynamicHostVolumeAccessModeSingleNodeWriter} {
+	for _, access := range []DynamicHostVolumeAccessMode{DynamicHostVolumeAccessModeSingleNodeReader, DynamicHostVolumeAccessModeSingleNodeWriter,
+		DynamicHostVolumeAccessModeSingleNodeSingleWriter, DynamicHostVolumeAccessModeSingleNodeMultiWriter} {
 		capability := &DynamicHostVolumeCapability{AttachmentMode: DynamicHostVolumeAttachmentModeFilesystem, AccessMode: access}
 		require.NoError(t, capability.Validate())
 		attachment := &DynamicHostVolumeAttachment{AllocationID: "allocation-synthetic-a", NodeID: "node-synthetic-a",

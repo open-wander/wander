@@ -169,6 +169,10 @@ func (v *VolumeRequest) Validate(jobType string, taskGroupCount, canaries int) e
 
 		switch v.AccessMode {
 		case CSIVolumeAccessModeUnknown, CSIVolumeAccessModeSingleNodeWriter:
+		// The CSI constants have no single-writer or multi-writer mode, so the
+		// dynamic host volume values are compared as strings.
+		case CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeSingleWriter),
+			CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeMultiWriter):
 		case CSIVolumeAccessModeSingleNodeReader:
 			if !v.ReadOnly {
 				addErr("%s volumes must be read-only", v.AccessMode)

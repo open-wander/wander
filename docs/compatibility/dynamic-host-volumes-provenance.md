@@ -112,7 +112,8 @@ Internal capacities must be nonnegative and the requested minimum must not
 exceed the maximum even when that maximum is zero. This literal comparison is
 an internal requirement; omitted/zero public maximum semantics remain unresolved.
 Capabilities and attachments currently support only filesystem attachment and
-single-node reader-only/writer access. Reader-only attachments require read-only
+single-node access in the four modes reader-only, writer, single-writer and
+multi-writer. Reader-only attachments require read-only
 usage. Unknown strings still serialize unchanged but are rejected by these
 current mode validators. Attachments require allocation/node identities, while
 claims require their stable identity fields and permit an omitted allocation ID
@@ -423,21 +424,33 @@ Implemented in `HostVolumeChecker` (`scheduler/feasible.go`) and
 | DHV-B-129 | `attachment_mode` on a host volume request defaults to `file-system`. |
 | DHV-B-130 | `access_mode` defaults to `single-node-writer`, or to `single-node-reader-only` when `read_only` is set. |
 
-### Wander policy
+### Rules and their basis
 
-Everything else is Wander policy, not recorded evidence.
+Each rule is labelled documented, observed or Wander policy. Documented means
+stated in public documentation, observed means seen in the behaviour of a public
+release binary, and Wander policy means a choice made here.
 
-| Question | Wander policy |
-| --- | --- |
-| Accepted modes | `attachment_mode`: empty or `file-system`. `access_mode`: empty, `single-node-reader-only` or `single-node-writer`. Every other value, including `block-device` and the `multi-node-*` modes, is rejected at job validation. |
-| Reader-only | `single-node-reader-only` requires `read_only`; otherwise validation fails. Mount options stay rejected. |
-| Effective modes | The defaults above are applied before matching (DHV-B-129, DHV-B-130). |
-| Static volume | A volume from the agent configuration declares no capabilities. A request that sets `attachment_mode` or `access_mode` explicitly is infeasible on it. Requests without modes keep the existing name and read-only rules. |
-| Dynamic volume | A node advertising a volume entry with an ID is feasible only if the record with that ID exists in the job's namespace, belongs to the candidate node, has the requested source as its name, is `ready`, and lists a capability that equals the effective modes of every request for it. |
-| Lookup error | A state error makes the node infeasible. |
-| Per-alloc | The suffixed source is both the advertised name and the record name. |
-| Metric reasons | The existing `missing compatible host volumes` stays for a missing name and for static mismatches. Dynamic failures give `dynamic host volume <source> is missing or not usable by this job` (no record, other namespace, other node, other name or lookup error), `... is not ready`, or `... has no matching capability`. Only the requested source is named; host paths, volume IDs and error text never appear. |
-| Evaluation | Per node, not class-cached: the checker is among the availability checkers, because the computed node class leaves out host volumes and the volume ID. |
+| Rule | Basis | Wander behaviour |
+| --- | --- | --- |
+| Access modes | Documented | Four modes exist: `single-node-reader-only`, `single-node-writer`, `single-node-single-writer` and `single-node-multi-writer`. `attachment_mode` is empty or `file-system`. |
+| Defaults | Documented | The defaults above are applied before matching (DHV-B-129, DHV-B-130). |
+| Reader-only | Documented | `single-node-reader-only` requires `read_only`; otherwise validation fails. |
+| Single-writer and multi-writer direction | Documented and observed | Both accept read/write and read-only requests. |
+| Writer direction | Observed | A `read_only` request is not placed on a `single-node-writer` capability, even when the request names `single-node-writer`. Job submission accepts it; scheduling never places it. |
+| Static volume | Observed | A volume from the agent configuration declares no capabilities. `attachment_mode` and `access_mode` on the request are ignored, and only the name and read-only rules apply. |
+| Rejected modes | Wander policy | `block-device` and the `multi-node-*` modes, and unknown strings, are rejected at job validation. The observed binary accepts `block-device` at submission and never places it. |
+| Mount options | Wander policy | Mount options on a host volume request stay rejected. |
+| Dynamic volume | Wander policy | A node advertising a volume entry with an ID is feasible only if the record with that ID exists in the job's namespace, belongs to the candidate node, has the requested source as its name, is `ready`, and lists a capability that equals the effective modes of every request for it. The direction rule above then applies to the matched access mode, not to the access mode as written on the request. |
+| Lookup error | Wander policy | A state error makes the node infeasible. |
+| Per-alloc | Wander policy | The suffixed source is both the advertised name and the record name. |
+| Metric reasons | Wander policy | The existing `missing compatible host volumes` stays for a missing name and for static mismatches. Dynamic failures give `dynamic host volume <source> is missing or not usable by this job` (no record, other namespace, other node, other name or lookup error), `... is not ready`, or `... has no matching capability`. A direction refusal uses the capability reason. Only the requested source is named; host paths, volume IDs and error text never appear. |
+| Evaluation | Wander policy | Per node, not class-cached: the checker is among the availability checkers, because the computed node class leaves out host volumes and the volume ID. |
+
+Single-writer exclusivity is not enforced yet. Observed behaviour is that at
+most one writer holds a `single-node-single-writer` volume, and that readers and
+writers exclude each other. The checker places requests on such a volume
+without counting existing users; that accounting belongs to attachment
+accounting and is not implemented.
 
 ## Built-in mkdir plugin (client) {#builtin-mkdir}
 

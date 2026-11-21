@@ -5,6 +5,7 @@ package structs
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -236,6 +237,31 @@ func TestDynamicHostVolumeSerialization(t *testing.T) {
 				roundTrip(empty, &result)
 				require.Equal(t, *empty, result, "nil and empty representations must survive")
 			}
+		})
+	}
+}
+
+func TestDynamicHostVolumeAccessAllows(t *testing.T) {
+	for _, tc := range []struct {
+		access   DynamicHostVolumeAccessMode
+		readOnly bool
+		allowed  bool
+	}{
+		{DynamicHostVolumeAccessModeSingleNodeReader, true, true},
+		{DynamicHostVolumeAccessModeSingleNodeReader, false, false},
+		{DynamicHostVolumeAccessModeSingleNodeWriter, true, false},
+		{DynamicHostVolumeAccessModeSingleNodeWriter, false, true},
+		{DynamicHostVolumeAccessModeSingleNodeSingleWriter, true, true},
+		{DynamicHostVolumeAccessModeSingleNodeSingleWriter, false, true},
+		{DynamicHostVolumeAccessModeSingleNodeMultiWriter, true, true},
+		{DynamicHostVolumeAccessModeSingleNodeMultiWriter, false, true},
+		{"synthetic-future", true, false},
+		{"synthetic-future", false, false},
+		{DynamicHostVolumeAccessModeUnknown, true, false},
+		{DynamicHostVolumeAccessModeUnknown, false, false},
+	} {
+		t.Run(fmt.Sprintf("%q/read_only=%t", tc.access, tc.readOnly), func(t *testing.T) {
+			require.Equal(t, tc.allowed, DynamicHostVolumeAccessAllows(tc.access, tc.readOnly))
 		})
 	}
 }
