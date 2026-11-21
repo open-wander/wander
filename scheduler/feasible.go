@@ -23,6 +23,7 @@ const (
 	FilterConstraintDynamicHostVolumeMissingTemplate    = "dynamic host volume %s is missing or not usable by this job"
 	FilterConstraintDynamicHostVolumeNotReadyTemplate   = "dynamic host volume %s is not ready"
 	FilterConstraintDynamicHostVolumeCapabilityTemplate = "dynamic host volume %s has no matching capability"
+	FilterConstraintDynamicHostVolumeWriterTemplate     = "dynamic host volume %s has no free writer claim"
 	FilterConstraintCSIPluginTemplate                   = "CSI plugin %s is missing from client %s"
 	FilterConstraintCSIPluginUnhealthyTemplate          = "CSI plugin %s is unhealthy on client %s"
 	FilterConstraintCSIPluginMaxVolumesTemplate         = "CSI plugin %s has the maximum number of volumes on client %s"
@@ -168,24 +169,9 @@ func (h *HostVolumeChecker) SetNamespace(namespace string) {
 
 // SetVolumes takes the volumes required by a task group and updates the checker.
 func (h *HostVolumeChecker) SetVolumes(allocName string, volumes map[string]*structs.VolumeRequest) {
-	lookupMap := make(map[string][]*structs.VolumeRequest)
 	// Convert the map from map[DesiredName]Request to map[Source][]Request to improve
 	// lookup performance. Also filter non-host volumes.
-	for _, req := range volumes {
-		if req.Type != structs.VolumeTypeHost {
-			continue
-		}
-
-		if req.PerAlloc {
-			// provide a unique volume source per allocation
-			copied := req.Copy()
-			copied.Source = copied.Source + structs.AllocSuffix(allocName)
-			lookupMap[copied.Source] = append(lookupMap[copied.Source], copied)
-		} else {
-			lookupMap[req.Source] = append(lookupMap[req.Source], req)
-		}
-	}
-	h.volumes = lookupMap
+	h.volumes = structs.HostVolumeRequestsBySource(volumes, allocName)
 }
 
 func (h *HostVolumeChecker) Feasible(candidate *structs.Node) bool {
@@ -215,6 +201,11 @@ func (h *HostVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 		return false, FilterConstraintHostVolumes
 	}
 
+	// The proposed allocations of the node are read at most once, and only
+	// when a volume needs writer accounting.
+	var proposed []*structs.Allocation
+	proposedLoaded := false
+
 	for source, requests := range h.volumes {
 		nodeVolume, ok := n.HostVolumes[source]
 		if !ok {
@@ -228,8 +219,30 @@ func (h *HostVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 			continue
 		}
 
-		if reason := h.dynamicHostVolumeReason(n, source, nodeVolume.ID, requests); reason != "" {
+		vol, reason := h.dynamicHostVolumeReason(n, source, nodeVolume.ID, requests)
+		if reason != "" {
 			return false, reason
+		}
+
+		if !vol.HasSingleWriterCapability() {
+			continue
+		}
+		if !proposedLoaded {
+			var err error
+			proposed, err = h.ctx.ProposedAllocs(n.ID)
+			if err != nil {
+				// Fail closed: without the allocations the volume cannot be
+				// shown to be free.
+				return false, fmt.Sprintf(FilterConstraintDynamicHostVolumeWriterTemplate, source)
+			}
+			proposedLoaded = true
+		}
+		// The new allocation has no ID yet, and the allocations of the plan
+		// carry no job, so the job being placed stands in for them.
+		for _, req := range requests {
+			if structs.DynamicHostVolumeWriterConflict(vol, req, "", proposed, h.ctx.Plan().Job) {
+				return false, fmt.Sprintf(FilterConstraintDynamicHostVolumeWriterTemplate, source)
+			}
 		}
 	}
 
@@ -237,14 +250,11 @@ func (h *HostVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 }
 
 // staticHostVolumeFeasible applies the rules for a host volume from the agent
-// configuration. A static volume declares no capabilities, so a request that
-// names an attachment or access mode cannot be met by it.
+// configuration. A static volume declares no capabilities, so the attachment
+// and access modes of a request are ignored and only the name and read-only
+// rules apply.
 func staticHostVolumeFeasible(volume *structs.ClientHostVolumeConfig, requests []*structs.VolumeRequest) bool {
 	for _, req := range requests {
-		if req.AttachmentMode != structs.CSIVolumeAttachmentModeUnknown ||
-			req.AccessMode != structs.CSIVolumeAccessModeUnknown {
-			return false
-		}
 		// A volume that can only be mounted read-only cannot serve a
 		// read-write request.
 		if volume.ReadOnly && !req.ReadOnly {
@@ -254,35 +264,26 @@ func staticHostVolumeFeasible(volume *structs.ClientHostVolumeConfig, requests [
 	return true
 }
 
-// dynamicHostVolumeReason returns the filter reason when the dynamic volume
-// advertised by the node cannot serve the requests, or "" when it can.
-func (h *HostVolumeChecker) dynamicHostVolumeReason(n *structs.Node, source, id string, requests []*structs.VolumeRequest) string {
-	missing := fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, source)
-
+// dynamicHostVolumeReason returns the record and the filter reason when the
+// dynamic volume advertised by the node cannot serve the requests, or "" when
+// it can.
+func (h *HostVolumeChecker) dynamicHostVolumeReason(n *structs.Node, source, id string, requests []*structs.VolumeRequest) (*structs.DynamicHostVolume, string) {
 	// The record is read from the namespace of the job, so a record of another
 	// namespace is indistinguishable from an absent one.
 	vol, err := h.ctx.State().DynamicHostVolumeByID(memdb.NewWatchSet(), h.namespace, id)
-	if err != nil || vol == nil || vol.NodeID != n.ID || vol.Name != source {
-		return missing
-	}
-	if vol.State != structs.DynamicHostVolumeStateReady {
-		return fmt.Sprintf(FilterConstraintDynamicHostVolumeNotReadyTemplate, source)
+	if err != nil {
+		vol = nil
 	}
 
-	for _, req := range requests {
-		attachment, access := req.HostVolumeModes()
-		matched := false
-		for _, capability := range vol.RequestedCapabilities {
-			if capability != nil && capability.AttachmentMode == attachment && capability.AccessMode == access {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, source)
-		}
+	switch structs.DynamicHostVolumeUsableBy(vol, n.ID, source, requests) {
+	case structs.DynamicHostVolumeUseMissing:
+		return nil, fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, source)
+	case structs.DynamicHostVolumeUseNotReady:
+		return nil, fmt.Sprintf(FilterConstraintDynamicHostVolumeNotReadyTemplate, source)
+	case structs.DynamicHostVolumeUseNoCapability:
+		return nil, fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, source)
 	}
-	return ""
+	return vol, ""
 }
 
 type CSIVolumeChecker struct {

@@ -774,7 +774,80 @@ func evaluateNodePlan(snap *state.StateSnapshot, plan *structs.Plan, nodeID stri
 
 	// Check if these allocations fit
 	fit, reason, _, err := structs.AllocsFit(node, proposed, nil, true)
-	return fit, reason, err
+	if err != nil || !fit {
+		return fit, reason, err
+	}
+
+	return evaluateDynamicHostVolumes(snap, plan, node, existingAlloc, proposed)
+}
+
+// Bounded reasons for a node whose dynamic host volumes cannot serve a plan.
+// They never name a volume, a source or a path.
+const (
+	planRejectDynamicHostVolumeUnusable = "dynamic host volume not usable"
+	planRejectDynamicHostVolumeWriter   = "dynamic host volume writer conflict"
+)
+
+// evaluateDynamicHostVolumes re-checks, against the snapshot, the dynamic host
+// volumes that new placements on the node use. Two evaluations can each find a
+// volume free and both commit, so the record must still be usable and no
+// other proposed allocation may hold the volume exclusively. Plans that place
+// nothing on a node-advertised dynamic volume read no further state.
+//
+// The plan and the snapshot are shared with evaluations of other nodes, so
+// nothing is modified here: a job missing from a plan allocation is resolved
+// locally.
+func evaluateDynamicHostVolumes(snap *state.StateSnapshot, plan *structs.Plan, node *structs.Node,
+	existing, proposed []*structs.Allocation) (bool, string, error) {
+
+	if plan.Job == nil || len(node.HostVolumes) == 0 {
+		return true, "", nil
+	}
+
+	known := make(map[string]struct{}, len(existing))
+	for _, alloc := range existing {
+		known[alloc.ID] = struct{}{}
+	}
+
+	for _, alloc := range plan.NodeAllocation[node.ID] {
+		if _, ok := known[alloc.ID]; ok {
+			continue
+		}
+
+		job := alloc.Job
+		if job == nil {
+			job = plan.Job
+		}
+		tg := job.LookupTaskGroup(alloc.TaskGroup)
+		if tg == nil {
+			continue
+		}
+
+		for source, requests := range structs.HostVolumeRequestsBySource(tg.Volumes, alloc.Name) {
+			nodeVolume, ok := node.HostVolumes[source]
+			if !ok || nodeVolume.ID == "" {
+				continue
+			}
+
+			vol, err := snap.DynamicHostVolumeByID(nil, job.Namespace, nodeVolume.ID)
+			if err != nil {
+				return false, "", fmt.Errorf("failed to get dynamic host volume for '%s': %v", node.ID, err)
+			}
+			if structs.DynamicHostVolumeUsableBy(vol, node.ID, source, requests) != structs.DynamicHostVolumeUseOK {
+				return false, planRejectDynamicHostVolumeUnusable, nil
+			}
+
+			if !vol.HasSingleWriterCapability() {
+				continue
+			}
+			for _, req := range requests {
+				if structs.DynamicHostVolumeWriterConflict(vol, req, alloc.ID, proposed, plan.Job) {
+					return false, planRejectDynamicHostVolumeWriter, nil
+				}
+			}
+		}
+	}
+	return true, "", nil
 }
 
 // The plan is only valid for disconnected nodes if it only contains

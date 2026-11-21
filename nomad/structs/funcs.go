@@ -396,6 +396,29 @@ func AllocSuffix(name string) string {
 	return suffix
 }
 
+// HostVolumeRequestsBySource groups the host volume requests of a task group
+// by the volume name a node advertises, applying the per_alloc suffix of the
+// allocation name. Volumes of other types are left out. The requests of the
+// group are not modified.
+func HostVolumeRequestsBySource(volumes map[string]*VolumeRequest, allocName string) map[string][]*VolumeRequest {
+	bySource := make(map[string][]*VolumeRequest)
+	for _, req := range volumes {
+		if req.Type != VolumeTypeHost {
+			continue
+		}
+
+		if req.PerAlloc {
+			// provide a unique volume source per allocation
+			copied := req.Copy()
+			copied.Source = copied.Source + AllocSuffix(allocName)
+			bySource[copied.Source] = append(bySource[copied.Source], copied)
+		} else {
+			bySource[req.Source] = append(bySource[req.Source], req)
+		}
+	}
+	return bySource
+}
+
 // ACLPolicyListHash returns a consistent hash for a set of policies.
 func ACLPolicyListHash(policies []*ACLPolicy) string {
 	cacheKeyHash, err := blake2b.New256(nil)

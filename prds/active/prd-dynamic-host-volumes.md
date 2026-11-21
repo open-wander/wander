@@ -255,8 +255,8 @@ requested host volumes are ready and compatible.
   chooses a node and produce deterministic eligibility diagnostics.
 - [ ] Requested attachment mode, access mode, read-only state, and mount
   propagation are checked during plan and apply.
-- [ ] A single-node-writer volume rejects a conflicting second writer while
-  allowing combinations explicitly permitted by its capabilities.
+- [ ] A single-node-single-writer volume rejects a conflicting second writer
+  while allowing combinations explicitly permitted by its capabilities.
 - [ ] Concurrent evaluations cannot both acquire an exclusive writer slot for
   the same volume.
 - [ ] A stopped or terminal allocation releases its non-sticky attachment at
