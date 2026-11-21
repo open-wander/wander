@@ -234,6 +234,11 @@ type TaskRunner struct {
 	// cpusetCgroupPathGetter is used to lookup the cgroup path if supported by the platform
 	cpusetCgroupPathGetter cgutil.CgroupPathGetter
 
+	// hostVolumes and hostVolumesRestored are the live host volume lookups of
+	// the client; see Config.
+	hostVolumes         func(namespace string) map[string]*structs.ClientHostVolumeConfig
+	hostVolumesRestored func() <-chan struct{}
+
 	// driverManager is used to dispense driver plugins and register event
 	// handlers
 	driverManager drivermanager.Manager
@@ -305,6 +310,16 @@ type Config struct {
 
 	// CpusetCgroupPathGetter is used to lookup the cgroup path if supported by the platform
 	CpusetCgroupPathGetter cgutil.CgroupPathGetter
+
+	// HostVolumes returns the host volumes of the client that an allocation
+	// of the namespace may mount, as they are now. The task runner does not
+	// import the client, and a nil value uses the client config captured
+	// here. The result must not be modified.
+	HostVolumes func(namespace string) map[string]*structs.ClientHostVolumeConfig
+
+	// HostVolumesRestored returns a channel that is closed once the client
+	// has restored its dynamic host volumes. It is only used with HostVolumes.
+	HostVolumesRestored func() <-chan struct{}
 
 	// DeviceManager is used to mount devices as well as lookup device
 	// statistics
@@ -390,6 +405,8 @@ func NewTaskRunner(config *Config) (*TaskRunner, error) {
 		waitCh:                 make(chan struct{}),
 		csiManager:             config.CSIManager,
 		cpusetCgroupPathGetter: config.CpusetCgroupPathGetter,
+		hostVolumes:            config.HostVolumes,
+		hostVolumesRestored:    config.HostVolumesRestored,
 		devicemanager:          config.DeviceManager,
 		driverManager:          config.DriverManager,
 		maxEvents:              defaultMaxEvents,

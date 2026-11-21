@@ -7449,3 +7449,87 @@ func TestServiceSched_DynamicHostVolume_SingleWriterDestructiveUpdate(t *testing
 	must.Len(t, 1, h.Evals)
 	must.MapLen(t, 0, h.Evals[0].FailedTGAllocs)
 }
+
+// A waiting single-writer request is placed once the holder is terminal on
+// the client, and not before: a holder that is desired stop but still
+// running may have the volume mounted.
+func TestServiceSched_DynamicHostVolume_SingleWriterReleasedWhenHolderTerminal(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		name    string
+		desired string
+		client  string
+		placed  bool
+	}{
+		{"holder running", structs.AllocDesiredStatusRun, structs.AllocClientStatusRunning, false},
+		{"holder desired stop but still running", structs.AllocDesiredStatusStop, structs.AllocClientStatusRunning, false},
+		{"holder client complete", structs.AllocDesiredStatusRun, structs.AllocClientStatusComplete, true},
+		{"holder client failed", structs.AllocDesiredStatusRun, structs.AllocClientStatusFailed, true},
+		{"holder client lost", structs.AllocDesiredStatusStop, structs.AllocClientStatusLost, true},
+		{"holder desired stop and client complete", structs.AllocDesiredStatusStop, structs.AllocClientStatusComplete, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := NewHarness(t)
+			node := setupDynamicWriterNode(t, h)
+
+			holderJob := dynamicWriterJob(1)
+			must.NoError(t, h.State.UpsertJob(structs.MsgTypeTestSetup, h.NextIndex(), nil, holderJob))
+			holder := mock.Alloc()
+			holder.Job = holderJob
+			holder.JobID = holderJob.ID
+			holder.NodeID = node.ID
+			holder.Name = "holder.web[0]"
+			holder.TaskGroup = holderJob.TaskGroups[0].Name
+			holder.ClientStatus = structs.AllocClientStatusRunning
+			must.NoError(t, h.State.UpsertAllocs(structs.MsgTypeTestSetup, h.NextIndex(), []*structs.Allocation{holder}))
+
+			waiting := dynamicWriterJob(1)
+			must.NoError(t, h.State.UpsertJob(structs.MsgTypeTestSetup, h.NextIndex(), nil, waiting))
+			process := func() {
+				t.Helper()
+				eval := &structs.Evaluation{
+					Namespace: waiting.Namespace, ID: uuid.Generate(), Priority: waiting.Priority,
+					TriggeredBy: structs.EvalTriggerJobRegister, JobID: waiting.ID, Status: structs.EvalStatusPending,
+				}
+				must.NoError(t, h.State.UpsertEvals(structs.MsgTypeTestSetup, h.NextIndex(), []*structs.Evaluation{eval}))
+				must.NoError(t, h.Process(NewServiceScheduler, eval))
+			}
+
+			// The holder is running while the waiting job is first evaluated.
+			process()
+			must.Len(t, 0, h.Plans)
+			must.Len(t, 1, h.Evals)
+			must.NotNil(t, h.Evals[0].FailedTGAllocs[waiting.TaskGroups[0].Name])
+			must.Len(t, 1, h.CreateEvals)
+			blocked := h.CreateEvals[0]
+			must.Eq(t, structs.EvalStatusBlocked, blocked.Status)
+			// The writer reason is not class-cached, so the blocked eval is
+			// never marked ineligible for the class of the node and wakes
+			// when a holder on that class ends.
+			if eligible, ok := blocked.ClassEligibility[node.ComputedClass]; ok {
+				must.True(t, eligible)
+			}
+
+			// The state of the holder changes, and the next evaluation looks again.
+			// The server sets the desired status. The client reports its own
+			// status, which a server upsert does not overwrite.
+			stop := holder.Copy()
+			stop.DesiredStatus = tc.desired
+			must.NoError(t, h.State.UpsertAllocs(structs.MsgTypeTestSetup, h.NextIndex(), []*structs.Allocation{stop}))
+			report := holder.Copy()
+			report.ClientStatus = tc.client
+			must.NoError(t, h.State.UpdateAllocsFromClient(structs.MsgTypeTestSetup, h.NextIndex(), []*structs.Allocation{report}))
+			process()
+
+			if !tc.placed {
+				must.Len(t, 0, h.Plans)
+				return
+			}
+			must.Len(t, 1, h.Plans)
+			must.Len(t, 1, h.Plans[0].NodeAllocation[node.ID])
+		})
+	}
+}

@@ -167,6 +167,10 @@ type allocRunner struct {
 	// cpusetManager is responsible for configuring task cgroups if supported by the platform
 	cpusetManager cgutil.CpusetManager
 
+	// hostVolumes and hostVolumesRestored are passed to the task runners
+	hostVolumes         func(namespace string) map[string]*structs.ClientHostVolumeConfig
+	hostVolumesRestored func() <-chan struct{}
+
 	// devicemanager is used to mount devices as well as lookup device
 	// statistics
 	devicemanager devicemanager.Manager
@@ -234,6 +238,8 @@ func NewAllocRunner(config *config.AllocRunnerConfig) (interfaces.AllocRunner, e
 		dynamicRegistry:          config.DynamicRegistry,
 		csiManager:               config.CSIManager,
 		cpusetManager:            config.CpusetManager,
+		hostVolumes:              config.HostVolumes,
+		hostVolumesRestored:      config.HostVolumesRestored,
 		devicemanager:            config.DeviceManager,
 		driverManager:            config.DriverManager,
 		serversContactedCh:       config.ServersContactedCh,
@@ -298,6 +304,8 @@ func (ar *allocRunner) initTaskRunners(tasks []*structs.Task) error {
 			ServiceRegWrapper:   ar.serviceRegWrapper,
 			Getter:              ar.getter,
 			AllocHookResources:  ar.hookResources,
+			HostVolumes:         ar.hostVolumes,
+			HostVolumesRestored: ar.hostVolumesRestored,
 		}
 
 		if ar.cpusetManager != nil {

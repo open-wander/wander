@@ -3675,6 +3675,36 @@ func TestHostVolumeChecker_DynamicWriterAccounting(t *testing.T) {
 			feasible: true,
 		},
 		{
+			// Wander policy: a holder is released only when the client reports
+			// it terminal. Until then it may still have the volume mounted.
+			name:   "writer next to a writer that is desired stop but still running",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				a := dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)
+				a.DesiredStatus = structs.AllocDesiredStatusStop
+				return []*structs.Allocation{a}
+			},
+		},
+		{
+			name:   "writer next to a client-complete writer",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				a := dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)
+				a.DesiredStatus = structs.AllocDesiredStatusStop
+				a.ClientStatus = structs.AllocClientStatusComplete
+				return []*structs.Allocation{a}
+			},
+			feasible: true,
+		},
+		{
+			name:   "writer next to a client-lost writer",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				a := dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)
+				a.DesiredStatus = structs.AllocDesiredStatusStop
+				a.ClientStatus = structs.AllocClientStatusLost
+				return []*structs.Allocation{a}
+			},
+			feasible: true,
+		},
+		{
 			name:   "writer next to a writer of another namespace",
 			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
 				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-b", "data-a", ssw, false)}

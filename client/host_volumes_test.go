@@ -5,6 +5,7 @@ package client
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
@@ -136,4 +137,95 @@ func TestClient_DynamicHostVolumesWiring(t *testing.T) {
 	must.Eq(t, structs.ClientHostVolumeConfig{Name: "dyn", Path: dynDir, ID: "vol-a"}, *hv["dyn"])
 	must.Eq(t, structs.ClientHostVolumeConfig{Name: "static", Path: staticDir}, *hv["static"])
 	must.Nil(t, hv["foreign"])
+}
+
+// The task runners see the volumes the node offers now, and a dynamic volume
+// only in the namespace of its record.
+func TestClient_hostVolumesFor(t *testing.T) {
+	ci.Parallel(t)
+
+	static := map[string]*structs.ClientHostVolumeConfig{
+		"static": {Name: "static", Path: "/synthetic/static"},
+	}
+	c := hostVolumeTestClient(static)
+	m, err := hostvolume.NewManager(hostvolume.ManagerConfig{
+		Store: state.NewMemDB(hclog.NewNullLogger()), Ops: &hostvolume.Ops{}, NodeID: "node-synthetic",
+		Publish: c.updateNodeFromHostVolumes,
+	})
+	must.NoError(t, err)
+	c.hostVolumeManager = m
+	// Only volumes the manager has checked are published.
+	m.Restore(context.Background())
+
+	for name, ns := range map[string]string{"data-a": "ns-a", "data-b": "ns-b"} {
+		_, err := m.AddRegistered(context.Background(), hostvolume.RegisterRequest{
+			NodeID: "node-synthetic", Namespace: ns, VolumeID: "vol-" + name, Name: name, Path: t.TempDir(),
+		})
+		must.NoError(t, err)
+	}
+	// An entry whose record is gone, as after a delete between two reads.
+	// The node's map is never changed in place, so a new one is set.
+	c.configLock.Lock()
+	withGone := c.config.Copy()
+	withGone.Node.HostVolumes = maps.Clone(c.config.Node.HostVolumes)
+	withGone.Node.HostVolumes["data-gone"] = &structs.ClientHostVolumeConfig{Name: "data-gone", Path: "/synthetic/gone", ID: "vol-gone"}
+	c.config = withGone
+	c.configLock.Unlock()
+
+	got := c.hostVolumesFor("ns-a")
+	must.MapContainsKeys(t, got, []string{"static", "data-a"})
+	must.MapLen(t, 2, got)
+	must.Eq(t, "/synthetic/static", got["static"].Path)
+
+	got = c.hostVolumesFor("ns-b")
+	must.MapContainsKeys(t, got, []string{"static", "data-b"})
+	must.MapLen(t, 2, got)
+
+	got = c.hostVolumesFor("ns-other")
+	must.MapLen(t, 1, got)
+	must.MapContainsKey(t, got, "static")
+
+	// The set of the node is not changed by the lookups.
+	must.MapLen(t, 4, c.GetConfig().Node.HostVolumes)
+}
+
+func TestClient_hostVolumesFor_NoManager(t *testing.T) {
+	ci.Parallel(t)
+
+	static := map[string]*structs.ClientHostVolumeConfig{
+		"static": {Name: "static", Path: "/synthetic/static"},
+	}
+	c := hostVolumeTestClient(static)
+	must.Eq(t, static, c.hostVolumesFor("ns-a"))
+
+	// Without a manager nothing is ever restored, so nothing may wait.
+	select {
+	case <-c.hostVolumesRestored():
+	default:
+		t.Fatal("expected a closed channel without a manager")
+	}
+}
+
+func TestClient_hostVolumesRestored(t *testing.T) {
+	ci.Parallel(t)
+
+	c := hostVolumeTestClient(nil)
+	m, err := hostvolume.NewManager(hostvolume.ManagerConfig{
+		Store: state.NewMemDB(hclog.NewNullLogger()), Ops: &hostvolume.Ops{}, NodeID: "node-synthetic",
+		Publish: c.updateNodeFromHostVolumes,
+	})
+	must.NoError(t, err)
+	c.hostVolumeManager = m
+
+	select {
+	case <-c.hostVolumesRestored():
+		t.Fatal("closed before the restore")
+	default:
+	}
+	m.Restore(context.Background())
+	select {
+	case <-c.hostVolumesRestored():
+	default:
+		t.Fatal("not closed after the restore")
+	}
 }
