@@ -524,6 +524,32 @@ Known difference, undecided. Wander's state store refuses to delete a volume
 that still has a claim. The observed binary deleted a claimed volume of a
 stopped job and kept the claim.
 
+## Sticky claims (server) {#sticky-claims}
+
+Implemented in `nomad/structs/dynamic_host_volume.go`
+(`DynamicHostVolumeStickyAllowed` and its two helpers), called from the
+scheduler host volume checker and from the plan applier, with claim creation
+in `stickyClaimsForPlan` in `nomad/plan_apply.go`.
+
+| Topic | Basis | Rule |
+| --- | --- | --- |
+| Field | Documented, observed | `sticky` on a group volume request, default false. Rejected with `per_alloc` (`volume cannot be per_alloc and sticky at the same time`) and on a type other than host. A change of `sticky` is a destructive update, as for `per_alloc`. |
+| Static volumes | Observed | A sticky request on a static host volume follows no rule and creates no claim. |
+| Placement rule | Inferred from the observation | The free claims of a group for a source are its claims whose volume record exists and that no live allocation of the group uses. With free claims, only a node whose volume is one of them is feasible. With none, every node that passes the other checks is feasible. |
+| Live allocations | Wander policy | For this rule an allocation is live when it is terminal neither on the server nor on the client. An allocation the server has stopped but that still runs does not hold its claim, so a re-run straight after a stop returns to the claimed volume; on a single-writer volume it waits there for the writer rule. |
+| Which volume is used | Wander policy | One record exists per namespace, node and name, so a claimed volume is used when a live allocation of the group that requests the source is on the node of its record. Cost is bounded by the allocations of the job. |
+| Same evaluation | Wander policy | The claim view is read again for every placement, with the plan's stops, preemptions and earlier placements applied. |
+| Reason | Observed | A node filtered by the rule reports the existing `missing compatible host volumes` reason. |
+| Plan applier | Wander policy | Each new placement is checked again against the snapshot plus the plan. A failure rejects the node's part of the plan with `dynamic host volume sticky claim`, naming nothing. |
+| Claim creation | Observed; mechanism is Wander policy | A claim is created for each dynamic volume a new allocation of a sticky request is placed on and the group has no claim on. The leader generates the claim ID and sends the claims in the plan result, and they are written in the same transaction as the allocations. Several placements on one volume give one claim. |
+| Claim contents | Wander policy | A claim keeps the allocation that created it. A later placement on the volume does not change the claim. `AllocationIndex` is the name index of that allocation. |
+| Skipped claims | Wander policy | When the plan result is applied, a claim is skipped if the group already has one on the volume or if the volume record is gone. The allocations are still written. |
+| Removal | Later work | Nothing removes a claim yet. A job stop keeps claims, as observed. |
+| Canaries | Wander policy | A canary beside a running allocation of the group finds the claim in use, so it may take another volume and get a claim there. |
+| Partial plan | Known gap | Nodes are judged separately. If one node of a plan is rejected, a placement on another node that was valid only because of the rejected one can still commit and create a second claim. Later evaluations see both claims. |
+| Plan rejection tracking | Known gap | As for writer conflicts, a sticky rejection counts towards marking a node ineligible when node plan rejection tracking is enabled (off by default). |
+| Mixed versions | Known gap | A server without this change drops the claims in a plan result and writes the allocations alone, so claim state differs between servers until all are upgraded. No version gate is possible: servers advertise the same compatibility version as before. |
+
 ## Task mounts (client) {#task-mounts}
 
 Implemented in `client/allocrunner/taskrunner/volume_hook.go`,

@@ -900,9 +900,44 @@ PATTERN: client - Hooks must not read state through the config pointer
 captured at construction when that state changes at run time; inject a
 function.
 
+## 2026-11-21 — Task 3.6 complete
+
+- Public documentation gives the `sticky` field and the claim endpoints but
+  not when claims are created or removed, nor what happens when the claimed
+  volume cannot be used. A two-node observation (`#observation-sticky`,
+  `SRC-observe-sticky`) settled it. The first two runs were lost to harness
+  faults (no advertise address on the second agent, a reschedule delay below
+  the minimum, a wrong status column).
+- The rule is an inference that fits every observed case: with a free claim
+  (volume exists, not used by a live allocation of the group) only that
+  volume is feasible; with none, any compatible volume, and a claim is
+  created.
+- 3.6a added the field (validation, diff, conversion, codec). 3.6b added one
+  pure rule in `nomad/structs` used by the scheduler checker and the plan
+  applier, and claim creation through a new field on the plan result request,
+  written in the same transaction as the allocations. No new Raft message or
+  snapshot type.
+- Wander policy: live for this rule excludes server-stopped allocations; a
+  claim keeps its first allocation; skipped claims do not fail the plan.
+- Open, for later tasks: claim removal on purge and garbage collection (3.7);
+  the partial-plan and plan-rejection-tracking gaps (6.1); mixed-version
+  servers drop claims silently (6.4 upgrade note).
+- OWNER DECISION NEEDED before 4.3: Wander's state store refuses to delete a
+  volume that has a claim; the observed binary allows it for a stopped job
+  and keeps the stale claim. Options: match, keep the refusal, or delete the
+  volume's claims with it (orchestrator's recommendation).
+- Reviews returned MINOR for both halves; the orchestrator corrected two test
+  comments, renamed a helper and removed a dead branch.
+
+PATTERN: observation - Check that the harness really performed each action
+(an allocation label that changes, an exit code) before reading results.
+
+PATTERN: codegen - Regenerating `structs.generated.go` can bring in codecs
+that an earlier change left stale; check the hunks and say so in the commit.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
   `4259fbe38b` (PR #70).
-- Tasks 3.2, 3.3, 3.4 and 3.5 are done.
-- Next task: 3.6 (sticky task-group claims).
+- Tasks 3.2 to 3.6 are done.
+- Next task: 3.7 (claim and volume garbage collection, unavailable nodes).

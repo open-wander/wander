@@ -122,6 +122,10 @@ type State interface {
 	// namespace.
 	DynamicHostVolumeByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolume, error)
 
+	// DynamicHostVolumeClaimsByJobID fetches the sticky claims of one job in
+	// one namespace.
+	DynamicHostVolumeClaimsByJobID(ws memdb.WatchSet, namespace, job string) (memdb.ResultIterator, error)
+
 	// LatestIndex returns the greatest index value for all indexes.
 	LatestIndex() (uint64, error)
 }

@@ -184,45 +184,120 @@ func (s *StateStore) UpsertDynamicHostVolumes(index uint64, volumes []*structs.D
 
 func (s *StateStore) UpsertDynamicHostVolumeClaims(index uint64, claims []*structs.DynamicHostVolumeClaim) error {
 	return s.writeDynamicHostVolumeBatch(index, TableDynamicHostVolumeClaims, len(claims), func(tx *txn, position int, seen map[string]bool) error {
-		candidate := claims[position]
+		return upsertDynamicHostVolumeClaimTxn(tx, index, claims[position], seen)
+	})
+}
+
+// upsertDynamicHostVolumeClaimTxn validates and inserts one claim inside the
+// caller's transaction. It is the only claim insert path: the batch method and
+// the plan results both use it. The caller checks and bumps the table index.
+func upsertDynamicHostVolumeClaimTxn(tx *txn, index uint64, candidate *structs.DynamicHostVolumeClaim, seen map[string]bool) error {
+	if candidate == nil || candidate.Validate() != nil {
+		return ErrDynamicHostVolumeStateInvalid
+	}
+	if err := dynamicHostVolumeKeys(2, candidate.Namespace, candidate.ID, candidate.JobID, candidate.VolumeID,
+		candidate.TaskGroupName, candidate.VolumeName, candidate.AllocationID); err != nil {
+		return err
+	}
+	if err := dynamicHostVolumeWriteKey(tx, seen, candidate.Namespace, candidate.ID); err != nil {
+		return err
+	}
+	volume, err := tx.First(TableDynamicHostVolumes, indexID, candidate.Namespace, candidate.VolumeID)
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	if volume == nil || volume.(*structs.DynamicHostVolume).Name != candidate.VolumeName {
+		return ErrDynamicHostVolumeStateConflict
+	}
+	raw, err := dynamicHostVolumeExisting(tx, TableDynamicHostVolumeClaims, candidate.Namespace, candidate.ID, candidate.ModifyIndex)
+	if err != nil {
+		return err
+	}
+	claim := candidate.Copy()
+	if raw != nil {
+		existing := raw.(*structs.DynamicHostVolumeClaim)
+		if !dynamicHostVolumeClaimIdentityEqual(existing, claim) {
+			return ErrDynamicHostVolumeStateConflict
+		}
+	}
+	claim.CreateIndex, err = dynamicHostVolumeCreateIndex(raw, claim.CreateIndex, index)
+	if err != nil {
+		return err
+	}
+	claim.ModifyIndex = index
+	if err := tx.Insert(TableDynamicHostVolumeClaims, claim); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
+}
+
+// upsertPlanResultsClaims writes the claims a plan creates, inside the
+// transaction that writes its allocations. A claim is skipped, not refused,
+// when the group already holds a claim on the volume (two plans can race to
+// create one) or when the volume record has gone since the plan was made, so
+// the allocations are never lost to a claim. The table index is bumped only
+// when a claim is written, and it must then exceed the current one.
+func upsertPlanResultsClaims(tx *txn, index uint64, claims []*structs.DynamicHostVolumeClaim) error {
+	if len(claims) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(claims))
+	written := 0
+	for _, candidate := range claims {
 		if candidate == nil || candidate.Validate() != nil {
 			return ErrDynamicHostVolumeStateInvalid
 		}
-		if err := dynamicHostVolumeKeys(2, candidate.Namespace, candidate.ID, candidate.JobID, candidate.VolumeID,
-			candidate.TaskGroupName, candidate.VolumeName, candidate.AllocationID); err != nil {
-			return err
-		}
-		if err := dynamicHostVolumeWriteKey(tx, seen, candidate.Namespace, candidate.ID); err != nil {
-			return err
-		}
-		volume, err := tx.First(TableDynamicHostVolumes, indexID, candidate.Namespace, candidate.VolumeID)
-		if err != nil {
-			return ErrDynamicHostVolumeStateStorage
-		}
-		if volume == nil || volume.(*structs.DynamicHostVolume).Name != candidate.VolumeName {
-			return ErrDynamicHostVolumeStateConflict
-		}
-		raw, err := dynamicHostVolumeExisting(tx, TableDynamicHostVolumeClaims, candidate.Namespace, candidate.ID, candidate.ModifyIndex)
+		skip, err := planResultsClaimSkipped(tx, candidate)
 		if err != nil {
 			return err
 		}
-		claim := candidate.Copy()
-		if raw != nil {
-			existing := raw.(*structs.DynamicHostVolumeClaim)
-			if !dynamicHostVolumeClaimIdentityEqual(existing, claim) {
-				return ErrDynamicHostVolumeStateConflict
+		if skip {
+			continue
+		}
+		if written == 0 {
+			raw, err := tx.First(tableIndex, indexID, TableDynamicHostVolumeClaims)
+			if err != nil {
+				return ErrDynamicHostVolumeStateStorage
+			}
+			if index == 0 || (raw != nil && index <= raw.(*IndexEntry).Value) {
+				return ErrDynamicHostVolumeStateIndex
 			}
 		}
-		claim.CreateIndex, err = dynamicHostVolumeCreateIndex(raw, claim.CreateIndex, index)
-		if err != nil {
+		if err := upsertDynamicHostVolumeClaimTxn(tx, index, candidate, seen); err != nil {
 			return err
 		}
-		claim.ModifyIndex = index
-		if err := tx.Insert(TableDynamicHostVolumeClaims, claim); err != nil {
-			return ErrDynamicHostVolumeStateStorage
-		}
+		written++
+	}
+	if written == 0 {
 		return nil
-	})
+	}
+	if err := tx.Insert(tableIndex, indexEntry(TableDynamicHostVolumeClaims, index)); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
+}
+
+// planResultsClaimSkipped reports whether a plan's claim is left unwritten.
+func planResultsClaimSkipped(tx *txn, candidate *structs.DynamicHostVolumeClaim) (bool, error) {
+	volume, err := tx.First(TableDynamicHostVolumes, indexID, candidate.Namespace, candidate.VolumeID)
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	if volume == nil || volume.(*structs.DynamicHostVolume).Name != candidate.VolumeName {
+		return true, nil
+	}
+	existing, err := tx.Get(TableDynamicHostVolumeClaims, indexJob+"_prefix", candidate.Namespace, candidate.JobID, "")
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	for raw := existing.Next(); raw != nil; raw = existing.Next() {
+		claim := raw.(*structs.DynamicHostVolumeClaim)
+		if claim.TaskGroupName == candidate.TaskGroupName && claim.VolumeName == candidate.VolumeName &&
+			claim.VolumeID == candidate.VolumeID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func dynamicHostVolumeClaimIdentityEqual(left, right *structs.DynamicHostVolumeClaim) bool {

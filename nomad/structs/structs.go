@@ -1111,6 +1111,12 @@ type ApplyPlanResultsRequest struct {
 	// to avoid retrying them repeatedly.
 	IneligibleNodes []string
 
+	// DynamicHostVolumeClaims are the sticky claims created by the plan. The
+	// plan applier generates their IDs on the leader so applying the log is
+	// deterministic. A server that does not know this field ignores it and
+	// applies the allocations without the claims.
+	DynamicHostVolumeClaims []*DynamicHostVolumeClaim
+
 	// UpdatedAt represents server time of receiving request.
 	UpdatedAt int64
 }

@@ -482,6 +482,10 @@ func (s *StateStore) UpsertPlanResults(msgType structs.MessageType, index uint64
 		}
 	}
 
+	if err := upsertPlanResultsClaims(txn, index, results.DynamicHostVolumeClaims); err != nil {
+		return err
+	}
+
 	return txn.Commit()
 }
 

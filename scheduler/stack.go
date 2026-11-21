@@ -113,6 +113,7 @@ func (s *GenericStack) SetJob(job *structs.Job) {
 	s.taskGroupCSIVolumes.SetNamespace(job.Namespace)
 	s.taskGroupHostVolumes.SetNamespace(job.Namespace)
 	s.taskGroupCSIVolumes.SetJobID(job.ID)
+	s.taskGroupHostVolumes.SetJobID(job.ID)
 
 	if contextual, ok := s.quota.(ContextualIterator); ok {
 		contextual.SetJob(job)
@@ -155,6 +156,7 @@ func (s *GenericStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ra
 	s.taskGroupDrivers.SetDrivers(tgConstr.drivers)
 	s.taskGroupConstraint.SetConstraints(tgConstr.constraints)
 	s.taskGroupDevices.SetTaskGroup(tg)
+	s.taskGroupHostVolumes.SetTaskGroup(tg.Name)
 	s.taskGroupHostVolumes.SetVolumes(options.AllocName, tg.Volumes)
 	s.taskGroupCSIVolumes.SetVolumes(options.AllocName, tg.Volumes)
 	if len(tg.Networks) > 0 {
@@ -324,6 +326,7 @@ func (s *SystemStack) SetJob(job *structs.Job) {
 	s.taskGroupCSIVolumes.SetNamespace(job.Namespace)
 	s.taskGroupHostVolumes.SetNamespace(job.Namespace)
 	s.taskGroupCSIVolumes.SetJobID(job.ID)
+	s.taskGroupHostVolumes.SetJobID(job.ID)
 
 	if contextual, ok := s.quota.(ContextualIterator); ok {
 		contextual.SetJob(job)
@@ -350,6 +353,7 @@ func (s *SystemStack) Select(tg *structs.TaskGroup, options *SelectOptions) *Ran
 	s.taskGroupDrivers.SetDrivers(tgConstr.drivers)
 	s.taskGroupConstraint.SetConstraints(tgConstr.constraints)
 	s.taskGroupDevices.SetTaskGroup(tg)
+	s.taskGroupHostVolumes.SetTaskGroup(tg.Name)
 	s.taskGroupHostVolumes.SetVolumes(options.AllocName, tg.Volumes)
 	s.taskGroupCSIVolumes.SetVolumes(options.AllocName, tg.Volumes)
 	if len(tg.Networks) > 0 {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-memdb"
+	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/stretchr/testify/require"
 )
@@ -727,4 +728,161 @@ func TestStateStore_DynamicHostVolumeClaimRequiredFields(t *testing.T) {
 	}
 	require.NoError(t, seeded(t).UpsertDynamicHostVolumeClaims(11,
 		[]*structs.DynamicHostVolumeClaim{dynamicHostVolumeClaimStateFixture()}))
+}
+
+// planResultsClaimFixture is a store with one volume record and a plan result
+// that places an allocation of job-a, group-a on it with a claim.
+func planResultsClaimFixture(t *testing.T) (*StateStore, *structs.ApplyPlanResultsRequest, *structs.Allocation) {
+	t.Helper()
+	store := TestStateStore(t)
+	require.NoError(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{dynamicHostVolumeStateFixture("volume-a")}))
+
+	alloc := mock.Alloc()
+	alloc.Resources = &structs.Resources{}
+	job := alloc.Job
+	alloc.Job = nil
+	claim := dynamicHostVolumeClaimStateFixture()
+	claim.AllocationID = alloc.ID
+	req := &structs.ApplyPlanResultsRequest{
+		AllocUpdateRequest:      structs.AllocUpdateRequest{Job: job, AllocsUpdated: []*structs.Allocation{alloc}},
+		DynamicHostVolumeClaims: []*structs.DynamicHostVolumeClaim{claim},
+	}
+	require.NoError(t, store.UpsertJobSummary(11, mock.JobSummary(alloc.JobID)))
+	return store, req, alloc
+}
+
+func TestStateStore_UpsertPlanResults_DynamicHostVolumeClaims(t *testing.T) {
+	store, req, alloc := planResultsClaimFixture(t)
+	claim := req.DynamicHostVolumeClaims[0]
+	before := claim.Copy()
+
+	require.NoError(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 20, req))
+	require.Equal(t, before, claim, "the request is not modified")
+
+	// The claim and the allocation are written by the same apply.
+	storedAlloc, err := store.AllocByID(nil, alloc.ID)
+	require.NoError(t, err)
+	require.NotNil(t, storedAlloc)
+	require.Equal(t, uint64(20), storedAlloc.CreateIndex)
+	stored, err := store.DynamicHostVolumeClaimByID(nil, "default", claim.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	require.Equal(t, alloc.ID, stored.AllocationID)
+	require.Equal(t, uint64(20), stored.CreateIndex)
+	require.Equal(t, uint64(20), stored.ModifyIndex)
+	index, err := store.Index(TableDynamicHostVolumeClaims)
+	require.NoError(t, err)
+	require.Equal(t, uint64(20), index)
+
+	// The claim survives a snapshot and restore.
+	snap, err := store.Snapshot()
+	require.NoError(t, err)
+	restored := TestStateStore(t)
+	restore, err := restored.Restore()
+	require.NoError(t, err)
+	iter, err := snap.DynamicHostVolumeClaims(nil)
+	require.NoError(t, err)
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		require.NoError(t, restore.DynamicHostVolumeClaimRestore(raw.(*structs.DynamicHostVolumeClaim)))
+	}
+	require.NoError(t, restore.Commit())
+	got, err := restored.DynamicHostVolumeClaimByID(nil, "default", claim.ID)
+	require.NoError(t, err)
+	require.Equal(t, stored, got)
+}
+
+func TestStateStore_UpsertPlanResults_DynamicHostVolumeClaimsWatch(t *testing.T) {
+	store, req, _ := planResultsClaimFixture(t)
+	ws := memdb.NewWatchSet()
+	iter, err := store.DynamicHostVolumeClaimsByJobID(ws, "default", "job-a")
+	require.NoError(t, err)
+	require.Nil(t, iter.Next())
+	require.NoError(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 20, req))
+	require.True(t, ws.Watch(time.After(time.Second)) == false, "the claims watch fires")
+}
+
+func TestStateStore_UpsertPlanResults_DynamicHostVolumeClaimsSkipped(t *testing.T) {
+	t.Run("a claim already held for the volume is kept", func(t *testing.T) {
+		store, req, alloc := planResultsClaimFixture(t)
+		require.NoError(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 20, req))
+
+		// A later placement of the group on the same volume carries a new
+		// claim ID, as a racing plan would.
+		second := mock.Alloc()
+		second.Resources = &structs.Resources{}
+		secondReq := &structs.ApplyPlanResultsRequest{
+			AllocUpdateRequest: structs.AllocUpdateRequest{Job: req.Job, AllocsUpdated: []*structs.Allocation{second}},
+			DynamicHostVolumeClaims: []*structs.DynamicHostVolumeClaim{func() *structs.DynamicHostVolumeClaim {
+				c := dynamicHostVolumeClaimStateFixture()
+				c.ID, c.AllocationID = "claim-racing", second.ID
+				return c
+			}()},
+		}
+		second.Job = nil
+		require.NoError(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 21, secondReq))
+
+		iter, err := store.DynamicHostVolumeClaimsByJobID(nil, "default", "job-a")
+		require.NoError(t, err)
+		first := iter.Next().(*structs.DynamicHostVolumeClaim)
+		require.Nil(t, iter.Next(), "one claim per volume")
+		require.Equal(t, "claim-a", first.ID)
+		require.Equal(t, alloc.ID, first.AllocationID, "the claim is left as it is")
+		placed, err := store.AllocByID(nil, second.ID)
+		require.NoError(t, err)
+		require.NotNil(t, placed, "the allocation is still committed")
+		index, err := store.Index(TableDynamicHostVolumeClaims)
+		require.NoError(t, err)
+		require.Equal(t, uint64(20), index, "a skipped claim writes nothing")
+	})
+
+	t.Run("a vanished volume skips the claim and keeps the allocation", func(t *testing.T) {
+		store, req, alloc := planResultsClaimFixture(t)
+		require.NoError(t, store.DeleteDynamicHostVolumes(15, []DynamicHostVolumeDelete{{Namespace: "default", ID: "volume-a", ExpectedModifyIndex: 10}}))
+		require.NoError(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 20, req))
+		placed, err := store.AllocByID(nil, alloc.ID)
+		require.NoError(t, err)
+		require.NotNil(t, placed)
+		claims, err := store.DynamicHostVolumeClaimsByJobID(nil, "default", "job-a")
+		require.NoError(t, err)
+		require.Nil(t, claims.Next())
+	})
+}
+
+func TestStateStore_UpsertPlanResults_DynamicHostVolumeClaimsAtomic(t *testing.T) {
+	t.Run("an invalid claim aborts the allocations too", func(t *testing.T) {
+		store, req, alloc := planResultsClaimFixture(t)
+		req.DynamicHostVolumeClaims[0].JobID = ""
+		require.ErrorIs(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 20, req), ErrDynamicHostVolumeStateInvalid)
+		placed, err := store.AllocByID(nil, alloc.ID)
+		require.NoError(t, err)
+		require.Nil(t, placed, "no partial write")
+		index, err := store.Index(TableDynamicHostVolumeClaims)
+		require.NoError(t, err)
+		require.Zero(t, index)
+	})
+
+	t.Run("an index not above the claims index is refused without a partial write", func(t *testing.T) {
+		store, req, _ := planResultsClaimFixture(t)
+		require.NoError(t, store.UpsertDynamicHostVolumeClaims(30, []*structs.DynamicHostVolumeClaim{{
+			ID: "claim-other", Namespace: "default", JobID: "job-b", TaskGroupName: "group-a",
+			VolumeName: "data-volume-a", VolumeID: "volume-a",
+		}}))
+		require.ErrorIs(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 30, req), ErrDynamicHostVolumeStateIndex)
+		placed, err := store.AllocByID(nil, req.AllocsUpdated[0].ID)
+		require.NoError(t, err)
+		require.Nil(t, placed)
+	})
+
+	t.Run("applying the same request twice is idempotent", func(t *testing.T) {
+		store, req, alloc := planResultsClaimFixture(t)
+		require.NoError(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 20, req))
+		require.NoError(t, store.UpsertPlanResults(structs.MsgTypeTestSetup, 20, req))
+		iter, err := store.DynamicHostVolumeClaimsByJobID(nil, "default", "job-a")
+		require.NoError(t, err)
+		require.NotNil(t, iter.Next())
+		require.Nil(t, iter.Next())
+		placed, err := store.AllocByID(nil, alloc.ID)
+		require.NoError(t, err)
+		require.NotNil(t, placed)
+	})
 }

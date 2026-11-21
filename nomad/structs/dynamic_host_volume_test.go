@@ -458,3 +458,158 @@ func TestHostVolumeRequestsBySource(t *testing.T) {
 	require.Len(t, got["data-b[3]"], 1)
 	require.Equal(t, "data-b", volumes["b"].Source)
 }
+
+func stickyTestClaims(volumeIDs ...string) []*DynamicHostVolumeClaim {
+	var claims []*DynamicHostVolumeClaim
+	for _, id := range volumeIDs {
+		claims = append(claims, &DynamicHostVolumeClaim{
+			ID: "claim-" + id, Namespace: "default", JobID: "job-a", TaskGroupName: "group-a",
+			VolumeName: "data-a", VolumeID: id,
+		})
+	}
+	return claims
+}
+
+func TestDynamicHostVolumeStickyAllowed(t *testing.T) {
+	sticky := []*VolumeRequest{{Name: "data", Type: VolumeTypeHost, Source: "data-a", Sticky: true}}
+	plain := []*VolumeRequest{{Name: "data", Type: VolumeTypeHost, Source: "data-a"}}
+	mixed := []*VolumeRequest{plain[0], sticky[0]}
+
+	// Volume vol-a lives on node-a, vol-b on node-b.
+	nodes := map[string]string{"vol-a": "node-a", "vol-b": "node-b"}
+
+	cases := []struct {
+		name      string
+		requests  []*VolumeRequest
+		claims    []*DynamicHostVolumeClaim
+		recorded  map[string]string
+		live      map[string]bool
+		candidate string
+		allowed   bool
+	}{
+		{name: "no claims allows any volume", requests: sticky, candidate: "vol-b", allowed: true},
+		{name: "no claims, nothing recorded", requests: sticky, recorded: nodes, candidate: "vol-a", allowed: true},
+		{name: "free claim forces the claimed volume", requests: sticky,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, candidate: "vol-a", allowed: true},
+		{name: "free claim forbids another volume", requests: sticky,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, candidate: "vol-b", allowed: false},
+		{name: "claim used by a live allocation allows another volume", requests: sticky,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, live: map[string]bool{"node-a": true}, candidate: "vol-b", allowed: true},
+		{name: "claim used by a live allocation allows the same volume", requests: sticky,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, live: map[string]bool{"node-a": true}, candidate: "vol-a", allowed: true},
+		{name: "live allocation on an unrelated node does not use the claim", requests: sticky,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, live: map[string]bool{"node-b": true}, candidate: "vol-b", allowed: false},
+		{name: "two claims, one used: only the free one", requests: sticky,
+			claims: stickyTestClaims("vol-a", "vol-b"), recorded: nodes, live: map[string]bool{"node-b": true}, candidate: "vol-b", allowed: false},
+		{name: "two claims, one used: the free one is allowed", requests: sticky,
+			claims: stickyTestClaims("vol-a", "vol-b"), recorded: nodes, live: map[string]bool{"node-b": true}, candidate: "vol-a", allowed: true},
+		{name: "two claims both used allows any", requests: sticky,
+			claims: stickyTestClaims("vol-a", "vol-b"), recorded: nodes, live: map[string]bool{"node-a": true, "node-b": true}, candidate: "vol-c", allowed: true},
+		{name: "claim whose record is gone is ignored", requests: sticky,
+			claims: stickyTestClaims("vol-gone"), recorded: nodes, candidate: "vol-b", allowed: true},
+		{name: "gone claim does not hide a free claim", requests: sticky,
+			claims: stickyTestClaims("vol-gone", "vol-a"), recorded: nodes, candidate: "vol-b", allowed: false},
+		{name: "not sticky follows no rule", requests: plain,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, candidate: "vol-b", allowed: true},
+		{name: "one sticky request among several applies the rule", requests: mixed,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, candidate: "vol-b", allowed: false},
+		{name: "static volume has no ID and follows no rule", requests: sticky,
+			claims: stickyTestClaims("vol-a"), recorded: nodes, candidate: "", allowed: true},
+		{name: "claims of another group or source are ignored", requests: sticky,
+			claims: []*DynamicHostVolumeClaim{
+				{ID: "c1", TaskGroupName: "group-other", VolumeName: "data-a", VolumeID: "vol-a"},
+				{ID: "c2", TaskGroupName: "group-a", VolumeName: "data-other", VolumeID: "vol-a"},
+			}, recorded: nodes, candidate: "vol-b", allowed: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := DynamicHostVolumeStickyAllowed(tc.requests, "group-a", "data-a", tc.claims, tc.recorded, tc.live, tc.candidate)
+			require.Equal(t, tc.allowed, got)
+		})
+	}
+}
+
+func TestDynamicHostVolumeStickyLiveAllocs(t *testing.T) {
+	job := &Job{ID: "job-a", Namespace: "default", TaskGroups: []*TaskGroup{{
+		Name: "group-a",
+		Volumes: map[string]*VolumeRequest{
+			"data": {Name: "data", Type: VolumeTypeHost, Source: "data-a", Sticky: true},
+			"each": {Name: "each", Type: VolumeTypeHost, Source: "slot", PerAlloc: true, Sticky: true},
+		},
+	}, {Name: "group-b"}}}
+	alloc := func(id, node, group, name string) *Allocation {
+		return &Allocation{ID: id, NodeID: node, TaskGroup: group, JobID: "job-a", Name: name, DesiredStatus: AllocDesiredStatusRun}
+	}
+	terminal := func(a *Allocation, desired, client string) *Allocation {
+		a.DesiredStatus, a.ClientStatus = desired, client
+		return a
+	}
+
+	stored := []*Allocation{
+		alloc("a1", "node-a", "group-a", "job-a.group-a[0]"),
+		alloc("a2", "node-b", "group-a", "job-a.group-a[1]"),
+		alloc("b1", "node-c", "group-b", "job-a.group-b[0]"),
+		terminal(alloc("a3", "node-d", "group-a", "job-a.group-a[2]"), AllocDesiredStatusStop, AllocClientStatusRunning),
+		terminal(alloc("a4", "node-e", "group-a", "job-a.group-a[3]"), AllocDesiredStatusRun, AllocClientStatusFailed),
+	}
+
+	t.Run("stored allocations", func(t *testing.T) {
+		live := DynamicHostVolumeStickyLiveAllocs(stored, nil, "group-a", "")
+		ids := []string{}
+		for _, a := range live {
+			ids = append(ids, a.ID)
+		}
+		require.ElementsMatch(t, []string{"a1", "a2"}, ids)
+	})
+
+	t.Run("plan stops and preemptions remove, placements add", func(t *testing.T) {
+		plan := &Plan{
+			Job:             job,
+			NodeUpdate:      map[string][]*Allocation{"node-a": {alloc("a1", "node-a", "group-a", "x")}},
+			NodePreemptions: map[string][]*Allocation{"node-b": {alloc("a2", "node-b", "group-a", "x")}},
+			NodeAllocation: map[string][]*Allocation{
+				"node-f": {alloc("n1", "node-f", "group-a", "job-a.group-a[0]")},
+				"node-g": {alloc("n2", "node-g", "group-b", "job-a.group-b[0]")},
+			},
+		}
+		live := DynamicHostVolumeStickyLiveAllocs(stored, plan, "group-a", "")
+		ids := []string{}
+		for _, a := range live {
+			ids = append(ids, a.ID)
+		}
+		require.ElementsMatch(t, []string{"n1"}, ids)
+	})
+
+	t.Run("the allocation being checked is left out", func(t *testing.T) {
+		plan := &Plan{Job: job, NodeAllocation: map[string][]*Allocation{
+			"node-f": {alloc("n1", "node-f", "group-a", "job-a.group-a[0]")},
+			"node-g": {alloc("n2", "node-g", "group-a", "job-a.group-a[1]")},
+		}}
+		live := DynamicHostVolumeStickyLiveAllocs(nil, plan, "group-a", "n1")
+		require.Len(t, live, 1)
+		require.Equal(t, "n2", live[0].ID)
+	})
+
+	t.Run("an updated allocation is counted once", func(t *testing.T) {
+		plan := &Plan{Job: job, NodeAllocation: map[string][]*Allocation{
+			"node-a": {alloc("a1", "node-a", "group-a", "job-a.group-a[0]")},
+		}}
+		live := DynamicHostVolumeStickyLiveAllocs(stored, plan, "group-a", "")
+		require.Len(t, live, 2)
+	})
+
+	t.Run("nodes using a source", func(t *testing.T) {
+		allocs := []*Allocation{
+			alloc("a1", "node-a", "group-a", "job-a.group-a[0]"),
+			alloc("a2", "node-b", "group-a", "job-a.group-a[1]"),
+		}
+		require.Equal(t, map[string]bool{"node-a": true, "node-b": true},
+			DynamicHostVolumeStickyLiveNodes(allocs, "data-a", job))
+		// A per-alloc source carries the allocation index, so only the
+		// allocation with that index uses it.
+		require.Equal(t, map[string]bool{"node-b": true},
+			DynamicHostVolumeStickyLiveNodes(allocs, "slot[1]", job))
+		require.Empty(t, DynamicHostVolumeStickyLiveNodes(allocs, "unrelated", job))
+	})
+}
