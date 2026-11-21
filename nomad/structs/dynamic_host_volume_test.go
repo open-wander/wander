@@ -5,6 +5,7 @@ package structs
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -238,4 +239,222 @@ func TestDynamicHostVolumeSerialization(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDynamicHostVolumeAccessAllows(t *testing.T) {
+	for _, tc := range []struct {
+		access   DynamicHostVolumeAccessMode
+		readOnly bool
+		allowed  bool
+	}{
+		{DynamicHostVolumeAccessModeSingleNodeReader, true, true},
+		{DynamicHostVolumeAccessModeSingleNodeReader, false, false},
+		{DynamicHostVolumeAccessModeSingleNodeWriter, true, false},
+		{DynamicHostVolumeAccessModeSingleNodeWriter, false, true},
+		{DynamicHostVolumeAccessModeSingleNodeSingleWriter, true, true},
+		{DynamicHostVolumeAccessModeSingleNodeSingleWriter, false, true},
+		{DynamicHostVolumeAccessModeSingleNodeMultiWriter, true, true},
+		{DynamicHostVolumeAccessModeSingleNodeMultiWriter, false, true},
+		{"synthetic-future", true, false},
+		{"synthetic-future", false, false},
+		{DynamicHostVolumeAccessModeUnknown, true, false},
+		{DynamicHostVolumeAccessModeUnknown, false, false},
+	} {
+		t.Run(fmt.Sprintf("%q/read_only=%t", tc.access, tc.readOnly), func(t *testing.T) {
+			require.Equal(t, tc.allowed, DynamicHostVolumeAccessAllows(tc.access, tc.readOnly))
+		})
+	}
+}
+
+func TestDynamicHostVolumeWriterConflict(t *testing.T) {
+	const (
+		ns     = "ns-a"
+		volume = "data-a"
+	)
+	single := CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeSingleWriter)
+	multi := CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeMultiWriter)
+	writer := CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeWriter)
+	readerOnly := CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeReader)
+
+	req := func(source string, access CSIVolumeAccessMode, readOnly bool) *VolumeRequest {
+		return &VolumeRequest{Name: "data", Type: VolumeTypeHost, Source: source, AccessMode: access, ReadOnly: readOnly}
+	}
+	jobWith := func(namespace string, r *VolumeRequest) *Job {
+		return &Job{
+			ID: "job-a", Namespace: namespace,
+			TaskGroups: []*TaskGroup{{Name: "group-a", Volumes: map[string]*VolumeRequest{"data": r}}},
+		}
+	}
+	other := func(id string, r *VolumeRequest) *Allocation {
+		return &Allocation{
+			ID: id, Name: "job-a.group-a[0]", Namespace: ns, TaskGroup: "group-a",
+			Job: jobWith(ns, r),
+		}
+	}
+
+	cases := []struct {
+		name     string
+		volName  string // defaults to the shared volume name
+		req      *VolumeRequest
+		selfID   string
+		others   []*Allocation
+		fallback *Job
+		conflict bool
+	}{
+		{"ssw writer vs ssw writer", "", req(volume, single, false), "", []*Allocation{other("a", req(volume, single, false))}, nil, true},
+		{"ssw writer vs ssw reader", "", req(volume, single, false), "", []*Allocation{other("a", req(volume, single, true))}, nil, true},
+		{"ssw reader vs ssw writer", "", req(volume, single, true), "", []*Allocation{other("a", req(volume, single, false))}, nil, true},
+		{"ssw reader vs ssw reader", "", req(volume, single, true), "", []*Allocation{other("a", req(volume, single, true))}, nil, false},
+		{"ssw writer with no others", "", req(volume, single, false), "", nil, nil, false},
+		{"ssw writer vs multi writer", "", req(volume, single, false), "", []*Allocation{other("a", req(volume, multi, false))}, nil, true},
+		{"multi writer vs ssw writer", "", req(volume, multi, false), "", []*Allocation{other("a", req(volume, single, false))}, nil, true},
+		{"multi writer vs ssw reader", "", req(volume, multi, false), "", []*Allocation{other("a", req(volume, single, true))}, nil, true},
+		{"reader-only vs ssw writer", "", req(volume, readerOnly, true), "", []*Allocation{other("a", req(volume, single, false))}, nil, true},
+		{"reader-only vs ssw reader", "", req(volume, readerOnly, true), "", []*Allocation{other("a", req(volume, single, true))}, nil, false},
+		{"multi writer vs multi writer", "", req(volume, multi, false), "", []*Allocation{other("a", req(volume, multi, false))}, nil, false},
+		{"writer vs writer", "", req(volume, writer, false), "", []*Allocation{other("a", req(volume, writer, false))}, nil, false},
+		{"writer vs multi writer", "", req(volume, writer, false), "", []*Allocation{other("a", req(volume, multi, false))}, nil, false},
+		{"reader-only vs writer", "", req(volume, readerOnly, true), "", []*Allocation{other("a", req(volume, writer, false))}, nil, false},
+		{"multi writer vs reader-only", "", req(volume, multi, false), "", []*Allocation{other("a", req(volume, readerOnly, true))}, nil, false},
+		{"own allocation is skipped", "", req(volume, single, false), "a", []*Allocation{other("a", req(volume, single, false))}, nil, false},
+		{"other allocation is not skipped by self ID", "", req(volume, single, false), "b", []*Allocation{other("a", req(volume, single, false))}, nil, true},
+		{
+			"allocation of another namespace", "",
+			req(volume, single, false), "",
+			[]*Allocation{func() *Allocation {
+				a := other("a", req(volume, single, false))
+				a.Namespace = "ns-b"
+				return a
+			}()}, nil, false,
+		},
+		{"allocation using another source", "", req(volume, single, false), "", []*Allocation{other("a", req("data-b", single, false))}, nil, false},
+		{
+			"per-alloc suffix of another index does not conflict", "data[1]",
+			req("data", single, false), "",
+			[]*Allocation{func() *Allocation {
+				r := req("data", single, false)
+				r.PerAlloc = true
+				a := other("a", r)
+				a.Name = "job-a.group-a[0]"
+				return a
+			}()}, nil, false,
+		},
+		{
+			"per-alloc suffix of the same index conflicts", "data[0]",
+			req("data", single, false), "",
+			[]*Allocation{func() *Allocation {
+				r := req("data", single, false)
+				r.PerAlloc = true
+				return other("a", r)
+			}()}, nil, true,
+		},
+		{
+			"nil job falls back to the plan job", "",
+			req(volume, single, false), "",
+			[]*Allocation{func() *Allocation {
+				a := other("a", nil)
+				a.Job = nil
+				return a
+			}()},
+			jobWith(ns, req(volume, single, false)), true,
+		},
+		{
+			"nil job without fallback is ignored", "",
+			req(volume, single, false), "",
+			[]*Allocation{func() *Allocation {
+				a := other("a", nil)
+				a.Job = nil
+				return a
+			}()}, nil, false,
+		},
+		{
+			"unknown task group is ignored", "",
+			req(volume, single, false), "",
+			[]*Allocation{func() *Allocation {
+				a := other("a", req(volume, single, false))
+				a.TaskGroup = "group-z"
+				return a
+			}()}, nil, false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vol := &DynamicHostVolume{ID: "volume-synthetic-a", Name: volume, Namespace: ns}
+			if tc.volName != "" {
+				vol.Name = tc.volName
+			}
+			got := DynamicHostVolumeWriterConflict(vol, tc.req, tc.selfID, tc.others, tc.fallback)
+			require.Equal(t, tc.conflict, got)
+		})
+	}
+}
+
+func TestDynamicHostVolumeWriterConflict_NoMutation(t *testing.T) {
+	r := &VolumeRequest{Name: "data", Type: VolumeTypeHost, Source: "data", PerAlloc: true,
+		AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeSingleWriter)}
+	job := &Job{ID: "job-a", Namespace: "ns-a", TaskGroups: []*TaskGroup{{Name: "group-a", Volumes: map[string]*VolumeRequest{"data": r}}}}
+	alloc := &Allocation{ID: "a", Name: "job-a.group-a[0]", Namespace: "ns-a", TaskGroup: "group-a"}
+	vol := &DynamicHostVolume{Name: "data[0]", Namespace: "ns-a"}
+
+	require.True(t, DynamicHostVolumeWriterConflict(vol, r, "", []*Allocation{alloc}, job))
+	require.Nil(t, alloc.Job)
+	require.Equal(t, "data", r.Source)
+}
+
+func TestDynamicHostVolumeUsable(t *testing.T) {
+	fs := DynamicHostVolumeAttachmentModeFilesystem
+	vol := func(mutate func(v *DynamicHostVolume)) *DynamicHostVolume {
+		v := &DynamicHostVolume{
+			ID: "volume-synthetic-a", Name: "data-a", NodeID: "node-synthetic-a",
+			State: DynamicHostVolumeStateReady,
+			RequestedCapabilities: []*DynamicHostVolumeCapability{
+				nil, {AttachmentMode: fs, AccessMode: DynamicHostVolumeAccessModeSingleNodeWriter},
+			},
+		}
+		if mutate != nil {
+			mutate(v)
+		}
+		return v
+	}
+	plain := []*VolumeRequest{{Type: VolumeTypeHost, Source: "data-a"}}
+
+	cases := []struct {
+		name     string
+		vol      *DynamicHostVolume
+		requests []*VolumeRequest
+		want     DynamicHostVolumeUse
+	}{
+		{"usable", vol(nil), plain, DynamicHostVolumeUseOK},
+		{"nil record", nil, plain, DynamicHostVolumeUseMissing},
+		{"other node", vol(func(v *DynamicHostVolume) { v.NodeID = "node-synthetic-b" }), plain, DynamicHostVolumeUseMissing},
+		{"other name", vol(func(v *DynamicHostVolume) { v.Name = "data-b" }), plain, DynamicHostVolumeUseMissing},
+		{"not ready", vol(func(v *DynamicHostVolume) { v.State = DynamicHostVolumeStatePending }), plain, DynamicHostVolumeUseNotReady},
+		{"no capability", vol(func(v *DynamicHostVolume) { v.RequestedCapabilities = nil }), plain, DynamicHostVolumeUseNoCapability},
+		{
+			"direction rule",
+			vol(nil),
+			[]*VolumeRequest{{Type: VolumeTypeHost, Source: "data-a", ReadOnly: true, AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeWriter)}},
+			DynamicHostVolumeUseNoCapability,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, DynamicHostVolumeUsableBy(tc.vol, "node-synthetic-a", "data-a", tc.requests))
+		})
+	}
+}
+
+func TestHostVolumeRequestsBySource(t *testing.T) {
+	volumes := map[string]*VolumeRequest{
+		"a": {Type: VolumeTypeHost, Source: "data-a"},
+		"b": {Type: VolumeTypeHost, Source: "data-b", PerAlloc: true},
+		"c": {Type: VolumeTypeCSI, Source: "csi-c"},
+		"d": {Type: VolumeTypeHost, Source: "data-a", ReadOnly: true},
+	}
+	got := HostVolumeRequestsBySource(volumes, "job-a.group-a[3]")
+	require.Len(t, got, 2)
+	require.Len(t, got["data-a"], 2)
+	require.Len(t, got["data-b[3]"], 1)
+	require.Equal(t, "data-b", volumes["b"].Source)
 }

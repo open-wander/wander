@@ -178,7 +178,8 @@ func dynamicHostVolumeValidateModes(attachment DynamicHostVolumeAttachmentMode, 
 	return multierror.Append(nil,
 		dynamicHostVolumeModeError("AttachmentMode", string(attachment), string(DynamicHostVolumeAttachmentModeFilesystem)),
 		dynamicHostVolumeModeError("AccessMode", string(access),
-			string(DynamicHostVolumeAccessModeSingleNodeReader), string(DynamicHostVolumeAccessModeSingleNodeWriter)))
+			string(DynamicHostVolumeAccessModeSingleNodeReader), string(DynamicHostVolumeAccessModeSingleNodeWriter),
+			string(DynamicHostVolumeAccessModeSingleNodeSingleWriter), string(DynamicHostVolumeAccessModeSingleNodeMultiWriter)))
 }
 
 func dynamicHostVolumeModeError(field, value string, supported ...string) error {

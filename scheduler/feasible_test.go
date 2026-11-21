@@ -3174,6 +3174,8 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 	fs := structs.DynamicHostVolumeAttachmentModeFilesystem
 	writer := structs.DynamicHostVolumeAccessModeSingleNodeWriter
 	reader := structs.DynamicHostVolumeAccessModeSingleNodeReader
+	singleWriter := structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter
+	multiWriter := structs.DynamicHostVolumeAccessModeSingleNodeMultiWriter
 
 	cases := []struct {
 		name      string
@@ -3300,7 +3302,7 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 			reason:    fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, "data-a"),
 		},
 		{
-			name:      "static volume with explicit access mode",
+			name:      "static volume ignores explicit access mode",
 			namespace: "ns-a",
 			request: &structs.VolumeRequest{
 				Type: "host", Source: "data-a",
@@ -3309,10 +3311,10 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
 				node.HostVolumes["data-a"].ID = ""
 			},
-			reason: FilterConstraintHostVolumes,
+			feasible: true,
 		},
 		{
-			name:      "static volume with explicit attachment mode",
+			name:      "static volume ignores explicit attachment mode",
 			namespace: "ns-a",
 			request: &structs.VolumeRequest{
 				Type: "host", Source: "data-a",
@@ -3321,7 +3323,99 @@ func TestHostVolumeChecker_Dynamic(t *testing.T) {
 			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
 				node.HostVolumes["data-a"].ID = ""
 			},
+			feasible: true,
+		},
+		{
+			name:      "read-only static volume refuses read-write request with explicit modes",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem,
+				AccessMode:     structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				node.HostVolumes["data-a"].ID = ""
+				node.HostVolumes["data-a"].ReadOnly = true
+			},
 			reason: FilterConstraintHostVolumes,
+		},
+		{
+			name:      "read-only request with explicit writer mode on writer capability",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
+		},
+		{
+			name:      "read-only request with explicit writer mode does not fall through to reader capability",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = append(capability(fs, reader), capability(fs, writer)...)
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
+		},
+		{
+			name:      "single-writer capability read-write request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessMode(singleWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, singleWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "single-writer capability read-only request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessMode(singleWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, singleWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "multi-writer capability read-write request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessMode(multiWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, multiWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "multi-writer capability read-only request",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessMode(multiWriter),
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, multiWriter)
+			},
+			feasible: true,
+		},
+		{
+			name:      "single-writer request does not match writer-only capability",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessMode(singleWriter),
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
 		},
 		{
 			name:      "static volume without modes",
@@ -3489,4 +3583,217 @@ func TestStacks_DynamicHostVolumeNamespace(t *testing.T) {
 			}
 		})
 	}
+}
+
+// dynamicWriterAlloc builds a running allocation of a synthetic job whose only
+// task group requests the named host volume.
+func dynamicWriterAlloc(node *structs.Node, namespace, source string, access structs.DynamicHostVolumeAccessMode, readOnly bool) *structs.Allocation {
+	job := mock.Job()
+	job.Namespace = namespace
+	job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{"data": {
+		Name: "data", Type: structs.VolumeTypeHost, Source: source, ReadOnly: readOnly,
+		AccessMode: structs.CSIVolumeAccessMode(access),
+	}}
+	alloc := mock.Alloc()
+	alloc.Job = job
+	alloc.JobID = job.ID
+	alloc.Namespace = namespace
+	alloc.TaskGroup = job.TaskGroups[0].Name
+	alloc.NodeID = node.ID
+	alloc.ClientStatus = structs.AllocClientStatusRunning
+	alloc.DesiredStatus = structs.AllocDesiredStatusRun
+	return alloc
+}
+
+func TestHostVolumeChecker_DynamicWriterAccounting(t *testing.T) {
+	ci.Parallel(t)
+
+	const hostPath = "/synthetic/host-path-marker"
+	ssw := structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter
+	fs := structs.DynamicHostVolumeAttachmentModeFilesystem
+
+	cases := []struct {
+		name     string
+		access   structs.DynamicHostVolumeAccessMode // request and capability
+		readOnly bool
+		existing func(node *structs.Node) []*structs.Allocation // in state
+		planned  func(node *structs.Node) []*structs.Allocation // placed by the plan
+		stopped  func(existing []*structs.Allocation) []*structs.Allocation
+		feasible bool
+	}{
+		{
+			name:   "writer next to a writer",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)}
+			},
+		},
+		{
+			name:   "reader next to a writer",
+			access: ssw, readOnly: true, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)}
+			},
+		},
+		{
+			name:   "writer next to readers",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, true), dynamicWriterAlloc(n, "ns-a", "data-a", ssw, true)}
+			},
+		},
+		{
+			name:   "reader next to readers",
+			access: ssw, readOnly: true, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, true), dynamicWriterAlloc(n, "ns-a", "data-a", ssw, true)}
+			},
+			feasible: true,
+		},
+		{
+			name: "writer with no users", access: ssw,
+			existing: func(n *structs.Node) []*structs.Allocation { return nil },
+			feasible: true,
+		},
+		{
+			name:   "writer placed earlier in the same plan",
+			access: ssw, planned: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)}
+			},
+		},
+		{
+			name:   "writer next to a writer that the plan stops",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)}
+			},
+			stopped:  func(e []*structs.Allocation) []*structs.Allocation { return e },
+			feasible: true,
+		},
+		{
+			name:   "writer next to a client-terminal writer",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				a := dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)
+				a.ClientStatus = structs.AllocClientStatusFailed
+				return []*structs.Allocation{a}
+			},
+			feasible: true,
+		},
+		{
+			name:   "writer next to a writer of another namespace",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-b", "data-a", ssw, false)}
+			},
+			feasible: true,
+		},
+		{
+			name:   "writer next to a writer of another source",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-b", ssw, false)}
+			},
+			feasible: true,
+		},
+		{
+			name:   "single-node-writer never conflicts",
+			access: structs.DynamicHostVolumeAccessModeSingleNodeWriter, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", structs.DynamicHostVolumeAccessModeSingleNodeWriter, false)}
+			},
+			feasible: true,
+		},
+		{
+			name:   "single-node-multi-writer never conflicts",
+			access: structs.DynamicHostVolumeAccessModeSingleNodeMultiWriter, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", structs.DynamicHostVolumeAccessModeSingleNodeMultiWriter, false)}
+			},
+			feasible: true,
+		},
+		{
+			name:   "single-node-reader-only never conflicts",
+			access: structs.DynamicHostVolumeAccessModeSingleNodeReader, readOnly: true, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", structs.DynamicHostVolumeAccessModeSingleNodeReader, true)}
+			},
+			feasible: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, ctx := testContext(t)
+			upsertTestNamespaces(t, store, "ns-a", "ns-b")
+			id := uuid.Generate()
+			node := dynamicHostVolumeNode(id, "data-a", hostPath)
+			vol := dynamicHostVolumeRecord(node, id, "ns-a", "data-a")
+			vol.RequestedCapabilities = []*structs.DynamicHostVolumeCapability{{AttachmentMode: fs, AccessMode: tc.access}}
+			must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
+			must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, 1001, node))
+
+			var existing []*structs.Allocation
+			if tc.existing != nil {
+				existing = tc.existing(node)
+				for _, a := range existing {
+					must.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, 1002, nil, a.Job))
+				}
+				must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, 1003, existing))
+			}
+
+			// The job being placed.
+			placing := dynamicWriterAlloc(node, "ns-a", "data-a", tc.access, tc.readOnly)
+			ctx.Plan().Job = placing.Job
+			if tc.stopped != nil {
+				for _, a := range tc.stopped(existing) {
+					ctx.Plan().AppendStoppedAlloc(a, "stop", "", "")
+				}
+			}
+			if tc.planned != nil {
+				for _, a := range tc.planned(node) {
+					// Allocations of a plan carry no job.
+					ctx.Plan().AppendAlloc(a, nil)
+				}
+			}
+
+			checker := NewHostVolumeChecker(ctx)
+			checker.SetNamespace("ns-a")
+			checker.SetVolumes("example.group[0]", placing.Job.TaskGroups[0].Volumes)
+
+			must.Eq(t, tc.feasible, checker.Feasible(node))
+			filtered := ctx.Metrics().ConstraintFiltered
+			if tc.feasible {
+				must.MapLen(t, 0, filtered)
+				return
+			}
+			must.MapLen(t, 1, filtered)
+			must.MapContainsKey(t, filtered, fmt.Sprintf(FilterConstraintDynamicHostVolumeWriterTemplate, "data-a"))
+			for reason := range filtered {
+				must.StrNotContains(t, reason, hostPath)
+				must.StrNotContains(t, reason, id)
+			}
+		})
+	}
+}
+
+// A volume record without the single-writer capability is never checked
+// against allocations, so a node with it costs no allocation lookup.
+func TestHostVolumeChecker_DynamicWriterAccountingSkippedWithoutCapability(t *testing.T) {
+	ci.Parallel(t)
+
+	store, ctx := testContext(t)
+	upsertTestNamespaces(t, store, "ns-a")
+	id := uuid.Generate()
+	node := dynamicHostVolumeNode(id, "data-a", "/synthetic/data-a")
+	vol := dynamicHostVolumeRecord(node, id, "ns-a", "data-a")
+	must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
+
+	// ProposedAllocs would fail on a node of a context with no state for it,
+	// so a counting wrapper shows it is not called.
+	counting := &proposedCountingContext{Context: ctx}
+	checker := NewHostVolumeChecker(counting)
+	checker.SetNamespace("ns-a")
+	checker.SetVolumes("example.group[0]", map[string]*structs.VolumeRequest{"data": {Type: "host", Source: "data-a"}})
+	must.True(t, checker.Feasible(node))
+	must.Eq(t, 0, counting.calls)
+}
+
+type proposedCountingContext struct {
+	Context
+	calls int
+}
+
+func (c *proposedCountingContext) ProposedAllocs(nodeID string) ([]*structs.Allocation, error) {
+	c.calls++
+	return c.Context.ProposedAllocs(nodeID)
 }

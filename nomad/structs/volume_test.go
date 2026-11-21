@@ -111,6 +111,12 @@ func TestVolumeRequest_Validate_HostModes(t *testing.T) {
 		{name: "single-node-writer", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeSingleNodeWriter}},
 		{name: "reader-only read-only", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeSingleNodeReader, ReadOnly: true}},
 		{name: "reader-only writable", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeSingleNodeReader}, expected: "single-node-reader-only volumes must be read-only"},
+		{name: "single-writer read-write", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeSingleWriter)}},
+		{name: "single-writer read-only", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeSingleWriter), ReadOnly: true}},
+		{name: "multi-writer read-write", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeMultiWriter)}},
+		{name: "multi-writer read-only", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeMultiWriter), ReadOnly: true}},
+		{name: "explicit writer read-only is valid at submission", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeSingleNodeWriter, ReadOnly: true}},
+		{name: "unknown access mode", req: &VolumeRequest{Source: "data-a", AccessMode: "synthetic-future"}, expected: "host volumes cannot have access mode synthetic-future"},
 		{name: "block-device", req: &VolumeRequest{Source: "data-a", AttachmentMode: CSIVolumeAttachmentModeBlockDevice}, expected: "host volumes cannot have attachment mode block-device"},
 		{name: "multi-node-reader-only", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeMultiNodeReader}, expected: "host volumes cannot have access mode multi-node-reader-only"},
 		{name: "multi-node-single-writer", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeMultiNodeSingleWriter}, expected: "host volumes cannot have access mode multi-node-single-writer"},
@@ -144,6 +150,8 @@ func TestVolumeRequest_HostVolumeModes(t *testing.T) {
 		{"read-only default", &VolumeRequest{ReadOnly: true}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeReader},
 		{"explicit writer", &VolumeRequest{AccessMode: CSIVolumeAccessModeSingleNodeWriter}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeWriter},
 		{"explicit reader", &VolumeRequest{AccessMode: CSIVolumeAccessModeSingleNodeReader, ReadOnly: true}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeReader},
+		{"explicit single-writer", &VolumeRequest{AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeSingleWriter)}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeSingleWriter},
+		{"explicit multi-writer read-only", &VolumeRequest{AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeMultiWriter), ReadOnly: true}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeMultiWriter},
 		{"explicit file-system", &VolumeRequest{AttachmentMode: CSIVolumeAttachmentModeFilesystem}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeWriter},
 	}
 	for _, tc := range testCases {

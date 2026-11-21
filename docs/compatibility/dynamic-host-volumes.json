@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "feature": "dynamic-host-volumes",
-  "evidence_cutoff": "2026-11-20",
+  "evidence_cutoff": "2026-11-21",
   "synthetic_only": true,
   "sources": [
     {"id":"SRC-api","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-08","scope":"HTTP and claim operation tables; conflicting examples","summary":"Public operation tables only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
@@ -13,6 +13,7 @@
     {"id":"SRC-acl","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/secure/acl/policies#host-volume-rules","date":"2026-11-08","scope":"Host volume mount policy","summary":"Mount permissions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-acl-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/acl-policy","date":"2026-11-15","scope":"Namespace host-volume capabilities, their implications, and the read, write and scale shorthands","summary":"Capability names, descriptions and shorthand expansions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-observe-plugin-inputs","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-plugin-inputs","date":"2026-11-20","scope":"Arguments, environment and result handling of the create and delete plugin calls","summary":"What an official release binary passed to a synthetic recording plugin, and how it treated two unusual create outputs.","limitations":"One client, one version, one platform, development mode; behaviour may differ elsewhere."},
+    {"id":"SRC-observe-scheduling","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-scheduling","date":"2026-11-21","scope":"Placement of jobs that request a dynamic or static host volume, by access mode","summary":"Which synthetic jobs an official release binary placed on volumes of each access mode, alone and beside other users.","limitations":"One node, one version, one platform, development mode; group-level volume requests without a task mount; behaviour may differ elsewhere."},
     {"id":"SRC-requirements","category":"wander_requirement","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#requirements","date":"2026-11-08","scope":"Authorized PRD inventory; US-001..018, FR-1..36, section 6.5","summary":"Wander intended acceptance criteria; not upstream behavior.","limitations":"Does not resolve missing public contract evidence."}
   ],
   "test_cases": [
@@ -2336,7 +2337,7 @@
       "assertions": {
         "contract": {"status":"documented","value":"host selects host storage.","evidence_refs":["SRC-job"],"test_ids":["DHV-T-125"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-125"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-125"]},
+        "outputs": {"status":"observed","value":"A static host volume ignores access_mode and attachment_mode on the request: the job is placed by the name and read-only rules.","evidence_refs":["SRC-observe-scheduling"],"test_ids":["DHV-T-125"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-125"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-125"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-125"]},
@@ -2420,7 +2421,7 @@
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for access_mode that remain null? Consult permitted evidence before implementation."],
       "assertions": {
         "contract": {"status":"documented","value":"Defaults single-node-writer, or single-node-reader-only when read_only.","evidence_refs":["SRC-job"],"test_ids":["DHV-T-130"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-130"]},
+        "inputs_defaults": {"status":"documented","value":"Optional for dynamic host volumes. One of single-node-writer, single-node-reader-only, single-node-single-writer or single-node-multi-writer.","evidence_refs":["SRC-job"],"test_ids":["DHV-T-130"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-130"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-130"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-130"]},
@@ -3167,10 +3168,10 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for capability-matching that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-174"]},
+        "contract": {"status":"documented","value":"The access_mode and attachment_mode of a request together must exactly match one of the capability blocks of the volume.","evidence_refs":["SRC-job"],"test_ids":["DHV-T-174"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-174"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-174"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-174"]},
+        "errors": {"status":"observed","value":"A request whose modes match no capability is accepted at submission and is not placed. A block-device attachment mode on a host request is accepted at submission and is not placed. A multi-node access mode is rejected at submission.","evidence_refs":["SRC-observe-scheduling"],"test_ids":["DHV-T-174"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-174"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-174"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-174"]}
@@ -3184,12 +3185,12 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for exclusive-writers that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-175"]},
+        "contract": {"status":"observed","value":"single-node-single-writer: several readers run together and at most one writer runs. A reader is not placed while a writer holds the volume, and a writer was not placed while readers held it. single-node-writer, single-node-multi-writer and single-node-reader-only do not limit the number of allocations.","evidence_refs":["SRC-observe-scheduling"],"test_ids":["DHV-T-175"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-175"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-175"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-175"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-175"]},
-        "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-175"]},
+        "concurrency": {"status":"observed","value":"A job with two writers on one single-node-single-writer volume gets one placement and one placement failure.","evidence_refs":["SRC-observe-scheduling"],"test_ids":["DHV-T-175"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-175"]}
       }
     },
@@ -3201,7 +3202,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for read-only that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-176"]},
+        "contract": {"status":"observed","value":"A read_only request is not placed on a single-node-writer capability, with or without the mode named in the request. single-node-single-writer and single-node-multi-writer accept read_only and read/write requests. A request for single-node-reader-only without read_only is rejected at submission.","evidence_refs":["SRC-observe-scheduling"],"test_ids":["DHV-T-176"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-176"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-176"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-176"]},
@@ -3292,7 +3293,7 @@
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-181"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-181"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-181"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-181"]}
+        "lifecycle": {"status":"observed","value":"When the job holding a single-node-single-writer volume is stopped, a waiting job is placed.","evidence_refs":["SRC-observe-scheduling"],"test_ids":["DHV-T-181"]}
       }
     },
     {
