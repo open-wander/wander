@@ -13,7 +13,7 @@ must follow the clean-room and private-data rules in the linked PRD and
 | # | Task | PRD | Status | Notes |
 |---|------|-----|--------|-------|
 | 3.1 | Add the complete host-volume ACL capability model | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-15) | Added the five host-volume namespace capabilities with the documented implications and read/write shorthands, and a table-driven allow/deny matrix |
-| 3.2 | Implement node selection for volume creation | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.5, 2.2, 3.1 |
+| 3.2 | Implement node selection for volume creation | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-20) | Added a pure server-side selection over a state snapshot: explicit node and pool rules, readiness, plugin health, constraints, per-node name uniqueness, a documented tie-break and a bounded diagnostic |
 | 3.3 | Add scheduler feasibility checks for capabilities and access modes | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.5, 2.5, 3.1 |
 | 3.4 | Add atomic writer and attachment accounting | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 3.3 |
 | 3.5 | Mount selected dynamic paths and release attachments correctly | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 2.5, 3.4 |
