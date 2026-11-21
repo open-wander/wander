@@ -761,8 +761,38 @@ was only compiled reports nothing.
 PATTERN: testing - A hook that replaces one filesystem step can also act
 between two steps, which makes a race window testable without a race.
 
+## 2026-11-20 — Task 3.2 complete
+
+- Added `selectDynamicHostVolumeNode` in `nomad/dynamic_host_volume_node_selection.go`.
+  It reads a state snapshot and a volume and returns the node, a rejection
+  (`node_not_found`, `node_pool_mismatch`) or a diagnostic with per-reason
+  counts. Nothing calls it yet; the create API is task 4.2.
+- Rules, each node counted under the first it fails: node pool, readiness,
+  scheduling eligibility, drain, plugin health, constraints, name conflict.
+  Constraints reuse the scheduler's checker through a per-call context; its
+  metrics are never exposed because they hold constraint text.
+- Name conflicts scan every dynamic volume record, in any namespace and
+  state, plus the node's host volumes. The existing index is keyed by
+  namespace first and cannot answer the question.
+- Wander policy, recorded in the provenance record: the node pool `all` and an
+  empty pool mean every pool; among eligible nodes the one with the fewest
+  dynamic volume records wins, then the lowest node ID.
+- The advisor corrected the task text: the plugin attribute is
+  `plugins.host_volume.version.<plugin id>`, not the reversed form the
+  orchestrator wrote. Review returned MINOR; the orchestrator made the leak
+  check effective, documented that selection is for creation only, and noted
+  that the node ID comparison is a guard against a change of iteration order.
+- Twelve one-edit breaks of the rules each fail a test. Build, Windows
+  compile, vet, race tests, golangci-lint, Semgrep, gosec, the guards, the
+  licence boundary and the test group check passed.
+
+PATTERN: orchestration - Copy an identifier from the code into a task, not from
+memory. The advisor caught a reversed attribute name that would have matched
+no node.
+
 ## Resume point
 
-- Phases 1 and 2 are merged and swept, and the Phase 2 sweep follow-up is in
-  review.
-- Next task: 3.2 (node selection for volume creation).
+- Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
+  `4259fbe38b` (PR #70).
+- Next task: 3.3 (scheduler feasibility checks for capabilities and access
+  modes).

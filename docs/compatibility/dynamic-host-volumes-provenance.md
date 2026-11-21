@@ -361,6 +361,29 @@ change when black-box verification against a real implementation is allowed.
 | Retries | None (DHV-B-101). Retrying create with the same request runs the plugin again with identical inputs. |
 | Windows | The code compiles on Windows. External plugins are not discovered there, so the operations are not reachable; the shell based tests are excluded by build tag. |
 
+## Node selection for creation (server) {#node-selection}
+
+### Recorded evidence
+
+`node_pool` is optional and must match the node's pool when a node is given
+(DHV-B-121). A volume name is required and unique per node (DHV-B-118).
+
+### Wander policy
+
+The evidence does not say how a node is chosen among several eligible ones; the
+rules below are Wander policy. Selection is a pure function of a state snapshot
+and the request.
+
+| Question | Wander policy |
+| --- | --- |
+| Explicit node | Only that node is considered. An unknown node ID is rejected with `node_not_found`. A node pool that differs from the node's pool is rejected with `node_pool_mismatch` (DHV-B-121). The node still passes every rule below. |
+| Node pool `all` | Treated as every pool, as the scheduler does. With an explicit node, `all` never gives `node_pool_mismatch`. An empty node pool also means every pool. A pool that holds no nodes gives the no-eligible-node diagnostic, not a separate rejection. |
+| Rules | Each node is counted once, under the first rule it fails, in this order: `node_pool` (no explicit node only), `node_not_ready`, `node_ineligible`, `node_draining`, `plugin_unhealthy` (node attribute `plugins.host_volume.version.<plugin id>` absent), `constraint` (existing scheduler constraint semantics; `distinct_hosts` and `distinct_property` are ignored), `name_conflict`. |
+| Name conflict | A static host volume of that name on the node, a ready dynamic volume in the node's host volumes, or any dynamic volume record for that node with that name in any namespace and any state. |
+| Tie-break | Not in the evidence. The eligible node with the fewest dynamic volume records (any namespace and state) wins; equal counts go to the lowest node ID. |
+| Diagnostic | Top-level reason `no_eligible_node` plus per-reason counts sorted by reason code. It holds no node IDs, constraint text or parameter values. |
+| Existing volume | Selection is for creation only. A volume's own record and its entry in the node's host volumes count as a name conflict, so selection is not re-run for a volume that already has a node. |
+
 ## Built-in mkdir plugin (client) {#builtin-mkdir}
 
 Implemented in `client/hostvolume/builtin.go` (`Ops.CreateBuiltin`,
