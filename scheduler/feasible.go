@@ -19,19 +19,22 @@ import (
 )
 
 const (
-	FilterConstraintHostVolumes                    = "missing compatible host volumes"
-	FilterConstraintCSIPluginTemplate              = "CSI plugin %s is missing from client %s"
-	FilterConstraintCSIPluginUnhealthyTemplate     = "CSI plugin %s is unhealthy on client %s"
-	FilterConstraintCSIPluginMaxVolumesTemplate    = "CSI plugin %s has the maximum number of volumes on client %s"
-	FilterConstraintCSIVolumesLookupFailed         = "CSI volume lookup failed"
-	FilterConstraintCSIVolumeNotFoundTemplate      = "missing CSI Volume %s"
-	FilterConstraintCSIVolumeNoReadTemplate        = "CSI volume %s is unschedulable or has exhausted its available reader claims"
-	FilterConstraintCSIVolumeNoWriteTemplate       = "CSI volume %s is unschedulable or is read-only"
-	FilterConstraintCSIVolumeInUseTemplate         = "CSI volume %s has exhausted its available writer claims"
-	FilterConstraintCSIVolumeGCdAllocationTemplate = "CSI volume %s has exhausted its available writer claims and is claimed by a garbage collected allocation %s; waiting for claim to be released"
-	FilterConstraintDrivers                        = "missing drivers"
-	FilterConstraintDevices                        = "missing devices"
-	FilterConstraintsCSIPluginTopology             = "did not meet topology requirement"
+	FilterConstraintHostVolumes                         = "missing compatible host volumes"
+	FilterConstraintDynamicHostVolumeMissingTemplate    = "dynamic host volume %s is missing or not usable by this job"
+	FilterConstraintDynamicHostVolumeNotReadyTemplate   = "dynamic host volume %s is not ready"
+	FilterConstraintDynamicHostVolumeCapabilityTemplate = "dynamic host volume %s has no matching capability"
+	FilterConstraintCSIPluginTemplate                   = "CSI plugin %s is missing from client %s"
+	FilterConstraintCSIPluginUnhealthyTemplate          = "CSI plugin %s is unhealthy on client %s"
+	FilterConstraintCSIPluginMaxVolumesTemplate         = "CSI plugin %s has the maximum number of volumes on client %s"
+	FilterConstraintCSIVolumesLookupFailed              = "CSI volume lookup failed"
+	FilterConstraintCSIVolumeNotFoundTemplate           = "missing CSI Volume %s"
+	FilterConstraintCSIVolumeNoReadTemplate             = "CSI volume %s is unschedulable or has exhausted its available reader claims"
+	FilterConstraintCSIVolumeNoWriteTemplate            = "CSI volume %s is unschedulable or is read-only"
+	FilterConstraintCSIVolumeInUseTemplate              = "CSI volume %s has exhausted its available writer claims"
+	FilterConstraintCSIVolumeGCdAllocationTemplate      = "CSI volume %s has exhausted its available writer claims and is claimed by a garbage collected allocation %s; waiting for claim to be released"
+	FilterConstraintDrivers                             = "missing drivers"
+	FilterConstraintDevices                             = "missing devices"
+	FilterConstraintsCSIPluginTopology                  = "did not meet topology requirement"
 )
 
 var (
@@ -136,8 +139,14 @@ func NewRandomIterator(ctx Context, nodes []*structs.Node) *StaticIterator {
 
 // HostVolumeChecker is a FeasibilityChecker which returns whether a node has
 // the host volumes necessary to schedule a task group.
+//
+// It must stay among the checkers evaluated for every node, never among the
+// class-cached task group checkers: Node.HostVolumes, including the volume ID,
+// and the volume records are not part of the computed node class, so two nodes
+// of one class can have different answers.
 type HostVolumeChecker struct {
-	ctx Context
+	ctx       Context
+	namespace string
 
 	// volumes is a map[HostVolumeName][]RequestedVolume. The requested volumes are
 	// a slice because a single task group may request the same volume multiple times.
@@ -149,6 +158,12 @@ func NewHostVolumeChecker(ctx Context) *HostVolumeChecker {
 	return &HostVolumeChecker{
 		ctx: ctx,
 	}
+}
+
+// SetNamespace sets the namespace in which dynamic host volume records are
+// looked up.
+func (h *HostVolumeChecker) SetNamespace(namespace string) {
+	h.namespace = namespace
 }
 
 // SetVolumes takes the volumes required by a task group and updates the checker.
@@ -174,50 +189,100 @@ func (h *HostVolumeChecker) SetVolumes(allocName string, volumes map[string]*str
 }
 
 func (h *HostVolumeChecker) Feasible(candidate *structs.Node) bool {
-	if h.hasVolumes(candidate) {
+	feasible, reason := h.isFeasible(candidate)
+	if feasible {
 		return true
 	}
 
-	h.ctx.Metrics().FilterNode(candidate, FilterConstraintHostVolumes)
+	h.ctx.Metrics().FilterNode(candidate, reason)
 	return false
 }
 
-func (h *HostVolumeChecker) hasVolumes(n *structs.Node) bool {
+// isFeasible returns whether the node can serve every requested host volume,
+// and the bounded reason when it cannot. A reason may name a requested source
+// but never a host path, a volume ID or error text.
+func (h *HostVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 	rLen := len(h.volumes)
 	hLen := len(n.HostVolumes)
 
 	// Fast path: Requested no volumes. No need to check further.
 	if rLen == 0 {
-		return true
+		return true, ""
 	}
 
 	// Fast path: Requesting more volumes than the node has, can't meet the criteria.
 	if rLen > hLen {
-		return false
+		return false, FilterConstraintHostVolumes
 	}
 
 	for source, requests := range h.volumes {
 		nodeVolume, ok := n.HostVolumes[source]
 		if !ok {
-			return false
+			return false, FilterConstraintHostVolumes
 		}
 
-		// If the volume supports being mounted as ReadWrite, we do not need to
-		// do further validation for readonly placement.
-		if !nodeVolume.ReadOnly {
+		if nodeVolume.ID == "" {
+			if !staticHostVolumeFeasible(nodeVolume, requests) {
+				return false, FilterConstraintHostVolumes
+			}
 			continue
 		}
 
-		// The Volume can only be mounted ReadOnly, validate that no requests for
-		// it are ReadWrite.
-		for _, req := range requests {
-			if !req.ReadOnly {
-				return false
-			}
+		if reason := h.dynamicHostVolumeReason(n, source, nodeVolume.ID, requests); reason != "" {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+// staticHostVolumeFeasible applies the rules for a host volume from the agent
+// configuration. A static volume declares no capabilities, so a request that
+// names an attachment or access mode cannot be met by it.
+func staticHostVolumeFeasible(volume *structs.ClientHostVolumeConfig, requests []*structs.VolumeRequest) bool {
+	for _, req := range requests {
+		if req.AttachmentMode != structs.CSIVolumeAttachmentModeUnknown ||
+			req.AccessMode != structs.CSIVolumeAccessModeUnknown {
+			return false
+		}
+		// A volume that can only be mounted read-only cannot serve a
+		// read-write request.
+		if volume.ReadOnly && !req.ReadOnly {
+			return false
+		}
+	}
 	return true
+}
+
+// dynamicHostVolumeReason returns the filter reason when the dynamic volume
+// advertised by the node cannot serve the requests, or "" when it can.
+func (h *HostVolumeChecker) dynamicHostVolumeReason(n *structs.Node, source, id string, requests []*structs.VolumeRequest) string {
+	missing := fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, source)
+
+	// The record is read from the namespace of the job, so a record of another
+	// namespace is indistinguishable from an absent one.
+	vol, err := h.ctx.State().DynamicHostVolumeByID(memdb.NewWatchSet(), h.namespace, id)
+	if err != nil || vol == nil || vol.NodeID != n.ID || vol.Name != source {
+		return missing
+	}
+	if vol.State != structs.DynamicHostVolumeStateReady {
+		return fmt.Sprintf(FilterConstraintDynamicHostVolumeNotReadyTemplate, source)
+	}
+
+	for _, req := range requests {
+		attachment, access := req.HostVolumeModes()
+		matched := false
+		for _, capability := range vol.RequestedCapabilities {
+			if capability != nil && capability.AttachmentMode == attachment && capability.AccessMode == access {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, source)
+		}
+	}
+	return ""
 }
 
 type CSIVolumeChecker struct {
