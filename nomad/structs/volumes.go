@@ -161,11 +161,20 @@ func (v *VolumeRequest) Validate(jobType string, taskGroupCount, canaries int) e
 	switch v.Type {
 
 	case VolumeTypeHost:
-		if v.AttachmentMode != CSIVolumeAttachmentModeUnknown {
-			addErr("host volumes cannot have an attachment mode")
+		switch v.AttachmentMode {
+		case CSIVolumeAttachmentModeUnknown, CSIVolumeAttachmentModeFilesystem:
+		default:
+			addErr("host volumes cannot have attachment mode %s", v.AttachmentMode)
 		}
-		if v.AccessMode != CSIVolumeAccessModeUnknown {
-			addErr("host volumes cannot have an access mode")
+
+		switch v.AccessMode {
+		case CSIVolumeAccessModeUnknown, CSIVolumeAccessModeSingleNodeWriter:
+		case CSIVolumeAccessModeSingleNodeReader:
+			if !v.ReadOnly {
+				addErr("%s volumes must be read-only", v.AccessMode)
+			}
+		default:
+			addErr("host volumes cannot have access mode %s", v.AccessMode)
 		}
 		if v.MountOptions != nil {
 			addErr("host volumes cannot have mount options")
@@ -211,6 +220,26 @@ func (v *VolumeRequest) Validate(jobType string, taskGroupCount, canaries int) e
 	}
 
 	return mErr.ErrorOrNil()
+}
+
+// HostVolumeModes returns the attachment and access modes a host volume
+// request asks for once the documented defaults are applied: file-system for
+// the attachment mode, and single-node-writer for the access mode, or
+// single-node-reader-only when the request is read-only.
+func (v *VolumeRequest) HostVolumeModes() (DynamicHostVolumeAttachmentMode, DynamicHostVolumeAccessMode) {
+	attachment := DynamicHostVolumeAttachmentMode(v.AttachmentMode)
+	if attachment == DynamicHostVolumeAttachmentModeUnknown {
+		attachment = DynamicHostVolumeAttachmentModeFilesystem
+	}
+
+	access := DynamicHostVolumeAccessMode(v.AccessMode)
+	if access == DynamicHostVolumeAccessModeUnknown {
+		access = DynamicHostVolumeAccessModeSingleNodeWriter
+		if v.ReadOnly {
+			access = DynamicHostVolumeAccessModeSingleNodeReader
+		}
+	}
+	return attachment, access
 }
 
 func (v *VolumeRequest) Copy() *VolumeRequest {

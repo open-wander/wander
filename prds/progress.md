@@ -790,9 +790,46 @@ PATTERN: orchestration - Copy an identifier from the code into a task, not from
 memory. The advisor caught a reversed attribute name that would have matched
 no node.
 
+## 2026-11-20 — Black-box observation of plugin inputs
+
+- Observed five points the specification does not state, against a public
+  release binary on a private local agent. The record is in the provenance
+  document under `#observation-plugin-inputs`, and the ledger cites it as
+  `SRC-observe-plugin-inputs`.
+- Three points matched Wander. `DHV_PARAMETERS` for a volume without
+  parameters changed from `{}` to `null` to match.
+- Kept as known differences: Wander rejects an error object returned with exit
+  status 0, runs plugins with a fixed `PATH`, and uses the plugin directory as
+  the working directory.
+
+## 2026-11-21 — Task 3.3 complete
+
+- `VolumeRequest.Validate` accepts `file-system` and the two single-node
+  access modes on a host volume request. Reader-only requires `read_only`.
+  `VolumeRequest.HostVolumeModes` applies the documented defaults.
+- `HostVolumeChecker` treats a node entry with a volume ID as dynamic. The
+  record must be in the job namespace, belong to the candidate node, carry the
+  requested name, be ready and list a capability equal to the effective modes
+  of every request. A static volume keeps its rules and cannot serve a request
+  that names a mode.
+- Three bounded filter reasons name the requested source only.
+- The checker stays among the per-node checkers: host volumes are not part of
+  the computed node class. A test with two nodes of one class covers both
+  stacks.
+- Not covered here: writer conflicts and plan-apply checks (3.4). A volume
+  that becomes ready through a server-side change alone, with no node update,
+  does not unblock a blocked evaluation; the client fingerprint update does.
+- Review returned MINOR. The worker wrote tests with the implementation, not
+  before it; the advisor confirmed with build overlays that removing the
+  namespace wiring, the node comparison, the ready check or the per-node
+  placement each fails a test.
+
+PATTERN: orchestration - Ask the worker to report the failing test run before
+the implementation, or the tests-first rule cannot be checked afterwards.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
   `4259fbe38b` (PR #70).
-- Next task: 3.3 (scheduler feasibility checks for capabilities and access
-  modes).
+- Tasks 3.2 and 3.3 are done.
+- Next task: 3.4 (atomic writer and attachment accounting).

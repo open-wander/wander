@@ -31,8 +31,8 @@ func TestVolumeRequest_Validate(t *testing.T) {
 		{
 			name: "host volume with CSI volume config",
 			expected: []string{
-				"host volumes cannot have an access mode",
-				"host volumes cannot have an attachment mode",
+				"single-node-reader-only volumes must be read-only",
+				"host volumes cannot have attachment mode block-device",
 				"host volumes cannot have mount options",
 				"volume cannot be per_alloc for system or sysbatch jobs",
 				"volume cannot be per_alloc when canaries are in use",
@@ -96,6 +96,63 @@ func TestVolumeRequest_Validate(t *testing.T) {
 		})
 	}
 
+}
+
+func TestVolumeRequest_Validate_HostModes(t *testing.T) {
+	ci.Parallel(t)
+
+	testCases := []struct {
+		name     string
+		req      *VolumeRequest
+		expected string // empty means valid
+	}{
+		{name: "no modes", req: &VolumeRequest{Source: "data-a"}},
+		{name: "file-system", req: &VolumeRequest{Source: "data-a", AttachmentMode: CSIVolumeAttachmentModeFilesystem}},
+		{name: "single-node-writer", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeSingleNodeWriter}},
+		{name: "reader-only read-only", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeSingleNodeReader, ReadOnly: true}},
+		{name: "reader-only writable", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeSingleNodeReader}, expected: "single-node-reader-only volumes must be read-only"},
+		{name: "block-device", req: &VolumeRequest{Source: "data-a", AttachmentMode: CSIVolumeAttachmentModeBlockDevice}, expected: "host volumes cannot have attachment mode block-device"},
+		{name: "multi-node-reader-only", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeMultiNodeReader}, expected: "host volumes cannot have access mode multi-node-reader-only"},
+		{name: "multi-node-single-writer", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeMultiNodeSingleWriter}, expected: "host volumes cannot have access mode multi-node-single-writer"},
+		{name: "multi-node-multi-writer", req: &VolumeRequest{Source: "data-a", AccessMode: CSIVolumeAccessModeMultiNodeMultiWriter}, expected: "host volumes cannot have access mode multi-node-multi-writer"},
+		{name: "mount options", req: &VolumeRequest{Source: "data-a", MountOptions: &CSIMountOptions{FSType: "ext4"}}, expected: "host volumes cannot have mount options"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.req.Type = VolumeTypeHost
+			err := tc.req.Validate(JobTypeService, 2, 0)
+			if tc.expected == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.expected)
+		})
+	}
+}
+
+func TestVolumeRequest_HostVolumeModes(t *testing.T) {
+	ci.Parallel(t)
+
+	testCases := []struct {
+		name       string
+		req        *VolumeRequest
+		attachment DynamicHostVolumeAttachmentMode
+		access     DynamicHostVolumeAccessMode
+	}{
+		{"defaults", &VolumeRequest{}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeWriter},
+		{"read-only default", &VolumeRequest{ReadOnly: true}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeReader},
+		{"explicit writer", &VolumeRequest{AccessMode: CSIVolumeAccessModeSingleNodeWriter}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeWriter},
+		{"explicit reader", &VolumeRequest{AccessMode: CSIVolumeAccessModeSingleNodeReader, ReadOnly: true}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeReader},
+		{"explicit file-system", &VolumeRequest{AttachmentMode: CSIVolumeAttachmentModeFilesystem}, DynamicHostVolumeAttachmentModeFilesystem, DynamicHostVolumeAccessModeSingleNodeWriter},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			attachment, access := tc.req.HostVolumeModes()
+			require.Equal(t, tc.attachment, attachment)
+			require.Equal(t, tc.access, access)
+		})
+	}
 }
 
 func TestVolumeRequest_Equal(t *testing.T) {

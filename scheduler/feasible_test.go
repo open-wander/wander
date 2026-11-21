@@ -12,6 +12,7 @@ import (
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
 	psstructs "github.com/open-wander/wander/plugins/shared/structs"
 	"github.com/shoenig/test/must"
@@ -3126,5 +3127,366 @@ func TestCheckAttributeConstraint(t *testing.T) {
 		if res := checkAttributeConstraint(ctx, tc.op, tc.lVal, tc.rVal, tc.lVal != nil, tc.rVal != nil); res != tc.result {
 			t.Fatalf("TC: %#v, Result: %v", tc, res)
 		}
+	}
+}
+
+func upsertTestNamespaces(t *testing.T, store *state.StateStore, names ...string) {
+	t.Helper()
+	var namespaces []*structs.Namespace
+	for _, name := range names {
+		namespaces = append(namespaces, &structs.Namespace{Name: name})
+	}
+	must.NoError(t, store.UpsertNamespaces(900, namespaces))
+}
+
+func dynamicHostVolumeNode(volumeID, name, path string) *structs.Node {
+	node := mock.Node()
+	node.HostVolumes = map[string]*structs.ClientHostVolumeConfig{
+		name: {Name: name, Path: path, ID: volumeID},
+	}
+	return node
+}
+
+func dynamicHostVolumeRecord(node *structs.Node, id, namespace, name string) *structs.DynamicHostVolume {
+	return &structs.DynamicHostVolume{
+		ID:        id,
+		Name:      name,
+		Namespace: namespace,
+		Type:      structs.VolumeTypeHost,
+		NodeID:    node.ID,
+		PluginID:  "mkdir",
+		State:     structs.DynamicHostVolumeStateReady,
+		RequestedCapabilities: []*structs.DynamicHostVolumeCapability{{
+			AttachmentMode: structs.DynamicHostVolumeAttachmentModeFilesystem,
+			AccessMode:     structs.DynamicHostVolumeAccessModeSingleNodeWriter,
+		}},
+	}
+}
+
+func TestHostVolumeChecker_Dynamic(t *testing.T) {
+	ci.Parallel(t)
+
+	const hostPath = "/synthetic/host-path-marker"
+
+	capability := func(attachment structs.DynamicHostVolumeAttachmentMode, access structs.DynamicHostVolumeAccessMode) []*structs.DynamicHostVolumeCapability {
+		return []*structs.DynamicHostVolumeCapability{{AttachmentMode: attachment, AccessMode: access}}
+	}
+	fs := structs.DynamicHostVolumeAttachmentModeFilesystem
+	writer := structs.DynamicHostVolumeAccessModeSingleNodeWriter
+	reader := structs.DynamicHostVolumeAccessModeSingleNodeReader
+
+	cases := []struct {
+		name      string
+		namespace string // checker namespace
+		request   *structs.VolumeRequest
+		mutate    func(node *structs.Node, vol *structs.DynamicHostVolume)
+		feasible  bool
+		reason    string
+	}{
+		{
+			name:      "ready volume with default modes",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			feasible:  true,
+		},
+		{
+			name:      "name not advertised",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				entry := node.HostVolumes["data-a"]
+				delete(node.HostVolumes, "data-a")
+				node.HostVolumes["data-b"] = entry
+			},
+			reason: FilterConstraintHostVolumes,
+		},
+		{
+			name:      "record in another namespace",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.Namespace = "ns-b"
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, "data-a"),
+		},
+		{
+			name:      "record belongs to another node",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.NodeID = uuid.Generate()
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, "data-a"),
+		},
+		{
+			name:      "record has another name",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.Name = "data-b"
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, "data-a"),
+		},
+		{
+			name:      "record pending",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.State = structs.DynamicHostVolumeStatePending
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeNotReadyTemplate, "data-a"),
+		},
+		{
+			name:      "capability mismatch",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, reader)
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
+		},
+		{
+			name:      "read-only request matches reader-only capability",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a", ReadOnly: true},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, reader)
+			},
+			feasible: true,
+		},
+		{
+			name:      "read-only request does not match writer capability",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a", ReadOnly: true},
+			reason:    fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
+		},
+		{
+			name:      "explicit reader-only matches exactly",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a", ReadOnly: true,
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeReader,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, reader)
+			},
+			feasible: true,
+		},
+		{
+			name:      "explicit writer does not match reader-only capability",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = capability(fs, reader)
+			},
+			reason: fmt.Sprintf(FilterConstraintDynamicHostVolumeCapabilityTemplate, "data-a"),
+		},
+		{
+			name:      "any matching capability is enough",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				vol.RequestedCapabilities = append(capability(fs, reader), capability(fs, writer)...)
+			},
+			feasible: true,
+		},
+		{
+			name:      "lookup error",
+			namespace: "",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			reason:    fmt.Sprintf(FilterConstraintDynamicHostVolumeMissingTemplate, "data-a"),
+		},
+		{
+			name:      "static volume with explicit access mode",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AccessMode: structs.CSIVolumeAccessModeSingleNodeWriter,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				node.HostVolumes["data-a"].ID = ""
+			},
+			reason: FilterConstraintHostVolumes,
+		},
+		{
+			name:      "static volume with explicit attachment mode",
+			namespace: "ns-a",
+			request: &structs.VolumeRequest{
+				Type: "host", Source: "data-a",
+				AttachmentMode: structs.CSIVolumeAttachmentModeFilesystem,
+			},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				node.HostVolumes["data-a"].ID = ""
+			},
+			reason: FilterConstraintHostVolumes,
+		},
+		{
+			name:      "static volume without modes",
+			namespace: "ns-a",
+			request:   &structs.VolumeRequest{Type: "host", Source: "data-a"},
+			mutate: func(node *structs.Node, vol *structs.DynamicHostVolume) {
+				node.HostVolumes["data-a"].ID = ""
+			},
+			feasible: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, ctx := testContext(t)
+			upsertTestNamespaces(t, store, "ns-a", "ns-b")
+			id := uuid.Generate()
+			node := dynamicHostVolumeNode(id, "data-a", hostPath)
+			vol := dynamicHostVolumeRecord(node, id, "ns-a", "data-a")
+			if tc.mutate != nil {
+				tc.mutate(node, vol)
+			}
+			must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
+
+			checker := NewHostVolumeChecker(ctx)
+			checker.SetNamespace(tc.namespace)
+			checker.SetVolumes("example.group[0]", map[string]*structs.VolumeRequest{"data": tc.request})
+
+			must.Eq(t, tc.feasible, checker.Feasible(node))
+			filtered := ctx.Metrics().ConstraintFiltered
+			if tc.feasible {
+				must.MapLen(t, 0, filtered)
+				return
+			}
+			must.MapLen(t, 1, filtered)
+			must.MapContainsKey(t, filtered, tc.reason)
+			for reason := range filtered {
+				must.StrNotContains(t, reason, hostPath)
+				must.StrNotContains(t, reason, id)
+				must.StrNotContains(t, reason, "invalid")
+			}
+		})
+	}
+}
+
+func TestHostVolumeChecker_DynamicPerAlloc(t *testing.T) {
+	ci.Parallel(t)
+
+	store, ctx := testContext(t)
+	upsertTestNamespaces(t, store, "ns-a")
+	id := uuid.Generate()
+	node := dynamicHostVolumeNode(id, "data-a[0]", "/synthetic/data-a-0")
+	vol := dynamicHostVolumeRecord(node, id, "ns-a", "data-a[0]")
+	must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
+
+	checker := NewHostVolumeChecker(ctx)
+	checker.SetNamespace("ns-a")
+	requests := map[string]*structs.VolumeRequest{"data": {Type: "host", Source: "data-a", PerAlloc: true}}
+
+	checker.SetVolumes("example.group[0]", requests)
+	must.True(t, checker.Feasible(node))
+
+	checker.SetVolumes("example.group[1]", requests)
+	must.False(t, checker.Feasible(node))
+}
+
+// The host volume checker must stay among the checkers that run for every
+// node. The computed node class leaves out Node.HostVolumes, including the
+// volume ID, so two nodes of one class can differ in whether they have a ready
+// dynamic volume.
+func TestHostVolumeChecker_NotClassCached(t *testing.T) {
+	ci.Parallel(t)
+
+	store, ctx := testContext(t)
+	upsertTestNamespaces(t, store, "ns-a")
+	id := uuid.Generate()
+	withVolume := dynamicHostVolumeNode(id, "data-a", "/synthetic/data-a")
+	withoutVolume := mock.Node()
+	must.NoError(t, withVolume.ComputeClass())
+	must.NoError(t, withoutVolume.ComputeClass())
+	must.Eq(t, withVolume.ComputedClass, withoutVolume.ComputedClass)
+
+	vol := dynamicHostVolumeRecord(withVolume, id, "ns-a", "data-a")
+	must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
+
+	job := mock.Job()
+	job.Namespace = "ns-a"
+	job.TaskGroups[0].Count = 1
+	job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{"data": {
+		Name: "data", Type: structs.VolumeTypeHost, Source: "data-a",
+	}}
+
+	// Visit the node without the volume first, so a class verdict cached from
+	// it would hide the node that has the volume.
+	for name, nodes := range map[string][]*structs.Node{
+		"without volume first": {withoutVolume, withVolume},
+		"with volume first":    {withVolume, withoutVolume},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for stackName, newStack := range map[string]func() Stack{
+				"generic": func() Stack { return NewGenericStack(false, ctx) },
+				"system":  func() Stack { return NewSystemStack(false, ctx) },
+			} {
+				stack := newStack()
+				stack.SetNodes(nodes)
+				stack.SetJob(job)
+				option := stack.Select(job.TaskGroups[0], &SelectOptions{
+					AllocName: structs.AllocName(job.Name, job.TaskGroups[0].Name, 0),
+				})
+				must.NotNil(t, option, must.Sprint(stackName))
+				must.Eq(t, withVolume.ID, option.Node.ID, must.Sprint(stackName))
+				// The class may be marked eligible, but the volume check
+				// must never make it ineligible.
+				if eligible, ok := ctx.Eligibility().GetClasses()[withVolume.ComputedClass]; ok {
+					must.True(t, eligible, must.Sprint(stackName))
+				}
+			}
+		})
+	}
+}
+
+func TestStacks_DynamicHostVolumeNamespace(t *testing.T) {
+	ci.Parallel(t)
+
+	for stackName, newStack := range map[string]func(Context) Stack{
+		"generic": func(ctx Context) Stack { return NewGenericStack(false, ctx) },
+		"system":  func(ctx Context) Stack { return NewSystemStack(false, ctx) },
+	} {
+		t.Run(stackName, func(t *testing.T) {
+			for _, tc := range []struct {
+				name      string
+				namespace string
+				placed    bool
+			}{
+				{"same namespace", "ns-a", true},
+				{"other namespace", "default", false},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					store, ctx := testContext(t)
+					upsertTestNamespaces(t, store, "ns-a")
+					id := uuid.Generate()
+					node := dynamicHostVolumeNode(id, "data-a", "/synthetic/data-a")
+					vol := dynamicHostVolumeRecord(node, id, tc.namespace, "data-a")
+					must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
+
+					job := mock.Job()
+					job.Namespace = "ns-a"
+					job.TaskGroups[0].Count = 1
+					job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{"data": {
+						Name: "data", Type: structs.VolumeTypeHost, Source: "data-a",
+					}}
+
+					stack := newStack(ctx)
+					stack.SetNodes([]*structs.Node{node})
+					stack.SetJob(job)
+					option := stack.Select(job.TaskGroups[0], &SelectOptions{
+						AllocName: structs.AllocName(job.Name, job.TaskGroups[0].Name, 0),
+					})
+					if tc.placed {
+						must.NotNil(t, option)
+					} else {
+						must.Nil(t, option)
+					}
+				})
+			}
+		})
 	}
 }
