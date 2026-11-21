@@ -181,6 +181,7 @@ func TestVolumeRequest_Equal(t *testing.T) {
 			MountFlags: []string{"flag1"},
 		},
 		PerAlloc: true,
+		Sticky:   true,
 	}, []must.Tweak[*VolumeRequest]{{
 		Field: "Name",
 		Apply: func(vr *VolumeRequest) { vr.Name = "name2" },
@@ -205,7 +206,92 @@ func TestVolumeRequest_Equal(t *testing.T) {
 	}, {
 		Field: "PerAlloc",
 		Apply: func(vr *VolumeRequest) { vr.PerAlloc = false },
+	}, {
+		Field: "Sticky",
+		Apply: func(vr *VolumeRequest) { vr.Sticky = false },
 	}})
+}
+
+func TestVolumeRequest_Validate_Sticky(t *testing.T) {
+	ci.Parallel(t)
+
+	testCases := []struct {
+		name     string
+		req      *VolumeRequest
+		jobType  string
+		count    int
+		canaries int
+		expected []string // empty means valid
+	}{
+		{name: "host sticky", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true}},
+		{name: "host sticky with canaries", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true}, canaries: 2},
+		{name: "host sticky with count", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true}, count: 3},
+		{name: "host sticky read-only", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true, ReadOnly: true}},
+		{name: "host sticky single-node-writer", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true, AccessMode: CSIVolumeAccessModeSingleNodeWriter}},
+		{name: "host sticky single-node-reader-only", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true, ReadOnly: true, AccessMode: CSIVolumeAccessModeSingleNodeReader}},
+		{name: "host sticky single-node-single-writer", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true, AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeSingleWriter)}},
+		{name: "host sticky single-node-multi-writer", req: &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true, AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeMultiWriter)}},
+		{
+			name:     "host sticky and per_alloc",
+			req:      &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", Sticky: true, PerAlloc: true},
+			expected: []string{"volume cannot be per_alloc and sticky at the same time"},
+		},
+		{
+			name: "csi sticky",
+			req: &VolumeRequest{
+				Type: VolumeTypeCSI, Source: "data-a", Sticky: true,
+				AccessMode: CSIVolumeAccessModeMultiNodeMultiWriter, AttachmentMode: CSIVolumeAttachmentModeFilesystem,
+			},
+			expected: []string{"volume cannot be sticky unless its type is host"},
+		},
+		{
+			name: "csi not sticky",
+			req: &VolumeRequest{
+				Type: VolumeTypeCSI, Source: "data-a",
+				AccessMode: CSIVolumeAccessModeMultiNodeMultiWriter, AttachmentMode: CSIVolumeAttachmentModeFilesystem,
+			},
+		},
+		{
+			name: "csi sticky and per_alloc reports both",
+			req: &VolumeRequest{
+				Type: VolumeTypeCSI, Source: "data-a", Sticky: true, PerAlloc: true,
+				AccessMode: CSIVolumeAccessModeMultiNodeMultiWriter, AttachmentMode: CSIVolumeAttachmentModeFilesystem,
+			},
+			expected: []string{
+				"volume cannot be per_alloc and sticky at the same time",
+				"volume cannot be sticky unless its type is host",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			jobType := tc.jobType
+			if jobType == "" {
+				jobType = JobTypeService
+			}
+			err := tc.req.Validate(jobType, tc.count, tc.canaries)
+			if len(tc.expected) == 0 {
+				must.NoError(t, err)
+				return
+			}
+			must.Error(t, err)
+			for _, msg := range tc.expected {
+				must.StrContains(t, err.Error(), msg)
+			}
+		})
+	}
+}
+
+func TestVolumeRequest_Copy_Sticky(t *testing.T) {
+	ci.Parallel(t)
+
+	orig := &VolumeRequest{Name: "data-a", Type: VolumeTypeHost, Source: "data-a", Sticky: true}
+	cp := orig.Copy()
+	must.True(t, cp.Sticky)
+
+	cp.Sticky = false
+	must.True(t, orig.Sticky)
 }
 
 func TestVolumeMount_Equal(t *testing.T) {

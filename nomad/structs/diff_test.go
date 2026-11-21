@@ -4302,6 +4302,12 @@ func TestTaskGroupDiff(t *testing.T) {
 							},
 							{
 								Type: DiffTypeAdded,
+								Name: "Sticky",
+								Old:  "",
+								New:  "false",
+							},
+							{
+								Type: DiffTypeAdded,
 								Name: "Type",
 								Old:  "",
 								New:  "host",
@@ -4393,6 +4399,36 @@ func TestTaskGroupDiff(t *testing.T) {
 										},
 									},
 								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			TestCase: "TaskGroup volumes edited sticky",
+			Old: &TaskGroup{
+				Volumes: map[string]*VolumeRequest{
+					"foo": {Name: "foo", Type: "host", Source: "foo-src"},
+				},
+			},
+			New: &TaskGroup{
+				Volumes: map[string]*VolumeRequest{
+					"foo": {Name: "foo", Type: "host", Source: "foo-src", Sticky: true},
+				},
+			},
+			Expected: &TaskGroupDiff{
+				Type: DiffTypeEdited,
+				Objects: []*ObjectDiff{
+					{
+						Type: DiffTypeEdited,
+						Name: "Volume",
+						Fields: []*FieldDiff{
+							{
+								Type: DiffTypeEdited,
+								Name: "Sticky",
+								Old:  "false",
+								New:  "true",
 							},
 						},
 					},

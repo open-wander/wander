@@ -388,6 +388,39 @@ job "example" {
 	})
 }
 
+func TestParse_VolumeSticky(t *testing.T) {
+	ci.Parallel(t)
+
+	hcl := `
+job "example" {
+  group "cache" {
+    volume "data-a" {
+      type   = "host"
+      source = "data-a"
+      sticky = true
+    }
+    volume "data-b" {
+      type   = "host"
+      source = "data-b"
+    }
+
+    task "simple" {
+      driver = "raw_exec"
+      config {
+        command = "/bin/true"
+      }
+    }
+  }
+}
+`
+	job, err := ParseWithConfig(&ParseConfig{Path: "sticky.hcl", Body: []byte(hcl)})
+	must.NoError(t, err)
+
+	vols := job.TaskGroups[0].Volumes
+	must.True(t, vols["data-a"].Sticky)
+	must.False(t, vols["data-b"].Sticky)
+}
+
 func TestParseDynamic(t *testing.T) {
 	ci.Parallel(t)
 

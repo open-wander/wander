@@ -108,6 +108,10 @@ type VolumeRequest struct {
 	AttachmentMode CSIVolumeAttachmentMode
 	MountOptions   *CSIMountOptions
 	PerAlloc       bool
+
+	// Sticky ties a dynamic host volume to the allocation that uses it, so
+	// replacements of that allocation are placed with the same volume.
+	Sticky bool
 }
 
 func (v *VolumeRequest) Equal(o *VolumeRequest) bool {
@@ -130,6 +134,8 @@ func (v *VolumeRequest) Equal(o *VolumeRequest) bool {
 	case !v.MountOptions.Equal(o.MountOptions):
 		return false
 	case v.PerAlloc != o.PerAlloc:
+		return false
+	case v.Sticky != o.Sticky:
 		return false
 	}
 	return true
@@ -155,6 +161,17 @@ func (v *VolumeRequest) Validate(jobType string, taskGroupCount, canaries int) e
 		}
 		if canaries > 0 {
 			addErr("volume cannot be per_alloc when canaries are in use")
+		}
+	}
+	if v.Sticky {
+		if v.PerAlloc {
+			addErr("volume cannot be per_alloc and sticky at the same time")
+		}
+		// Only dynamic host volumes can be claimed by an allocation. The server
+		// cannot tell them from static host volumes at submission, so every host
+		// request is accepted here.
+		if v.Type != VolumeTypeHost {
+			addErr("volume cannot be sticky unless its type is host")
 		}
 	}
 
