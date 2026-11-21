@@ -15,6 +15,7 @@ import (
 	"github.com/open-wander/wander/helper/testlog"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
 	"github.com/shoenig/test/must"
@@ -1175,6 +1176,276 @@ func TestPlanApply_EvalNodePlan_Node_Disconnected(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedFit, fit)
 			require.Equal(t, tc.expectedReason, reason)
+		})
+	}
+}
+
+// dynamicWriterPlanFixture is a ready node with one dynamic host volume
+// record, used to evaluate plans that place allocations using it.
+type dynamicWriterPlanFixture struct {
+	t     *testing.T
+	state *state.StateStore
+	node  *structs.Node
+	vol   *structs.DynamicHostVolume
+	job   *structs.Job
+	index uint64
+}
+
+func newDynamicWriterPlanFixture(t *testing.T) *dynamicWriterPlanFixture {
+	f := &dynamicWriterPlanFixture{t: t, state: testStateStore(t), index: 1000}
+
+	id := uuid.Generate()
+	f.node = mock.Node()
+	f.node.ReservedResources = nil
+	f.node.Reserved = nil
+	f.node.HostVolumes = map[string]*structs.ClientHostVolumeConfig{
+		"data-a": {Name: "data-a", Path: "/synthetic/host-path-marker", ID: id},
+	}
+	f.vol = &structs.DynamicHostVolume{
+		ID: id, Name: "data-a", Namespace: structs.DefaultNamespace, Type: structs.VolumeTypeHost,
+		NodeID: f.node.ID, PluginID: "mkdir", State: structs.DynamicHostVolumeStateReady,
+		RequestedCapabilities: []*structs.DynamicHostVolumeCapability{{
+			AttachmentMode: structs.DynamicHostVolumeAttachmentModeFilesystem,
+			AccessMode:     structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter,
+		}},
+	}
+	f.job = mock.Job()
+	f.job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{"data": {
+		Name: "data", Type: structs.VolumeTypeHost, Source: "data-a",
+		AccessMode: structs.CSIVolumeAccessMode(structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter),
+	}}
+
+	f.write(func(i uint64) error { return f.state.UpsertNode(structs.MsgTypeTestSetup, i, f.node) })
+	f.write(func(i uint64) error { return f.state.UpsertDynamicHostVolumes(i, []*structs.DynamicHostVolume{f.vol}) })
+	return f
+}
+
+func (f *dynamicWriterPlanFixture) write(fn func(index uint64) error) {
+	f.index++
+	must.NoError(f.t, fn(f.index))
+}
+
+// alloc returns an allocation of the fixture job on the node that fits beside
+// others.
+func (f *dynamicWriterPlanFixture) alloc() *structs.Allocation {
+	a := mock.Alloc()
+	a.Job = f.job
+	a.JobID = f.job.ID
+	a.NodeID = f.node.ID
+	a.TaskGroup = f.job.TaskGroups[0].Name
+	a.AllocatedResources = &structs.AllocatedResources{
+		Tasks: map[string]*structs.AllocatedTaskResources{
+			"web": {
+				Cpu:    structs.AllocatedCpuResources{CpuShares: 100},
+				Memory: structs.AllocatedMemoryResources{MemoryMB: 64},
+			},
+		},
+		Shared: structs.AllocatedSharedResources{DiskMB: 10},
+	}
+	return a
+}
+
+// planAlloc returns an allocation shaped the way a scheduler submits a new
+// placement: the job is carried by the plan, not by the allocation.
+func (f *dynamicWriterPlanFixture) planAlloc() *structs.Allocation {
+	a := f.alloc()
+	a.Job = nil
+	return a
+}
+
+// updateVolume rewrites the record from its current stored value.
+func (f *dynamicWriterPlanFixture) updateVolume(mutate func(v *structs.DynamicHostVolume)) {
+	current, err := f.state.DynamicHostVolumeByID(nil, f.vol.Namespace, f.vol.ID)
+	must.NoError(f.t, err)
+	must.NotNil(f.t, current)
+	changed := current.Copy()
+	mutate(changed)
+	f.write(func(i uint64) error {
+		return f.state.UpsertDynamicHostVolumes(i, []*structs.DynamicHostVolume{changed})
+	})
+}
+
+// deleteVolume removes the record the way an operator delete would.
+func (f *dynamicWriterPlanFixture) deleteVolume() {
+	current, err := f.state.DynamicHostVolumeByID(nil, f.vol.Namespace, f.vol.ID)
+	must.NoError(f.t, err)
+	must.NotNil(f.t, current)
+	f.write(func(i uint64) error {
+		return f.state.DeleteDynamicHostVolumes(i, []state.DynamicHostVolumeDelete{{
+			Namespace: current.Namespace, ID: current.ID, ExpectedModifyIndex: current.ModifyIndex,
+		}})
+	})
+}
+
+func (f *dynamicWriterPlanFixture) upsertAllocs(allocs ...*structs.Allocation) {
+	f.write(func(i uint64) error { return f.state.UpsertAllocs(structs.MsgTypeTestSetup, i, allocs) })
+}
+
+func (f *dynamicWriterPlanFixture) evaluate(plan *structs.Plan) (bool, string) {
+	snap, err := f.state.Snapshot()
+	must.NoError(f.t, err)
+	fit, reason, err := evaluateNodePlan(snap, plan, f.node.ID)
+	must.NoError(f.t, err)
+	return fit, reason
+}
+
+func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
+	ci.Parallel(t)
+
+	const (
+		reasonConflict  = "dynamic host volume writer conflict"
+		reasonNotUsable = "dynamic host volume not usable"
+	)
+
+	cases := []struct {
+		name string
+		// run builds the snapshot contents and returns the plan.
+		run    func(f *dynamicWriterPlanFixture) *structs.Plan
+		fit    bool
+		reason string
+	}{
+		{
+			name: "second writer next to a snapshot writer",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				f.upsertAllocs(f.alloc())
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}}}
+			},
+			reason: reasonConflict,
+		},
+		{
+			name: "two writers in one plan",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.planAlloc(), f.planAlloc()}}}
+			},
+			reason: reasonConflict,
+		},
+		{
+			name: "writer while stopping the previous writer",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				f.upsertAllocs(old)
+				stopped := old.Copy()
+				stopped.DesiredStatus = structs.AllocDesiredStatusStop
+				return &structs.Plan{
+					Job:            f.job,
+					NodeUpdate:     map[string][]*structs.Allocation{f.node.ID: {stopped}},
+					NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.alloc()}},
+				}
+			},
+			fit: true,
+		},
+		{
+			name: "writer while preempting the previous writer",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				f.upsertAllocs(old)
+				return &structs.Plan{
+					Job:             f.job,
+					NodePreemptions: map[string][]*structs.Allocation{f.node.ID: {old}},
+					NodeAllocation:  map[string][]*structs.Allocation{f.node.ID: {f.alloc()}},
+				}
+			},
+			fit: true,
+		},
+		{
+			name: "writer next to a client-terminal writer",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				old.ClientStatus = structs.AllocClientStatusFailed
+				f.upsertAllocs(old)
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.alloc()}}}
+			},
+			fit: true,
+		},
+		{
+			name: "single writer on a free volume",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.alloc()}}}
+			},
+			fit: true,
+		},
+		{
+			name: "volume record no longer ready",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				f.updateVolume(func(v *structs.DynamicHostVolume) { v.State = structs.DynamicHostVolumeStateUnavailable })
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.alloc()}}}
+			},
+			reason: reasonNotUsable,
+		},
+		{
+			name: "volume record removed",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				f.deleteVolume()
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.alloc()}}}
+			},
+			reason: reasonNotUsable,
+		},
+		{
+			name: "capability no longer matches",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				f.updateVolume(func(v *structs.DynamicHostVolume) {
+					v.RequestedCapabilities[0].AccessMode = structs.DynamicHostVolumeAccessModeSingleNodeReader
+				})
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.alloc()}}}
+			},
+			reason: reasonNotUsable,
+		},
+		{
+			name: "in-place update of the holder keeps the fast path",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				f.upsertAllocs(old)
+				// The volume record disappears after the placement. An
+				// update of an existing allocation is not re-checked.
+				f.deleteVolume()
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {old}}}
+			},
+			fit: true,
+		},
+		{
+			name: "holder updated beside a new placement is not re-checked",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				f.upsertAllocs(old)
+				f.deleteVolume()
+				// The new placement belongs to a group without volumes, so
+				// only a re-check of the existing holder could reject.
+				job := f.job.Copy()
+				plain := job.TaskGroups[0].Copy()
+				plain.Name = "plain"
+				plain.Volumes = nil
+				job.TaskGroups = append(job.TaskGroups, plain)
+				placed := f.planAlloc()
+				placed.TaskGroup = plain.Name
+				return &structs.Plan{Job: job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {old, placed}}}
+			},
+			fit: true,
+		},
+		{
+			name: "plan without dynamic volume requests is unaffected",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				f.upsertAllocs(f.alloc())
+				f.deleteVolume()
+				plain := mock.Job()
+				a := f.alloc()
+				a.Job = plain
+				a.JobID = plain.ID
+				a.TaskGroup = plain.TaskGroups[0].Name
+				return &structs.Plan{Job: plain, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {a}}}
+			},
+			fit: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDynamicWriterPlanFixture(t)
+			plan := tc.run(f)
+			fit, reason := f.evaluate(plan)
+			must.Eq(t, tc.fit, fit)
+			must.Eq(t, tc.reason, reason)
+			must.StrNotContains(t, reason, "/synthetic")
+			must.StrNotContains(t, reason, f.vol.ID)
 		})
 	}
 }

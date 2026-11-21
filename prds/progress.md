@@ -827,9 +827,45 @@ no node.
 PATTERN: orchestration - Ask the worker to report the failing test run before
 the implementation, or the tests-first rule cannot be checked afterwards.
 
+## 2026-11-21 — Task 3.4 complete
+
+- Public documentation lists four access modes; Wander had two. Added
+  `single-node-single-writer` and `single-node-multi-writer` (owner decision).
+- A second observation (`#observation-scheduling`, `SRC-observe-scheduling`)
+  settled the writer rules. `single-node-writer` does not limit writers; only
+  `single-node-single-writer` does. The PRD line that said otherwise is
+  corrected.
+- Changed from task 3.3 to match the observation: a static host volume ignores
+  modes on the request, and a `read_only` request is refused on a
+  `single-node-writer` capability.
+- Writer accounting is derived from the node's proposed allocations. No Raft
+  state was added and `Attachments` stays unused. One pure function in
+  `nomad/structs` is called by the scheduler checker and by the plan applier,
+  which also re-checks the record for each new placement.
+- Wander policy where the evidence stops: a user through another mode
+  conflicts with a single-writer holder when either is read/write.
+- Consequences to keep in mind: a canary writer next to a running
+  single-writer holder on the same node cannot be placed. With node plan
+  rejection tracking enabled (off by default), repeated writer conflicts count
+  against the node; consider excluding them in 6.1.
+- Upgrade note for 6.4: an older server rejects volume records with the two
+  new modes and does not apply the read-only rule for `single-node-writer`.
+- `TestPlanApply_applyPlanWithNormalizedAllocs` fails intermittently on `main`
+  as well (6 of 25 runs without this change). Not caused by this work.
+- Review returned PASS for the modes and MINOR for the accounting; the
+  orchestrator made plan allocations in two tests carry no job, renamed one
+  case, and added a case for an updated holder beside a new placement.
+
+PATTERN: evidence - Read the public documentation for a field again before
+implementing the task that enforces it. The model from an earlier phase had
+two of four access modes.
+
+PATTERN: observation - Wait for an allocation line or a placement failure, not
+for the word "running", which also appears in the deployment status.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
   `4259fbe38b` (PR #70).
-- Tasks 3.2 and 3.3 are done.
-- Next task: 3.4 (atomic writer and attachment accounting).
+- Tasks 3.2, 3.3 and 3.4 are done.
+- Next task: 3.5 (mount selected dynamic paths and release attachments).

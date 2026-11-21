@@ -191,3 +191,108 @@ func dynamicHostVolumeValueEqual[T comparable](left, right *T) bool {
 	}
 	return *left == *right
 }
+
+// DynamicHostVolumeUse is the verdict on whether a dynamic host volume record
+// can serve the host volume requests made against it on a node.
+type DynamicHostVolumeUse int
+
+const (
+	DynamicHostVolumeUseOK DynamicHostVolumeUse = iota
+	DynamicHostVolumeUseMissing
+	DynamicHostVolumeUseNotReady
+	DynamicHostVolumeUseNoCapability
+)
+
+// DynamicHostVolumeUsableBy reports whether the record, looked up in the
+// namespace of the job, can serve the requests for source on the node. The
+// record must belong to the node, carry the requested name, be ready, list a
+// capability exactly equal to each request's effective modes, and allow the
+// request's direction. Callers map the verdict to their own bounded text.
+func DynamicHostVolumeUsableBy(vol *DynamicHostVolume, nodeID, source string, requests []*VolumeRequest) DynamicHostVolumeUse {
+	if vol == nil || vol.NodeID != nodeID || vol.Name != source {
+		return DynamicHostVolumeUseMissing
+	}
+	if vol.State != DynamicHostVolumeStateReady {
+		return DynamicHostVolumeUseNotReady
+	}
+
+	for _, req := range requests {
+		attachment, access := req.HostVolumeModes()
+		matched := false
+		for _, capability := range vol.RequestedCapabilities {
+			if capability != nil && capability.AttachmentMode == attachment && capability.AccessMode == access {
+				matched = true
+				break
+			}
+		}
+		// The direction rule applies to the matched mode, so an explicit
+		// single-node-writer request that is read-only is refused rather than
+		// falling through to another capability.
+		if !matched || !DynamicHostVolumeAccessAllows(access, req.ReadOnly) {
+			return DynamicHostVolumeUseNoCapability
+		}
+	}
+	return DynamicHostVolumeUseOK
+}
+
+// HasSingleWriterCapability reports whether the record lists the
+// single-node-single-writer access mode. Without it no user can hold the
+// volume exclusively, so writer accounting can be skipped.
+func (v *DynamicHostVolume) HasSingleWriterCapability() bool {
+	for _, capability := range v.RequestedCapabilities {
+		if capability != nil && capability.AccessMode == DynamicHostVolumeAccessModeSingleNodeSingleWriter {
+			return true
+		}
+	}
+	return false
+}
+
+// DynamicHostVolumeWriterConflict reports whether the request cannot be placed
+// because another allocation already uses the volume in a way that excludes
+// it. Two users conflict when at least one reaches the volume through
+// single-node-single-writer and at least one of them is read/write; readers
+// of that mode share the volume and the other modes never limit one another.
+// The allocations in others are the proposed live allocations of the node.
+// selfID names an allocation that never conflicts with itself, and
+// fallbackJob stands in for an allocation whose Job is unset, as in a plan.
+// Neither the allocations nor the jobs are modified.
+func DynamicHostVolumeWriterConflict(vol *DynamicHostVolume, req *VolumeRequest, selfID string, others []*Allocation, fallbackJob *Job) bool {
+	_, access := req.HostVolumeModes()
+
+	for _, other := range others {
+		if other == nil || (selfID != "" && other.ID == selfID) {
+			continue
+		}
+
+		job := other.Job
+		if job == nil {
+			job = fallbackJob
+		}
+		if job == nil {
+			continue
+		}
+		// The allocation's own namespace is preferred, because a plan
+		// allocation may not carry a job.
+		namespace := other.Namespace
+		if namespace == "" {
+			namespace = job.Namespace
+		}
+		if namespace != vol.Namespace {
+			continue
+		}
+		tg := job.LookupTaskGroup(other.TaskGroup)
+		if tg == nil {
+			continue
+		}
+
+		for _, otherReq := range HostVolumeRequestsBySource(tg.Volumes, other.Name)[vol.Name] {
+			_, otherAccess := otherReq.HostVolumeModes()
+			exclusive := access == DynamicHostVolumeAccessModeSingleNodeSingleWriter ||
+				otherAccess == DynamicHostVolumeAccessModeSingleNodeSingleWriter
+			if exclusive && (!req.ReadOnly || !otherReq.ReadOnly) {
+				return true
+			}
+		}
+	}
+	return false
+}

@@ -446,11 +446,52 @@ release binary, and Wander policy means a choice made here.
 | Metric reasons | Wander policy | The existing `missing compatible host volumes` stays for a missing name and for static mismatches. Dynamic failures give `dynamic host volume <source> is missing or not usable by this job` (no record, other namespace, other node, other name or lookup error), `... is not ready`, or `... has no matching capability`. A direction refusal uses the capability reason. Only the requested source is named; host paths, volume IDs and error text never appear. |
 | Evaluation | Wander policy | Per node, not class-cached: the checker is among the availability checkers, because the computed node class leaves out host volumes and the volume ID. |
 
-Single-writer exclusivity is not enforced yet. Observed behaviour is that at
-most one writer holds a `single-node-single-writer` volume, and that readers and
-writers exclude each other. The checker places requests on such a volume
-without counting existing users; that accounting belongs to attachment
-accounting and is not implemented.
+## Writer accounting (server) {#writer-accounting}
+
+Implemented in `nomad/structs/dynamic_host_volume.go`
+(`DynamicHostVolumeWriterConflict`, `DynamicHostVolumeUsableBy`), called from
+the scheduler host volume checker and from `evaluateNodePlan` in
+`nomad/plan_apply.go`.
+
+| Topic | Basis | Rule |
+| --- | --- | --- |
+| Readers and writers | Observed | On a volume used through `single-node-single-writer`, several readers run together, at most one writer runs, a reader is not placed while a writer holds the volume, and a writer is not placed while readers hold it. |
+| Other modes | Observed | `single-node-writer`, `single-node-multi-writer` and `single-node-reader-only` never limit the number of allocations. |
+| Count above one | Observed | A job with `count = 2` writers gets one placement and one placement failure. |
+| Wake-up | Observed | When the holding job stops, the waiting job is placed. |
+| Mixed modes | Wander policy | The evidence covers users of one mode only. Two users of the same volume conflict when at least one reaches it through `single-node-single-writer` and at least one of them is read/write. Readers of that mode do not conflict with one another, and the other modes never conflict with each other. |
+| Derivation | Wander policy | The holders are derived from allocations; nothing is stored in Raft and `Attachments` stays unused. The users of a volume are the proposed live allocations of the node whose own namespace is the volume namespace and whose task group, from the job version the allocation runs, has a host volume request whose source (with the per-alloc suffix of the allocation name) equals the volume name. An allocation never conflicts with itself. |
+| Scheduler | Wander policy | Evaluated per node after the record checks, on the proposed allocations of the node, so a stop in the same plan frees the volume and a sibling placed earlier in the same evaluation holds it. Skipped when the record lists no `single-node-single-writer` capability. The reason is `dynamic host volume <source> has no free writer claim`. A state error makes the node infeasible. |
+| Plan applier | Wander policy | Two evaluations can find the volume free and both commit, so the applier re-checks each new placement against the snapshot allocations plus the plan: the record still exists in the job namespace, belongs to the node, is ready, still matches the capability and passes the direction rule, and no other proposed allocation conflicts. A failure rejects the node's part of the plan with `dynamic host volume not usable` or `dynamic host volume writer conflict`, without naming a source, ID or path. Updates of existing allocations and plans with no dynamic volume requests are not re-checked and read no further state. |
+| Live allocations | Wander policy | The scheduler counts every allocation that is not client-terminal, minus those the plan stops or preempts, so an allocation stopped by the server but still running counts until its client reports it complete. The applier uses non-terminal allocations, which is slightly looser; the scheduler is the stricter check. An allocation in `unknown` status on a disconnected node still holds the volume. |
+| Updates | Wander policy | In-place updates stage the old allocation as stopped before selection, and the applier skips existing allocations, so neither conflicts with itself. A destructive update places the replacement because the old allocation is in the plan stop list. A rescheduled allocation is client-terminal and does not count. |
+| Canaries | Wander policy | A canary writer next to a running `single-node-single-writer` writer on the same node is infeasible, so a deployment cannot progress on that node. |
+| Preemption | Wander policy | The checker runs before ranking and preemption, so a holder is never preempted to free a volume. Preempted allocations stop counting in both places. |
+| Blocked evaluations | Existing mechanism, no new code | The checker is a per-node availability check, so a filtered node does not mark its computed class ineligible and the blocked evaluation records the class as eligible. When the holder's client reports it complete or failed, `applyAllocClientUpdate` unblocks the class and the node, which re-queues the waiting evaluation. A job stop alone does not wake it; the wake comes when the client reports the allocation terminal. |
+| Plan rejection tracking | Wander policy | With node plan rejection tracking enabled (off by default), repeated writer conflicts count towards marking a node ineligible, as with capacity races. |
+
+### Observation of scheduling {#observation-scheduling}
+
+Synthetic jobs were run against a development-mode agent of an official
+release binary, on a workstation with no other cluster, in three rounds. The
+jobs and volumes held no real data, and identifiers are not recorded here.
+
+```json
+{
+  "source_id": "SRC-observe-scheduling",
+  "binary_version": "Nomad v2.0.2 (official release binary, darwin/arm64)",
+  "synthetic": true,
+  "request": "Synthetic service jobs with a group-level host volume request and no task mount were submitted to a one-node development agent holding one built-in-plugin volume per access mode and one static host volume. Jobs were submitted alone, in pairs and with count 2, read/write and read-only, with and without modes named in the request.",
+  "response": "single-node-writer: two jobs and one job with count 2 all ran as writers; a read_only request was not placed, with or without the mode named. single-node-reader-only: two readers ran; a request without read_only that named the mode was rejected at submission. single-node-multi-writer: two writers and a reader ran together. single-node-single-writer: two readers ran together; one writer ran and a second writer was not placed; a reader was not placed while a writer ran; a writer was not placed within 20 seconds while two readers ran, with no placement failure reported; count 2 gave one placement and one placement failure; when the holding job was stopped the waiting job was placed. A request with the default mode was not placed on a single-writer volume. Static volume: requests naming an access mode, or an access and attachment mode, were placed, as was a read_only request. A multi-node access mode was rejected at submission; block-device was accepted and not placed. Every placement failure carried the same single reason text.",
+  "date": "2026-11-21",
+  "limitations": "One node, one version, one platform, development mode; group-level volume requests without a task mount; behaviour may differ elsewhere."
+}
+```
+
+Known differences that are kept. Wander rejects `block-device` on a host
+volume request at submission, where the observed binary accepts it and never
+places it. Wander reports a separate reason for each kind of dynamic volume
+failure, where the observed binary reports one reason for all of them.
 
 ## Built-in mkdir plugin (client) {#builtin-mkdir}
 

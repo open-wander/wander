@@ -7360,3 +7360,92 @@ func initNodeAndAllocs(t *testing.T, h *Harness, allocCount int,
 	require.NoError(t, h.State.UpsertAllocs(structs.MsgTypeTestSetup, h.NextIndex(), allocs))
 	return node, job, allocs
 }
+
+// dynamicWriterJob returns a job whose group requests the dynamic host volume
+// data-a through single-node-single-writer.
+func dynamicWriterJob(count int) *structs.Job {
+	job := mock.Job()
+	job.Update = structs.UpdateStrategy{}
+	job.TaskGroups[0].Count = count
+	job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{"data": {
+		Name: "data", Type: structs.VolumeTypeHost, Source: "data-a",
+		AccessMode: structs.CSIVolumeAccessMode(structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter),
+	}}
+	return job
+}
+
+func setupDynamicWriterNode(t *testing.T, h *Harness) *structs.Node {
+	id := uuid.Generate()
+	node := dynamicHostVolumeNode(id, "data-a", "/synthetic/data-a")
+	must.NoError(t, h.State.UpsertNode(structs.MsgTypeTestSetup, h.NextIndex(), node))
+	vol := dynamicHostVolumeRecord(node, id, structs.DefaultNamespace, "data-a")
+	vol.RequestedCapabilities = []*structs.DynamicHostVolumeCapability{{
+		AttachmentMode: structs.DynamicHostVolumeAttachmentModeFilesystem,
+		AccessMode:     structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter,
+	}}
+	must.NoError(t, h.State.UpsertDynamicHostVolumes(h.NextIndex(), []*structs.DynamicHostVolume{vol}))
+	return node
+}
+
+func TestServiceSched_DynamicHostVolume_SingleWriterCountTwo(t *testing.T) {
+	ci.Parallel(t)
+
+	h := NewHarness(t)
+	node := setupDynamicWriterNode(t, h)
+	job := dynamicWriterJob(2)
+	must.NoError(t, h.State.UpsertJob(structs.MsgTypeTestSetup, h.NextIndex(), nil, job))
+
+	eval := &structs.Evaluation{
+		Namespace: job.Namespace, ID: uuid.Generate(), Priority: job.Priority,
+		TriggeredBy: structs.EvalTriggerJobRegister, JobID: job.ID, Status: structs.EvalStatusPending,
+	}
+	must.NoError(t, h.State.UpsertEvals(structs.MsgTypeTestSetup, h.NextIndex(), []*structs.Evaluation{eval}))
+	must.NoError(t, h.Process(NewServiceScheduler, eval))
+
+	must.Len(t, 1, h.Plans)
+	must.Len(t, 1, h.Plans[0].NodeAllocation[node.ID])
+
+	must.Len(t, 1, h.Evals)
+	metrics := h.Evals[0].FailedTGAllocs[job.TaskGroups[0].Name]
+	must.NotNil(t, metrics)
+	must.MapContainsKey(t, metrics.ConstraintFiltered, fmt.Sprintf(FilterConstraintDynamicHostVolumeWriterTemplate, "data-a"))
+	for reason := range metrics.ConstraintFiltered {
+		must.StrNotContains(t, reason, "/synthetic")
+	}
+}
+
+func TestServiceSched_DynamicHostVolume_SingleWriterDestructiveUpdate(t *testing.T) {
+	ci.Parallel(t)
+
+	h := NewHarness(t)
+	node := setupDynamicWriterNode(t, h)
+	job := dynamicWriterJob(1)
+	must.NoError(t, h.State.UpsertJob(structs.MsgTypeTestSetup, h.NextIndex(), nil, job))
+
+	alloc := mock.Alloc()
+	alloc.Job = job
+	alloc.JobID = job.ID
+	alloc.NodeID = node.ID
+	alloc.Name = "my-job.web[0]"
+	alloc.TaskGroup = job.TaskGroups[0].Name
+	alloc.ClientStatus = structs.AllocClientStatusRunning
+	must.NoError(t, h.State.UpsertAllocs(structs.MsgTypeTestSetup, h.NextIndex(), []*structs.Allocation{alloc}))
+
+	// A changed task command is a destructive update.
+	updated := job.Copy()
+	updated.TaskGroups[0].Tasks[0].Config["command"] = "/bin/other"
+	must.NoError(t, h.State.UpsertJob(structs.MsgTypeTestSetup, h.NextIndex(), nil, updated))
+
+	eval := &structs.Evaluation{
+		Namespace: job.Namespace, ID: uuid.Generate(), Priority: job.Priority,
+		TriggeredBy: structs.EvalTriggerJobRegister, JobID: job.ID, Status: structs.EvalStatusPending,
+	}
+	must.NoError(t, h.State.UpsertEvals(structs.MsgTypeTestSetup, h.NextIndex(), []*structs.Evaluation{eval}))
+	must.NoError(t, h.Process(NewServiceScheduler, eval))
+
+	must.Len(t, 1, h.Plans)
+	must.Len(t, 1, h.Plans[0].NodeUpdate[node.ID])
+	must.Len(t, 1, h.Plans[0].NodeAllocation[node.ID])
+	must.Len(t, 1, h.Evals)
+	must.MapLen(t, 0, h.Evals[0].FailedTGAllocs)
+}
