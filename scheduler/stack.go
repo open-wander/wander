@@ -111,6 +111,7 @@ func (s *GenericStack) SetJob(job *structs.Job) {
 	s.spread.SetJob(job)
 	s.ctx.Eligibility().SetJob(job)
 	s.taskGroupCSIVolumes.SetNamespace(job.Namespace)
+	s.taskGroupHostVolumes.SetNamespace(job.Namespace)
 	s.taskGroupCSIVolumes.SetJobID(job.ID)
 
 	if contextual, ok := s.quota.(ContextualIterator); ok {
@@ -262,6 +263,9 @@ func NewSystemStack(sysbatch bool, ctx Context) *SystemStack {
 		s.taskGroupDevices,
 		s.taskGroupNetwork,
 	}
+	// The host volume checker must stay here, not in tgs: volume records and
+	// Node.HostVolumes (including the volume ID) are not part of the computed
+	// node class, so its answer can differ between nodes of one class.
 	avail := []FeasibilityChecker{
 		s.taskGroupHostVolumes,
 		s.taskGroupCSIVolumes,
@@ -318,6 +322,7 @@ func (s *SystemStack) SetJob(job *structs.Job) {
 	s.binPack.SetJob(job)
 	s.ctx.Eligibility().SetJob(job)
 	s.taskGroupCSIVolumes.SetNamespace(job.Namespace)
+	s.taskGroupHostVolumes.SetNamespace(job.Namespace)
 	s.taskGroupCSIVolumes.SetJobID(job.ID)
 
 	if contextual, ok := s.quota.(ContextualIterator); ok {
@@ -411,6 +416,9 @@ func NewGenericStack(batch bool, ctx Context) *GenericStack {
 		s.taskGroupDevices,
 		s.taskGroupNetwork,
 	}
+	// The host volume checker must stay here, not in tgs: volume records and
+	// Node.HostVolumes (including the volume ID) are not part of the computed
+	// node class, so its answer can differ between nodes of one class.
 	avail := []FeasibilityChecker{
 		s.taskGroupHostVolumes,
 		s.taskGroupCSIVolumes,

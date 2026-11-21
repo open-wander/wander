@@ -410,6 +410,35 @@ and the request.
 | Diagnostic | Top-level reason `no_eligible_node` plus per-reason counts sorted by reason code. It holds no node IDs, constraint text or parameter values. |
 | Existing volume | Selection is for creation only. A volume's own record and its entry in the node's host volumes count as a name conflict, so selection is not re-run for a volume that already has a node. |
 
+## Scheduler feasibility (server) {#scheduler-feasibility}
+
+Implemented in `HostVolumeChecker` (`scheduler/feasible.go`) and
+`VolumeRequest.Validate` and `VolumeRequest.HostVolumeModes`
+(`nomad/structs/volumes.go`).
+
+### Recorded evidence
+
+| ID | Evidence |
+| --- | --- |
+| DHV-B-129 | `attachment_mode` on a host volume request defaults to `file-system`. |
+| DHV-B-130 | `access_mode` defaults to `single-node-writer`, or to `single-node-reader-only` when `read_only` is set. |
+
+### Wander policy
+
+Everything else is Wander policy, not recorded evidence.
+
+| Question | Wander policy |
+| --- | --- |
+| Accepted modes | `attachment_mode`: empty or `file-system`. `access_mode`: empty, `single-node-reader-only` or `single-node-writer`. Every other value, including `block-device` and the `multi-node-*` modes, is rejected at job validation. |
+| Reader-only | `single-node-reader-only` requires `read_only`; otherwise validation fails. Mount options stay rejected. |
+| Effective modes | The defaults above are applied before matching (DHV-B-129, DHV-B-130). |
+| Static volume | A volume from the agent configuration declares no capabilities. A request that sets `attachment_mode` or `access_mode` explicitly is infeasible on it. Requests without modes keep the existing name and read-only rules. |
+| Dynamic volume | A node advertising a volume entry with an ID is feasible only if the record with that ID exists in the job's namespace, belongs to the candidate node, has the requested source as its name, is `ready`, and lists a capability that equals the effective modes of every request for it. |
+| Lookup error | A state error makes the node infeasible. |
+| Per-alloc | The suffixed source is both the advertised name and the record name. |
+| Metric reasons | The existing `missing compatible host volumes` stays for a missing name and for static mismatches. Dynamic failures give `dynamic host volume <source> is missing or not usable by this job` (no record, other namespace, other node, other name or lookup error), `... is not ready`, or `... has no matching capability`. Only the requested source is named; host paths, volume IDs and error text never appear. |
+| Evaluation | Per node, not class-cached: the checker is among the availability checkers, because the computed node class leaves out host volumes and the volume ID. |
+
 ## Built-in mkdir plugin (client) {#builtin-mkdir}
 
 Implemented in `client/hostvolume/builtin.go` (`Ops.CreateBuiltin`,

@@ -118,6 +118,10 @@ type State interface {
 	// CSIVolumeByID fetch CSI volumes, containing controller jobs
 	CSIVolumesByNodeID(memdb.WatchSet, string, string) (memdb.ResultIterator, error)
 
+	// DynamicHostVolumeByID fetches a dynamic host volume record from one
+	// namespace.
+	DynamicHostVolumeByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolume, error)
+
 	// LatestIndex returns the greatest index value for all indexes.
 	LatestIndex() (uint64, error)
 }
