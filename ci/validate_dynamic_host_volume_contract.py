@@ -127,13 +127,18 @@ def validate(data, root=ROOT):
         keys(behavior["assertions"], FACETS)
         unresolved = False
         for assertion in behavior["assertions"].values():
-            keys(assertion, {"status", "value", "evidence_refs", "test_ids"})
+            keys(assertion, {"status", "value", "evidence_refs", "test_ids"}, {"implementation"})
             status = assertion["status"]
             require(status in {"documented", "observed", "requirement", "unresolved"}, "assertion status")
             require(isinstance(assertion["evidence_refs"], list) and assertion["evidence_refs"], "missing evidence reference")
             require(isinstance(assertion["test_ids"], list) and assertion["test_ids"], "missing synthetic test")
             require(all(ref in sources for ref in assertion["evidence_refs"]), "dangling evidence reference")
             require(all(ref in tests for ref in assertion["test_ids"]), "dangling test reference")
+            if "implementation" in assertion:
+                require(assertion["implementation"] in ("implemented", "verified"), "assertion implementation status")
+                require(status != "unresolved", "unresolved assertion cannot be implemented")
+                require(all(tests[ref]["status"] == "implemented" for ref in assertion["test_ids"]),
+                        "implemented assertion needs implemented tests")
             used_sources.update(assertion["evidence_refs"])
             used_tests.update(assertion["test_ids"])
             category = {"documented": "official_documentation", "observed": "black_box_observation",

@@ -207,6 +207,47 @@ class ContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "^implemented test definition missing$"):
             self.module.validate(changed, ROOT)
 
+    def implement_facet(self, data, resolved=True):
+        """Return a facet of the copy with every cited test marked implemented."""
+        facet = next(a for b in data["behaviors"] for a in b["assertions"].values()
+                     if (a["status"] == "unresolved") != resolved)
+        for test in data["test_cases"]:
+            if test["id"] in facet["test_ids"]:
+                test.update(status="implemented", path="ci/test_dynamic_host_volume_contract.py",
+                            name="test_contract_exists_and_validates")
+        return facet
+
+    def test_implemented_facet_is_accepted(self):
+        for value in ("implemented", "verified"):
+            with self.subTest(value=value):
+                changed = copy.deepcopy(self.data)
+                self.implement_facet(changed)["implementation"] = value
+                self.module.validate(changed, ROOT)
+
+    def test_implemented_facet_rejects_unresolved_status(self):
+        changed = copy.deepcopy(self.data)
+        self.implement_facet(changed, resolved=False)["implementation"] = "implemented"
+        with self.assertRaisesRegex(ValueError, "^unresolved assertion cannot be implemented$"):
+            self.module.validate(changed, ROOT)
+
+    def test_implemented_facet_needs_implemented_tests(self):
+        changed = copy.deepcopy(self.data)
+        facet = self.implement_facet(changed)
+        facet["implementation"] = "implemented"
+        test = next(t for t in changed["test_cases"] if t["id"] == facet["test_ids"][0])
+        test["status"] = "planned"
+        del test["path"], test["name"]
+        with self.assertRaisesRegex(ValueError, "^implemented assertion needs implemented tests$"):
+            self.module.validate(changed, ROOT)
+
+    def test_implemented_facet_rejects_unknown_value(self):
+        for value in ("planned", "done", "", ["implemented"], None, True):
+            with self.subTest(value=value):
+                changed = copy.deepcopy(self.data)
+                self.implement_facet(changed)["implementation"] = value
+                with self.assertRaisesRegex(ValueError, "^assertion implementation status$"):
+                    self.module.validate(changed, ROOT)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -28,7 +28,7 @@ class FixtureTests(unittest.TestCase):
         self.assertTrue((ROOT / "ci/check_dynamic_host_volume_fixtures.py").is_file(),
                         "synthetic fixture guard is missing")
         self.guard.validate(self.data, self.matrix)
-        self.assertTrue(all(test["status"] == "planned" for test in self.matrix["test_cases"]))
+        self.assertTrue(all(test["status"] in {"planned", "implemented"} for test in self.matrix["test_cases"]))
 
     def test_catalog_mutations(self):
         inputs = ("cases", 0, "inputs")
