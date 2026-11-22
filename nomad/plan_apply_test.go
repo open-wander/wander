@@ -1434,10 +1434,12 @@ func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
 			name: "in-place update of the holder keeps the fast path",
 			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
 				old := f.alloc()
-				f.upsertAllocs(old)
-				// The volume record disappears after the placement. An
-				// update of an existing allocation is not re-checked.
+				// The record is gone while the allocation is live. A delete
+				// refuses while a live allocation uses the volume, so the
+				// record is removed first. An update of an existing
+				// allocation is not re-checked.
 				f.deleteVolume()
+				f.upsertAllocs(old)
 				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {old}}}
 			},
 			fit: true,
@@ -1446,8 +1448,8 @@ func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
 			name: "holder updated beside a new placement is not re-checked",
 			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
 				old := f.alloc()
-				f.upsertAllocs(old)
 				f.deleteVolume()
+				f.upsertAllocs(old)
 				// The new placement belongs to a group without volumes, so
 				// only a re-check of the existing holder could reject.
 				job := f.job.Copy()
@@ -1464,8 +1466,8 @@ func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
 		{
 			name: "plan without dynamic volume requests is unaffected",
 			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
-				f.upsertAllocs(f.alloc())
 				f.deleteVolume()
+				f.upsertAllocs(f.alloc())
 				plain := mock.Job()
 				a := f.alloc()
 				a.Job = plain

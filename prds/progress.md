@@ -935,9 +935,42 @@ PATTERN: observation - Check that the harness really performed each action
 PATTERN: codegen - Regenerating `structs.generated.go` can bring in codecs
 that an earlier change left stale; check the hunks and say so in the commit.
 
+## 2026-11-22 — Task 3.7 complete
+
+- A second two-node observation (`#observation-node-down`,
+  `SRC-observe-node-down`) covered what the first left open. A down node
+  keeps its volume records, still listed as ready; jobs wait and do not move,
+  sticky or not; a garbage-collected node keeps its records too and they work
+  again when it re-registers; claims are untouched by both. No automatic
+  volume removal was seen, so the task adds none.
+- Job removal (`DeleteJobTxn`, which serves purge and job garbage
+  collection) deletes the job's claims in the same transaction. A plan result
+  no longer writes a claim for a job that is gone.
+- Volume delete follows the owner decision of 2026-11-21: it removes the
+  volume's claims, and the state store refuses it while an allocation that
+  the client has not reported terminal uses the volume.
+- Node handling needed no code. Tests pin that deleting a node keeps records
+  and claims and that the scheduler does not move a group off a down or
+  missing node's claimed volume.
+- There are still no Raft messages or RPC endpoints for volumes and claims;
+  everything here is state store level. They come with 4.2 and 4.3.
+- Open, for later tasks: the delete operation must refuse a volume on a down
+  or unknown node unless forced, as observed (4.3); the plan applier counts
+  only server-non-terminal allocations as writers while the scheduler and
+  the delete count until client-terminal (6.1); a purge followed by a
+  re-register of the same job ID before a stale plan applies lets the stale
+  claim attach to the new job (6.1); deleting a namespace does not check for
+  claims, which is safe only because jobs must be gone first (6.1).
+- Review returned MINOR; the orchestrator corrected table cases that were
+  named running but tested pending, and reflowed a comment.
+
+PATTERN: tests - A fixture helper that sets a default status before the
+mutate callback can make case names lie; check each table case reaches the
+state it names.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
   `4259fbe38b` (PR #70).
-- Tasks 3.2 to 3.6 are done.
-- Next task: 3.7 (claim and volume garbage collection, unavailable nodes).
+- Phase 3 is done (3.1 to 3.7), pending the merge of 3.7.
+- Next task: 4.1 (HTTP list and read operations).

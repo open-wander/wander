@@ -613,3 +613,43 @@ func TestDynamicHostVolumeStickyLiveAllocs(t *testing.T) {
 		require.Empty(t, DynamicHostVolumeStickyLiveNodes(allocs, "unrelated", job))
 	})
 }
+
+func TestDynamicHostVolumeAllocRequests(t *testing.T) {
+	const ns = "ns-a"
+	vol := &DynamicHostVolume{ID: "volume-synthetic-a", Name: "data-a", Namespace: ns}
+	jobWith := func(namespace string, r *VolumeRequest) *Job {
+		return &Job{ID: "job-a", Namespace: namespace,
+			TaskGroups: []*TaskGroup{{Name: "group-a", Volumes: map[string]*VolumeRequest{"data": r}}}}
+	}
+	plain := &VolumeRequest{Name: "data", Type: VolumeTypeHost, Source: "data-a"}
+	perAlloc := &VolumeRequest{Name: "data", Type: VolumeTypeHost, Source: "data-a", PerAlloc: true}
+	alloc := func(namespace string, job *Job) *Allocation {
+		return &Allocation{ID: "a", Name: "job-a.group-a[0]", Namespace: namespace, TaskGroup: "group-a", Job: job}
+	}
+
+	cases := []struct {
+		name     string
+		alloc    *Allocation
+		fallback *Job
+		vol      *DynamicHostVolume
+		want     int
+	}{
+		{"own job matches the source", alloc(ns, jobWith(ns, plain)), nil, vol, 1},
+		{"nil allocation", nil, jobWith(ns, plain), vol, 0},
+		{"no job and no fallback", alloc(ns, nil), nil, vol, 0},
+		{"fallback job stands in", alloc(ns, nil), jobWith(ns, plain), vol, 1},
+		{"own job wins over the fallback", alloc(ns, jobWith(ns, &VolumeRequest{Name: "data", Type: VolumeTypeHost, Source: "data-b"})), jobWith(ns, plain), vol, 0},
+		{"other namespace", alloc("ns-b", jobWith("ns-b", plain)), nil, vol, 0},
+		{"allocation namespace preferred over the job", alloc("", jobWith(ns, plain)), nil, vol, 1},
+		{"unknown group", &Allocation{ID: "a", Name: "n", Namespace: ns, TaskGroup: "group-z", Job: jobWith(ns, plain)}, nil, vol, 0},
+		{"other source", alloc(ns, jobWith(ns, plain)), nil, &DynamicHostVolume{Name: "data-b", Namespace: ns}, 0},
+		{"per-alloc suffix is applied", alloc(ns, jobWith(ns, perAlloc)), nil, &DynamicHostVolume{Name: "data-a[0]", Namespace: ns}, 1},
+		{"per-alloc bare name does not match", alloc(ns, jobWith(ns, perAlloc)), nil, vol, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := DynamicHostVolumeAllocRequests(tc.vol, tc.alloc, tc.fallback)
+			require.Len(t, got, tc.want)
+		})
+	}
+}

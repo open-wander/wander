@@ -522,9 +522,26 @@ This reading fits every case above; it is an inference, not a documented rule.
 
 Known difference, decided by the project owner on 2026-11-21. The observed
 binary deleted a claimed volume of a stopped job and kept the claim. Wander
-will allow the delete when no allocation uses the volume and remove the
-volume's claims in the same step, so no stale claim remains. Until that is
-implemented the state store refuses to delete a volume that has a claim.
+allows the delete when no allocation uses the volume and removes the
+volume's claims in the same step, so no stale claim remains.
+
+### Observation of a node going down {#observation-node-down}
+
+Synthetic jobs were run against two development agents of an official release
+binary on one workstation, on private ports, with no other cluster. The jobs
+and volumes held no real data, and identifiers are not recorded here.
+
+```json
+{
+  "source_id": "SRC-observe-node-down",
+  "binary_version": "Nomad v2.0.2 (official release binary, darwin/arm64)",
+  "synthetic": true,
+  "request": "On a two-node development cluster on one workstation, one built-in-plugin volume of a shared name was created on each node and one volume of a second name on the second node only. A sticky service job on the shared name and a plain service job on the second name were both running on the second node. The second node's agent was stopped without warning, started again, stopped again, and garbage collected after the jobs were purged, then started once more. Node status, the volume list, job status and the claims list were read after each step, and a volume delete was tried while the node was down and after it was garbage collected.",
+  "response": "The node was marked down about 20 seconds after its agent stopped. Its three volume records stayed listed with state ready. Both allocations were marked lost, and neither job was placed on the first node: each reported one node excluded by the missing compatible host volumes filter, including the sticky job, whose volume name also existed on the first node. The claim was unchanged. Deleting a volume of the down node failed with status 500 and the text: volume cannot be removed from unknown node without force=true. When the agent started again both jobs were placed on the second node on the same volumes. After the second stop, a purge of both jobs and a forced garbage collection, the node was no longer listed, its volume records were still listed with state ready, no claim was listed, and the delete failed with the same text. When the agent started again the node was ready, the records were unchanged, a new job was placed on one of its volumes, and a volume on the first node was deleted normally.",
+  "date": "2026-11-22",
+  "limitations": "Two nodes, one version, one platform, development mode; one namespace; the node was stopped without warning, not drained; states were read within about 30 seconds of each change; each case run once; behaviour may differ elsewhere."
+}
+```
 
 ## Sticky claims (server) {#sticky-claims}
 
@@ -545,11 +562,16 @@ in `stickyClaimsForPlan` in `nomad/plan_apply.go`.
 | Plan applier | Wander policy | Each new placement is checked again against the snapshot plus the plan. A failure rejects the node's part of the plan with `dynamic host volume sticky claim`, naming nothing. |
 | Claim creation | Observed; mechanism is Wander policy | A claim is created for each dynamic volume a new allocation of a sticky request is placed on and the group has no claim on. The leader generates the claim ID and sends the claims in the plan result, and they are written in the same transaction as the allocations. Several placements on one volume give one claim. |
 | Claim contents | Wander policy | A claim keeps the allocation that created it. A later placement on the volume does not change the claim. `AllocationIndex` is the name index of that allocation. |
-| Skipped claims | Wander policy | When the plan result is applied, a claim is skipped if the group already has one on the volume or if the volume record is gone. The allocations are still written. |
-| Removal | Later work | Nothing removes a claim yet. A job stop keeps claims, as observed. |
+| Skipped claims | Wander policy | When the plan result is applied, a claim is skipped if the group already has one on the volume, if the volume record is gone, or if the job is gone. The allocations are still written. Skipping the claim of a removed job stops a plan that races a purge from leaving a claim that nothing would remove. |
+| Removal with the job | Observed; mechanism is Wander policy | A job stop keeps the claims. Removing the job from state, by a purge or by job garbage collection, deletes its claims in the same transaction. A child job (periodic or dispatched) holds claims under its own ID, and they go when the child is removed. |
+| Removal with the volume | Decided by the project owner | Deleting a volume deletes the claims on it in the same transaction. This differs from the observed binary, which keeps the claim. |
+| Volume in use | Requirement, Wander policy | The state store refuses to delete a volume while an allocation on its node, in its namespace, requests its name and has not been reported complete, failed or lost by the client. This is the release point of writer accounting. An allocation the server has stopped but that still runs blocks the delete. Refusing a delete because the node is down or unknown, as observed, belongs to the delete operation and is not implemented yet. |
+| Node down or collected | Observed | Volume records and claims are not changed when their node goes down or is garbage collected. A down or missing node is not a placement candidate, so a sticky group with a claim there waits and is not placed on another volume of the name, and it returns to the volume when the node is ready. The record's state is not changed by the server; the observed binary also kept listing it as ready. |
+| No volume collection | Observed | No volume record is removed automatically. Only an operator delete removes one. |
 | Canaries | Wander policy | A canary beside a running allocation of the group finds the claim in use, so it may take another volume and get a claim there. |
 | Partial plan | Known gap | Nodes are judged separately. If one node of a plan is rejected, a placement on another node that was valid only because of the rejected one can still commit and create a second claim. Later evaluations see both claims. |
 | Plan rejection tracking | Known gap | As for writer conflicts, a sticky rejection counts towards marking a node ineligible when node plan rejection tracking is enabled (off by default). |
+| Applier liveness | Known gap | The plan applier re-checks writers against allocations that are not terminal on the server, while the scheduler and the volume delete count an allocation until the client reports it terminal. A plan made from an older snapshot can therefore pass the applier next to a writer the server has stopped but that still runs. |
 | Mixed versions | Known gap | A server without this change drops the claims in a plan result and writes the allocations alone, so claim state differs between servers until all are upgraded. No version gate is possible: servers advertise the same compatibility version as before. |
 
 ## Task mounts (client) {#task-mounts}

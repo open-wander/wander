@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
   "feature": "dynamic-host-volumes",
-  "evidence_cutoff": "2026-11-21",
+  "evidence_cutoff": "2026-11-22",
   "synthetic_only": true,
   "sources": [
     {"id":"SRC-api","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-08","scope":"HTTP and claim operation tables; conflicting examples","summary":"Public operation tables only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
+    {"id":"SRC-observe-node-down","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-node-down","date":"2026-11-22","scope":"Volumes, claims and placement while a node is down and after it is garbage collected","summary":"What an official release binary did with volume records, claims and waiting allocations when a client node stopped, returned, and was garbage collected.","limitations":"Two nodes, one version, one platform, development mode; one namespace; the node was stopped without warning, not drained; states were read within about 30 seconds of each change; each case run once; behaviour may differ elsewhere."},
     {"id":"SRC-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/volume/host","date":"2026-11-17","scope":"Volume fields and mkdir parameters","summary":"Specification field descriptions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-plugin","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/plugins/author/host-volume#specification","date":"2026-11-15","scope":"Plugin protocol specification only; implementation examples excluded","summary":"Executable protocol interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-job","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/job-specification/volume#parameters","date":"2026-11-08","scope":"Dynamic host job fields","summary":"Job field contract only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
@@ -3271,13 +3272,13 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for node-unavailability that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-180"]},
+        "contract": {"status":"observed","value":"While the node of a volume is down, a replacement for an allocation that used the volume is not placed on another node and reports the missing compatible host volumes reason. This holds for a sticky group with a volume of the same name on another node and for a group whose volume name exists only on the down node. The allocations on the down node are marked lost.","evidence_refs":["SRC-observe-node-down"],"test_ids":["DHV-T-180"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-180"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-180"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-180"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-180"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-180"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-180"]}
+        "lifecycle": {"status":"observed","value":"The volume records of a down node stay listed and their state still reads ready. They stay after the down node is garbage collected. When the node returns, before or after it was garbage collected, the waiting allocations are placed on its volumes again. A claim is not changed by its node going down or being garbage collected.","evidence_refs":["SRC-observe-node-down"],"test_ids":["DHV-T-180"]}
       }
     },
     {
@@ -3325,7 +3326,7 @@
         "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
+        "errors": {"status":"observed","value":"Deleting a volume whose node is down or has been garbage collected is refused with status 500: volume cannot be removed from unknown node without force=true.","evidence_refs":["SRC-observe-node-down"],"test_ids":["DHV-T-183"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]}
