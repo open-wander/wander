@@ -1121,9 +1121,32 @@ PATTERN: scheduler - Preemption entries of a plan are stubs without job or
 task group. A rule that needs the job of a preempted allocation must read the
 stored copy.
 
+## 2026-11-22 — Task 3.9 complete
+
+- The hole: an allocation in client status `unknown` counted as live, so its
+  claim was not free and the replacement could take another volume of the
+  name with a new claim.
+- The rule, in `DynamicHostVolumeStickyLiveAllocs` and so in both the
+  scheduler and the plan applier: an `unknown` allocation does not hold its
+  sticky claim. The claim is free, the rule forces placements onto its
+  volume, and the node is not ready, so they wait. The writer rule and the
+  volume delete still count an `unknown` allocation.
+- Ordering fix in the same helper: a plan copy now replaces the stored copy
+  before it is dropped as not live. Before, a terminal or `unknown` copy in
+  the plan left the running stored copy counted.
+- Behaviour change, recorded in the provenance row: a scale-up during the
+  disconnect also waits. After reconnect and before the client reports, a
+  concurrent placement may land on the same volume beside the original; it
+  does not split the data and the writer rule still applies.
+- Without `max_client_disconnect` the allocation is lost and the replacement
+  already waited; a test pins it.
+- Review: MINOR. The reconnect test now also asserts that the group needs no
+  placement, and the provenance basis label was aligned.
+- Seen and left alone: a data race in inherited plan-apply and
+  garbage-collection tests, present on `main`.
+
 ## Resume point
 
-- Phases 1 to 3 are merged, swept and archived.
-- The planning pass is in its own pull request. After it merges the next
-  task is 3.9, then 3.10, then 4.1. Task 3.8 is done on its own
-  branch, stacked on the planning pull request.
+- Phases 1 to 3 are merged, swept and archived; the planning pass is merged.
+- Tasks 3.8 and 3.9 are merged or in review; 3.10 is in its own pull
+  request. The next task after them is 4.1.

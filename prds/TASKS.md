@@ -15,7 +15,7 @@ must follow the clean-room and private-data rules in the linked PRD and
 | # | Task | PRD | Status | Notes |
 |---|------|-----|--------|-------|
 | 3.8 | Never preempt the writer of a volume to place another writer of that volume | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-22) | The scheduler and the plan applier count an allocation the plan preempts as still holding its volume, through one shared helper; a stop in the job's own update still frees it |
-| 3.9 | Keep a sticky claim with its volume while the client is disconnected | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 3.6, 3.7. PRD owner decisions, disconnected client. The replacement waits for the bound volume |
+| 3.9 | Keep a sticky claim with its volume while the client is disconnected | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-22) | An allocation in client status unknown no longer holds its sticky claim, so the claim is free and every placement of the group, the replacement included, waits for that volume; the writer rule still counts it |
 | 3.10 | Keep a running task when its volume is not ready after an agent restart | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 3.5. PRD owner decisions, agent restart. A task that still has to start fails as before |
 
 ## Phase 4: Server lifecycle and public APIs

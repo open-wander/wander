@@ -350,9 +350,16 @@ func DynamicHostVolumeStickyAllowed(requests []*VolumeRequest, group, source str
 // as the plan would leave them: the stored allocations that are not terminal on
 // the server or the client, less those the plan stops or preempts on any node,
 // plus the plan's placements for the group. A placement replaces a stored
-// allocation with the same ID. The allocation named by selfID, which is the one
-// being checked, is left out. A nil plan changes nothing. Neither the
-// allocations nor the plan are modified.
+// allocation with the same ID, and is then itself left out when it is terminal.
+// The allocation named by selfID, which is the one being checked, is left out.
+// A nil plan changes nothing. Neither the allocations nor the plan are
+// modified.
+//
+// An allocation in client status unknown is on a disconnected client and is not
+// live for this rule: its claim stays with its volume and is free, so every
+// placement of the group, including the replacement of that allocation, is held
+// to the volume until the client is back. Other rules, such as the writer rule
+// and the volume delete, still count an unknown allocation as a user.
 func DynamicHostVolumeStickyLiveAllocs(stored []*Allocation, plan *Plan, group, selfID string) []*Allocation {
 	removed := make(map[string]struct{})
 	if plan != nil {
@@ -371,7 +378,7 @@ func DynamicHostVolumeStickyLiveAllocs(stored []*Allocation, plan *Plan, group, 
 	live := make([]*Allocation, 0, len(stored))
 	seen := make(map[string]struct{}, len(stored))
 	for _, alloc := range stored {
-		if alloc == nil || alloc.TaskGroup != group || alloc.TerminalStatus() || alloc.ID == selfID {
+		if alloc == nil || alloc.TaskGroup != group || stickyNotLive(alloc) || alloc.ID == selfID {
 			continue
 		}
 		if _, ok := removed[alloc.ID]; ok {
@@ -387,12 +394,16 @@ func DynamicHostVolumeStickyLiveAllocs(stored []*Allocation, plan *Plan, group, 
 	// The map order does not matter: callers only collect nodes from the result.
 	for _, allocs := range plan.NodeAllocation {
 		for _, alloc := range allocs {
-			if alloc.TaskGroup != group || alloc.TerminalStatus() || alloc.ID == selfID {
+			if alloc.TaskGroup != group || alloc.ID == selfID {
 				continue
 			}
 			if _, ok := seen[alloc.ID]; ok {
-				// The stored copy of an updated allocation is replaced.
+				// The stored copy of an updated allocation is replaced, even
+				// when the new copy is not live.
 				live = slices.DeleteFunc(live, func(a *Allocation) bool { return a.ID == alloc.ID })
+			}
+			if stickyNotLive(alloc) {
+				continue
 			}
 			seen[alloc.ID] = struct{}{}
 			live = append(live, alloc)
@@ -444,6 +455,12 @@ func DynamicHostVolumeWriterHolders(stored []*Allocation, plan *Plan, nodeID str
 		holders = append(holders, alloc)
 	}
 	return append(holders, placed...)
+}
+
+// stickyNotLive reports whether an allocation does not hold a sticky claim: it
+// is terminal, or its client is disconnected.
+func stickyNotLive(alloc *Allocation) bool {
+	return alloc.TerminalStatus() || alloc.ClientStatus == AllocClientStatusUnknown
 }
 
 // DynamicHostVolumeStickyLiveNodes returns the nodes of the allocations that use
