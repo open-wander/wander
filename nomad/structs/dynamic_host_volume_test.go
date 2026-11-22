@@ -611,6 +611,66 @@ func TestDynamicHostVolumeStickyLiveAllocs(t *testing.T) {
 		require.Len(t, live, 2)
 	})
 
+	// An allocation in client status unknown is on a disconnected client. It
+	// does not hold its claim, so the replacement waits for that volume.
+	t.Run("unknown allocations are not live", func(t *testing.T) {
+		running := func(id string) *Allocation {
+			return alloc(id, "node-a", "group-a", "job-a.group-a[0]")
+		}
+		unknown := func(id string) *Allocation {
+			return terminal(running(id), AllocDesiredStatusRun, AllocClientStatusUnknown)
+		}
+		cases := []struct {
+			name   string
+			stored []*Allocation
+			plan   *Plan
+			want   []string
+		}{
+			{
+				name:   "stored unknown",
+				stored: []*Allocation{unknown("u1"), running("r1")},
+				want:   []string{"r1"},
+			},
+			{
+				name:   "stored unknown with desired stop",
+				stored: []*Allocation{terminal(running("u1"), AllocDesiredStatusStop, AllocClientStatusUnknown)},
+			},
+			{
+				// The evaluation that disconnects the client carries the
+				// unknown copy while the stored copy still runs.
+				name:   "stored running, unknown copy in the plan",
+				stored: []*Allocation{running("a1")},
+				plan:   &Plan{Job: job, NodeAllocation: map[string][]*Allocation{"node-a": {unknown("a1")}}},
+			},
+			{
+				name:   "stored running, terminal copy in the plan",
+				stored: []*Allocation{running("a1")},
+				plan: &Plan{Job: job, NodeAllocation: map[string][]*Allocation{
+					"node-a": {terminal(running("a1"), AllocDesiredStatusRun, AllocClientStatusLost)}}},
+			},
+			{
+				name:   "stored unknown, running copy in the plan",
+				stored: []*Allocation{unknown("a1")},
+				plan:   &Plan{Job: job, NodeAllocation: map[string][]*Allocation{"node-a": {running("a1")}}},
+				want:   []string{"a1"},
+			},
+			{
+				name: "unknown placement in the plan",
+				plan: &Plan{Job: job, NodeAllocation: map[string][]*Allocation{"node-a": {unknown("n1")}}},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				live := DynamicHostVolumeStickyLiveAllocs(tc.stored, tc.plan, "group-a", "")
+				ids := []string{}
+				for _, a := range live {
+					ids = append(ids, a.ID)
+				}
+				require.ElementsMatch(t, tc.want, ids)
+			})
+		}
+	})
+
 	t.Run("nodes using a source", func(t *testing.T) {
 		allocs := []*Allocation{
 			alloc("a1", "node-a", "group-a", "job-a.group-a[0]"),
