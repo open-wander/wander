@@ -1345,6 +1345,39 @@ func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
 					NodeAllocation:  map[string][]*structs.Allocation{f.node.ID: {f.alloc()}},
 				}
 			},
+			reason: reasonConflict,
+		},
+		{
+			// The plan carries only the stub that AppendPreemptedAlloc builds,
+			// with no job and no task group.
+			name: "writer while preempting the previous writer through its stub",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				f.upsertAllocs(old)
+				plan := &structs.Plan{
+					Job:             f.job,
+					NodePreemptions: map[string][]*structs.Allocation{},
+					NodeAllocation:  map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}},
+				}
+				plan.AppendPreemptedAlloc(old, uuid.Generate())
+				return plan
+			},
+			reason: reasonConflict,
+		},
+		{
+			name: "writer while preempting a client-terminal writer",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				old := f.alloc()
+				old.ClientStatus = structs.AllocClientStatusFailed
+				f.upsertAllocs(old)
+				plan := &structs.Plan{
+					Job:             f.job,
+					NodePreemptions: map[string][]*structs.Allocation{},
+					NodeAllocation:  map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}},
+				}
+				plan.AppendPreemptedAlloc(old, uuid.Generate())
+				return plan
+			},
 			fit: true,
 		},
 		{

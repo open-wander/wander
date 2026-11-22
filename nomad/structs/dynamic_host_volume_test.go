@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/go-msgpack/codec"
@@ -622,6 +623,129 @@ func TestDynamicHostVolumeStickyLiveAllocs(t *testing.T) {
 		require.Equal(t, map[string]bool{"node-b": true},
 			DynamicHostVolumeStickyLiveNodes(allocs, "slot[1]", job))
 		require.Empty(t, DynamicHostVolumeStickyLiveNodes(allocs, "unrelated", job))
+	})
+}
+
+func TestDynamicHostVolumeWriterHolders(t *testing.T) {
+	alloc := func(id, client string) *Allocation {
+		return &Allocation{ID: id, NodeID: "node-a", TaskGroup: "group-a", JobID: "job-a",
+			DesiredStatus: AllocDesiredStatusRun, ClientStatus: client}
+	}
+	ids := func(allocs []*Allocation) []string {
+		out := []string{}
+		for _, a := range allocs {
+			out = append(out, a.ID)
+		}
+		return out
+	}
+
+	stored := []*Allocation{
+		alloc("run", AllocClientStatusRunning),
+		alloc("stopped", AllocClientStatusRunning),
+		alloc("preempted", AllocClientStatusRunning),
+		alloc("failed", AllocClientStatusFailed),
+		alloc("preempted-failed", AllocClientStatusFailed),
+		nil,
+	}
+
+	cases := []struct {
+		name string
+		plan func() *Plan
+		want []string
+	}{
+		{name: "nil plan", plan: func() *Plan { return nil }, want: []string{"run", "stopped", "preempted"}},
+		{name: "empty plan", plan: func() *Plan { return &Plan{} }, want: []string{"run", "stopped", "preempted"}},
+		{
+			name: "a stop frees the volume",
+			plan: func() *Plan {
+				return &Plan{NodeUpdate: map[string][]*Allocation{"node-a": {alloc("stopped", "")}}}
+			},
+			want: []string{"run", "preempted"},
+		},
+		{
+			// The plan holds only a stub of the preempted allocation, with no
+			// job and no task group, so the stored copy has to be the one kept.
+			name: "a preemption keeps the stored allocation",
+			plan: func() *Plan {
+				p := &Plan{NodePreemptions: map[string][]*Allocation{}}
+				p.AppendPreemptedAlloc(stored[2], "preemptor")
+				return p
+			},
+			want: []string{"run", "stopped", "preempted"},
+		},
+		{
+			name: "a stop and a preemption of the same allocation frees it",
+			plan: func() *Plan {
+				p := &Plan{
+					NodeUpdate:      map[string][]*Allocation{"node-a": {alloc("preempted", "")}},
+					NodePreemptions: map[string][]*Allocation{},
+				}
+				p.AppendPreemptedAlloc(stored[2], "preemptor")
+				return p
+			},
+			want: []string{"run", "stopped"},
+		},
+		{
+			name: "a preempted client-terminal allocation holds nothing",
+			plan: func() *Plan {
+				p := &Plan{NodePreemptions: map[string][]*Allocation{}}
+				p.AppendPreemptedAlloc(stored[4], "preemptor")
+				return p
+			},
+			want: []string{"run", "stopped", "preempted"},
+		},
+		{
+			name: "placements are added and replace stored copies",
+			plan: func() *Plan {
+				return &Plan{NodeAllocation: map[string][]*Allocation{"node-a": {alloc("new", ""), alloc("run", AllocClientStatusRunning)}}}
+			},
+			want: []string{"stopped", "preempted", "new", "run"},
+		},
+		{
+			name: "other nodes are ignored",
+			plan: func() *Plan {
+				return &Plan{
+					NodeUpdate:      map[string][]*Allocation{"node-b": {alloc("run", "")}},
+					NodePreemptions: map[string][]*Allocation{"node-b": {alloc("preempted", "")}},
+					NodeAllocation:  map[string][]*Allocation{"node-b": {alloc("new", "")}},
+				}
+			},
+			want: []string{"run", "stopped", "preempted"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plan := tc.plan()
+			got := DynamicHostVolumeWriterHolders(stored, plan, "node-a")
+			require.Equal(t, tc.want, ids(got))
+
+			// The stored copy is the one returned for a preempted allocation.
+			for _, a := range got {
+				if a.ID == "preempted" {
+					require.Equal(t, "group-a", a.TaskGroup)
+				}
+			}
+		})
+	}
+
+	t.Run("nothing is modified", func(t *testing.T) {
+		plan := &Plan{
+			NodeUpdate:      map[string][]*Allocation{"node-a": {alloc("stopped", "")}},
+			NodePreemptions: map[string][]*Allocation{},
+			NodeAllocation:  map[string][]*Allocation{"node-a": {alloc("new", "")}},
+		}
+		plan.AppendPreemptedAlloc(stored[2], "preemptor")
+		updateBefore := slices.Clone(plan.NodeUpdate["node-a"])
+		preemptBefore := slices.Clone(plan.NodePreemptions["node-a"])
+		placeBefore := slices.Clone(plan.NodeAllocation["node-a"])
+		storedBefore := slices.Clone(stored)
+
+		DynamicHostVolumeWriterHolders(stored, plan, "node-a")
+		require.Equal(t, updateBefore, plan.NodeUpdate["node-a"])
+		require.Equal(t, preemptBefore, plan.NodePreemptions["node-a"])
+		require.Equal(t, placeBefore, plan.NodeAllocation["node-a"])
+		require.Equal(t, storedBefore, stored)
 	})
 }
 

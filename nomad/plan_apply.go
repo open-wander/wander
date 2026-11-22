@@ -795,7 +795,7 @@ func evaluateNodePlan(snap *state.StateSnapshot, plan *structs.Plan, nodeID stri
 		return fit, reason, err
 	}
 
-	return evaluateDynamicHostVolumes(snap, plan, node, existingAlloc, proposed)
+	return evaluateDynamicHostVolumes(snap, plan, node, existingAlloc)
 }
 
 // Bounded reasons for a node whose dynamic host volumes cannot serve a plan.
@@ -816,11 +816,17 @@ const (
 // nothing is modified here: a job missing from a plan allocation is resolved
 // locally.
 func evaluateDynamicHostVolumes(snap *state.StateSnapshot, plan *structs.Plan, node *structs.Node,
-	existing, proposed []*structs.Allocation) (bool, string, error) {
+	existing []*structs.Allocation) (bool, string, error) {
 
 	if plan.Job == nil || len(node.HostVolumes) == 0 {
 		return true, "", nil
 	}
+
+	// An allocation the plan preempts still holds its volume until its client
+	// reports it stopped, so the holders are not the proposed set that
+	// AllocsFit uses. They are built when first needed.
+	var holders []*structs.Allocation
+	holdersBuilt := false
 
 	known := make(map[string]struct{}, len(existing))
 	for _, alloc := range existing {
@@ -866,8 +872,12 @@ func evaluateDynamicHostVolumes(snap *state.StateSnapshot, plan *structs.Plan, n
 			if !vol.HasSingleWriterCapability() {
 				continue
 			}
+			if !holdersBuilt {
+				holders = structs.DynamicHostVolumeWriterHolders(existing, plan, node.ID)
+				holdersBuilt = true
+			}
 			for _, req := range requests {
-				if structs.DynamicHostVolumeWriterConflict(vol, req, alloc.ID, proposed, plan.Job) {
+				if structs.DynamicHostVolumeWriterConflict(vol, req, alloc.ID, holders, plan.Job) {
 					return false, planRejectDynamicHostVolumeWriter, nil
 				}
 			}
