@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -241,6 +242,121 @@ func TestTaskRunner_HostVolume_ShutdownDuringWaitKeepsRestoredTask(t *testing.T)
 		}
 	}
 	require.Equal(t, 1, started)
+}
+
+// startAndShutdownWithVolume runs a task with the volume present, waits for
+// it to start and stops the task runner, leaving the driver task running.
+func startAndShutdownWithVolume(t *testing.T, conf *Config, alloc *structs.Allocation) {
+	t.Helper()
+	conf.HostVolumes = func(string) map[string]*structs.ClientHostVolumeConfig { return presentHostVolumes() }
+	origTR, err := NewTaskRunner(conf)
+	require.NoError(t, err)
+	go origTR.Run()
+	t.Cleanup(func() { origTR.Kill(context.Background(), structs.NewTaskEvent("cleanup")) })
+	testWaitForTaskToStart(t, origTR)
+	origTR.Shutdown()
+}
+
+// TestTaskRunner_HostVolume_RestoredRunningTaskKeepsRunning asserts that a
+// task restored with a running driver handle is not failed or restarted when
+// its volume is still missing after the first restore has ended.
+func TestTaskRunner_HostVolume_RestoredRunningTaskKeepsRunning(t *testing.T) {
+	ci.Parallel(t)
+
+	alloc := hostVolumeAlloc(hostVolumeRestartPolicies["no restarts"])
+	task := alloc.Job.TaskGroups[0].Tasks[0]
+	conf, cleanup := testTaskRunnerConfig(t, alloc, task.Name)
+	defer cleanup()
+	conf.StateDB = cstate.NewMemDB(conf.Logger)
+	startAndShutdownWithVolume(t, conf, alloc)
+
+	conf.HostVolumes = func(string) map[string]*structs.ClientHostVolumeConfig { return nil }
+	conf.HostVolumesRestored = func() <-chan struct{} { return closedChan() }
+	tr, err := NewTaskRunner(conf)
+	require.NoError(t, err)
+	require.NoError(t, tr.Restore())
+	signal := &poststartSignalHook{done: make(chan struct{})}
+	tr.runnerHooks = append(tr.runnerHooks, signal)
+	go tr.Run()
+	defer tr.Kill(context.Background(), structs.NewTaskEvent("cleanup"))
+
+	select {
+	case <-signal.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the restored task did not get past its prestart hooks")
+	}
+
+	handle := tr.getDriverHandle()
+	require.NotNil(t, handle)
+	status, err := tr.driver.InspectTask(handle.ID())
+	require.NoError(t, err)
+	require.Equal(t, "running", string(status.State))
+
+	state := tr.TaskState()
+	require.Equal(t, structs.TaskStateRunning, state.State)
+	requireNoVolumeFailure(t, state)
+	// The event of the first run is restored with the state; a second one
+	// would mean the task was started again.
+	started := 0
+	for _, ev := range state.Events {
+		if ev.Type == structs.TaskStarted {
+			started++
+		}
+	}
+	require.Equal(t, 1, started)
+}
+
+// TestTaskRunner_HostVolume_RestoredTaskRestartFailsOnMissingVolume asserts
+// that a restored running task that has to start again while its volume is
+// still missing fails as a fresh start does.
+func TestTaskRunner_HostVolume_RestoredTaskRestartFailsOnMissingVolume(t *testing.T) {
+	ci.Parallel(t)
+
+	alloc := hostVolumeAlloc(hostVolumeRestartPolicies["no restarts"])
+	task := alloc.Job.TaskGroups[0].Tasks[0]
+	conf, cleanup := testTaskRunnerConfig(t, alloc, task.Name)
+	defer cleanup()
+	conf.StateDB = cstate.NewMemDB(conf.Logger)
+	startAndShutdownWithVolume(t, conf, alloc)
+
+	conf.HostVolumes = func(string) map[string]*structs.ClientHostVolumeConfig { return nil }
+	conf.HostVolumesRestored = func() <-chan struct{} { return closedChan() }
+	tr, err := NewTaskRunner(conf)
+	require.NoError(t, err)
+	require.NoError(t, tr.Restore())
+	signal := &poststartSignalHook{done: make(chan struct{})}
+	tr.runnerHooks = append(tr.runnerHooks, signal)
+	go tr.Run()
+	defer tr.Kill(context.Background(), structs.NewTaskEvent("cleanup"))
+
+	select {
+	case <-signal.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the restored task did not get past its prestart hooks")
+	}
+
+	require.NoError(t, tr.Restart(context.Background(), structs.NewTaskEvent(structs.TaskRestartSignal), false))
+
+	// The task state is read from the state database, which the task runner
+	// writes after each update.
+	var state *structs.TaskState
+	require.Eventually(t, func() bool {
+		_, persisted, err := conf.StateDB.GetTaskRunnerState(alloc.ID, task.Name)
+		if err != nil || persisted == nil {
+			return false
+		}
+		state = persisted
+		return state.State == structs.TaskStateDead
+	}, 15*time.Second, 50*time.Millisecond)
+
+	require.True(t, state.Failed)
+	var failed bool
+	for _, ev := range state.Events {
+		if ev.Type == structs.TaskHookFailed {
+			failed = failed || strings.Contains(ev.DisplayMessage, "host volume validation error")
+		}
+	}
+	require.True(t, failed, "the restart fails with a volume validation error")
 }
 
 // poststartSignalHook closes done when the poststart hooks run.
