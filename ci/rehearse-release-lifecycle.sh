@@ -277,15 +277,32 @@ put_marker() {
     --data "{\"Items\":{\"marker\":\"${marker}\"}}" \
     "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state"); then
     echo "failed to write rehearsal marker: ${response}" >&2
+    dump_agent_logs
     return 1
   fi
 }
 
 require_marker() {
   local marker=$1
-  curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
-    "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state" | \
-    grep -q "\"marker\":\"${marker}\""
+  local response
+  if ! response=$(curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
+    "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state") ||
+    ! grep -q "\"marker\":\"${marker}\"" <<<"${response}"; then
+    echo "failed to read rehearsal marker ${marker}: ${response}" >&2
+    dump_agent_logs
+    return 1
+  fi
+}
+
+# dump_agent_logs prints the logs of the agents started last, for failures
+# outside wait_for_cluster that do not know the phase directory.
+dump_agent_logs() {
+  local index
+  for index in 0 1 2; do
+    [[ -n ${agent_logs[index]} ]] || continue
+    echo "--- node ${index} ---" >&2
+    tail -200 "${agent_logs[index]}" >&2 || true
+  done
 }
 
 roll_cluster() {
