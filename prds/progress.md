@@ -968,6 +968,76 @@ PATTERN: tests - A fixture helper that sets a default status before the
 mutate callback can make case names lie; check each table case reaches the
 state it names.
 
+## 2026-11-22 — Phase 3 merged; sweep, code review and requirements check
+
+- Phase 3 merged with PR #78 (`1e0ff5f63f`) and is archived. The owner asked
+  for a review of the merged work before Phase 4: do the tests test, is the
+  code good, are the right things being built. Nothing below is fixed yet.
+- Comments: no task or phase references in the Phase 3 code. One passage of
+  the provenance record still gave the old volume delete rule and was
+  corrected. No block was compressed.
+- Invariants: four agents wrote 172 one-edit breaks; the orchestrator ran
+  them one at a time through `go test -overlay`. 139 fail a test. 33 survived
+  and went to three verifiers told to refute them: 26 are confirmed gaps and
+  7 were refuted (three equivalent mutants, two inherited lines, one
+  unreachable guard, one caught by a test in another package).
+- Confirmed gaps, client mounts (11):
+  - nine wiring breaks with one cause: nothing tests the chain client, alloc
+    runner, task runner. With any link removed the hook falls back to the
+    captured node set, without the namespace filter and without the wait.
+    High.
+  - no test calls the hook's `Prestart`; an ignored volume error would start
+    the task without its volume. High.
+  - the log test cannot fail: in text format the map prints as pointers. In
+    JSON format the paths appear. Low.
+- Confirmed gaps, plan applier and claims (5): a claim of another task group
+  suppresses this group's claim (two breaks, no fixture has two groups); the
+  skip check can match a job whose ID starts with the candidate's; the
+  applier's namespace lookup (every fixture uses the default namespace);
+  claims of a volume whose ID starts with the deleted one (low while IDs are
+  UUIDs).
+- Confirmed gaps, node selection (4): an explicitly named node with a name
+  conflict or without the plugin; the order of the first two rules; the
+  tie-break counting every namespace.
+- Confirmed gaps, scheduler (6): only the first of several requests for one
+  source is checked (high); the system stack passing the job ID for sticky;
+  three fail-closed branches on state errors; missing before not-ready.
+- Code review, defects to confirm with a failing test:
+  - the volume hook returns an error when its wait is cancelled by shutdown
+    or kill; the task runner treats that as a failed start and kills the
+    still-running task. The Vault and template hooks return nil there.
+  - `upsertPlanResultsClaims` refuses an index not above the claims index;
+    the leader's optimistic apply can hit that right after another claims
+    write, and the worker is told a committed plan failed.
+  - a volume with an empty node ID makes the in-use check scan every
+    allocation inside the Raft apply.
+- Code review, design holes:
+  - preemption: an evaluation can preempt a single-writer holder and place
+    its own writer on the volume while the holder still runs.
+  - disconnected clients: an allocation in status unknown holds its claim, so
+    the replacement of a sticky group may go to another volume.
+  - the applier accepts a placement when the node no longer advertises the
+    volume; a volume delete can land between plan evaluation and plan apply.
+  - a volume not ready when the first restore ends fails the running task
+    that uses it.
+  - sticky state reads grow with the square of the group size.
+- Requirements check: US-009 and US-010 pass at scheduler, applier and state
+  level. Planning problems: the section 6.4 state machine is defined
+  nowhere; tasks 4.2 and 4.3 say HTTP but must add Raft commands, RPCs and
+  ACL enforcement; open items live only in this log; host paths of every
+  namespace are in the node object (US-014); the ledger validator cannot mark
+  a row implemented; DHV-B-167 (scale-up prefers unclaimed volumes) is
+  stronger than the rule; US-017 AC2 (no new fields to old peers) was dropped
+  without an owner decision.
+
+PATTERN: sweep - A queue of background jobs that each wait with `pgrep -f`
+on a pattern in their own command line never starts. Run batches in one
+sequential command.
+
+PATTERN: tests - Tests that build a struct by hand or call an inner function
+leave the constructor and the entry point untested. One test per feature
+must go through the real entry point.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
