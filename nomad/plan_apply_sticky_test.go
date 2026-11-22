@@ -573,3 +573,101 @@ func TestPlanApply_StickyClaimsForPlan(t *testing.T) {
 		must.Eq(t, uint64(1), claims[0].AllocationIndex)
 	})
 }
+
+// The claim of a sticky group stays with its volume while the client is
+// disconnected: an allocation in client status unknown does not hold it, so a
+// replacement is refused on any other volume of the name.
+func TestPlanApply_EvalNodePlan_DynamicHostVolumeStickyDisconnected(t *testing.T) {
+	ci.Parallel(t)
+
+	run := structs.AllocDesiredStatusRun
+	running := structs.AllocClientStatusRunning
+	unknown := structs.AllocClientStatusUnknown
+
+	// unknownCopy is the plan's update of the holder, as the reconciler
+	// writes it when the client disconnects.
+	unknownCopy := func(holder *structs.Allocation) *structs.Allocation {
+		c := holder.Copy()
+		c.Job = nil
+		c.ClientStatus = unknown
+		return c
+	}
+
+	cases := []struct {
+		name   string
+		run    func(f *stickyPlanFixture) (*structs.Plan, int)
+		fit    bool
+		reason string
+	}{
+		{
+			name: "the plan marks the holder unknown and places the replacement on the other volume",
+			run: func(f *stickyPlanFixture) (*structs.Plan, int) {
+				f.claim(0)
+				holder := f.alloc(0, 0)
+				f.store(run, running, holder)
+				plan := f.placing(unknownCopy(holder), f.planAlloc(1, 0))
+				return plan, 1
+			},
+			reason: stickyReason,
+		},
+		{
+			name: "the holder is already unknown in the snapshot",
+			run: func(f *stickyPlanFixture) (*structs.Plan, int) {
+				f.claim(0)
+				holder := f.alloc(0, 0)
+				f.store(run, unknown, holder)
+				return f.placing(f.planAlloc(1, 0)), 1
+			},
+			reason: stickyReason,
+		},
+		{
+			name: "the holder is already unknown: the claimed volume is allowed",
+			run: func(f *stickyPlanFixture) (*structs.Plan, int) {
+				f.claim(0)
+				holder := f.alloc(0, 0)
+				f.store(run, unknown, holder)
+				return f.placing(f.planAlloc(0, 1)), 0
+			},
+			fit: true,
+		},
+		{
+			name: "a scale-up on the other volume is refused while the holder is unknown",
+			run: func(f *stickyPlanFixture) (*structs.Plan, int) {
+				f.claim(0)
+				holder := f.alloc(0, 0)
+				f.store(run, unknown, holder)
+				return f.placing(f.planAlloc(1, 1)), 1
+			},
+			reason: stickyReason,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newStickyPlanFixture(t)
+			plan, node := tc.run(f)
+			fit, reason := f.evaluate(plan, node)
+			must.Eq(t, tc.fit, fit)
+			must.Eq(t, tc.reason, reason)
+		})
+	}
+
+	// The original keeps its claim through a reconnect: the update of the
+	// stored allocation creates no claim.
+	t.Run("a reconnect creates no claim", func(t *testing.T) {
+		f := newStickyPlanFixture(t)
+		f.claim(0)
+		holder := f.alloc(0, 0)
+		f.store(run, unknown, holder)
+		reconnected := holder.Copy()
+		reconnected.Job = nil
+		reconnected.ClientStatus = running
+
+		snap, err := f.state.Snapshot()
+		must.NoError(t, err)
+		plan := f.placing(reconnected)
+		claims, err := stickyClaimsForPlan(snap, plan, &structs.PlanResult{NodeAllocation: plan.NodeAllocation})
+		must.NoError(t, err)
+		must.Len(t, 0, claims)
+	})
+}
