@@ -1038,9 +1038,55 @@ PATTERN: tests - Tests that build a struct by hand or call an inner function
 leave the constructor and the entry point untested. One test per feature
 must go through the real entry point.
 
+## 2026-11-22 — Phase 3 review follow-up: defects fixed, gaps tested
+
+- Owner decision: fix the confirmed defects and add a test for every
+  confirmed gap, as after the Phase 2 sweep. The design holes and the
+  planning problems listed above are not touched; they need owner decisions.
+- Cancelled wait. The volume hook returns nil, without mounts, when its wait
+  for the restore is cancelled, and prestart stops running later hooks once
+  the task is being killed or the agent is stopping. Tests through
+  `NewTaskRunner` failed on the old code: a kill or a shutdown during the wait
+  marked the task failed, and a restored running task was killed. The second
+  change touches inherited task runner code; the whole alloc runner test
+  packages pass with it.
+- Plan claims. The refusal of an apply index not above the claims table
+  index is removed; the advisor showed from the Raft library in use that the
+  optimistic index can equal the table index or trail it by more than one.
+  The table index never moves backwards.
+- Node-less volume. The early return saves a scan of every allocation. It
+  could not give a wrong result: allocations without a node are not in the
+  node index. Its test documents the behaviour and cannot fail without it.
+- Tests for the 26 gaps, plus five missing cases of the claim skip rule, a
+  replacement for an assertion that could not fail, and tests for two rules
+  in inherited or unreachable code (per-alloc mount source, nil restore
+  function).
+- Final run of the 33 breaks that had survived: 30 fail a test. The other
+  three are the refuted ones (two equivalent mutants on the attachment mode,
+  one inherited line). 169 of 172 breaks are caught.
+- Seen and left alone, inherited code: `allocRunner.AllocState` writes task
+  states without its lock before the first task update, and
+  `updateStateImpl` and `TaskRunner.Kill` write the task state without the
+  lock while it is read or persisted. The new tests read state through the
+  state updater and the state database to stay clear of them.
+- A fresh task killed during the wait ends dead and not failed, with the
+  caller's killing event and no killed event, because there is no driver
+  handle to kill.
+- Review returned MINOR for both halves.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
   `4259fbe38b` (PR #70).
-- Phase 3 is done (3.1 to 3.7), pending the merge of 3.7.
-- Next task: 4.1 (HTTP list and read operations).
+- Phase 3 is done and archived. Its review (sweep, code review, requirements
+  check) is recorded above; the defect fixes and gap tests are in the
+  follow-up pull request.
+- Before 4.1: a planning pass with the owner. Write the section 6.4 state
+  machine, split the server lifecycle work (Raft commands, RPCs, ACL
+  enforcement) out of the HTTP tasks, move the open items of this log onto
+  the tasks that own them, fix the ledger validator, and take owner
+  decisions on preemption of a single-writer holder, sticky groups on
+  disconnected clients, a delete racing a plan, a volume not ready after
+  restore, sticky cost for large groups, host paths in the node object, the
+  scale-up preference (DHV-B-167) and US-017 AC2.
+- Next task after that: 4.1 (HTTP list and read operations).
