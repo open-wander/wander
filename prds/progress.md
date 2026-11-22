@@ -1145,6 +1145,22 @@ stored copy.
 - Seen and left alone: a data race in inherited plan-apply and
   garbage-collection tests, present on `main`.
 
+## 2026-11-22 — Task 3.10 complete
+
+- The volume hook tells a restored running task from a start by the live
+  driver handle, as the inherited remote task hook does. With a handle and a
+  volume still missing after the restore wait, it logs the missing sources
+  at warn level and returns without mounts; the driver already holds them.
+- Without a handle (a fresh start, a failed recovery, or a later restart in
+  the same allocation, which clears the handle) the error is unchanged.
+- Inherited behaviour change, recorded in the provenance row: the hook
+  cannot tell a static name that is not configured from a dynamic volume that
+  is not ready, so a restored running task with a missing static name also
+  keeps running. Before, it was killed once the restart policy ran out.
+- Review: MINOR. The log test now holds another volume with a path, so its
+  no-paths assertion can fail; the missing-volume row of the provenance
+  record names the exception.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; the planning pass is merged.
