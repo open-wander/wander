@@ -5,6 +5,7 @@ package taskrunner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -15,6 +16,10 @@ import (
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/plugins/drivers"
 )
+
+// errHostVolumeWaitCancelled reports that the wait for the volume restore
+// ended because the task is being killed or the agent is shutting down.
+var errHostVolumeWaitCancelled = errors.New("wait for host volumes cancelled")
 
 type volumeHook struct {
 	alloc   *structs.Allocation
@@ -145,6 +150,14 @@ func partitionVolumesByType(xs map[string]*structs.VolumeRequest) map[string]map
 // because of start ordering. A static name that is not configured is delayed
 // by the same wait and then fails with the same error. A task whose volumes
 // are all present never waits.
+//
+// A cancelled ctx (a job stop, or the agent stopping again while the restore
+// runs) is not a failure of the volumes: it returns
+// errHostVolumeWaitCancelled, which Prestart turns into a nil return without
+// mounts and without marking the hook done. The task runner then sees its own
+// cancelled context, so a task is killed or left for the next agent start
+// instead of being failed with a hook error, and the hook runs again on the
+// next prestart. Cancellation wins over a restore that ends at the same time.
 func (h *volumeHook) liveHostVolumes(ctx context.Context, req *interfaces.TaskPrestartRequest, volumes map[string]*structs.VolumeRequest) (map[string]*structs.ClientHostVolumeConfig, error) {
 	if h.runner.hostVolumes == nil {
 		return h.runner.clientConfig.Node.HostVolumes, nil
@@ -159,7 +172,9 @@ func (h *volumeHook) liveHostVolumes(ctx context.Context, req *interfaces.TaskPr
 	select {
 	case <-h.runner.hostVolumesRestored():
 	case <-ctx.Done():
-		return nil, fmt.Errorf("waiting for host volumes: %w", ctx.Err())
+	}
+	if ctx.Err() != nil {
+		return nil, errHostVolumeWaitCancelled
 	}
 	return h.runner.hostVolumes(ns), nil
 }
@@ -268,6 +283,9 @@ func (h *volumeHook) Prestart(ctx context.Context, req *interfaces.TaskPrestartR
 
 	hostVolumeMounts, err := h.prepareHostVolumes(ctx, req, volumes[structs.VolumeTypeHost])
 	if err != nil {
+		if errors.Is(err, errHostVolumeWaitCancelled) {
+			return nil
+		}
 		return err
 	}
 
