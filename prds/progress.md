@@ -1074,19 +1074,31 @@ must go through the real entry point.
   handle to kill.
 - Review returned MINOR for both halves.
 
+## 2026-11-22 — Planning pass before Phase 4
+
+- The follow-up to the Phase 3 review merged as `77e9efa0fb` (PR #79).
+- Owner direction: the open cases are decided for Wander on their merits, not
+  by observing another product. No observation run was made for them.
+- Owner decisions, recorded in the PRD: never preempt the writer of a volume
+  for another writer; a sticky claim stays with its volume while the client
+  is disconnected; a running task is kept when its volume is not ready after
+  an agent restart; node read lists a dynamic volume only for tokens that may
+  read host volumes in its namespace.
+- Decided by the orchestrator as the conventional choice, open to change:
+  the new Raft commands are refused until every server meets the minimum
+  version (US-017); the plan applier re-checks the volume at apply time; the
+  cost of sticky reads is measured and bounded in 6.1; DHV-B-167 is reworded
+  to the rule that is implemented.
+- PRD section 6.4 now holds the state machine. The states exist as labels in
+  the model; only `ready` is used by code so far.
+- Tasks: 3.8 to 3.10 carry the three scheduling and client decisions. Phase 4
+  is split into server work and HTTP work and grew from four tasks to nine.
+  Every open item of the Phase 3 review now sits on a task.
+- Not on a task: the two data races in inherited alloc runner and task runner
+  code. They are outside this feature.
+
 ## Resume point
 
-- Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
-  `4259fbe38b` (PR #70).
-- Phase 3 is done and archived. Its review (sweep, code review, requirements
-  check) is recorded above; the defect fixes and gap tests are in the
-  follow-up pull request.
-- Before 4.1: a planning pass with the owner. Write the section 6.4 state
-  machine, split the server lifecycle work (Raft commands, RPCs, ACL
-  enforcement) out of the HTTP tasks, move the open items of this log onto
-  the tasks that own them, fix the ledger validator, and take owner
-  decisions on preemption of a single-writer holder, sticky groups on
-  disconnected clients, a delete racing a plan, a volume not ready after
-  restore, sticky cost for large groups, host paths in the node object, the
-  scale-up preference (DHV-B-167) and US-017 AC2.
-- Next task after that: 4.1 (HTTP list and read operations).
+- Phases 1 to 3 are merged, swept and archived.
+- The planning pass is in its own pull request. After it merges the next
+  task is 3.8, then 3.9 and 3.10, then 4.1.
