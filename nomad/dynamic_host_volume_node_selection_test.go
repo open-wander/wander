@@ -107,6 +107,66 @@ func TestSelectDynamicHostVolumeNode(t *testing.T) {
 			wantCount: []DynamicHostVolumeNodeReasonCount{{Reason: DynamicHostVolumeReasonNodeNotReady, Count: 1}},
 		},
 		{
+			name: "explicit node without the plugin gives count of one",
+			nodes: []*structs.Node{selectionNode("00000000-0000-0000-0000-000000000001", "default", func(n *structs.Node) {
+				delete(n.Attributes, "plugins.host_volume.version.mkdir")
+			})},
+			vol:       selectionVolume(func(v *structs.DynamicHostVolume) { v.NodeID = "00000000-0000-0000-0000-000000000001" }),
+			wantCode:  DynamicHostVolumeNoEligibleNode,
+			wantCount: []DynamicHostVolumeNodeReasonCount{{Reason: DynamicHostVolumeReasonPluginUnhealthy, Count: 1}},
+		},
+		{
+			name: "explicit node with a static volume of the name gives count of one",
+			nodes: []*structs.Node{selectionNode("00000000-0000-0000-0000-000000000001", "default", func(n *structs.Node) {
+				n.HostVolumes = map[string]*structs.ClientHostVolumeConfig{"vol-a": {Name: "vol-a", Path: "/srv/synthetic"}}
+			})},
+			vol:       selectionVolume(func(v *structs.DynamicHostVolume) { v.NodeID = "00000000-0000-0000-0000-000000000001" }),
+			wantCode:  DynamicHostVolumeNoEligibleNode,
+			wantCount: []DynamicHostVolumeNodeReasonCount{{Reason: DynamicHostVolumeReasonNameConflict, Count: 1}},
+		},
+		{
+			name:      "explicit node with a record of the name in another namespace gives count of one",
+			nodes:     []*structs.Node{selectionNode("00000000-0000-0000-0000-000000000001", "default", nil)},
+			records:   []*structs.DynamicHostVolume{otherNS(structs.DynamicHostVolumeStateReady)},
+			vol:       selectionVolume(func(v *structs.DynamicHostVolume) { v.NodeID = "00000000-0000-0000-0000-000000000001" }),
+			wantCode:  DynamicHostVolumeNoEligibleNode,
+			wantCount: []DynamicHostVolumeNodeReasonCount{{Reason: DynamicHostVolumeReasonNameConflict, Count: 1}},
+		},
+		{
+			name: "explicit draining node gives count of one",
+			nodes: []*structs.Node{selectionNode("00000000-0000-0000-0000-000000000001", "default", func(n *structs.Node) {
+				n.DrainStrategy = &structs.DrainStrategy{}
+				n.SchedulingEligibility = structs.NodeSchedulingEligible
+			})},
+			vol:       selectionVolume(func(v *structs.DynamicHostVolume) { v.NodeID = "00000000-0000-0000-0000-000000000001" }),
+			wantCode:  DynamicHostVolumeNoEligibleNode,
+			wantCount: []DynamicHostVolumeNodeReasonCount{{Reason: DynamicHostVolumeReasonNodeDraining, Count: 1}},
+		},
+		{
+			name: "node both down and ineligible is counted only as not ready",
+			nodes: []*structs.Node{selectionNode("00000000-0000-0000-0000-000000000001", "default", func(n *structs.Node) {
+				n.Status = structs.NodeStatusDown
+				n.SchedulingEligibility = structs.NodeSchedulingIneligible
+			})},
+			vol:       selectionVolume(nil),
+			wantCode:  DynamicHostVolumeNoEligibleNode,
+			wantCount: []DynamicHostVolumeNodeReasonCount{{Reason: DynamicHostVolumeReasonNodeNotReady, Count: 1}},
+		},
+		{
+			// Records of every namespace count, because a name is unique per
+			// node across the table.
+			name: "tie-break is decided by a record in another namespace",
+			nodes: []*structs.Node{
+				selectionNode("00000000-0000-0000-0000-000000000001", "default", nil),
+				selectionNode("00000000-0000-0000-0000-000000000002", "default", nil),
+			},
+			records: []*structs.DynamicHostVolume{
+				{ID: "r1", Name: "vol-y", Namespace: "other", Type: structs.VolumeTypeHost, NodeID: "00000000-0000-0000-0000-000000000001", PluginID: "mkdir"},
+			},
+			vol:      selectionVolume(nil),
+			wantNode: "00000000-0000-0000-0000-000000000002",
+		},
+		{
 			name: "implicit pool filters other pools",
 			nodes: []*structs.Node{
 				selectionNode("00000000-0000-0000-0000-000000000001", "gpu", nil),

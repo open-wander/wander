@@ -535,6 +535,28 @@ func TestPlanApply_StickyClaimsForPlan(t *testing.T) {
 		must.Len(t, 0, claims)
 	})
 
+	t.Run("a claim of another group on the volume does not suppress a new one", func(t *testing.T) {
+		f := newStickyPlanFixture(t)
+		other := f.job.TaskGroups[0].Copy()
+		other.Name = "group-other"
+		f.job.TaskGroups = append(f.job.TaskGroups, other)
+		f.write(func(i uint64) error { return f.state.UpsertJob(structs.MsgTypeTestSetup, i, nil, f.job) })
+		held := &structs.DynamicHostVolumeClaim{
+			ID: uuid.Generate(), Namespace: f.job.Namespace, JobID: f.job.ID, TaskGroupName: other.Name,
+			VolumeName: "data-a", VolumeID: f.vols[0].ID,
+		}
+		f.write(func(i uint64) error {
+			return f.state.UpsertDynamicHostVolumeClaims(i, []*structs.DynamicHostVolumeClaim{held})
+		})
+		snap, err := f.state.Snapshot()
+		must.NoError(t, err)
+		plan := f.placing(f.planAlloc(0, 0))
+		claims, err := stickyClaimsForPlan(snap, plan, &structs.PlanResult{NodeAllocation: plan.NodeAllocation})
+		must.NoError(t, err)
+		must.Len(t, 1, claims)
+		must.Eq(t, f.group(), claims[0].TaskGroupName)
+	})
+
 	t.Run("a per-alloc source names the suffixed volume", func(t *testing.T) {
 		f := newStickyPlanFixture(t)
 		f.job.TaskGroups[0].Volumes["data"].PerAlloc = true

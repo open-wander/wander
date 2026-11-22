@@ -236,8 +236,11 @@ func upsertDynamicHostVolumeClaimTxn(tx *txn, index uint64, candidate *structs.D
 // when the group already holds a claim on the volume (two plans can race to
 // create one) or when the job or the volume record has gone since the plan was
 // made, so the allocations are never lost to a claim. The table index is
-// bumped only when a claim is written, and it must then exceed the current
-// one.
+// bumped only when a claim is written, and never moves backwards. The index is
+// not checked against the table: the plan applier applies a plan to its own
+// snapshot at the applied Raft index plus one, which can trail the state by an
+// entry, and a refusal would drop the plan's allocations from that snapshot.
+// Raft ordering already applies the committed entries in order.
 func upsertPlanResultsClaims(tx *txn, index uint64, claims []*structs.DynamicHostVolumeClaim) error {
 	if len(claims) == 0 {
 		return nil
@@ -255,21 +258,19 @@ func upsertPlanResultsClaims(tx *txn, index uint64, claims []*structs.DynamicHos
 		if skip {
 			continue
 		}
-		if written == 0 {
-			raw, err := tx.First(tableIndex, indexID, TableDynamicHostVolumeClaims)
-			if err != nil {
-				return ErrDynamicHostVolumeStateStorage
-			}
-			if index == 0 || (raw != nil && index <= raw.(*IndexEntry).Value) {
-				return ErrDynamicHostVolumeStateIndex
-			}
-		}
 		if err := upsertDynamicHostVolumeClaimTxn(tx, index, candidate, seen); err != nil {
 			return err
 		}
 		written++
 	}
 	if written == 0 {
+		return nil
+	}
+	raw, err := tx.First(tableIndex, indexID, TableDynamicHostVolumeClaims)
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	if raw != nil && raw.(*IndexEntry).Value >= index {
 		return nil
 	}
 	if err := tx.Insert(tableIndex, indexEntry(TableDynamicHostVolumeClaims, index)); err != nil {
@@ -384,6 +385,11 @@ func deleteDynamicHostVolumeTxn(tx *txn, index uint64, vol *structs.DynamicHostV
 // same release point the scheduler's proposed allocations use, so one the
 // server has stopped but the client still runs keeps the volume.
 func dynamicHostVolumeInUse(tx *txn, vol *structs.DynamicHostVolume) (bool, error) {
+	// An empty node ID would scan every allocation, and no allocation uses a
+	// volume that is not on a node.
+	if vol.NodeID == "" {
+		return false, nil
+	}
 	allocs, err := allocsByNodeTxn(tx, nil, vol.NodeID)
 	if err != nil {
 		return false, ErrDynamicHostVolumeStateStorage

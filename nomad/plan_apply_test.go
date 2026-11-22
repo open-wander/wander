@@ -1421,6 +1421,21 @@ func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
 			reason: reasonNotUsable,
 		},
 		{
+			// The record stays in the default namespace, so a lookup that
+			// ignored the job's namespace would find it and let the plan fit.
+			name: "job in another namespace than the record",
+			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
+				f.write(func(i uint64) error {
+					return f.state.UpsertNamespaces(i, []*structs.Namespace{{Name: "synthetic-b"}})
+				})
+				f.job.Namespace = "synthetic-b"
+				placed := f.planAlloc()
+				placed.Namespace = "synthetic-b"
+				return &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {placed}}}
+			},
+			reason: reasonNotUsable,
+		},
+		{
 			name: "capability no longer matches",
 			run: func(f *dynamicWriterPlanFixture) *structs.Plan {
 				f.updateVolume(func(v *structs.DynamicHostVolume) {
