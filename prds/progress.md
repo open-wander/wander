@@ -1097,8 +1097,33 @@ must go through the real entry point.
 - Not on a task: the two data races in inherited alloc runner and task runner
   code. They are outside this feature.
 
+## 2026-11-22 — Task 3.8 complete
+
+- The hole: both writer checks used a set of allocations without those the
+  plan preempts, so a plan that preempted the holder for another placement
+  could put a second writer beside it. The path where the holder is preempted
+  for the writer itself was already closed, because the volume check runs
+  before ranking; a test now pins it.
+- `DynamicHostVolumeWriterHolders` builds the holders for both checks: stored
+  allocations that are not client-terminal, less the plan's stops, plus the
+  plan's placements. Preempted allocations stay in, as their stored copies,
+  because the plan carries only stubs without job or task group.
+- Resource fitting is unchanged: `ProposedAllocs` and the applier's proposed
+  set still treat preempted allocations as gone.
+- One existing applier case expected the old behaviour and now expects a
+  writer conflict.
+- The harness test depends on a random group order (about one run in five
+  hits the bug on the old code), so it runs the scenario 50 times.
+- Review: MINOR. Open coverage gaps: no test through the system scheduler,
+  and the applier cases go through `evaluateNodePlan`, not `evaluatePlan`.
+
+PATTERN: scheduler - Preemption entries of a plan are stubs without job or
+task group. A rule that needs the job of a preempted allocation must read the
+stored copy.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived.
 - The planning pass is in its own pull request. After it merges the next
-  task is 3.8, then 3.9 and 3.10, then 4.1.
+  task is 3.9, then 3.10, then 4.1. Task 3.8 is done on its own
+  branch, stacked on the planning pull request.

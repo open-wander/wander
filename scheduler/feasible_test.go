@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-memdb"
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/mock"
@@ -3620,8 +3621,47 @@ func TestHostVolumeChecker_DynamicWriterAccounting(t *testing.T) {
 		existing func(node *structs.Node) []*structs.Allocation // in state
 		planned  func(node *structs.Node) []*structs.Allocation // placed by the plan
 		stopped  func(existing []*structs.Allocation) []*structs.Allocation
-		feasible bool
+		// preempted names the stored allocations an earlier placement of the
+		// plan preempts. The plan holds only the stubs that
+		// Plan.AppendPreemptedAlloc builds.
+		preempted func(existing []*structs.Allocation) []*structs.Allocation
+		feasible  bool
 	}{
+		{
+			// Wander policy: a holder is never preempted to make room for
+			// another user of its volume, so a plan that preempts it for an
+			// earlier placement still leaves the volume held.
+			name:   "writer next to a writer that the plan preempts",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)}
+			},
+			preempted: func(e []*structs.Allocation) []*structs.Allocation { return e },
+		},
+		{
+			name:   "reader next to a writer that the plan preempts",
+			access: ssw, readOnly: true, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)}
+			},
+			preempted: func(e []*structs.Allocation) []*structs.Allocation { return e },
+		},
+		{
+			name:   "reader next to a reader that the plan preempts",
+			access: ssw, readOnly: true, existing: func(n *structs.Node) []*structs.Allocation {
+				return []*structs.Allocation{dynamicWriterAlloc(n, "ns-a", "data-a", ssw, true)}
+			},
+			preempted: func(e []*structs.Allocation) []*structs.Allocation { return e },
+			feasible:  true,
+		},
+		{
+			name:   "writer next to a client-terminal writer that the plan preempts",
+			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
+				a := dynamicWriterAlloc(n, "ns-a", "data-a", ssw, false)
+				a.ClientStatus = structs.AllocClientStatusFailed
+				return []*structs.Allocation{a}
+			},
+			preempted: func(e []*structs.Allocation) []*structs.Allocation { return e },
+			feasible:  true,
+		},
 		{
 			name:   "writer next to a writer",
 			access: ssw, existing: func(n *structs.Node) []*structs.Allocation {
@@ -3770,6 +3810,11 @@ func TestHostVolumeChecker_DynamicWriterAccounting(t *testing.T) {
 					ctx.Plan().AppendStoppedAlloc(a, "stop", "", "")
 				}
 			}
+			if tc.preempted != nil {
+				for _, a := range tc.preempted(existing) {
+					ctx.Plan().AppendPreemptedAlloc(a, uuid.Generate())
+				}
+			}
 			if tc.planned != nil {
 				for _, a := range tc.planned(node) {
 					// Allocations of a plan carry no job.
@@ -3809,9 +3854,8 @@ func TestHostVolumeChecker_DynamicWriterAccountingSkippedWithoutCapability(t *te
 	vol := dynamicHostVolumeRecord(node, id, "ns-a", "data-a")
 	must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
 
-	// ProposedAllocs would fail on a node of a context with no state for it,
-	// so a counting wrapper shows it is not called.
-	counting := &proposedCountingContext{Context: ctx}
+	// A counting wrapper shows the allocations are not read.
+	counting := &allocsByNodeCountingContext{Context: ctx}
 	checker := NewHostVolumeChecker(counting)
 	checker.SetNamespace("ns-a")
 	checker.SetVolumes("example.group[0]", map[string]*structs.VolumeRequest{"data": {Type: "host", Source: "data-a"}})
@@ -3836,7 +3880,7 @@ func TestHostVolumeChecker_DynamicWriterAccountingFailsClosed(t *testing.T) {
 	}}
 	must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
 
-	failing := &proposedFailingContext{Context: ctx}
+	failing := &allocsByNodeFailingContext{Context: ctx}
 	checker := NewHostVolumeChecker(failing)
 	checker.SetNamespace("ns-a")
 	checker.SetVolumes("example.group[0]", map[string]*structs.VolumeRequest{"data": {
@@ -3854,22 +3898,42 @@ func TestHostVolumeChecker_DynamicWriterAccountingFailsClosed(t *testing.T) {
 	}
 }
 
-type proposedFailingContext struct {
+// allocsByNodeFailingContext makes the allocation lookup of the state fail.
+type allocsByNodeFailingContext struct {
 	Context
 	calls int
 }
 
-func (c *proposedFailingContext) ProposedAllocs(string) ([]*structs.Allocation, error) {
-	c.calls++
+func (c *allocsByNodeFailingContext) State() State {
+	return &failingAllocsState{State: c.Context.State(), calls: &c.calls}
+}
+
+type failingAllocsState struct {
+	State
+	calls *int
+}
+
+func (s *failingAllocsState) AllocsByNode(memdb.WatchSet, string) ([]*structs.Allocation, error) {
+	*s.calls++
 	return nil, errors.New("synthetic failure naming /synthetic/path")
 }
 
-type proposedCountingContext struct {
+// allocsByNodeCountingContext counts the allocation lookups of the state.
+type allocsByNodeCountingContext struct {
 	Context
 	calls int
 }
 
-func (c *proposedCountingContext) ProposedAllocs(nodeID string) ([]*structs.Allocation, error) {
-	c.calls++
-	return c.Context.ProposedAllocs(nodeID)
+func (c *allocsByNodeCountingContext) State() State {
+	return &countingAllocsState{State: c.Context.State(), calls: &c.calls}
+}
+
+type countingAllocsState struct {
+	State
+	calls *int
+}
+
+func (s *countingAllocsState) AllocsByNode(ws memdb.WatchSet, nodeID string) ([]*structs.Allocation, error) {
+	*s.calls++
+	return s.State.AllocsByNode(ws, nodeID)
 }

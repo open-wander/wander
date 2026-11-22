@@ -349,13 +349,15 @@ func (h *HostVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 			continue
 		}
 		if !proposedLoaded {
-			var err error
-			proposed, err = h.ctx.ProposedAllocs(n.ID)
+			// ProposedAllocs leaves out the allocations the plan preempts,
+			// which would free a volume whose holder is still running.
+			stored, err := h.ctx.State().AllocsByNode(memdb.NewWatchSet(), n.ID)
 			if err != nil {
 				// Fail closed: without the allocations the volume cannot be
 				// shown to be free.
 				return false, fmt.Sprintf(FilterConstraintDynamicHostVolumeWriterTemplate, source)
 			}
+			proposed = structs.DynamicHostVolumeWriterHolders(stored, h.ctx.Plan(), n.ID)
 			proposedLoaded = true
 		}
 		// The new allocation has no ID yet, and the allocations of the plan

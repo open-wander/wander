@@ -401,6 +401,51 @@ func DynamicHostVolumeStickyLiveAllocs(stored []*Allocation, plan *Plan, group, 
 	return live
 }
 
+// DynamicHostVolumeWriterHolders returns the allocations of a node that count
+// as using its volumes for the writer rule, with the plan applied. stored are
+// the allocations of the node from the state. The result leaves out the stored
+// allocations that are client-terminal and those the plan stops in NodeUpdate,
+// and adds the plan's placements for the node, a placement replacing the stored
+// allocation with the same ID.
+//
+// An allocation the plan preempts stays in the result. A preemption only asks
+// the client to stop the allocation, which may still have the volume mounted,
+// and a holder is never preempted to make room for another user of its volume.
+// The stored copy is kept, because the preemption entries of a plan are stubs
+// with no job and no task group. Neither the allocations nor the plan are
+// modified, so the result may be built from a plan shared between evaluations.
+func DynamicHostVolumeWriterHolders(stored []*Allocation, plan *Plan, nodeID string) []*Allocation {
+	var stopped map[string]struct{}
+	var placed []*Allocation
+	if plan != nil {
+		stopped = make(map[string]struct{}, len(plan.NodeUpdate[nodeID]))
+		for _, alloc := range plan.NodeUpdate[nodeID] {
+			stopped[alloc.ID] = struct{}{}
+		}
+		placed = plan.NodeAllocation[nodeID]
+	}
+
+	replaced := make(map[string]struct{}, len(placed))
+	for _, alloc := range placed {
+		replaced[alloc.ID] = struct{}{}
+	}
+
+	holders := make([]*Allocation, 0, len(stored)+len(placed))
+	for _, alloc := range stored {
+		if alloc == nil || alloc.ClientTerminalStatus() {
+			continue
+		}
+		if _, ok := stopped[alloc.ID]; ok {
+			continue
+		}
+		if _, ok := replaced[alloc.ID]; ok {
+			continue
+		}
+		holders = append(holders, alloc)
+	}
+	return append(holders, placed...)
+}
+
 // DynamicHostVolumeStickyLiveNodes returns the nodes of the allocations that use
 // the source, resolving the source per allocation because a per-alloc source
 // carries the allocation index. fallbackJob stands in for an allocation whose
