@@ -145,11 +145,11 @@ func partitionVolumesByType(xs map[string]*structs.VolumeRequest) map[string]map
 // before the volume manager has restored them. When a requested source is
 // missing the hook therefore waits for the first restore to end, bounded by
 // the restore timeout and by ctx, and looks again. It does not return a
-// recoverable error instead: prestart also runs for a task that is still
-// running after the restart, and a failed restart decision would kill it
-// because of start ordering. A static name that is not configured is delayed
-// by the same wait and then fails with the same error. A task whose volumes
-// are all present never waits.
+// recoverable error instead: the wait is the same for a task that is still
+// running after the restart and for one that has to start. What happens to a
+// volume that is still missing afterwards is decided by prepareHostVolumes. A
+// static name that is not configured is delayed by the same wait. A task
+// whose volumes are all present never waits.
 //
 // A cancelled ctx (a job stop, or the agent stopping again while the restore
 // runs) is not a failure of the volumes: it returns
@@ -191,6 +191,19 @@ func (h *volumeHook) prepareHostVolumes(ctx context.Context, req *interfaces.Tas
 		// Only the missing sources are logged: the set of the client holds
 		// paths, including those of volumes of other namespaces.
 		missing := missingHostVolumes(volumes, hostVolumes, req.Alloc.Name)
+
+		// A task restored with a live driver handle is already running with
+		// its mounts, and the driver does not start it again, so a failed
+		// prestart would only kill a healthy task. It keeps running without
+		// mounts recorded here. When it later restarts the handle has been
+		// cleared and the validation fails it as for a fresh start. The hook
+		// cannot tell a static name from a dynamic volume once the name is
+		// absent, so both are tolerated.
+		if h.runner.getDriverHandle() != nil {
+			h.logger.Warn("Requested Host Volume does not exist, the running task keeps running", "missing", missing, "missing_count", len(missing))
+			return nil, nil
+		}
+
 		h.logger.Error("Requested Host Volume does not exist", "missing", missing, "missing_count", len(missing))
 		return nil, fmt.Errorf("host volume validation error: %v", err)
 	}

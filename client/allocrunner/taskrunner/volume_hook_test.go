@@ -532,6 +532,59 @@ func TestVolumeHook_prepareHostVolumes_LogsOnlySources(t *testing.T) {
 	}
 }
 
+// TestVolumeHook_prepareHostVolumes_RecoveredHandle asserts that a task with
+// a recovered driver handle keeps running when its volume is missing, while
+// a task that has to start fails.
+func TestVolumeHook_prepareHostVolumes_RecoveredHandle(t *testing.T) {
+	ci.Parallel(t)
+
+	present := map[string]*structs.ClientHostVolumeConfig{
+		"data-a": {Name: "data-a", Path: "/synthetic/data-a"},
+	}
+	// The set holds another volume with a path, so a log line that printed
+	// the set would show it.
+	other := map[string]*structs.ClientHostVolumeConfig{
+		"other": {Name: "other", Path: "/synthetic/other"},
+	}
+
+	for _, tc := range []struct {
+		name      string
+		handle    bool
+		live      map[string]*structs.ClientHostVolumeConfig
+		wantErr   string
+		wantMount bool
+	}{
+		{name: "handle and missing volume", handle: true, live: other},
+		{name: "no handle and missing volume", live: other, wantErr: "host volume validation error"},
+		{name: "handle and present volume", handle: true, live: present, wantMount: true},
+		{name: "no handle and present volume", live: present, wantMount: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hook, req := hostVolumeHookEnv(t, nil, func(string) map[string]*structs.ClientHostVolumeConfig { return tc.live }, closedChan)
+			if tc.handle {
+				hook.runner.handle = NewDriverHandle(hook.runner.driver, "synthetic-id", hook.runner.task, 0, nil)
+			}
+			var buf bytes.Buffer
+			hook.logger = hclog.New(&hclog.LoggerOptions{Output: &buf, Level: hclog.Trace})
+
+			mounts, err := hook.prepareHostVolumes(context.Background(), req, hostVolumeRequests(false))
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				require.Contains(t, buf.String(), "[ERROR]")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantMount, len(mounts) > 0)
+			if !tc.wantMount {
+				require.Contains(t, buf.String(), "[WARN]")
+				require.Contains(t, buf.String(), "data-a")
+				require.Contains(t, buf.String(), "missing_count=1")
+				require.NotContains(t, buf.String(), "/synthetic")
+			}
+		})
+	}
+}
+
 // prestartHookEnv builds a hook whose group requests the host volume data-a,
 // for tests that go through Prestart.
 func prestartHookEnv(t *testing.T, get func(string) map[string]*structs.ClientHostVolumeConfig, restored func() <-chan struct{}) (*volumeHook, *interfaces.TaskPrestartRequest) {
