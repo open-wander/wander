@@ -1161,8 +1161,26 @@ stored copy.
   no-paths assertion can fail; the missing-volume row of the provenance
   record names the exception.
 
+## 2026-11-22 — Task 4.1 complete
+
+- A contract assertion may carry an optional `implementation` key,
+  `implemented` or `verified`. The validator refuses it on an unresolved
+  assertion and when any of its tests is not implemented, so one facet of a
+  row can be marked done while the others stay open.
+- DHV-B-167 now states the Wander scale-up rule as a requirement, and
+  DHV-T-167 points at `TestServiceSched_DynamicHostVolume_StickyScaleAndFresh`.
+  The provenance record has a Scale-up row.
+- The fixture check accepts test cases that are planned or implemented.
+
+## 2026-11-22 — Release rehearsal hang
+
+- The packaged Linux lifecycle rehearsal on `main` hung on every push since
+  #79 and was cancelled. Its stop waited without a limit. A dispatched run
+  with a 60 second stop limit failed instead with a 500 from the variables
+  read after the first server of the clean install restarted. The fix and the
+  log dump are in their own pull request; the cause is not yet known.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; the planning pass is merged.
-- Tasks 3.8 and 3.9 are merged or in review; 3.10 is in its own pull
-  request. The next task after them is 4.1.
+- Tasks 3.8 to 3.10 are merged; 4.1 is in review. The next task is 4.2.
