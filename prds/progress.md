@@ -968,9 +968,125 @@ PATTERN: tests - A fixture helper that sets a default status before the
 mutate callback can make case names lie; check each table case reaches the
 state it names.
 
+## 2026-11-22 — Phase 3 merged; sweep, code review and requirements check
+
+- Phase 3 merged with PR #78 (`1e0ff5f63f`) and is archived. The owner asked
+  for a review of the merged work before Phase 4: do the tests test, is the
+  code good, are the right things being built. Nothing below is fixed yet.
+- Comments: no task or phase references in the Phase 3 code. One passage of
+  the provenance record still gave the old volume delete rule and was
+  corrected. No block was compressed.
+- Invariants: four agents wrote 172 one-edit breaks; the orchestrator ran
+  them one at a time through `go test -overlay`. 139 fail a test. 33 survived
+  and went to three verifiers told to refute them: 26 are confirmed gaps and
+  7 were refuted (three equivalent mutants, two inherited lines, one
+  unreachable guard, one caught by a test in another package).
+- Confirmed gaps, client mounts (11):
+  - nine wiring breaks with one cause: nothing tests the chain client, alloc
+    runner, task runner. With any link removed the hook falls back to the
+    captured node set, without the namespace filter and without the wait.
+    High.
+  - no test calls the hook's `Prestart`; an ignored volume error would start
+    the task without its volume. High.
+  - the log test cannot fail: in text format the map prints as pointers. In
+    JSON format the paths appear. Low.
+- Confirmed gaps, plan applier and claims (5): a claim of another task group
+  suppresses this group's claim (two breaks, no fixture has two groups); the
+  skip check can match a job whose ID starts with the candidate's; the
+  applier's namespace lookup (every fixture uses the default namespace);
+  claims of a volume whose ID starts with the deleted one (low while IDs are
+  UUIDs).
+- Confirmed gaps, node selection (4): an explicitly named node with a name
+  conflict or without the plugin; the order of the first two rules; the
+  tie-break counting every namespace.
+- Confirmed gaps, scheduler (6): only the first of several requests for one
+  source is checked (high); the system stack passing the job ID for sticky;
+  three fail-closed branches on state errors; missing before not-ready.
+- Code review, defects to confirm with a failing test:
+  - the volume hook returns an error when its wait is cancelled by shutdown
+    or kill; the task runner treats that as a failed start and kills the
+    still-running task. The Vault and template hooks return nil there.
+  - `upsertPlanResultsClaims` refuses an index not above the claims index;
+    the leader's optimistic apply can hit that right after another claims
+    write, and the worker is told a committed plan failed.
+  - a volume with an empty node ID makes the in-use check scan every
+    allocation inside the Raft apply.
+- Code review, design holes:
+  - preemption: an evaluation can preempt a single-writer holder and place
+    its own writer on the volume while the holder still runs.
+  - disconnected clients: an allocation in status unknown holds its claim, so
+    the replacement of a sticky group may go to another volume.
+  - the applier accepts a placement when the node no longer advertises the
+    volume; a volume delete can land between plan evaluation and plan apply.
+  - a volume not ready when the first restore ends fails the running task
+    that uses it.
+  - sticky state reads grow with the square of the group size.
+- Requirements check: US-009 and US-010 pass at scheduler, applier and state
+  level. Planning problems: the section 6.4 state machine is defined
+  nowhere; tasks 4.2 and 4.3 say HTTP but must add Raft commands, RPCs and
+  ACL enforcement; open items live only in this log; host paths of every
+  namespace are in the node object (US-014); the ledger validator cannot mark
+  a row implemented; DHV-B-167 (scale-up prefers unclaimed volumes) is
+  stronger than the rule; US-017 AC2 (no new fields to old peers) was dropped
+  without an owner decision.
+
+PATTERN: sweep - A queue of background jobs that each wait with `pgrep -f`
+on a pattern in their own command line never starts. Run batches in one
+sequential command.
+
+PATTERN: tests - Tests that build a struct by hand or call an inner function
+leave the constructor and the entry point untested. One test per feature
+must go through the real entry point.
+
+## 2026-11-22 — Phase 3 review follow-up: defects fixed, gaps tested
+
+- Owner decision: fix the confirmed defects and add a test for every
+  confirmed gap, as after the Phase 2 sweep. The design holes and the
+  planning problems listed above are not touched; they need owner decisions.
+- Cancelled wait. The volume hook returns nil, without mounts, when its wait
+  for the restore is cancelled, and prestart stops running later hooks once
+  the task is being killed or the agent is stopping. Tests through
+  `NewTaskRunner` failed on the old code: a kill or a shutdown during the wait
+  marked the task failed, and a restored running task was killed. The second
+  change touches inherited task runner code; the whole alloc runner test
+  packages pass with it.
+- Plan claims. The refusal of an apply index not above the claims table
+  index is removed; the advisor showed from the Raft library in use that the
+  optimistic index can equal the table index or trail it by more than one.
+  The table index never moves backwards.
+- Node-less volume. The early return saves a scan of every allocation. It
+  could not give a wrong result: allocations without a node are not in the
+  node index. Its test documents the behaviour and cannot fail without it.
+- Tests for the 26 gaps, plus five missing cases of the claim skip rule, a
+  replacement for an assertion that could not fail, and tests for two rules
+  in inherited or unreachable code (per-alloc mount source, nil restore
+  function).
+- Final run of the 33 breaks that had survived: 30 fail a test. The other
+  three are the refuted ones (two equivalent mutants on the attachment mode,
+  one inherited line). 169 of 172 breaks are caught.
+- Seen and left alone, inherited code: `allocRunner.AllocState` writes task
+  states without its lock before the first task update, and
+  `updateStateImpl` and `TaskRunner.Kill` write the task state without the
+  lock while it is read or persisted. The new tests read state through the
+  state updater and the state database to stay clear of them.
+- A fresh task killed during the wait ends dead and not failed, with the
+  caller's killing event and no killed event, because there is no driver
+  handle to kill.
+- Review returned MINOR for both halves.
+
 ## Resume point
 
 - Phases 1 and 2 are merged and swept. The Phase 2 sweep follow-up merged as
   `4259fbe38b` (PR #70).
-- Phase 3 is done (3.1 to 3.7), pending the merge of 3.7.
-- Next task: 4.1 (HTTP list and read operations).
+- Phase 3 is done and archived. Its review (sweep, code review, requirements
+  check) is recorded above; the defect fixes and gap tests are in the
+  follow-up pull request.
+- Before 4.1: a planning pass with the owner. Write the section 6.4 state
+  machine, split the server lifecycle work (Raft commands, RPCs, ACL
+  enforcement) out of the HTTP tasks, move the open items of this log onto
+  the tasks that own them, fix the ledger validator, and take owner
+  decisions on preemption of a single-writer holder, sticky groups on
+  disconnected clients, a delete racing a plan, a volume not ready after
+  restore, sticky cost for large groups, host paths in the node object, the
+  scale-up preference (DHV-B-167) and US-017 AC2.
+- Next task after that: 4.1 (HTTP list and read operations).

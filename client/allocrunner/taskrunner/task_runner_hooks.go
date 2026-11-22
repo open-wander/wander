@@ -307,6 +307,14 @@ func (tr *TaskRunner) prestart() error {
 			end := time.Now()
 			tr.logger.Trace("finished prestart hook", "name", name, "end", end, "duration", end.Sub(start))
 		}
+
+		// A blocking hook returns nil when the task is killed or the agent
+		// stops and leaves Run to notice the cancelled context. Running the
+		// later hooks would still download artifacts, reserve devices and
+		// start template managers for a task that is not going to start.
+		if joinedCtx.Err() != nil {
+			return nil
+		}
 	}
 
 	return nil

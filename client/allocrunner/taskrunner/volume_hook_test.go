@@ -6,7 +6,6 @@ package taskrunner
 import (
 	"bytes"
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -375,11 +374,46 @@ func TestVolumeHook_prepareHostVolumes_Live(t *testing.T) {
 		cancel()
 		select {
 		case err := <-errCh:
-			require.Error(t, err)
-			require.True(t, errors.Is(err, context.Canceled))
+			// A cancelled wait is reported apart from a validation failure so
+			// that Prestart can return without an error.
+			require.ErrorIs(t, err, errHostVolumeWaitCancelled)
+			require.NotContains(t, err.Error(), "validation")
 		case <-time.After(5 * time.Second):
 			t.Fatal("the wait was not aborted")
 		}
+	})
+
+	t.Run("cancellation wins over a restore that ended too", func(t *testing.T) {
+		// Both select cases are ready; the outcome must not depend on which
+		// one the runtime picks.
+		for range 50 {
+			hook, req := hostVolumeHookEnv(t, nil, func(string) map[string]*structs.ClientHostVolumeConfig { return nil }, closedChan)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			_, err := hook.prepareHostVolumes(ctx, req, hostVolumeRequests(false))
+			require.ErrorIs(t, err, errHostVolumeWaitCancelled)
+		}
+	})
+
+	t.Run("a getter without a restore function reports the missing volume", func(t *testing.T) {
+		hook, req := hostVolumeHookEnv(t, nil, func(string) map[string]*structs.ClientHostVolumeConfig { return nil }, nil)
+		_, err := hook.prepareHostVolumes(context.Background(), req, hostVolumeRequests(false))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "missing data-a")
+	})
+
+	t.Run("a per_alloc request mounts the suffixed volume", func(t *testing.T) {
+		live := map[string]*structs.ClientHostVolumeConfig{
+			"data-a":    {Name: "data-a", Path: "/synthetic/bare"},
+			"data-a[0]": {Name: "data-a[0]", Path: "/synthetic/suffixed"},
+		}
+		hook, req := hostVolumeHookEnv(t, nil, func(string) map[string]*structs.ClientHostVolumeConfig { return live }, nil)
+		requests := hostVolumeRequests(false)
+		requests["data"].PerAlloc = true
+		mounts, err := hook.prepareHostVolumes(context.Background(), req, requests)
+		require.NoError(t, err)
+		require.Len(t, mounts, 1)
+		require.Equal(t, "/synthetic/suffixed", mounts[0].HostPath)
 	})
 
 	t.Run("still missing after the restore fails naming only the source", func(t *testing.T) {
@@ -464,18 +498,85 @@ func TestVolumeHook_missingHostVolumes(t *testing.T) {
 func TestVolumeHook_prepareHostVolumes_LogsOnlySources(t *testing.T) {
 	ci.Parallel(t)
 
-	live := map[string]*structs.ClientHostVolumeConfig{
-		"static-a": {Name: "static-a", Path: "/synthetic/static-path"},
-		"other":    {Name: "other", Path: "/synthetic/other-path", ID: "99999999-2222-3333-4444-555555555555"},
-	}
-	hook, req := hostVolumeHookEnv(t, nil, func(string) map[string]*structs.ClientHostVolumeConfig { return live }, closedChan)
-	var buf bytes.Buffer
-	hook.logger = hclog.New(&hclog.LoggerOptions{Output: &buf, Level: hclog.Trace})
+	for _, tc := range []struct {
+		name string
+		opts hclog.LoggerOptions
+	}{
+		{name: "text"},
+		{name: "json", opts: hclog.LoggerOptions{JSONFormat: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			live := map[string]*structs.ClientHostVolumeConfig{
+				"static-a": {Name: "static-a", Path: "/synthetic/static-path"},
+				"other":    {Name: "other", Path: "/synthetic/other-path", ID: "99999999-2222-3333-4444-555555555555"},
+			}
+			hook, req := hostVolumeHookEnv(t, nil, func(string) map[string]*structs.ClientHostVolumeConfig { return live }, closedChan)
+			var buf bytes.Buffer
+			opts := tc.opts
+			opts.Output = &buf
+			opts.Level = hclog.Trace
+			hook.logger = hclog.New(&opts)
 
-	_, err := hook.prepareHostVolumes(context.Background(), req, hostVolumeRequests(false))
-	require.Error(t, err)
-	out := buf.String()
-	require.Contains(t, out, "data-a")
-	require.NotContains(t, out, "/synthetic")
-	require.NotContains(t, out, "99999999")
+			_, err := hook.prepareHostVolumes(context.Background(), req, hostVolumeRequests(false))
+			require.Error(t, err)
+			out := buf.String()
+			require.Contains(t, out, "data-a")
+			// The text format prints a map of pointers without their
+			// contents, so the names of the volumes the task did not
+			// request are what shows that the set was logged.
+			require.NotContains(t, out, "static-a")
+			require.NotContains(t, out, "other")
+			require.NotContains(t, out, "/synthetic")
+			require.NotContains(t, out, "99999999")
+		})
+	}
+}
+
+// prestartHookEnv builds a hook whose group requests the host volume data-a,
+// for tests that go through Prestart.
+func prestartHookEnv(t *testing.T, get func(string) map[string]*structs.ClientHostVolumeConfig, restored func() <-chan struct{}) (*volumeHook, *interfaces.TaskPrestartRequest) {
+	t.Helper()
+	hook, req := hostVolumeHookEnv(t, nil, get, restored)
+	tg := hook.alloc.Job.LookupTaskGroup(hook.alloc.TaskGroup)
+	tg.Volumes = hostVolumeRequests(false)
+	hook.runner.hookResources = &hookResources{}
+	req.TaskEnv = taskenv.NewEmptyTaskEnv()
+	return hook, req
+}
+
+func TestVolumeHook_Prestart_HostVolumes(t *testing.T) {
+	ci.Parallel(t)
+
+	present := func(string) map[string]*structs.ClientHostVolumeConfig {
+		return map[string]*structs.ClientHostVolumeConfig{
+			"data-a": {Name: "data-a", Path: "/synthetic/dyn"},
+		}
+	}
+	absent := func(string) map[string]*structs.ClientHostVolumeConfig { return nil }
+
+	t.Run("a volume that is present is mounted", func(t *testing.T) {
+		hook, req := prestartHookEnv(t, present, closedChan)
+		var resp interfaces.TaskPrestartResponse
+		require.NoError(t, hook.Prestart(context.Background(), req, &resp))
+		require.Equal(t, []*drivers.MountConfig{{HostPath: "/synthetic/dyn", TaskPath: "/data", PropagationMode: "private"}}, hook.runner.hookResources.getMounts())
+	})
+
+	t.Run("a volume that is missing after the restore fails the task", func(t *testing.T) {
+		hook, req := prestartHookEnv(t, absent, closedChan)
+		var resp interfaces.TaskPrestartResponse
+		err := hook.Prestart(context.Background(), req, &resp)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "missing data-a")
+		require.Empty(t, hook.runner.hookResources.getMounts())
+	})
+
+	t.Run("a cancelled wait returns without mounts and is not done", func(t *testing.T) {
+		hook, req := prestartHookEnv(t, absent, func() <-chan struct{} { return make(chan struct{}) })
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		var resp interfaces.TaskPrestartResponse
+		require.NoError(t, hook.Prestart(ctx, req, &resp))
+		require.Empty(t, hook.runner.hookResources.getMounts())
+		require.False(t, resp.Done, "a later prestart must run the hook again")
+	})
 }

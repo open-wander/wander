@@ -262,26 +262,67 @@ func TestHostVolumeChecker_StickyStaticVolume(t *testing.T) {
 	must.True(t, f.checker().Feasible(static))
 }
 
-// stickyFailingState fails the claims read.
-type stickyFailingState struct{ State }
+// stickyFailingState fails one read of the state, named by failing. The record
+// lookup of a claimed volume is the first record lookup of a placement, which
+// is made while the sticky view is loaded, so only that call fails and the
+// per-node lookups still work; a missing error check is then visible as a
+// node that stays feasible. Each test builds its own value.
+type stickyFailingState struct {
+	State
+	failing     string
+	recordCalls int
+}
 
-func (stickyFailingState) DynamicHostVolumeClaimsByJobID(memdb.WatchSet, string, string) (memdb.ResultIterator, error) {
-	return nil, errors.New("synthetic failure naming /synthetic/path")
+const (
+	stickyFailClaims  = "claims"
+	stickyFailRecord  = "record"
+	stickyFailAllocs  = "allocs"
+	stickyFailMessage = "synthetic failure naming /synthetic/path"
+)
+
+func (s *stickyFailingState) DynamicHostVolumeClaimsByJobID(ws memdb.WatchSet, namespace, jobID string) (memdb.ResultIterator, error) {
+	if s.failing == stickyFailClaims {
+		return nil, errors.New(stickyFailMessage)
+	}
+	return s.State.DynamicHostVolumeClaimsByJobID(ws, namespace, jobID)
+}
+
+func (s *stickyFailingState) DynamicHostVolumeByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolume, error) {
+	s.recordCalls++
+	if s.failing == stickyFailRecord && s.recordCalls == 1 {
+		return nil, errors.New(stickyFailMessage)
+	}
+	return s.State.DynamicHostVolumeByID(ws, namespace, id)
+}
+
+func (s *stickyFailingState) AllocsByJob(ws memdb.WatchSet, namespace, jobID string, all bool) ([]*structs.Allocation, error) {
+	if s.failing == stickyFailAllocs {
+		return nil, errors.New(stickyFailMessage)
+	}
+	return s.State.AllocsByJob(ws, namespace, jobID, all)
 }
 
 func TestHostVolumeChecker_StickyFailsClosed(t *testing.T) {
 	ci.Parallel(t)
 
-	f := newStickyFixture(t)
-	ctx := NewEvalContext(nil, stickyFailingState{f.store}, f.ctx.Plan(), testlog.HCLogger(t))
-	c := NewHostVolumeChecker(ctx)
-	c.SetNamespace(f.job.Namespace)
-	c.SetJobID(f.job.ID)
-	c.SetTaskGroup(f.group().Name)
-	c.SetVolumes(structs.AllocName(f.job.ID, f.group().Name, 0), f.group().Volumes)
-	must.False(t, c.Feasible(f.nodes[0]))
-	must.False(t, c.Feasible(f.nodes[1]))
-	for reason := range ctx.Metrics().ConstraintFiltered {
-		must.Eq(t, FilterConstraintHostVolumes, reason)
+	for _, failing := range []string{stickyFailClaims, stickyFailRecord, stickyFailAllocs} {
+		t.Run(failing+" lookup fails", func(t *testing.T) {
+			f := newStickyFixture(t)
+			// A claim makes the view read the record of the claimed volume, and
+			// without the failure it would force that volume.
+			f.claim(0)
+			ctx := NewEvalContext(nil, &stickyFailingState{State: f.store, failing: failing}, f.ctx.Plan(), testlog.HCLogger(t))
+			c := NewHostVolumeChecker(ctx)
+			c.SetNamespace(f.job.Namespace)
+			c.SetJobID(f.job.ID)
+			c.SetTaskGroup(f.group().Name)
+			c.SetVolumes(structs.AllocName(f.job.ID, f.group().Name, 0), f.group().Volumes)
+			must.False(t, c.Feasible(f.nodes[0]))
+			must.False(t, c.Feasible(f.nodes[1]))
+			must.MapNotEmpty(t, ctx.Metrics().ConstraintFiltered)
+			for reason := range ctx.Metrics().ConstraintFiltered {
+				must.Eq(t, FilterConstraintHostVolumes, reason)
+			}
+		})
 	}
 }
