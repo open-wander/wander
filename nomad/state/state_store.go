@@ -1937,6 +1937,12 @@ func (s *StateStore) DeleteJobTxn(index uint64, namespace, jobID string, txn Txn
 		return fmt.Errorf("index update failed: %v", err)
 	}
 
+	// Delete the dynamic host volume claims of the job. A stop keeps the job
+	// in state and so keeps its claims; only a removal clears them.
+	if err := deleteDynamicHostVolumeClaimsByJobTxn(txn, index, namespace, jobID); err != nil {
+		return fmt.Errorf("deleting job dynamic host volume claims failed: %w", err)
+	}
+
 	return nil
 }
 

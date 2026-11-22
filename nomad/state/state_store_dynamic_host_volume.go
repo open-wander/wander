@@ -234,9 +234,10 @@ func upsertDynamicHostVolumeClaimTxn(tx *txn, index uint64, candidate *structs.D
 // upsertPlanResultsClaims writes the claims a plan creates, inside the
 // transaction that writes its allocations. A claim is skipped, not refused,
 // when the group already holds a claim on the volume (two plans can race to
-// create one) or when the volume record has gone since the plan was made, so
-// the allocations are never lost to a claim. The table index is bumped only
-// when a claim is written, and it must then exceed the current one.
+// create one) or when the job or the volume record has gone since the plan was
+// made, so the allocations are never lost to a claim. The table index is
+// bumped only when a claim is written, and it must then exceed the current
+// one.
 func upsertPlanResultsClaims(tx *txn, index uint64, claims []*structs.DynamicHostVolumeClaim) error {
 	if len(claims) == 0 {
 		return nil
@@ -279,6 +280,15 @@ func upsertPlanResultsClaims(tx *txn, index uint64, claims []*structs.DynamicHos
 
 // planResultsClaimSkipped reports whether a plan's claim is left unwritten.
 func planResultsClaimSkipped(tx *txn, candidate *structs.DynamicHostVolumeClaim) (bool, error) {
+	// A claim for a job that has gone since the plan was made would never be
+	// removed, because job removal is what clears a job's claims.
+	job, err := tx.First("jobs", "id", candidate.Namespace, candidate.JobID)
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	if job == nil {
+		return true, nil
+	}
 	volume, err := tx.First(TableDynamicHostVolumes, indexID, candidate.Namespace, candidate.VolumeID)
 	if err != nil {
 		return false, ErrDynamicHostVolumeStateStorage
@@ -320,19 +330,109 @@ func (s *StateStore) deleteDynamicHostVolumeRecords(index uint64, table string, 
 			return err
 		}
 		if table == TableDynamicHostVolumes {
-			claims, err := tx.Get(TableDynamicHostVolumeClaims, dynamicHostVolumeClaimVolumeIndex+"_prefix", key.Namespace, key.ID, "")
-			if err != nil {
-				return ErrDynamicHostVolumeStateStorage
-			}
-			if claims.Next() != nil {
-				return ErrDynamicHostVolumeStateInUse
-			}
+			return deleteDynamicHostVolumeTxn(tx, index, raw.(*structs.DynamicHostVolume))
 		}
 		if err := tx.Delete(table, raw); err != nil {
 			return ErrDynamicHostVolumeStateStorage
 		}
 		return nil
 	})
+}
+
+// deleteDynamicHostVolumeTxn deletes a volume record and every claim on it. It
+// refuses while a live allocation uses the volume. The claims table index is
+// checked and bumped only when a claim is removed, so a volume without claims
+// is never refused because of that index.
+func deleteDynamicHostVolumeTxn(tx *txn, index uint64, vol *structs.DynamicHostVolume) error {
+	inUse, err := dynamicHostVolumeInUse(tx, vol)
+	if err != nil {
+		return err
+	}
+	if inUse {
+		return ErrDynamicHostVolumeStateInUse
+	}
+	iter, err := tx.Get(TableDynamicHostVolumeClaims, dynamicHostVolumeClaimVolumeIndex+"_prefix", vol.Namespace, vol.ID, "")
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	var claims []interface{}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		claims = append(claims, raw)
+	}
+	if len(claims) > 0 {
+		// The index may equal the current one when an earlier volume of the
+		// same batch (one Raft index) bumped it.
+		raw, err := tx.First(tableIndex, indexID, TableDynamicHostVolumeClaims)
+		if err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+		if index == 0 || (raw != nil && index < raw.(*IndexEntry).Value) {
+			return ErrDynamicHostVolumeStateIndex
+		}
+	}
+	if err := deleteDynamicHostVolumeClaimsTxn(tx, index, claims); err != nil {
+		return err
+	}
+	if err := tx.Delete(TableDynamicHostVolumes, vol); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
+}
+
+// dynamicHostVolumeInUse reports whether an allocation on the volume's node
+// uses it. An allocation counts until the client reports it terminal, the
+// same release point the scheduler's proposed allocations use, so one the
+// server has stopped but the client still runs keeps the volume.
+func dynamicHostVolumeInUse(tx *txn, vol *structs.DynamicHostVolume) (bool, error) {
+	allocs, err := allocsByNodeTxn(tx, nil, vol.NodeID)
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	for _, alloc := range allocs {
+		// The node index is a prefix index, so another node's allocations can
+		// be returned as well.
+		if alloc.NodeID != vol.NodeID || alloc.ClientTerminalStatus() {
+			continue
+		}
+		if len(structs.DynamicHostVolumeAllocRequests(vol, alloc, nil)) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// deleteDynamicHostVolumeClaimsByJobTxn deletes the claims of one job when the
+// job leaves state. The job index is a prefix index whose parts are
+// null-terminated, so a job ID matches exactly.
+func deleteDynamicHostVolumeClaimsByJobTxn(tx *txn, index uint64, namespace, jobID string) error {
+	iter, err := tx.Get(TableDynamicHostVolumeClaims, indexJob+"_prefix", namespace, jobID, "")
+	if err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	var claims []interface{}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		claims = append(claims, raw)
+	}
+	return deleteDynamicHostVolumeClaimsTxn(tx, index, claims)
+}
+
+// deleteDynamicHostVolumeClaimsTxn deletes the collected claims (never delete
+// while walking an iterator) and bumps the claims table index when there were
+// any. Job removal does not check the index, like the other tables it clears:
+// Raft indexes already arrive in order, and a refusal would fail the purge.
+func deleteDynamicHostVolumeClaimsTxn(tx *txn, index uint64, claims []interface{}) error {
+	if len(claims) == 0 {
+		return nil
+	}
+	for _, claim := range claims {
+		if err := tx.Delete(TableDynamicHostVolumeClaims, claim); err != nil {
+			return ErrDynamicHostVolumeStateStorage
+		}
+	}
+	if err := tx.Insert(tableIndex, indexEntry(TableDynamicHostVolumeClaims, index)); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
 }
 
 func (s *StateStore) DeleteDynamicHostVolumes(index uint64, records []DynamicHostVolumeDelete) error {
