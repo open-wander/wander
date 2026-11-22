@@ -4,6 +4,7 @@
 package scheduler
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -3816,6 +3817,51 @@ func TestHostVolumeChecker_DynamicWriterAccountingSkippedWithoutCapability(t *te
 	checker.SetVolumes("example.group[0]", map[string]*structs.VolumeRequest{"data": {Type: "host", Source: "data-a"}})
 	must.True(t, checker.Feasible(node))
 	must.Eq(t, 0, counting.calls)
+}
+
+// A failed read of the proposed allocations leaves a single-writer volume
+// unproven to be free, so the node is filtered with the writer reason.
+func TestHostVolumeChecker_DynamicWriterAccountingFailsClosed(t *testing.T) {
+	ci.Parallel(t)
+
+	const hostPath = "/synthetic/host-path-marker"
+	store, ctx := testContext(t)
+	upsertTestNamespaces(t, store, "ns-a")
+	id := uuid.Generate()
+	node := dynamicHostVolumeNode(id, "data-a", hostPath)
+	vol := dynamicHostVolumeRecord(node, id, "ns-a", "data-a")
+	vol.RequestedCapabilities = []*structs.DynamicHostVolumeCapability{{
+		AttachmentMode: structs.DynamicHostVolumeAttachmentModeFilesystem,
+		AccessMode:     structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter,
+	}}
+	must.NoError(t, store.UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{vol}))
+
+	failing := &proposedFailingContext{Context: ctx}
+	checker := NewHostVolumeChecker(failing)
+	checker.SetNamespace("ns-a")
+	checker.SetVolumes("example.group[0]", map[string]*structs.VolumeRequest{"data": {
+		Type: "host", Source: "data-a",
+		AccessMode: structs.CSIVolumeAccessMode(structs.DynamicHostVolumeAccessModeSingleNodeSingleWriter),
+	}})
+	must.False(t, checker.Feasible(node))
+	must.Eq(t, 1, failing.calls)
+	filtered := ctx.Metrics().ConstraintFiltered
+	must.MapLen(t, 1, filtered)
+	must.MapContainsKey(t, filtered, fmt.Sprintf(FilterConstraintDynamicHostVolumeWriterTemplate, "data-a"))
+	for reason := range filtered {
+		must.StrNotContains(t, reason, hostPath)
+		must.StrNotContains(t, reason, "synthetic failure")
+	}
+}
+
+type proposedFailingContext struct {
+	Context
+	calls int
+}
+
+func (c *proposedFailingContext) ProposedAllocs(string) ([]*structs.Allocation, error) {
+	c.calls++
+	return nil, errors.New("synthetic failure naming /synthetic/path")
 }
 
 type proposedCountingContext struct {

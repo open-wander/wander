@@ -418,6 +418,9 @@ func TestDynamicHostVolumeUsable(t *testing.T) {
 		return v
 	}
 	plain := []*VolumeRequest{{Type: VolumeTypeHost, Source: "data-a"}}
+	// The record lists only the single-node-writer mode, so this request
+	// matches none of its capabilities.
+	mismatch := &VolumeRequest{Type: VolumeTypeHost, Source: "data-a", AccessMode: CSIVolumeAccessMode(DynamicHostVolumeAccessModeSingleNodeReader)}
 
 	cases := []struct {
 		name     string
@@ -430,6 +433,14 @@ func TestDynamicHostVolumeUsable(t *testing.T) {
 		{"other node", vol(func(v *DynamicHostVolume) { v.NodeID = "node-synthetic-b" }), plain, DynamicHostVolumeUseMissing},
 		{"other name", vol(func(v *DynamicHostVolume) { v.Name = "data-b" }), plain, DynamicHostVolumeUseMissing},
 		{"not ready", vol(func(v *DynamicHostVolume) { v.State = DynamicHostVolumeStatePending }), plain, DynamicHostVolumeUseNotReady},
+		{"pending record on another node", vol(func(v *DynamicHostVolume) {
+			v.NodeID, v.State = "node-synthetic-b", DynamicHostVolumeStatePending
+		}), plain, DynamicHostVolumeUseMissing},
+		{"pending record under another name", vol(func(v *DynamicHostVolume) {
+			v.Name, v.State = "data-b", DynamicHostVolumeStatePending
+		}), plain, DynamicHostVolumeUseMissing},
+		{"mismatching request second", vol(nil), []*VolumeRequest{plain[0], mismatch}, DynamicHostVolumeUseNoCapability},
+		{"mismatching request first", vol(nil), []*VolumeRequest{mismatch, plain[0]}, DynamicHostVolumeUseNoCapability},
 		{"no capability", vol(func(v *DynamicHostVolume) { v.RequestedCapabilities = nil }), plain, DynamicHostVolumeUseNoCapability},
 		{
 			"direction rule",

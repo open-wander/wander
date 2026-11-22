@@ -546,6 +546,11 @@ func TestSystemStack_SetJob(t *testing.T) {
 	if !reflect.DeepEqual(stack.jobConstraint.constraints, job.Constraints) {
 		t.Fatalf("bad")
 	}
+	// The sticky claim rule reads the job's claims by this ID. A stack that
+	// leaves it unset silently skips the rule for system jobs.
+	if stack.taskGroupHostVolumes.jobID != job.ID {
+		t.Fatalf("host volume checker has job ID %q, want %q", stack.taskGroupHostVolumes.jobID, job.ID)
+	}
 }
 
 func TestSystemStack_Select_Size(t *testing.T) {
