@@ -148,10 +148,30 @@ func NewRandomIterator(ctx Context, nodes []*structs.Node) *StaticIterator {
 type HostVolumeChecker struct {
 	ctx       Context
 	namespace string
+	jobID     string
+	group     string
 
 	// volumes is a map[HostVolumeName][]RequestedVolume. The requested volumes are
 	// a slice because a single task group may request the same volume multiple times.
 	volumes map[string][]*structs.VolumeRequest
+
+	// sticky is the claim view for the placement in progress, read once by
+	// SetVolumes and never per node. It is nil when no request is sticky.
+	sticky *stickyHostVolumes
+}
+
+// stickyHostVolumes is what the sticky claim rule needs to judge any node for
+// one placement of a task group.
+type stickyHostVolumes struct {
+	// failed means the state could not be read, so every dynamic volume of a
+	// sticky request is refused: without the claims, the rule cannot be shown
+	// to hold.
+	failed      bool
+	claims      []*structs.DynamicHostVolumeClaim
+	recordNodes map[string]string
+	// liveNodes holds, per source, the nodes with a live allocation of the
+	// group that uses the source.
+	liveNodes map[string]map[string]bool
 }
 
 // NewHostVolumeChecker creates a HostVolumeChecker from a set of volumes
@@ -167,11 +187,106 @@ func (h *HostVolumeChecker) SetNamespace(namespace string) {
 	h.namespace = namespace
 }
 
+// SetJobID sets the job whose sticky claims are read.
+func (h *HostVolumeChecker) SetJobID(jobID string) {
+	h.jobID = jobID
+}
+
+// SetTaskGroup sets the name of the task group being placed. It must be set
+// before SetVolumes.
+func (h *HostVolumeChecker) SetTaskGroup(name string) {
+	h.group = name
+}
+
 // SetVolumes takes the volumes required by a task group and updates the checker.
+// It is called once per placement, never per node, and reads the sticky claim
+// state again each time because the plan grows between placements.
 func (h *HostVolumeChecker) SetVolumes(allocName string, volumes map[string]*structs.VolumeRequest) {
 	// Convert the map from map[DesiredName]Request to map[Source][]Request to improve
 	// lookup performance. Also filter non-host volumes.
 	h.volumes = structs.HostVolumeRequestsBySource(volumes, allocName)
+	h.sticky = h.loadSticky()
+}
+
+// loadSticky reads the claims and the live allocations of the group once for a
+// placement, as the plan would leave them. It returns nil when no host request
+// is sticky.
+func (h *HostVolumeChecker) loadSticky() *stickyHostVolumes {
+	var sources []string
+	for source, requests := range h.volumes {
+		for _, req := range requests {
+			if req.Sticky {
+				sources = append(sources, source)
+				break
+			}
+		}
+	}
+	if len(sources) == 0 || h.jobID == "" || h.group == "" {
+		return nil
+	}
+
+	view := &stickyHostVolumes{
+		recordNodes: make(map[string]string),
+		liveNodes:   make(map[string]map[string]bool, len(sources)),
+	}
+	state := h.ctx.State()
+
+	iter, err := state.DynamicHostVolumeClaimsByJobID(memdb.NewWatchSet(), h.namespace, h.jobID)
+	if err != nil {
+		view.failed = true
+		return view
+	}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		claim := raw.(*structs.DynamicHostVolumeClaim)
+		if claim.TaskGroupName != h.group {
+			continue
+		}
+		view.claims = append(view.claims, claim)
+
+		// A claim whose volume record is gone is ignored by the rule.
+		vol, err := state.DynamicHostVolumeByID(memdb.NewWatchSet(), h.namespace, claim.VolumeID)
+		if err != nil {
+			view.failed = true
+			return view
+		}
+		if vol != nil && vol.Name == claim.VolumeName {
+			view.recordNodes[claim.VolumeID] = vol.NodeID
+		}
+	}
+
+	// The cost is bounded by the allocations of the job, not by the nodes.
+	stored, err := state.AllocsByJob(memdb.NewWatchSet(), h.namespace, h.jobID, false)
+	if err != nil {
+		view.failed = true
+		return view
+	}
+	plan := h.ctx.Plan()
+	live := structs.DynamicHostVolumeStickyLiveAllocs(stored, plan, h.group, "")
+	for _, source := range sources {
+		view.liveNodes[source] = structs.DynamicHostVolumeStickyLiveNodes(live, source, plan.Job)
+	}
+	return view
+}
+
+// stickyAllowed applies the sticky claim rule to a dynamic volume of a node.
+func (h *HostVolumeChecker) stickyAllowed(source string, requests []*structs.VolumeRequest, volumeID string) bool {
+	if h.sticky == nil {
+		return true
+	}
+	if h.sticky.failed {
+		return !stickyRequested(requests)
+	}
+	return structs.DynamicHostVolumeStickyAllowed(requests, h.group, source, h.sticky.claims,
+		h.sticky.recordNodes, h.sticky.liveNodes[source], volumeID)
+}
+
+func stickyRequested(requests []*structs.VolumeRequest) bool {
+	for _, req := range requests {
+		if req.Sticky {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *HostVolumeChecker) Feasible(candidate *structs.Node) bool {
@@ -222,6 +337,12 @@ func (h *HostVolumeChecker) isFeasible(n *structs.Node) (bool, string) {
 		vol, reason := h.dynamicHostVolumeReason(n, source, nodeVolume.ID, requests)
 		if reason != "" {
 			return false, reason
+		}
+
+		// The sticky rule reuses the ordinary reason, so a node it filters is
+		// indistinguishable from one with no compatible volume.
+		if !h.stickyAllowed(source, requests, nodeVolume.ID) {
+			return false, FilterConstraintHostVolumes
 		}
 
 		if !vol.HasSingleWriterCapability() {

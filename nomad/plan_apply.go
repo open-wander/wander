@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"slices"
 	"time"
 
 	metrics "github.com/armon/go-metrics"
@@ -345,6 +346,22 @@ func (p *planner) applyPlan(plan *structs.Plan, result *structs.PlanResult, snap
 		}
 	}
 	req.PreemptionEvals = evals
+
+	// A server that does not know the field drops it and applies the
+	// allocations alone, and the serf build version cannot tell such a server
+	// from one that does, so no version gate is possible here.
+	claimSnap := snap
+	if claimSnap == nil {
+		var err error
+		if claimSnap, err = p.srv.State().Snapshot(); err != nil {
+			return nil, err
+		}
+	}
+	claims, err := stickyClaimsForPlan(claimSnap, plan, result)
+	if err != nil {
+		return nil, err
+	}
+	req.DynamicHostVolumeClaims = claims
 
 	// Dispatch the Raft transaction
 	future, err := p.srv.raftApplyFuture(structs.ApplyPlanResultsRequestType, &req)
@@ -786,6 +803,7 @@ func evaluateNodePlan(snap *state.StateSnapshot, plan *structs.Plan, nodeID stri
 const (
 	planRejectDynamicHostVolumeUnusable = "dynamic host volume not usable"
 	planRejectDynamicHostVolumeWriter   = "dynamic host volume writer conflict"
+	planRejectDynamicHostVolumeSticky   = "dynamic host volume sticky claim"
 )
 
 // evaluateDynamicHostVolumes re-checks, against the snapshot, the dynamic host
@@ -837,6 +855,14 @@ func evaluateDynamicHostVolumes(snap *state.StateSnapshot, plan *structs.Plan, n
 				return false, planRejectDynamicHostVolumeUnusable, nil
 			}
 
+			allowed, err := stickyClaimAllowed(snap, plan, alloc, job, tg.Name, source, requests, nodeVolume.ID)
+			if err != nil {
+				return false, "", fmt.Errorf("failed to check sticky claims for '%s': %v", node.ID, err)
+			}
+			if !allowed {
+				return false, planRejectDynamicHostVolumeSticky, nil
+			}
+
 			if !vol.HasSingleWriterCapability() {
 				continue
 			}
@@ -860,4 +886,174 @@ func isValidForDisconnectedNode(plan *structs.Plan, nodeID string) bool {
 	}
 
 	return true
+}
+
+// stickyClaimAllowed applies the sticky claim rule to a new placement against
+// the snapshot, with the plan's own stops, preemptions and other placements
+// overlaid and the placement itself left out. It only reads the snapshot and
+// the plan, which other node evaluations share. Nothing is read for a request
+// that is not sticky.
+func stickyClaimAllowed(snap *state.StateSnapshot, plan *structs.Plan, alloc *structs.Allocation, job *structs.Job,
+	group, source string, requests []*structs.VolumeRequest, volumeID string) (bool, error) {
+
+	sticky := false
+	for _, req := range requests {
+		sticky = sticky || req.Sticky
+	}
+	if !sticky {
+		return true, nil
+	}
+
+	claims, recordNodes, err := stickyClaimView(snap, job, group)
+	if err != nil {
+		return false, err
+	}
+	stored, err := snap.AllocsByJob(nil, job.Namespace, job.ID, false)
+	if err != nil {
+		return false, err
+	}
+	live := structs.DynamicHostVolumeStickyLiveAllocs(stored, plan, group, alloc.ID)
+	liveNodes := structs.DynamicHostVolumeStickyLiveNodes(live, source, plan.Job)
+	return structs.DynamicHostVolumeStickyAllowed(requests, group, source, claims, recordNodes, liveNodes, volumeID), nil
+}
+
+// stickyClaimView returns the claims of the group and the node of each claimed
+// volume that still has a record.
+func stickyClaimView(snap *state.StateSnapshot, job *structs.Job, group string) ([]*structs.DynamicHostVolumeClaim, map[string]string, error) {
+	iter, err := snap.DynamicHostVolumeClaimsByJobID(nil, job.Namespace, job.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var claims []*structs.DynamicHostVolumeClaim
+	recordNodes := make(map[string]string)
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		claim := raw.(*structs.DynamicHostVolumeClaim)
+		if claim.TaskGroupName != group {
+			continue
+		}
+		claims = append(claims, claim)
+		vol, err := snap.DynamicHostVolumeByID(nil, job.Namespace, claim.VolumeID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if vol != nil && vol.Name == claim.VolumeName {
+			recordNodes[claim.VolumeID] = vol.NodeID
+		}
+	}
+	return claims, recordNodes, nil
+}
+
+// stickyClaimsForPlan returns the claims a plan result creates: one for each
+// dynamic volume that a new allocation of a sticky request is placed on and
+// the group holds no claim on. Several placements on the volume, in this plan
+// or an earlier one in the snapshot, give one claim. The IDs are generated here,
+// on the leader, so that applying the log is deterministic.
+//
+// Wander policy: a claim keeps the allocation that created it. A later
+// placement on a claimed volume leaves the claim untouched, so no write or
+// compare-and-set is needed, and AllocationIndex is the allocation's name
+// index, which is stable for the life of the claim.
+func stickyClaimsForPlan(snap *state.StateSnapshot, plan *structs.Plan, result *structs.PlanResult) ([]*structs.DynamicHostVolumeClaim, error) {
+	if plan.Job == nil || len(result.NodeAllocation) == 0 {
+		return nil, nil
+	}
+
+	// A fixed order keeps the choice of the allocation named by a claim stable.
+	nodeIDs := make([]string, 0, len(result.NodeAllocation))
+	for nodeID := range result.NodeAllocation {
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	slices.Sort(nodeIDs)
+
+	type groupKey struct{ namespace, job, group string }
+	type claimKey struct {
+		group          groupKey
+		source, volume string
+	}
+	seen := make(map[claimKey]struct{})
+	loaded := make(map[groupKey]bool)
+	var claims []*structs.DynamicHostVolumeClaim
+
+	for _, nodeID := range nodeIDs {
+		var node *structs.Node
+		for _, alloc := range result.NodeAllocation[nodeID] {
+			job := alloc.Job
+			if job == nil {
+				job = plan.Job
+			}
+			tg := job.LookupTaskGroup(alloc.TaskGroup)
+			if tg == nil {
+				continue
+			}
+
+			var sources map[string][]*structs.VolumeRequest
+			for source, requests := range structs.HostVolumeRequestsBySource(tg.Volumes, alloc.Name) {
+				for _, req := range requests {
+					if req.Sticky {
+						if sources == nil {
+							sources = map[string][]*structs.VolumeRequest{}
+						}
+						sources[source] = requests
+						break
+					}
+				}
+			}
+			if len(sources) == 0 {
+				continue
+			}
+
+			// An allocation already stored is an update, not a placement.
+			existing, err := snap.AllocByID(nil, alloc.ID)
+			if err != nil {
+				return nil, err
+			}
+			if existing != nil {
+				continue
+			}
+
+			if node == nil {
+				node, err = snap.NodeByID(nil, nodeID)
+				if err != nil {
+					return nil, err
+				}
+				if node == nil {
+					break
+				}
+			}
+
+			for source := range sources {
+				nodeVolume, ok := node.HostVolumes[source]
+				if !ok || nodeVolume.ID == "" {
+					continue
+				}
+				group := groupKey{job.Namespace, job.ID, tg.Name}
+				key := claimKey{group, source, nodeVolume.ID}
+				if !loaded[group] {
+					loaded[group] = true
+					held, _, err := stickyClaimView(snap, job, tg.Name)
+					if err != nil {
+						return nil, err
+					}
+					for _, c := range held {
+						seen[claimKey{group, c.VolumeName, c.VolumeID}] = struct{}{}
+					}
+				}
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				claims = append(claims, &structs.DynamicHostVolumeClaim{
+					ID:              uuid.Generate(),
+					Namespace:       job.Namespace,
+					JobID:           job.ID,
+					TaskGroupName:   tg.Name,
+					VolumeName:      source,
+					VolumeID:        nodeVolume.ID,
+					AllocationID:    alloc.ID,
+					AllocationIndex: uint64(structs.AllocIndexFromName(alloc.Name, job.ID, tg.Name)),
+				})
+			}
+		}
+	}
+	return claims, nil
 }

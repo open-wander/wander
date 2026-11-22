@@ -519,6 +519,15 @@ func TestTasksUpdated(t *testing.T) {
 	j26.TaskGroups[0].Volumes["myvolume"].ReadOnly = true
 	must.True(t, tasksUpdated(j25, j26, name).modified)
 
+	// Alter the sticky flag of a host volume
+	j26a := mock.Job()
+	j26a.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{
+		"data-a": {Name: "data-a", Type: "host", Source: "data-a"},
+	}
+	j26b := j26a.Copy()
+	j26b.TaskGroups[0].Volumes["data-a"].Sticky = true
+	must.True(t, tasksUpdated(j26a, j26b, name).modified)
+
 	// Alter a CSI plugin
 	j27 := mock.Job()
 	j27.TaskGroups[0].Tasks[0].CSIPluginConfig = &structs.TaskCSIPluginConfig{

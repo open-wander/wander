@@ -14,6 +14,7 @@
     {"id":"SRC-acl-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/acl-policy","date":"2026-11-15","scope":"Namespace host-volume capabilities, their implications, and the read, write and scale shorthands","summary":"Capability names, descriptions and shorthand expansions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-observe-plugin-inputs","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-plugin-inputs","date":"2026-11-20","scope":"Arguments, environment and result handling of the create and delete plugin calls","summary":"What an official release binary passed to a synthetic recording plugin, and how it treated two unusual create outputs.","limitations":"One client, one version, one platform, development mode; behaviour may differ elsewhere."},
     {"id":"SRC-observe-scheduling","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-scheduling","date":"2026-11-21","scope":"Placement of jobs that request a dynamic or static host volume, by access mode","summary":"Which synthetic jobs an official release binary placed on volumes of each access mode, alone and beside other users.","limitations":"One node, one version, one platform, development mode; group-level volume requests without a task mount; behaviour may differ elsewhere."},
+    {"id":"SRC-observe-sticky","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-sticky","date":"2026-11-21","scope":"Sticky host volume requests and task group volume claims","summary":"Where an official release binary placed allocations of sticky task groups, and when it created, kept and removed claims.","limitations":"Two nodes, one version, one platform, development mode; one namespace; one volume per node; each case run once or a few times; behaviour may differ elsewhere."},
     {"id":"SRC-requirements","category":"wander_requirement","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#requirements","date":"2026-11-08","scope":"Authorized PRD inventory; US-001..018, FR-1..36, section 6.5","summary":"Wander intended acceptance criteria; not upstream behavior.","limitations":"Does not resolve missing public contract evidence."}
   ],
   "test_cases": [
@@ -1334,7 +1335,7 @@
       "assertions": {
         "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-066"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-066"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-066"]},
+        "outputs": {"status":"observed","value":"volume claim list prints the columns ID, Namespace, Job ID, Volume ID and Volume Name, or: No task group host volume claims found.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-066"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-066"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-066"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-066"]},
@@ -2388,11 +2389,11 @@
       "assertions": {
         "contract": {"status":"documented","value":"Defaults false; dynamic host only; replacements reuse volume ID when available.","evidence_refs":["SRC-job"],"test_ids":["DHV-T-128"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-128"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-128"]},
+        "outputs": {"status":"observed","value":"A sticky request on a static host volume is accepted and placed, and creates no claim.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-128"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-128"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-128"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-128"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-128"]}
+        "lifecycle": {"status":"observed","value":"A claim is created when an allocation of the sticky group is placed on a volume the group has no claim on.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-128"]}
       }
     },
     {
@@ -2491,7 +2492,7 @@
         "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-134"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-134"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-134"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-134"]},
+        "errors": {"status":"observed","value":"A request with both sticky and per_alloc is rejected at submission: volume cannot be per_alloc and sticky at the same time.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-134"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-134"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-134"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-134"]}
@@ -2711,7 +2712,7 @@
       "assertions": {
         "contract": {"status":"documented","value":"GET /v1/volumes/claims","evidence_refs":["SRC-api"],"test_ids":["DHV-T-147"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-147"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-147"]},
+        "outputs": {"status":"observed","value":"Returns 200 and a list, empty when there are no claims. job_id, task_group, volume_name and namespace filter the list; namespace * lists every namespace; an unknown namespace gives an empty list.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-147"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-147"]},
         "auth": {"status":"documented","value":"namespace:host-volume-read","evidence_refs":["SRC-api"],"test_ids":["DHV-T-147"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-147"]},
@@ -2726,10 +2727,10 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for delete that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-148"]},
+        "contract": {"status":"observed","value":"DELETE /v1/volumes/claim/:claim_id removes the claim and returns 200 with an empty body. The allocation keeps running and no claim is created until the next placement.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-148"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-148"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-148"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-148"]},
+        "errors": {"status":"observed","value":"Deleting a claim that does not exist returns 500: Task group volume claim does not exist. DELETE /v1/volume/claim/:claim_id (singular) returns 404.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-148"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-148"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-148"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-148"]}
@@ -3032,13 +3033,13 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for replacement that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-166"]},
+        "contract": {"status":"observed","value":"A replacement, a destructive job update and a re-run after a job stop are placed on the claimed volume. When the node of a claimed volume that no allocation of the group uses is ineligible, the allocation is not placed on another volume and reports the missing compatible host volumes reason; it is placed on the claimed volume when the node is eligible again.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-166"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-166"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-166"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-166"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-166"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-166"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-166"]}
+        "lifecycle": {"status":"observed","value":"After the claim was deleted, or the claimed volume was deleted, the next placement used another volume of the same name and a claim was created for it. The claim on the deleted volume stayed listed.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-166"]}
       }
     },
     {
@@ -3049,7 +3050,7 @@
       "implementation_status": "unresolved",
       "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for scaling that remain null? Consult permitted evidence before implementation."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-167"]},
+        "contract": {"status":"observed","value":"Scaling up places new allocations on volumes of the name that the group has no claim on and creates a claim for each. When every claimed volume is used by an allocation of the group, a further allocation shares a claimed volume and no claim is added. Scaling down keeps the claims.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-167"]},
         "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-167"]},
         "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-167"]},
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-167"]},
@@ -3072,7 +3073,7 @@
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-168"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-168"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-168"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-168"]}
+        "lifecycle": {"status":"observed","value":"A job stop keeps the claims. A purge removes the claims of the job at once.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-168"]}
       }
     },
     {
@@ -3089,7 +3090,7 @@
         "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-169"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-169"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-169"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-169"]}
+        "lifecycle": {"status":"observed","value":"After a job stop followed by a forced garbage collection, the job and its claims are gone.","evidence_refs":["SRC-observe-sticky"],"test_ids":["DHV-T-169"]}
       }
     },
     {

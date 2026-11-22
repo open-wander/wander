@@ -4200,3 +4200,60 @@ func TestFSM_UpdateAllocFromClient_UnblocksWriterWaiter(t *testing.T) {
 		})
 	}
 }
+
+// A plan result that carries a sticky claim writes the claim in the same Raft
+// apply as the allocation, and the claim survives a snapshot and restore with
+// the claims table index.
+func TestFSM_ApplyPlanResults_StickyClaim(t *testing.T) {
+	ci.Parallel(t)
+
+	fsm := testFSM(t)
+	fsm.evalBroker.SetEnabled(true)
+	must.NoError(t, fsm.State().UpsertDynamicHostVolumes(1000, []*structs.DynamicHostVolume{
+		{ID: "volume-a", Name: "data-a", Namespace: "default", Type: structs.VolumeTypeHost, NodeID: "node-a", PluginID: "plugin-a"},
+	}))
+
+	alloc := mock.Alloc()
+	alloc.Resources = &structs.Resources{}
+	job := alloc.Job
+	alloc.Job = nil
+	must.NoError(t, fsm.State().UpsertJobSummary(1001, mock.JobSummary(alloc.JobID)))
+
+	req := structs.ApplyPlanResultsRequest{
+		AllocUpdateRequest: structs.AllocUpdateRequest{Job: job, AllocsUpdated: []*structs.Allocation{alloc}},
+		DynamicHostVolumeClaims: []*structs.DynamicHostVolumeClaim{{
+			ID: "claim-a", Namespace: "default", JobID: job.ID, TaskGroupName: "web",
+			VolumeName: "data-a", VolumeID: "volume-a", AllocationID: alloc.ID,
+		}},
+	}
+	buf, err := structs.Encode(structs.ApplyPlanResultsRequestType, req)
+	must.NoError(t, err)
+	log := makeLog(buf)
+	must.Nil(t, fsm.Apply(log))
+
+	check := func(st *state.StateStore) {
+		t.Helper()
+		claim, err := st.DynamicHostVolumeClaimByID(nil, "default", "claim-a")
+		must.NoError(t, err)
+		must.NotNil(t, claim)
+		must.Eq(t, alloc.ID, claim.AllocationID)
+		placed, err := st.AllocByID(nil, alloc.ID)
+		must.NoError(t, err)
+		must.NotNil(t, placed)
+		must.Eq(t, placed.CreateIndex, claim.CreateIndex)
+		index, err := st.Index(state.TableDynamicHostVolumeClaims)
+		must.NoError(t, err)
+		must.Eq(t, claim.ModifyIndex, index)
+	}
+	check(fsm.State())
+
+	sink := persistToBuffer(t, fsm)
+	restored := testFSM(t)
+	must.NoError(t, restored.Restore(sink))
+	claim, err := restored.State().DynamicHostVolumeClaimByID(nil, "default", "claim-a")
+	must.NoError(t, err)
+	must.NotNil(t, claim)
+	index, err := restored.State().Index(state.TableDynamicHostVolumeClaims)
+	must.NoError(t, err)
+	must.Eq(t, claim.ModifyIndex, index)
+}
