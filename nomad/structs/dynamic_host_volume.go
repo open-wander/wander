@@ -247,6 +247,39 @@ func (v *DynamicHostVolume) HasSingleWriterCapability() bool {
 	return false
 }
 
+// DynamicHostVolumeAllocRequests returns the host volume requests through
+// which the allocation uses the volume: those of its task group whose source,
+// with the per-allocation suffix applied, is the volume name. It returns none
+// when the allocation has no job (and fallbackJob is nil), belongs to another
+// namespace or names a task group the job lacks. The allocation's own
+// namespace is preferred over the job's, because a plan allocation may not
+// carry a job. Liveness is the caller's concern. Neither the allocation nor
+// the job is modified.
+func DynamicHostVolumeAllocRequests(vol *DynamicHostVolume, alloc *Allocation, fallbackJob *Job) []*VolumeRequest {
+	if alloc == nil {
+		return nil
+	}
+	job := alloc.Job
+	if job == nil {
+		job = fallbackJob
+	}
+	if job == nil {
+		return nil
+	}
+	namespace := alloc.Namespace
+	if namespace == "" {
+		namespace = job.Namespace
+	}
+	if namespace != vol.Namespace {
+		return nil
+	}
+	tg := job.LookupTaskGroup(alloc.TaskGroup)
+	if tg == nil {
+		return nil
+	}
+	return HostVolumeRequestsBySource(tg.Volumes, alloc.Name)[vol.Name]
+}
+
 // DynamicHostVolumeWriterConflict reports whether the request cannot be placed
 // because another allocation already uses the volume in a way that excludes
 // it. Two users conflict when at least one reaches the volume through
@@ -264,28 +297,7 @@ func DynamicHostVolumeWriterConflict(vol *DynamicHostVolume, req *VolumeRequest,
 			continue
 		}
 
-		job := other.Job
-		if job == nil {
-			job = fallbackJob
-		}
-		if job == nil {
-			continue
-		}
-		// The allocation's own namespace is preferred, because a plan
-		// allocation may not carry a job.
-		namespace := other.Namespace
-		if namespace == "" {
-			namespace = job.Namespace
-		}
-		if namespace != vol.Namespace {
-			continue
-		}
-		tg := job.LookupTaskGroup(other.TaskGroup)
-		if tg == nil {
-			continue
-		}
-
-		for _, otherReq := range HostVolumeRequestsBySource(tg.Volumes, other.Name)[vol.Name] {
+		for _, otherReq := range DynamicHostVolumeAllocRequests(vol, other, fallbackJob) {
 			_, otherAccess := otherReq.HostVolumeModes()
 			exclusive := access == DynamicHostVolumeAccessModeSingleNodeSingleWriter ||
 				otherAccess == DynamicHostVolumeAccessModeSingleNodeSingleWriter

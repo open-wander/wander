@@ -10,6 +10,7 @@ import (
 	"github.com/open-wander/wander/ci"
 	"github.com/open-wander/wander/helper/uuid"
 	"github.com/open-wander/wander/nomad/mock"
+	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/shoenig/test/must"
 )
@@ -178,6 +179,94 @@ func TestServiceSched_DynamicHostVolume_StickyClaimedNodeIneligible(t *testing.T
 		}
 
 		must.NoError(t, s.h.State.UpdateNodeEligibility(structs.MsgTypeTestSetup, s.h.NextIndex(), s.nodes[0].ID, structs.NodeSchedulingEligible, 0, nil))
+		s.h.Plans, s.h.Evals = nil, nil
+		s.process()
+		must.Eq(t, map[string]int{s.nodes[0].ID: 1}, s.placedOn())
+	}
+}
+
+// The node of the claimed volume is down or gone from state: the volume
+// record and the claim stay, so the group is not placed on the other volume of
+// the same name, and it returns to the claimed volume when the node is back.
+// The ineligible case above covers a node that is still known and ready to
+// run what it has; these cover one that cannot be placed on at all.
+func TestServiceSched_DynamicHostVolume_StickyClaimedNodeDownOrMissing(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		name string
+		take func(s *stickySched)
+		back func(s *stickySched)
+	}{
+		{
+			"down",
+			func(s *stickySched) {
+				must.NoError(t, s.h.State.UpdateNodeStatus(structs.MsgTypeTestSetup, s.h.NextIndex(), s.nodes[0].ID, structs.NodeStatusDown, 0, nil))
+			},
+			func(s *stickySched) {
+				must.NoError(t, s.h.State.UpdateNodeStatus(structs.MsgTypeTestSetup, s.h.NextIndex(), s.nodes[0].ID, structs.NodeStatusReady, 0, nil))
+			},
+		},
+		{
+			"missing",
+			func(s *stickySched) {
+				must.NoError(t, s.h.State.DeleteNode(structs.MsgTypeTestSetup, s.h.NextIndex(), []string{s.nodes[0].ID}))
+			},
+			func(s *stickySched) {
+				must.NoError(t, s.h.State.UpsertNode(structs.MsgTypeTestSetup, s.h.NextIndex(), s.nodes[0]))
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for range stickyRepeats {
+				s := newStickySched(t, structs.DynamicHostVolumeAccessModeSingleNodeWriter, 1)
+				s.claim(0)
+				s.alloc(0, 0, structs.AllocDesiredStatusStop, structs.AllocClientStatusLost)
+				tc.take(s)
+
+				s.process()
+				must.Len(t, 0, s.h.Plans)
+				must.MapContainsKey(t, s.failedReasons(), FilterConstraintHostVolumes)
+				for reason := range s.failedReasons() {
+					must.StrNotContains(t, reason, s.vols[0].ID)
+					must.StrNotContains(t, reason, s.vols[1].ID)
+				}
+
+				tc.back(s)
+				s.h.Plans, s.h.Evals = nil, nil
+				s.process()
+				must.Eq(t, map[string]int{s.nodes[0].ID: 1}, s.placedOn())
+			}
+		})
+	}
+}
+
+// A group that is not sticky and asks for a name that exists only on a down
+// node is not placed, and is placed once the node is back.
+func TestServiceSched_DynamicHostVolume_NonStickyNameOnlyOnDownNode(t *testing.T) {
+	ci.Parallel(t)
+
+	for range stickyRepeats {
+		s := newStickySched(t, structs.DynamicHostVolumeAccessModeSingleNodeWriter, 1)
+		// The second node no longer has the volume.
+		bare := s.nodes[1].Copy()
+		bare.HostVolumes = nil
+		must.NoError(t, s.h.State.UpsertNode(structs.MsgTypeTestSetup, s.h.NextIndex(), bare))
+		stored, err := s.h.State.DynamicHostVolumeByID(nil, s.vols[1].Namespace, s.vols[1].ID)
+		must.NoError(t, err)
+		must.NoError(t, s.h.State.DeleteDynamicHostVolumes(s.h.NextIndex(), []state.DynamicHostVolumeDelete{
+			{Namespace: stored.Namespace, ID: stored.ID, ExpectedModifyIndex: stored.ModifyIndex}}))
+		plain := s.job.Copy()
+		plain.TaskGroups[0].Volumes["data"].Sticky = false
+		must.NoError(t, s.h.State.UpsertJob(structs.MsgTypeTestSetup, s.h.NextIndex(), nil, plain))
+		must.NoError(t, s.h.State.UpdateNodeStatus(structs.MsgTypeTestSetup, s.h.NextIndex(), s.nodes[0].ID, structs.NodeStatusDown, 0, nil))
+
+		s.process()
+		must.Len(t, 0, s.h.Plans)
+		must.MapContainsKey(t, s.failedReasons(), FilterConstraintHostVolumes)
+
+		must.NoError(t, s.h.State.UpdateNodeStatus(structs.MsgTypeTestSetup, s.h.NextIndex(), s.nodes[0].ID, structs.NodeStatusReady, 0, nil))
 		s.h.Plans, s.h.Evals = nil, nil
 		s.process()
 		must.Eq(t, map[string]int{s.nodes[0].ID: 1}, s.placedOn())

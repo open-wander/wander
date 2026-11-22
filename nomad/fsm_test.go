@@ -4218,6 +4218,8 @@ func TestFSM_ApplyPlanResults_StickyClaim(t *testing.T) {
 	job := alloc.Job
 	alloc.Job = nil
 	must.NoError(t, fsm.State().UpsertJobSummary(1001, mock.JobSummary(alloc.JobID)))
+	// A claim whose job is not in state is skipped as an orphan.
+	must.NoError(t, fsm.State().UpsertJob(structs.MsgTypeTestSetup, 1002, nil, job))
 
 	req := structs.ApplyPlanResultsRequest{
 		AllocUpdateRequest: structs.AllocUpdateRequest{Job: job, AllocsUpdated: []*structs.Allocation{alloc}},
@@ -4256,4 +4258,87 @@ func TestFSM_ApplyPlanResults_StickyClaim(t *testing.T) {
 	index, err := restored.State().Index(state.TableDynamicHostVolumeClaims)
 	must.NoError(t, err)
 	must.Eq(t, claim.ModifyIndex, index)
+}
+
+// claimCleanupFixture stores a volume and one claim for each of the jobs.
+func claimCleanupFixture(t *testing.T, store *state.StateStore, index uint64, jobs ...*structs.Job) {
+	t.Helper()
+	volume := &structs.DynamicHostVolume{ID: "volume-a", Name: "data-a", Namespace: structs.DefaultNamespace,
+		Type: structs.VolumeTypeHost, NodeID: "node-a", PluginID: "plugin-a"}
+	require.NoError(t, store.UpsertDynamicHostVolumes(index, []*structs.DynamicHostVolume{volume}))
+	var claims []*structs.DynamicHostVolumeClaim
+	for _, job := range jobs {
+		claims = append(claims, &structs.DynamicHostVolumeClaim{ID: "claim-" + job.ID, Namespace: job.Namespace,
+			JobID: job.ID, TaskGroupName: "group-a", VolumeName: "data-a", VolumeID: "volume-a", AllocationIndex: 1})
+	}
+	require.NoError(t, store.UpsertDynamicHostVolumeClaims(index+1, claims))
+}
+
+func claimCleanupClaimIDs(t *testing.T, store *state.StateStore) []string {
+	t.Helper()
+	iter, err := store.DynamicHostVolumeClaims(nil)
+	require.NoError(t, err)
+	var ids []string
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		ids = append(ids, raw.(*structs.DynamicHostVolumeClaim).ID)
+	}
+	return ids
+}
+
+func TestFSM_DeregisterJob_DynamicHostVolumeClaims(t *testing.T) {
+	ci.Parallel(t)
+
+	for _, purge := range []bool{false, true} {
+		t.Run(fmt.Sprintf("purge=%t", purge), func(t *testing.T) {
+			fsm := testFSM(t)
+			job, other := mock.Job(), mock.Job()
+			for _, j := range []*structs.Job{job, other} {
+				buf, err := structs.Encode(structs.JobRegisterRequestType, structs.JobRegisterRequest{
+					Job: j, WriteRequest: structs.WriteRequest{Namespace: j.Namespace}})
+				require.NoError(t, err)
+				require.Nil(t, fsm.Apply(makeLog(buf)))
+			}
+			claimCleanupFixture(t, fsm.State(), 1000, job, other)
+
+			buf, err := structs.Encode(structs.JobDeregisterRequestType, structs.JobDeregisterRequest{
+				JobID: job.ID, Purge: purge, WriteRequest: structs.WriteRequest{Namespace: job.Namespace}})
+			require.NoError(t, err)
+			require.Nil(t, fsm.Apply(makeLog(buf)))
+
+			if purge {
+				require.Equal(t, []string{"claim-" + other.ID}, claimCleanupClaimIDs(t, fsm.State()))
+				return
+			}
+			// A stop keeps the job in state, so it keeps its claims.
+			stopped, err := fsm.State().JobByID(nil, job.Namespace, job.ID)
+			require.NoError(t, err)
+			require.True(t, stopped.Stop)
+			require.ElementsMatch(t, []string{"claim-" + job.ID, "claim-" + other.ID}, claimCleanupClaimIDs(t, fsm.State()))
+		})
+	}
+}
+
+func TestFSM_BatchDeregisterJob_DynamicHostVolumeClaims(t *testing.T) {
+	ci.Parallel(t)
+	fsm := testFSM(t)
+
+	purged, stopped := mock.Job(), mock.Job()
+	for _, j := range []*structs.Job{purged, stopped} {
+		buf, err := structs.Encode(structs.JobRegisterRequestType, structs.JobRegisterRequest{
+			Job: j, WriteRequest: structs.WriteRequest{Namespace: j.Namespace}})
+		require.NoError(t, err)
+		require.Nil(t, fsm.Apply(makeLog(buf)))
+	}
+	claimCleanupFixture(t, fsm.State(), 1000, purged, stopped)
+
+	buf, err := structs.Encode(structs.JobBatchDeregisterRequestType, structs.JobBatchDeregisterRequest{
+		Jobs: map[structs.NamespacedID]*structs.JobDeregisterOptions{
+			{ID: purged.ID, Namespace: purged.Namespace}:   {Purge: true},
+			{ID: stopped.ID, Namespace: stopped.Namespace}: {},
+		},
+		WriteRequest: structs.WriteRequest{Namespace: purged.Namespace},
+	})
+	require.NoError(t, err)
+	require.Nil(t, fsm.Apply(makeLog(buf)))
+	require.Equal(t, []string{"claim-" + stopped.ID}, claimCleanupClaimIDs(t, fsm.State()))
 }

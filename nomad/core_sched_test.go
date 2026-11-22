@@ -1512,6 +1512,45 @@ func TestCoreScheduler_JobGC_Stopped(t *testing.T) {
 	}
 }
 
+func TestCoreScheduler_JobGC_StoppedRemovesDynamicHostVolumeClaims(t *testing.T) {
+	ci.Parallel(t)
+
+	s1, cleanupS1 := TestServer(t, nil)
+	defer cleanupS1()
+	testutil.WaitForLeader(t, s1.RPC)
+	s1.fsm.timetable.table = make([]TimeTableEntry, 1, 10)
+
+	store := s1.fsm.State()
+	job, kept := mock.Job(), mock.Job()
+	job.Stop = true
+	job.TaskGroups[0].ReschedulePolicy = &structs.ReschedulePolicy{Attempts: 0, Interval: 0 * time.Second}
+	require.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, 1000, nil, job))
+	require.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, 1001, nil, kept))
+	claimCleanupFixture(t, store, 1002, job, kept)
+
+	eval := mock.Eval()
+	eval.JobID = job.ID
+	eval.Status = structs.EvalStatusComplete
+	require.NoError(t, store.UpsertEvals(structs.MsgTypeTestSetup, 1010, []*structs.Evaluation{eval}))
+	alloc := mock.Alloc()
+	alloc.JobID = job.ID
+	alloc.EvalID = eval.ID
+	alloc.DesiredStatus = structs.AllocDesiredStatusStop
+	alloc.TaskGroup = job.TaskGroups[0].Name
+	require.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, 1011, []*structs.Allocation{alloc}))
+
+	s1.fsm.TimeTable().Witness(2000, time.Now().UTC().Add(-1*s1.config.JobGCThreshold))
+	snap, err := store.Snapshot()
+	require.NoError(t, err)
+	core := NewCoreScheduler(s1, snap)
+	require.NoError(t, core.Process(s1.coreJobEval(structs.CoreJobJobGC, 2000)))
+
+	gone, err := store.JobByID(nil, job.Namespace, job.ID)
+	require.NoError(t, err)
+	require.Nil(t, gone, "the stopped job is collected")
+	require.Equal(t, []string{"claim-" + kept.ID}, claimCleanupClaimIDs(t, store))
+}
+
 func TestCoreScheduler_JobGC_Force(t *testing.T) {
 	ci.Parallel(t)
 	for _, withAcl := range []bool{false, true} {
