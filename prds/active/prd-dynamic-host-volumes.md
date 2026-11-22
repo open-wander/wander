@@ -35,6 +35,25 @@ screenshots, and tests must use synthetic data.
 - Match publicly documented destructive-operation behavior, including its
   safety checks, confirmations, ACL requirements, and in-use restrictions.
 
+Decisions of 2026-11-22. Where the public contract leaves a case open or a
+matching behaviour would be unsafe, Wander decides the behaviour on its own
+merits and records it as Wander policy in the provenance record.
+
+- Preemption: an allocation that holds the writer slot of a volume is never
+  preempted to make room for another writer of that volume. The volume counts
+  as held until the holder has stopped; the other job waits.
+- Disconnected client: the claim of a sticky group stays with its volume
+  while the client is disconnected. A replacement waits for that volume and
+  is not placed on another volume of the same name.
+- Agent restart: a task that is already running with its mount keeps running
+  when its volume is not ready at the end of the first restore. Only a task
+  that still has to start fails on a missing volume.
+- Node read: the node read API lists a dynamic host volume only when the
+  token may read host volumes in the namespace of that volume. Static host
+  volumes are listed as before.
+- Mixed versions: the Raft commands for volumes and claims are refused until
+  every server meets the minimum version that understands them.
+
 ### Key terms
 
 - **Create:** Ask a dynamic host volume plugin to provision storage, then
@@ -630,6 +649,46 @@ on the approved public behavior evidence. Each transition must identify:
 - whether allocation placement is permitted;
 - whether delete, update, or deregister is permitted;
 - operator-visible diagnostics.
+
+State machine, defined 2026-11-22. The server record is the authority; every
+change of state is one Raft command. The client is the authority for what
+exists on disk and reports it with its node fingerprint.
+
+| State | Meaning | Placement | Update | Delete or deregister |
+|-------|---------|-----------|--------|----------------------|
+| requested | Accepted and stored; no node chosen yet | no | no | yes |
+| pending | Node chosen; the client has not confirmed the volume | no | no | yes |
+| ready | The client confirmed the volume and advertises it | yes | yes | yes, when not in use |
+| unavailable | Was ready; the client no longer advertises it | no | no | yes, when not in use |
+| deleting | Removal accepted; the client has not confirmed it | no | no | repeat is accepted |
+| failed | Create or register failed for good | no | no | yes |
+
+| From | To | Trigger | Actor | Retry and failover |
+|------|----|---------|-------|--------------------|
+| none | requested | Create or register request passes validation and ACL checks | server | The request carries the volume ID; a repeat with the same ID and the same content is a no-op, with different content it is an update or a conflict |
+| requested | pending | Node selection succeeds (create) or the named node is accepted (register) | server | Same Raft command as the step above when the node is known at once |
+| requested | failed | No node qualifies | server | The diagnostic of node selection is stored on the record |
+| pending | ready | The client RPC returns the path and capacity | server, on the client's answer | The client call is idempotent per volume ID. A new leader repeats the call for every pending record; a client that already holds the volume answers with the same result |
+| pending | failed | The plugin or the path check fails, or the call times out for good | server, on the client's answer | A timeout is retried with backoff up to a bound, then failed. The client rolls back a half-made volume |
+| ready | unavailable | The node fingerprint no longer lists the volume, or the node is down | server | Derived from the node update in the same Raft apply |
+| unavailable | ready | The node fingerprint lists the volume again | server | As above |
+| ready, unavailable, failed, pending, requested | deleting | Delete or deregister request; refused while an allocation uses the volume; on a down or unknown node only with force | server | A repeat is accepted and changes nothing |
+| deleting | removed | The client confirms removal, or force on a down or unknown node | server, on the client's answer | A new leader repeats the client call for every deleting record. Sticky claims of the volume go in the same Raft apply |
+| ready | ready | Update of the mutable fields | server | Compare-and-set on the modify index |
+
+Rules that follow from the table:
+
+- Only `ready` permits placement. The plan applier checks again, at apply
+  time, that the volume exists, is ready and is on the node of the placement,
+  and rejects that node's part of the plan otherwise. This closes the window
+  between plan evaluation and a delete.
+- `deleting` is entered before the client is called, so a placement can never
+  be accepted for a volume whose removal is under way.
+- Deregister follows the same path as delete; the client drops its record and
+  leaves the directory and its contents alone.
+- Every refused transition returns an error that names the current state.
+  The diagnostic of the last failed step is stored on the record without
+  host paths of other namespaces.
 
 ### 6.5 Compatibility contract capture
 
