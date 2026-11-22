@@ -158,10 +158,11 @@ index, and a failed batch changes neither records nor the table index.
 The storage layer does not select create versus register validation, set wall
 clock values, invoke plugins, remove paths, authorize requests, enforce
 attachment modes, or decide public idempotency. It rejects volume deletion while
-a claim references that volume and rejects namespace deletion while any dynamic
-volume remains. Snapshot serialization and restore are described in
-[Snapshots and downgrade](#snapshots-and-downgrade). Raft FSM commands,
-complete blocking-query response behavior, pagination, garbage collection,
+an allocation uses that volume, deletes a volume's claims with the volume and a
+job's claims with the job (see [Sticky claims](#sticky-claims)), and rejects
+namespace deletion while any dynamic volume remains. Snapshot serialization and
+restore are described in [Snapshots and downgrade](#snapshots-and-downgrade).
+Raft FSM commands, complete blocking-query response behavior, pagination,
 public APIs, and lifecycle transitions remain later work. No matrix runtime
 outcome is changed by these internal tests.
 
