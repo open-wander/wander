@@ -410,6 +410,7 @@ type VolumeRequest struct {
 	AttachmentMode string           `hcl:"attachment_mode,optional"`
 	MountOptions   *CSIMountOptions `hcl:"mount_options,block"`
 	PerAlloc       bool             `hcl:"per_alloc,optional"`
+	Sticky         bool             `hcl:"sticky,optional"`
 	ExtraKeysHCL   []string         `hcl1:",unusedKeys,optional" json:"-"`
 }
 

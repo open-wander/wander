@@ -296,3 +296,120 @@ func DynamicHostVolumeWriterConflict(vol *DynamicHostVolume, req *VolumeRequest,
 	}
 	return false
 }
+
+// DynamicHostVolumeStickyAllowed applies the sticky claim rule to one
+// candidate volume of a task group. When any of the requests for the source is
+// sticky and the candidate is a dynamic volume (a non-empty ID), the claims of
+// the group for the source whose volume record still exists and that no live
+// allocation of the group uses are the free claims. If there are free claims
+// the candidate must be one of them; with none, any candidate is allowed.
+//
+// claims may hold claims of other groups and sources, which are ignored.
+// recordNodes maps the volume ID of each claimed volume that still has a record
+// to the node of that record, and liveNodes holds the nodes carrying a live
+// allocation of the group that uses the source. A table allows one record per
+// namespace, node and name, so a claimed volume is used exactly when a live
+// allocation of the group sits on the node of its record. Nothing is modified.
+func DynamicHostVolumeStickyAllowed(requests []*VolumeRequest, group, source string, claims []*DynamicHostVolumeClaim,
+	recordNodes map[string]string, liveNodes map[string]bool, candidateVolumeID string) bool {
+
+	if candidateVolumeID == "" || !slices.ContainsFunc(requests, func(r *VolumeRequest) bool { return r != nil && r.Sticky }) {
+		return true
+	}
+
+	free := false
+	for _, claim := range claims {
+		if claim == nil || claim.TaskGroupName != group || claim.VolumeName != source {
+			continue
+		}
+		node, ok := recordNodes[claim.VolumeID]
+		if !ok || liveNodes[node] {
+			continue
+		}
+		free = true
+		if claim.VolumeID == candidateVolumeID {
+			return true
+		}
+	}
+	return !free
+}
+
+// DynamicHostVolumeStickyLiveAllocs returns the live allocations of the group
+// as the plan would leave them: the stored allocations that are not terminal on
+// the server or the client, less those the plan stops or preempts on any node,
+// plus the plan's placements for the group. A placement replaces a stored
+// allocation with the same ID. The allocation named by selfID, which is the one
+// being checked, is left out. A nil plan changes nothing. Neither the
+// allocations nor the plan are modified.
+func DynamicHostVolumeStickyLiveAllocs(stored []*Allocation, plan *Plan, group, selfID string) []*Allocation {
+	removed := make(map[string]struct{})
+	if plan != nil {
+		for _, allocs := range plan.NodeUpdate {
+			for _, alloc := range allocs {
+				removed[alloc.ID] = struct{}{}
+			}
+		}
+		for _, allocs := range plan.NodePreemptions {
+			for _, alloc := range allocs {
+				removed[alloc.ID] = struct{}{}
+			}
+		}
+	}
+
+	live := make([]*Allocation, 0, len(stored))
+	seen := make(map[string]struct{}, len(stored))
+	for _, alloc := range stored {
+		if alloc == nil || alloc.TaskGroup != group || alloc.TerminalStatus() || alloc.ID == selfID {
+			continue
+		}
+		if _, ok := removed[alloc.ID]; ok {
+			continue
+		}
+		seen[alloc.ID] = struct{}{}
+		live = append(live, alloc)
+	}
+
+	if plan == nil {
+		return live
+	}
+	// The map order does not matter: callers only collect nodes from the result.
+	for _, allocs := range plan.NodeAllocation {
+		for _, alloc := range allocs {
+			if alloc.TaskGroup != group || alloc.TerminalStatus() || alloc.ID == selfID {
+				continue
+			}
+			if _, ok := seen[alloc.ID]; ok {
+				// The stored copy of an updated allocation is replaced.
+				live = slices.DeleteFunc(live, func(a *Allocation) bool { return a.ID == alloc.ID })
+			}
+			seen[alloc.ID] = struct{}{}
+			live = append(live, alloc)
+		}
+	}
+	return live
+}
+
+// DynamicHostVolumeStickyLiveNodes returns the nodes of the allocations that use
+// the source, resolving the source per allocation because a per-alloc source
+// carries the allocation index. fallbackJob stands in for an allocation whose
+// Job is unset, as in a plan.
+func DynamicHostVolumeStickyLiveNodes(allocs []*Allocation, source string, fallbackJob *Job) map[string]bool {
+	nodes := make(map[string]bool)
+	for _, alloc := range allocs {
+		job := alloc.Job
+		if job == nil {
+			job = fallbackJob
+		}
+		if job == nil {
+			continue
+		}
+		tg := job.LookupTaskGroup(alloc.TaskGroup)
+		if tg == nil {
+			continue
+		}
+		if _, ok := HostVolumeRequestsBySource(tg.Volumes, alloc.Name)[source]; ok {
+			nodes[alloc.NodeID] = true
+		}
+	}
+	return nodes
+}

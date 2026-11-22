@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -3506,6 +3507,35 @@ func TestJobs_ApiJobToStructsJob(t *testing.T) {
 
 	systemStructsJob := ApiJobToStructJob(systemAPIJob)
 	require.Equal(t, expectedSystemJob, systemStructsJob)
+}
+
+func TestJobs_ApiJobToStructsJob_VolumeSticky(t *testing.T) {
+	ci.Parallel(t)
+
+	apiJob := &api.Job{
+		ID:   pointer.Of("sticky-job"),
+		Name: pointer.Of("sticky-job"),
+		TaskGroups: []*api.TaskGroup{{
+			Name: pointer.Of("cache"),
+			Volumes: map[string]*api.VolumeRequest{
+				"data-a": {Name: "data-a", Type: "host", Source: "data-a", Sticky: true},
+				"data-b": {Name: "data-b", Type: "host", Source: "data-b"},
+			},
+		}},
+	}
+
+	// The wire form carries the field under its Go name.
+	raw, err := json.Marshal(apiJob)
+	must.NoError(t, err)
+	must.StrContains(t, string(raw), `"Sticky":true`)
+
+	var decoded api.Job
+	must.NoError(t, json.Unmarshal(raw, &decoded))
+
+	got := ApiJobToStructJob(&decoded)
+	vols := got.TaskGroups[0].Volumes
+	must.True(t, vols["data-a"].Sticky)
+	must.False(t, vols["data-b"].Sticky)
 }
 
 func TestJobs_ApiJobToStructsJobUpdate(t *testing.T) {

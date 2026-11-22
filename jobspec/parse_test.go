@@ -2004,3 +2004,29 @@ func TestPortParsing(t *testing.T) {
 	require.Equal(t, 9000, job.TaskGroups[0].Networks[0].ReservedPorts[0].Value)
 	require.Equal(t, 0, job.TaskGroups[0].Networks[0].DynamicPorts[0].Value)
 }
+
+func TestParse_VolumeSticky(t *testing.T) {
+	ci.Parallel(t)
+
+	hcl := `
+job "example" {
+  group "cache" {
+    volume "data-a" {
+      type   = "host"
+      source = "data-a"
+      sticky = true
+    }
+
+    task "simple" {
+      driver = "raw_exec"
+      config {
+        command = "/bin/true"
+      }
+    }
+  }
+}
+`
+	job, err := Parse(strings.NewReader(hcl))
+	require.NoError(t, err)
+	require.True(t, job.TaskGroups[0].Volumes["data-a"].Sticky)
+}

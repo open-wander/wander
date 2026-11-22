@@ -496,6 +496,62 @@ volume request at submission, where the observed binary accepts it and never
 places it. Wander reports a separate reason for each kind of dynamic volume
 failure, where the observed binary reports one reason for all of them.
 
+### Observation of sticky claims {#observation-sticky}
+
+Synthetic jobs were run against two development agents of an official release
+binary on one workstation, on private ports, with no other cluster. The jobs
+and volumes held no real data, and identifiers are not recorded here.
+
+```json
+{
+  "source_id": "SRC-observe-sticky",
+  "binary_version": "Nomad v2.0.2 (official release binary, darwin/arm64)",
+  "synthetic": true,
+  "request": "Synthetic service jobs with a group-level host volume request and sticky = true were run against a two-node development cluster on one workstation, with one built-in-plugin volume of the same name on each node. Allocations were stopped, jobs were updated, scaled, stopped, re-run, purged and garbage collected, a node was made ineligible, a claim and a claimed volume were deleted, and the claims API was read after each step.",
+  "response": "A non-sticky job moved between the nodes across replacements. A sticky job got one claim at placement and stayed on the claimed volume across four replacements, three destructive updates and four re-runs after a stop. With the node of the claimed volume ineligible, the replacement was not placed (missing compatible host volumes) and returned to that volume when the node was eligible again. With count 2 on two claimed volumes, one node ineligible and its allocation stopped, the replacement was not placed on the other claimed volume. Scaling from 1 to 3 with two volumes placed one allocation on the unclaimed volume with a new claim and one on an already claimed volume with no new claim; scaling down kept the claims. Claims stayed after a job stop, were gone after a purge, and were gone with the job after a stop and a forced garbage collection. Deleting a claim returned 200 with an empty body, the allocation kept running, no claim appeared within 15 seconds, and the next replacement moved to the other volume and created a claim there. Deleting the same claim again returned 500 with the text: Task group volume claim does not exist. The singular path /v1/volume/claim/<id> returned 404. Deleting a claimed volume was refused while an allocation used it and succeeded while the job was stopped; the claim stayed listed, and the re-run job was placed on the other volume with a second claim. sticky with per_alloc was rejected at submission; sticky on a static host volume was accepted and created no claim. A claim lists AllocID, CreateIndex, ID, JobID, ModifyIndex, Namespace, TaskGroupName, VolumeID and VolumeName. The list filters job_id, task_group, volume_name and namespace worked, including the namespace wildcard.",
+  "date": "2026-11-21",
+  "limitations": "Two nodes, one version, one platform, development mode; one namespace; one volume per node; each case run once or a few times; behaviour may differ elsewhere."
+}
+```
+
+The rule read from these results: a sticky group may only be placed on a
+claimed volume while it has a claim whose volume exists and is not used by one
+of its own live allocations. When it has none, any compatible volume of the
+name is allowed, and a claim is created if the group has none on that volume.
+This reading fits every case above; it is an inference, not a documented rule.
+
+Known difference, decided by the project owner on 2026-11-21. The observed
+binary deleted a claimed volume of a stopped job and kept the claim. Wander
+will allow the delete when no allocation uses the volume and remove the
+volume's claims in the same step, so no stale claim remains. Until that is
+implemented the state store refuses to delete a volume that has a claim.
+
+## Sticky claims (server) {#sticky-claims}
+
+Implemented in `nomad/structs/dynamic_host_volume.go`
+(`DynamicHostVolumeStickyAllowed` and its two helpers), called from the
+scheduler host volume checker and from the plan applier, with claim creation
+in `stickyClaimsForPlan` in `nomad/plan_apply.go`.
+
+| Topic | Basis | Rule |
+| --- | --- | --- |
+| Field | Documented, observed | `sticky` on a group volume request, default false. Rejected with `per_alloc` (`volume cannot be per_alloc and sticky at the same time`) and on a type other than host. A change of `sticky` is a destructive update, as for `per_alloc`. |
+| Static volumes | Observed | A sticky request on a static host volume follows no rule and creates no claim. |
+| Placement rule | Inferred from the observation | The free claims of a group for a source are its claims whose volume record exists and that no live allocation of the group uses. With free claims, only a node whose volume is one of them is feasible. With none, every node that passes the other checks is feasible. |
+| Live allocations | Wander policy | For this rule an allocation is live when it is terminal neither on the server nor on the client. An allocation the server has stopped but that still runs does not hold its claim, so a re-run straight after a stop returns to the claimed volume; on a single-writer volume it waits there for the writer rule. |
+| Which volume is used | Wander policy | One record exists per namespace, node and name, so a claimed volume is used when a live allocation of the group that requests the source is on the node of its record. Cost is bounded by the allocations of the job. |
+| Same evaluation | Wander policy | The claim view is read again for every placement, with the plan's stops, preemptions and earlier placements applied. |
+| Reason | Observed | A node filtered by the rule reports the existing `missing compatible host volumes` reason. |
+| Plan applier | Wander policy | Each new placement is checked again against the snapshot plus the plan. A failure rejects the node's part of the plan with `dynamic host volume sticky claim`, naming nothing. |
+| Claim creation | Observed; mechanism is Wander policy | A claim is created for each dynamic volume a new allocation of a sticky request is placed on and the group has no claim on. The leader generates the claim ID and sends the claims in the plan result, and they are written in the same transaction as the allocations. Several placements on one volume give one claim. |
+| Claim contents | Wander policy | A claim keeps the allocation that created it. A later placement on the volume does not change the claim. `AllocationIndex` is the name index of that allocation. |
+| Skipped claims | Wander policy | When the plan result is applied, a claim is skipped if the group already has one on the volume or if the volume record is gone. The allocations are still written. |
+| Removal | Later work | Nothing removes a claim yet. A job stop keeps claims, as observed. |
+| Canaries | Wander policy | A canary beside a running allocation of the group finds the claim in use, so it may take another volume and get a claim there. |
+| Partial plan | Known gap | Nodes are judged separately. If one node of a plan is rejected, a placement on another node that was valid only because of the rejected one can still commit and create a second claim. Later evaluations see both claims. |
+| Plan rejection tracking | Known gap | As for writer conflicts, a sticky rejection counts towards marking a node ineligible when node plan rejection tracking is enabled (off by default). |
+| Mixed versions | Known gap | A server without this change drops the claims in a plan result and writes the allocations alone, so claim state differs between servers until all are upgraded. No version gate is possible: servers advertise the same compatibility version as before. |
+
 ## Task mounts (client) {#task-mounts}
 
 Implemented in `client/allocrunner/taskrunner/volume_hook.go`,
