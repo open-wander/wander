@@ -1,11 +1,14 @@
 # Wander integration cluster tests
 
 Go tests that run against a real multi-node Wander cluster in Docker, for what
-a single `agent -dev` cannot reach: clustering, discovery through Consul, and
-replication across servers.
+a single `agent -dev` cannot reach: clustering, discovery through Consul,
+replication across servers, and the Consul and Vault integrations on real
+clients.
 
 ```
 consul-server-1..3   10.77.0.11-13   Consul servers
+vault                10.77.0.20      Vault dev server, root token "root"
+vault-init           10.77.0.21      one-shot Vault setup (vault-init.sh)
 wander-server-1..3   10.77.0.31-33   Wander servers + local Consul agent
 wander-client-1..3   10.77.0.41-43   Wander clients + local Consul agent + own dockerd
 ```
@@ -51,15 +54,26 @@ each client, which the entrypoint writes inside the container.
 | `TestCluster_Formed` | 3 raft peers, a leader, 3 voters, autopilot healthy with failure tolerance 1, and 3 members alive advertising `build=1.6.5` |
 | `TestCluster_ClientsReady` | 3 clients ready and eligible, with docker, exec and raw_exec healthy and the CNI bridge plugin fingerprinted |
 | `TestVariables_Replicated` | a variable written through one server is read back from each server's own state with stale reads |
+| `TestConsul_AgentsRegistered` | the 3 servers (`nomad`, tags http, rpc, serf) and 3 clients (`nomad-client`) are registered in Consul and passing |
+| `TestConsul_JobService` | a job's service registers one passing instance per client with its node's name in meta, and leaves the catalog when the job stops |
+| `TestConsul_Template` | a template renders a Consul KV key and the `consul` service exactly as Consul's API reports them, and renders again when the key changes |
+| `TestVault_ClientsFingerprint` | every client reports `vault.accessible = true` |
+| `TestVault_TaskToken` | a task renders a KV v2 secret with its derived token; the token has the job's policy, the `wander-cluster` role and a TTL, and is revoked when the alloc stops |
 
-Consul service registration, Vault, Connect and failure recovery come in later
-changes.
+`nomad` and `nomad-client` are Wander's default Consul service names, kept so
+1.6.5 clients still find upgraded servers. Connect, docker jobs on bridge
+networking and failure recovery come in later changes.
 
 ## Design notes
 
-- **The tests reach the servers on published ports**, not on the
+- **The tests reach Wander, Consul and Vault on published ports**, not on the
   `10.77.0.0/24` addresses, so they do not depend on the host routing to the
   Compose network.
+- **Vault uses the token integration**, the only one Wander has.
+  `vault-init.sh` writes the `wander-server` policy, the `wander-cluster` role
+  and a server token with a fixed ID, so `config/server.hcl` stays static.
+- **The test jobs use raw_exec** with a script check, so they pull no images.
+  Templates render into `local/`, since the fs API refuses to read `secrets/`.
 - **The node image is built from the checkout's binary.** The Dockerfile copies
   `wander` from the build context, and the Consul and Debian images are pinned
   by digest.

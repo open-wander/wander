@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	consulapi "github.com/hashicorp/consul/api"
+	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/compose"
 
@@ -38,13 +40,15 @@ import (
 // -------------------------------------------------------------------------
 
 const (
-	consulImage  = "hashicorp/consul:2.1.0@sha256:259fd02f2544fe1aa03fa49efd3b105c8dd67106d710a72f5e898110266356f7"
-	nodeRepo     = "wander-it-node"
-	nodeTag      = "local"
-	nodeImage    = nodeRepo + ":" + nodeTag
-	stackName    = "wander-integration"
-	wanderBinary = "../pkg/integration/wander"
-	upTimeout    = 5 * time.Minute
+	consulImage    = "hashicorp/consul:2.1.0@sha256:259fd02f2544fe1aa03fa49efd3b105c8dd67106d710a72f5e898110266356f7"
+	vaultImage     = "hashicorp/vault:2.2.2@sha256:dfa48c2fa2b0099ccb47681ec5c4804bf5aec9d6879ecfee07ad4b92a5427ad6"
+	vaultRootToken = "root"
+	nodeRepo       = "wander-it-node"
+	nodeTag        = "local"
+	nodeImage      = nodeRepo + ":" + nodeTag
+	stackName      = "wander-integration"
+	wanderBinary   = "../pkg/integration/wander"
+	upTimeout      = 5 * time.Minute
 )
 
 // clusterEnvPrefixes are the variable prefixes that can point a client at a
@@ -57,6 +61,13 @@ var serverNames = []string{"wander-server-1", "wander-server-2", "wander-server-
 // servers holds an API client for each Wander server, keyed by service name.
 // TestMain fills it before any test runs.
 var servers map[string]*api.Client
+
+// consulClient and vaultClient reach the Consul servers and the dev Vault,
+// which tests read to see what Wander registered and derived.
+var (
+	consulClient *consulapi.Client
+	vaultClient  *vaultapi.Client
+)
 
 // -------------------------------------------------------------------------
 // FIXTURE
@@ -84,7 +95,11 @@ func run(m *testing.M) int {
 	if err != nil {
 		return fail(fmt.Errorf("load compose.yml: %w", err))
 	}
-	stack.WithEnv(map[string]string{"CONSUL_IMAGE": consulImage, "NODE_IMAGE": nodeImage})
+	stack.WithEnv(map[string]string{
+		"CONSUL_IMAGE": consulImage,
+		"VAULT_IMAGE":  vaultImage,
+		"NODE_IMAGE":   nodeImage,
+	})
 
 	defer func() {
 		err := stack.Down(context.Background(), compose.RemoveOrphans(true), compose.RemoveVolumes(true))
@@ -100,7 +115,7 @@ func run(m *testing.M) int {
 		return fail(fmt.Errorf("stack up: %w", err))
 	}
 
-	if servers, err = serverClients(ctx, stack); err != nil {
+	if err := connectClients(ctx, stack); err != nil {
 		saveLogs(ctx, stack)
 		return fail(err)
 	}
@@ -206,26 +221,50 @@ func copyExecutable(src, dst string) error {
 // API CLIENTS
 // -------------------------------------------------------------------------
 
-// serverClients builds an API client for each Wander server from the host
-// port Docker published for 4646.
-func serverClients(ctx context.Context, stack *compose.DockerCompose) (map[string]*api.Client, error) {
-	clients := make(map[string]*api.Client, len(serverNames))
+// connectClients fills servers, consulClient and vaultClient, each built from
+// the host port Docker published for the service.
+func connectClients(ctx context.Context, stack *compose.DockerCompose) error {
+	servers = make(map[string]*api.Client, len(serverNames))
 	for _, name := range serverNames {
-		ctr, err := stack.ServiceContainer(ctx, name)
+		addr, err := publishedAddr(ctx, stack, name, "4646/tcp")
 		if err != nil {
-			return nil, fmt.Errorf("find %s: %w", name, err)
+			return err
 		}
-		addr, err := ctr.PortEndpoint(ctx, "4646/tcp", "http")
-		if err != nil {
-			return nil, fmt.Errorf("published port for %s: %w", name, err)
+		if servers[name], err = newClient(addr); err != nil {
+			return fmt.Errorf("client for %s: %w", name, err)
 		}
-		client, err := newClient(addr)
-		if err != nil {
-			return nil, fmt.Errorf("client for %s: %w", name, err)
-		}
-		clients[name] = client
 	}
-	return clients, nil
+
+	addr, err := publishedAddr(ctx, stack, "consul-server-1", "8500/tcp")
+	if err != nil {
+		return err
+	}
+	if consulClient, err = consulapi.NewClient(&consulapi.Config{Address: addr}); err != nil {
+		return fmt.Errorf("consul client: %w", err)
+	}
+
+	if addr, err = publishedAddr(ctx, stack, "vault", "8200/tcp"); err != nil {
+		return err
+	}
+	if vaultClient, err = vaultapi.NewClient(&vaultapi.Config{Address: addr}); err != nil {
+		return fmt.Errorf("vault client: %w", err)
+	}
+	vaultClient.SetToken(vaultRootToken)
+	return nil
+}
+
+// publishedAddr returns the http://host:port address Docker published for
+// port on svc's container.
+func publishedAddr(ctx context.Context, stack *compose.DockerCompose, svc, port string) (string, error) {
+	ctr, err := stack.ServiceContainer(ctx, svc)
+	if err != nil {
+		return "", fmt.Errorf("find %s: %w", svc, err)
+	}
+	addr, err := ctr.PortEndpoint(ctx, port, "http")
+	if err != nil {
+		return "", fmt.Errorf("published port %s for %s: %w", port, svc, err)
+	}
+	return addr, nil
 }
 
 // newClient returns an API client for addr; run scrubClusterEnv first.
