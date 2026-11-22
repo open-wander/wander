@@ -526,6 +526,24 @@ will allow the delete when no allocation uses the volume and remove the
 volume's claims in the same step, so no stale claim remains. Until that is
 implemented the state store refuses to delete a volume that has a claim.
 
+### Observation of a node going down {#observation-node-down}
+
+Synthetic jobs were run against two development agents of an official release
+binary on one workstation, on private ports, with no other cluster. The jobs
+and volumes held no real data, and identifiers are not recorded here.
+
+```json
+{
+  "source_id": "SRC-observe-node-down",
+  "binary_version": "Nomad v2.0.2 (official release binary, darwin/arm64)",
+  "synthetic": true,
+  "request": "On a two-node development cluster on one workstation, one built-in-plugin volume of a shared name was created on each node and one volume of a second name on the second node only. A sticky service job on the shared name and a plain service job on the second name were both running on the second node. The second node's agent was stopped without warning, started again, stopped again, and garbage collected after the jobs were purged, then started once more. Node status, the volume list, job status and the claims list were read after each step, and a volume delete was tried while the node was down and after it was garbage collected.",
+  "response": "The node was marked down about 20 seconds after its agent stopped. Its three volume records stayed listed with state ready. Both allocations were marked lost, and neither job was placed on the first node: each reported one node excluded by the missing compatible host volumes filter, including the sticky job, whose volume name also existed on the first node. The claim was unchanged. Deleting a volume of the down node failed with status 500 and the text: volume cannot be removed from unknown node without force=true. When the agent started again both jobs were placed on the second node on the same volumes. After the second stop, a purge of both jobs and a forced garbage collection, the node was no longer listed, its volume records were still listed with state ready, no claim was listed, and the delete failed with the same text. When the agent started again the node was ready, the records were unchanged, a new job was placed on one of its volumes, and a volume on the first node was deleted normally.",
+  "date": "2026-11-22",
+  "limitations": "Two nodes, one version, one platform, development mode; one namespace; the node was stopped without warning, not drained; states were read within about 30 seconds of each change; each case run once; behaviour may differ elsewhere."
+}
+```
+
 ## Sticky claims (server) {#sticky-claims}
 
 Implemented in `nomad/structs/dynamic_host_volume.go`
