@@ -22,7 +22,7 @@ must follow the clean-room and private-data rules in the linked PRD and
 
 | # | Task | PRD | Status | Notes |
 |---|------|-----|--------|-------|
-| 4.1 | Let the ledger validator mark single facets of a row implemented | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.1. Also reword DHV-B-167 to the scale-up rule that is implemented and tested |
+| 4.1 | Let the ledger validator mark single facets of a row implemented | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-22) | An assertion may carry `implementation`, which needs a resolved assertion and implemented tests. DHV-B-167 states the scale-up rule and DHV-T-167 is implemented |
 | 4.2 | Implement the server read RPCs and the HTTP list and read operations | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.6, 3.1. Includes ACL enforcement at the RPC boundary and wildcard namespace filtering (US-014) |
 | 4.3 | Add the Raft commands and state transitions of PRD section 6.4 | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 1.6. Refused until every server meets the minimum version (US-017) |
 | 4.4 | Derive ready and unavailable from node updates | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 4.3. PRD section 6.4 |
