@@ -282,16 +282,28 @@ put_marker() {
   fi
 }
 
+# require_marker reads the marker back, retrying for up to 30 seconds. Servers
+# copy the root key from a peer in the background, and a server restarted soon
+# after the marker was written can come back to a leader that has not copied
+# the key yet; the read then fails with "no such key" until the replicator
+# reaches the restarted server. A key that never arrives still fails here.
 require_marker() {
   local marker=$1
-  local response
-  if ! response=$(curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
-    "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state") ||
-    ! grep -q "\"marker\":\"${marker}\"" <<<"${response}"; then
-    echo "failed to read rehearsal marker ${marker}: ${response}" >&2
-    dump_agent_logs
-    return 1
-  fi
+  local response attempt
+  for ((attempt = 1; attempt <= 30; attempt++)); do
+    if response=$(curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
+      "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state" 2>&1) &&
+      grep -q "\"marker\":\"${marker}\"" <<<"${response}"; then
+      if ((attempt > 1)); then
+        echo "rehearsal marker ${marker} readable after ${attempt} attempts" >&2
+      fi
+      return 0
+    fi
+    sleep 1
+  done
+  echo "failed to read rehearsal marker ${marker}: ${response}" >&2
+  dump_agent_logs
+  return 1
 }
 
 # dump_agent_logs prints the logs of the agents started last, for failures
