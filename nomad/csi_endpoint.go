@@ -81,6 +81,14 @@ func (v *CSIVolume) List(args *structs.CSIVolumeListRequest, reply *structs.CSIV
 		return structs.ErrPermissionDenied
 	}
 
+	// The check above passes for the wildcard namespace when any one
+	// namespace grants a listing capability, so each volume's namespace is
+	// checked again against the same capability set before it is returned.
+	allow := aclObj.AllowNsOpFunc(acl.NamespaceCapabilityCSIListVolume,
+		acl.NamespaceCapabilityCSIReadVolume,
+		acl.NamespaceCapabilityCSIMountVolume,
+		acl.NamespaceCapabilityListJobs)
+
 	defer metrics.MeasureSince([]string{"nomad", "volume", "list"}, time.Now())
 
 	ns := args.RequestNamespace()
@@ -88,6 +96,18 @@ func (v *CSIVolume) List(args *structs.CSIVolumeListRequest, reply *structs.CSIV
 		queryOpts: &args.QueryOptions,
 		queryMeta: &reply.QueryMeta,
 		run: func(ws memdb.WatchSet, state *state.StateStore) error {
+			// A nil set means every namespace is allowed (ACLs disabled or a
+			// management token). A token that may not list volumes in any
+			// existing namespace gets an empty list rather than an error,
+			// matching the other list endpoints.
+			allowableNamespaces, err := allowedNSes(aclObj, state, allow)
+			if errors.Is(err, structs.ErrPermissionDenied) {
+				reply.Volumes = []*structs.CSIVolListStub{}
+				return v.srv.replySetIndex(csiVolumeTable, &reply.QueryMeta)
+			} else if err != nil {
+				return err
+			}
+
 			snap, err := state.Snapshot()
 			if err != nil {
 				return err
@@ -139,7 +159,15 @@ func (v *CSIVolume) List(args *structs.CSIVolumeListRequest, reply *structs.CSIV
 					return true, nil
 				},
 			}
-			filters := []paginator.Filter{volFilter}
+			// The namespace filter goes first so that neither the filter
+			// expression nor the page token ever sees a volume the token
+			// may not list.
+			filters := []paginator.Filter{
+				paginator.NamespaceFilter{
+					AllowableNamespaces: allowableNamespaces,
+				},
+				volFilter,
+			}
 
 			// Collect results, filter by ACL access
 			vs := []*structs.CSIVolListStub{}
