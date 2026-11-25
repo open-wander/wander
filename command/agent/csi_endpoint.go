@@ -27,6 +27,9 @@ func (s *HTTPServer) CSIVolumesRequest(resp http.ResponseWriter, req *http.Reque
 	if !ok {
 		return []*structs.CSIVolListStub{}, nil
 	}
+	if qtype[0] == "host" {
+		return s.hostVolumesList(resp, req)
+	}
 	if qtype[0] != "csi" {
 		return nil, nil
 	}

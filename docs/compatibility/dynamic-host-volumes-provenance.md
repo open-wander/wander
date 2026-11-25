@@ -773,6 +773,32 @@ is required and that a name is required and unique per node.
 | `volume_kind_conflict` | the ID belongs to a plugin-created volume |
 | `registration_mismatch` | a repeat differs in namespace, name or path |
 
+## Read API (server and HTTP) {#read-api}
+
+### Recorded evidence
+
+Listing is `GET /v1/volumes?type=host` (DHV-B-001) and reading is
+`GET /v1/volume/host/:volume_id` (DHV-B-002). Both need the namespace
+capability `host-volume-read` (DHV-B-139). The create, register and write
+capabilities imply it (DHV-B-137, DHV-B-138, DHV-B-140). The namespace
+`read` shorthand includes it (DHV-B-144). The evidence does not give the list
+fields, the filters or the server calls. The rules below are Wander policy,
+implemented in `nomad/host_volume_endpoint.go` and
+`command/agent/host_volume_endpoint.go`.
+
+### Wander policy
+
+| Question | Wander policy |
+| --- | --- |
+| Server calls | `HostVolume.List` and `HostVolume.Get`, with rate metric label `host_volume`. Both forward like the other read calls. The ACL check runs on the server that answers, after forwarding. Both are blocking queries. |
+| Capability | `host-volume-read` in the request namespace, checked with `ResolveACL`. `host-volume-delete` does not imply read, so a delete-only token cannot list or read. A token without the capability gets permission denied. |
+| Wildcard namespace | A list with namespace `*` returns only volumes in namespaces where the token holds `host-volume-read`. The namespace filter runs before the filter expression and pagination, so neither results nor page tokens reveal other namespaces. A token that holds the capability only for namespaces that do not exist gets an empty list. A token without it anywhere gets permission denied. |
+| List fields | ID, Name, Namespace, PluginID, NodeID, NodePool, CapacityBytes, State, CreateIndex, ModifyIndex, CreateTime and ModifyTime. The host path, parameters, constraints, attachments and requested capabilities are left out of the list. |
+| Read | Returns the full record, host path included, since `host-volume-read` is the inspect capability. An unknown ID returns HTTP 404. A missing ID, a NUL byte in the ID, and namespace `*` are rejected with HTTP 400 and a fixed message. |
+| Filters | `prefix` matches the volume ID. `node_id` and `node_pool` are exact matches. The filter expression, `per_page` and `next_token` follow the other list calls. A NUL byte in the prefix or namespace is rejected with HTTP 400. The list is in namespace and ID order. |
+| Index | Taken from the dynamic host volume table only, so a claim write does not wake a blocked list or read. A table that has never been written reports index 1. |
+| HTTP | The list returns an empty array, not null. `/v1/volume/host/` with no ID or an extra path segment returns 404. Methods other than GET return 405 until the write operations exist. `type=csi`, no type and an unknown type behave as before. |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

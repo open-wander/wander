@@ -1180,7 +1180,44 @@ stored copy.
   read after the first server of the clean install restarted. The fix and the
   log dump are in their own pull request; the cause is not yet known.
 
+## 2026-11-23 — Release rehearsal hang resolved
+
+- The 500 was a keyring replication race inherited from 1.6.5: after a
+  leader restart the new leader lacks the root key until its replicator
+  copies it, about a second. The marker read now retries for 30 seconds and
+  a stop that hangs is bounded and dumps the agent log. Merged as #85.
+
+## 2026-11-25 — Task 4.2 complete
+
+- `HostVolume.List` and `HostVolume.Get`, registered next to the CSI volume
+  endpoint; `GET /v1/volumes?type=host` dispatches from the CSI list handler
+  and `/v1/volume/host/` is a new route. Inherited files: one line each in
+  `nomad/server.go`, `command/agent/http.go` and
+  `command/agent/csi_endpoint.go`.
+- host-volume-read is checked after forwarding. The wildcard list follows
+  `Job.List` (allowed namespaces plus a namespace filter first), not
+  `CSIVolume.List`. The list stub has no host path; read returns the full
+  record. The policy is in the provenance record, Read API.
+- Review: MINOR. Four policy points had no test (the empty list for a token
+  whose readable namespaces do not exist, the index clamp, NUL in a list key,
+  HTTP prefix/paging/filter) and one subtest was vacuous. A fix round added
+  tests for all of them, each shown to fail with its guard removed.
+- Inherited defect found, not fixed here: `CSIVolume.List` with namespace `*`
+  passes the ACL check when any one namespace allows a CSI list capability
+  (or list-jobs), then iterates every CSI volume with no namespace filter, so
+  a token scoped to one namespace sees CSI volume stubs of all namespaces.
+- Deslop: the remaining groups are the RPC preamble every endpoint repeats
+  and table setup in the tests.
+
+PATTERN: acl - a wildcard namespace list must filter per namespace with the
+allowed-namespaces helper before the filter expression and pagination; the
+CSI volume list is not a safe model for this.
+PATTERN: workflow - a reused workflow script must take its risk and review
+checklists from args; a hard-coded list from an earlier task told the advisor
+that this task's work belonged to later tasks.
+
 ## Resume point
 
-- Phases 1 to 3 are merged, swept and archived; the planning pass is merged.
-- Tasks 3.8 to 3.10 are merged; 4.1 is in review. The next task is 4.2.
+- Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
+- 4.2 is in review. The next tasks are 4.3 (Raft commands) and 4.8 (node read
+  filter), both ready.

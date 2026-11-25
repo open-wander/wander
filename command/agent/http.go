@@ -406,6 +406,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	s.mux.HandleFunc("/v1/volumes/external", s.wrap(s.CSIExternalVolumesRequest))
 	s.mux.HandleFunc("/v1/volumes/snapshot", s.wrap(s.CSISnapshotsRequest))
 	s.mux.HandleFunc("/v1/volume/csi/", s.wrap(s.CSIVolumeSpecificRequest))
+	s.mux.HandleFunc("/v1/volume/host/", s.wrap(s.HostVolumeSpecificRequest))
 	s.mux.HandleFunc("/v1/plugins", s.wrap(s.CSIPluginsRequest))
 	s.mux.HandleFunc("/v1/plugin/csi/", s.wrap(s.CSIPluginSpecificRequest))
 
