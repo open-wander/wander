@@ -1216,8 +1216,36 @@ PATTERN: workflow - a reused workflow script must take its risk and review
 checklists from args; a hard-coded list from an earlier task told the advisor
 that this task's work belonged to later tasks.
 
+## 2026-11-26 — Task 4.3 complete
+
+- Five Raft commands (types 100-104) for upsert, outcome, update, mark
+  deleting and remove, with the transition table checked inside the state
+  store apply. Register starts in pending and uses the outcome command.
+- Owner decisions of 2026-11-25: servers gossip the product version in the
+  serf tag `wander_version` (build stays 1.6.5), and the commands are refused
+  unless every server in the region carries 0.1.2 or later, prerelease
+  ignored. Submission goes through `dynamicHostVolumeRaftApply`.
+- Review: MINOR. A fix round made update refuse changes to the server-owned
+  fields (host path, capacity, diagnostic, attachments), bounded the
+  diagnostic on create, tested that the agent sets the tag from the product
+  version, and made the message-type uniqueness test evaluate every constant.
+  The orchestrator extracted the repeated key-and-lookup step into
+  `dynamicHostVolumeWriteLookup` after Deslop.
+- For 4.6: the create RPC must read the state back after a repeat, because a
+  repeat on a deleting or failed volume is a no-op in the apply.
+- Inherited race, not fixed: 25 tests in `nomad/core_sched_test.go` replace
+  `fsm.timetable.table` while the server runs, which `-race` reports; the
+  test added with #78 copied that idiom.
+- CSI wildcard list leak fixed separately in #89.
+
+PATTERN: state - check transitions inside the state store apply, not in the
+RPC, so a replayed log entry cannot make an illegal move.
+PATTERN: codegen - after adding structs to nomad/structs, run go generate in
+that package and test with -tags codegen_generated; CI builds with the
+generated msgpack codecs and a stale file fails there only.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 is in review. The next tasks are 4.3 (Raft commands) and 4.8 (node read
-  filter), both ready.
+- 4.2 (#88) and the CSI fix (#89) are merged; 4.3 (#90) is in review. The
+  next tasks are 4.4 and 4.5 (both need 4.3) and 4.8.

@@ -799,6 +799,33 @@ implemented in `nomad/host_volume_endpoint.go` and
 | Index | Taken from the dynamic host volume table only, so a claim write does not wake a blocked list or read. A table that has never been written reports index 1. |
 | HTTP | The list returns an empty array, not null. `/v1/volume/host/` with no ID or an extra path segment returns 404. Methods other than GET return 405 until the write operations exist. `type=csi`, no type and an unknown type behave as before. |
 
+## Raft commands and mixed versions (server) {#raft-commands}
+
+### Recorded evidence
+
+None. The public contract does not describe the server log. The state machine
+is the one in the PRD, section 6.4. The mixed-version rule is an owner
+decision of 2026-11-22. The tag and the minimum version are owner decisions of
+2026-11-25. Everything below is Wander policy, implemented in
+`nomad/state/state_store_dynamic_host_volume_transition.go`,
+`nomad/dynamic_host_volume_raft.go` and `nomad/fsm.go`.
+
+### Wander policy
+
+| Question | Wander policy |
+| --- | --- |
+| Commands | Five Raft message types, 100 to 104: upsert (create or register), outcome (the client's answer), update, mark deleting and remove. The numbers stay clear of the 1.6.5 types, of 127 and of the `IgnoreUnknownTypeFlag` bit. |
+| Unknown type | The commands do not carry `IgnoreUnknownTypeFlag`. A server that does not know them stops in apply rather than skipping the entry and silently diverging from the leader. |
+| Version tag | Every server gossips the Wander product version, for example `0.1.2-dev`, in the serf tag `wander_version`. The `build` tag stays on the Nomad compatibility version 1.6.5, so Nomad 1.6.5 peers keep working. |
+| Gate | A command is submitted only when every server in the region that is alive or failed carries `wander_version` at 0.1.2 or later. Prerelease and metadata are ignored, so `0.1.2-dev` passes. A missing or unreadable tag blocks, so a Nomad 1.6.5 server or an older Wander server stops the commands. Servers that have left and servers of other regions are not counted. No servers at all blocks. The check is made when a command is submitted. A server that joins between the check and the commit is a window that is accepted, not closed. |
+| Transitions | Checked inside the apply, so a replayed or duplicated log entry cannot make an illegal move. A refused transition returns an error naming the current state, or `none` for a missing record, and changes nothing. A batch is all or nothing. `ready` to `unavailable` and back stay allowed for the node-derived rule. |
+| Create and register | Create starts in `requested` without a node or `pending` with one. Register starts in `pending` with its host path. Both reach `ready` or `failed` only through the outcome command; there is no shortcut from nothing to `ready`. Assigning the node moves `requested` to `pending`, and nothing else may change in that step. |
+| Repeats | A repeated create or register with the same content changes nothing, even after the volume has moved on. Different content is refused. Marking a volume that is already deleting changes nothing, so its modify index still matches a later removal. A repeated outcome changes nothing. Removing a volume that is already gone changes nothing. |
+| Outcome | `ready` is accepted from `pending` only. It needs an absolute host path without a NUL byte, and a capacity of zero or more, since a registered volume may not know its size. It clears the diagnostic. `failed` is accepted from `requested` or `pending` and needs a diagnostic. |
+| Update | Only a `ready` volume, with compare-and-set on the modify index and the immutable-field rules. The host path, capacity, diagnostic and attachments belong to the server and the client: an update that differs in any of them is refused, naming the field. |
+| Diagnostic | Stored as `StatusDescription`, cut to 1024 bytes at a character boundary, with invalid UTF-8 replaced. It travels in the existing snapshot record. Keeping host paths of other namespaces out of it is the job of the code that writes it. |
+| Remove | Only from `deleting`. The sticky claims of the volume are deleted in the same apply, and a volume an allocation still uses is refused. |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

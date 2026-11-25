@@ -30,6 +30,7 @@ func syntheticDynamicHostVolume() *DynamicHostVolume {
 		Constraints: []*Constraint{{LTarget: "synthetic-attribute", RTarget: "synthetic-value", Operand: "="}, nil},
 		Parameters:  map[string]string{"mode": "0700", "synthetic-key": "synthetic-value"},
 		State:       DynamicHostVolumeStateReady, Origin: DynamicHostVolumeOriginRegistered,
+		StatusDescription: "synthetic diagnostic",
 		Attachments: []*DynamicHostVolumeAttachment{
 			{AllocationID: "allocation-synthetic-a", NodeID: "node-synthetic-a", ReadOnly: true,
 				AttachmentMode: DynamicHostVolumeAttachmentModeFilesystem, AccessMode: DynamicHostVolumeAccessModeSingleNodeReader},

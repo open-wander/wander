@@ -1513,6 +1513,9 @@ func (s *Server) setupSerf(conf *serf.Config, ch chan serf.Event, path string) (
 	conf.Tags["region"] = s.config.Region
 	conf.Tags["dc"] = s.config.Datacenter
 	conf.Tags["build"] = s.config.Build
+	if s.config.WanderVersion != "" {
+		conf.Tags[wanderVersionTag] = s.config.WanderVersion
+	}
 	conf.Tags["revision"] = s.config.Revision
 	conf.Tags["vsn"] = deprecatedAPIMajorVersionStr // for Nomad <= v1.2 compat
 	conf.Tags["raft_vsn"] = fmt.Sprintf("%d", s.config.RaftConfig.ProtocolVersion)
