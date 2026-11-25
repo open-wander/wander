@@ -222,6 +222,7 @@ jobs:
 
       - name: Rehearse packaged Linux lifecycle
         if: matrix.goarch == 'amd64'
+        timeout-minutes: 20
         run: |
           baseline=nomad_1.6.5_linux_amd64.zip
           curl --fail --location --output "${baseline}" \

@@ -14,30 +14,61 @@ fi
 rehearsal_dir=$(mktemp -d)
 base_port=${WANDER_REHEARSAL_BASE_PORT:-$((20000 + ($$ % 10000)))}
 declare -a agent_pids=("" "" "")
+declare -a agent_logs=("" "" "")
+stop_timeout=${WANDER_REHEARSAL_STOP_TIMEOUT:-60}
 curl_fail_flag=--fail
 if curl --help all 2>/dev/null | grep -q -- '--fail-with-body'; then
   curl_fail_flag=--fail-with-body
 fi
 
+# stop_node interrupts an agent and waits at most stop_timeout seconds for it
+# to exit. An agent that does not exit gets SIGQUIT, so the Go runtime writes
+# every goroutine stack to its log, and the log is printed before the agent is
+# killed and the rehearsal fails. Without the limit a hung shutdown left the
+# CI job waiting with no output until the runner killed it.
 stop_node() {
   local index=$1
   local pid=${agent_pids[index]}
-  if [[ -n ${pid} ]] && kill -0 "${pid}" 2>/dev/null; then
-    kill -INT "${pid}"
-    wait "${pid}" || true
-  fi
   agent_pids[index]=""
+  if [[ -z ${pid} ]] || ! kill -0 "${pid}" 2>/dev/null; then
+    return 0
+  fi
+
+  kill -INT "${pid}"
+  local waited
+  for ((waited = 0; waited < stop_timeout * 10; waited++)); do
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      wait "${pid}" || true
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  echo "server ${index} did not exit within ${stop_timeout}s of SIGINT" >&2
+  kill -QUIT "${pid}" 2>/dev/null || true
+  for ((waited = 0; waited < 50; waited++)); do
+    kill -0 "${pid}" 2>/dev/null || break
+    sleep 0.1
+  done
+  kill -KILL "${pid}" 2>/dev/null || true
+  wait "${pid}" || true
+  if [[ -n ${agent_logs[index]} ]]; then
+    echo "--- node ${index} log with goroutine dump ---" >&2
+    cat "${agent_logs[index]}" >&2 || true
+  fi
+  return 1
 }
 
 stop_cluster() {
-  local index
+  local index status=0
   for index in 0 1 2; do
-    stop_node "${index}"
+    stop_node "${index}" || status=1
   done
+  return "${status}"
 }
 
 cleanup() {
-  stop_cluster
+  stop_cluster || true
   rm -rf "${rehearsal_dir}"
   rmdir "${lock_dir}"
 }
@@ -185,6 +216,7 @@ start_node() {
 
   "${binary}" agent -config="${phase_dir}/node-${index}/agent.hcl" >"${log_path}" 2>&1 &
   agent_pids[index]=$!
+  agent_logs[index]=${log_path}
 }
 
 dump_logs() {
@@ -245,15 +277,44 @@ put_marker() {
     --data "{\"Items\":{\"marker\":\"${marker}\"}}" \
     "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state"); then
     echo "failed to write rehearsal marker: ${response}" >&2
+    dump_agent_logs
     return 1
   fi
 }
 
+# require_marker reads the marker back, retrying for up to 30 seconds. Servers
+# copy the root key from a peer in the background, and a server restarted soon
+# after the marker was written can come back to a leader that has not copied
+# the key yet; the read then fails with "no such key" until the replicator
+# reaches the restarted server. A key that never arrives still fails here.
 require_marker() {
   local marker=$1
-  curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
-    "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state" | \
-    grep -q "\"marker\":\"${marker}\""
+  local response attempt
+  for ((attempt = 1; attempt <= 30; attempt++)); do
+    if response=$(curl --connect-timeout 1 --max-time 5 "${curl_fail_flag}" --silent --show-error \
+      "http://127.0.0.1:$(http_port 0)/v1/var/rehearsal/state" 2>&1) &&
+      grep -q "\"marker\":\"${marker}\"" <<<"${response}"; then
+      if ((attempt > 1)); then
+        echo "rehearsal marker ${marker} readable after ${attempt} attempts" >&2
+      fi
+      return 0
+    fi
+    sleep 1
+  done
+  echo "failed to read rehearsal marker ${marker}: ${response}" >&2
+  dump_agent_logs
+  return 1
+}
+
+# dump_agent_logs prints the logs of the agents started last, for failures
+# outside wait_for_cluster that do not know the phase directory.
+dump_agent_logs() {
+  local index
+  for index in 0 1 2; do
+    [[ -n ${agent_logs[index]} ]] || continue
+    echo "--- node ${index} ---" >&2
+    tail -200 "${agent_logs[index]}" >&2 || true
+  done
 }
 
 roll_cluster() {
