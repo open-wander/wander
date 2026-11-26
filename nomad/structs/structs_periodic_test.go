@@ -290,3 +290,64 @@ func TestPeriodConfig_DSTSprintForward_Property(t *testing.T) {
 		}
 	}
 }
+
+// TestPeriodicConfig_DayOfWeek checks that a periodic job launches on the
+// weekdays its spec names, with Sunday as 0, 7 or sun, and leading zeros.
+func TestPeriodicConfig_DayOfWeek(t *testing.T) {
+	ci.Parallel(t)
+
+	sun, mon, tue, wed, thu, fri, sat := time.Sunday, time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday
+	week := []time.Weekday{sun, mon, tue, wed, thu, fri, sat}
+
+	cases := []struct {
+		field string
+		want  []time.Weekday
+	}{
+		{"sun", []time.Weekday{sun}},
+		{"7", []time.Weekday{sun}},
+		{"1-5", []time.Weekday{mon, tue, wed, thu, fri}},
+		{"5-7", []time.Weekday{sun, fri, sat}},
+		{"fri-sun", []time.Weekday{sun, fri, sat}},
+		{"6-7", []time.Weekday{sun, sat}},
+		{"sat-sun", []time.Weekday{sun, sat}},
+		{"6-07", []time.Weekday{sun, sat}},
+		{"1-7/2", []time.Weekday{sun, mon, wed, fri}},
+		{"0-0", []time.Weekday{sun}},
+		{"7-7", []time.Weekday{sun}},
+		{"sun-sun", []time.Weekday{sun}},
+		{"05", []time.Weekday{fri}},
+		{"01-05", []time.Weekday{mon, tue, wed, thu, fri}},
+	}
+
+	// A Saturday; fourteen launches cover every weekday a spec names.
+	from := time.Date(2026, time.November, 28, 12, 0, 0, 0, time.UTC)
+
+	for _, c := range cases {
+		t.Run(c.field, func(t *testing.T) {
+			p := &PeriodicConfig{
+				Enabled:  true,
+				SpecType: PeriodicSpecCron,
+				Specs:    []string{"0 6 * * " + c.field},
+				TimeZone: "UTC",
+			}
+			p.Canonicalize()
+			require.NoError(t, p.Validate())
+
+			seen := make(map[time.Weekday]bool)
+			next := from
+			for range 14 {
+				launch, err := p.Next(next)
+				require.NoError(t, err)
+				seen[launch.Weekday()] = true
+				next = launch
+			}
+			var got []time.Weekday
+			for _, day := range week {
+				if seen[day] {
+					got = append(got, day)
+				}
+			}
+			require.Equal(t, c.want, got)
+		})
+	}
+}

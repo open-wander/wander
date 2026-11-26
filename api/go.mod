@@ -20,6 +20,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/stretchr/testify v1.8.1 // indirect
 	golang.org/x/net v0.62.0 // indirect
 )
+
+replace github.com/hashicorp/cronexpr => github.com/afreidah/cronexpr v1.1.4-0.20261126025906-7fa36347b930

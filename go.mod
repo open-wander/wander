@@ -338,3 +338,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.66 // indirect
 )
+
+replace github.com/hashicorp/cronexpr => github.com/afreidah/cronexpr v1.1.4-0.20261126025906-7fa36347b930
