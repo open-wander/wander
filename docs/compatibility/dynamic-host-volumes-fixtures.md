@@ -2,8 +2,10 @@
 
 [The catalog](../../testdata/dynamic-host-volumes/cases.json) contains invented
 data for future runtime tests. It does not create directories, launch plugins,
-send requests, or demonstrate compatibility. All matrix runtime test IDs remain
-planned. The fixture checker and its tests verify this catalog's boundaries only.
+send requests, or demonstrate compatibility. Matrix runtime test IDs are
+marked implemented in the matrix only when a repository test exists; the others
+remain planned. The fixture checker and its tests verify this catalog's
+boundaries only.
 
 The catalog has a closed schema: `schema_version`, `synthetic_only`, `resources`,
 and `cases`. Resources define two namespaces, two nodes in distinct pools, two

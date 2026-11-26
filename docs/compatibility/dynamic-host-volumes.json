@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
   "feature": "dynamic-host-volumes",
-  "evidence_cutoff": "2026-11-22",
+  "evidence_cutoff": "2026-11-26",
   "synthetic_only": true,
   "sources": [
     {"id":"SRC-api","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-08","scope":"HTTP and claim operation tables; conflicting examples","summary":"Public operation tables only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
+    {"id":"SRC-api-bodies","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-26","scope":"Create and register request and response body samples and intro text, v2.1.x page","summary":"Request body keys Volume and PolicyOverride, the ID rule for updates, and the response keys Volume and Warnings; no status codes.","limitations":"Mutable documentation, no last-updated date shown; no field table for the volume; the samples are not a schema; no error responses documented; no independent binary verification."},
     {"id":"SRC-observe-node-down","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-node-down","date":"2026-11-22","scope":"Volumes, claims and placement while a node is down and after it is garbage collected","summary":"What an official release binary did with volume records, claims and waiting allocations when a client node stopped, returned, and was garbage collected.","limitations":"Two nodes, one version, one platform, development mode; one namespace; the node was stopped without warning, not drained; states were read within about 30 seconds of each change; each case run once; behaviour may differ elsewhere."},
     {"id":"SRC-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/volume/host","date":"2026-11-17","scope":"Volume fields and mkdir parameters","summary":"Specification field descriptions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-plugin","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/plugins/author/host-volume#specification","date":"2026-11-15","scope":"Plugin protocol specification only; implementation examples excluded","summary":"Executable protocol interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
@@ -21,9 +22,9 @@
   "test_cases": [
     {"id":"DHV-T-001","scenario":"Synthetic http_api list using invented volume data-a and node-a where applicable.","expected_outcome":"Verify the contract and resolve/test each outstanding facet for list.","status":"planned","synthetic":true},
     {"id":"DHV-T-002","scenario":"Synthetic http_api read using invented volume data-a and node-a where applicable.","expected_outcome":"Verify the contract and resolve/test each outstanding facet for read.","status":"planned","synthetic":true},
-    {"id":"DHV-T-003","scenario":"Synthetic http_api create using invented volume data-a and node-a where applicable.","expected_outcome":"Verify the contract and resolve/test each outstanding facet for create.","status":"planned","synthetic":true},
-    {"id":"DHV-T-004","scenario":"Synthetic http_api register using invented volume data-a and node-a where applicable.","expected_outcome":"Verify the contract and resolve/test each outstanding facet for register.","status":"planned","synthetic":true},
-    {"id":"DHV-T-005","scenario":"Synthetic http_api update using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected update outcome.","status":"planned","synthetic":true},
+    {"id":"DHV-T-003","scenario":"Synthetic http_api create using invented volume data-a and node-a where applicable.","expected_outcome":"Verify the contract and resolve/test each outstanding facet for create.","status":"implemented","path":"command/agent/host_volume_endpoint_test.go","name":"TestHTTP_HostVolumeCreate_Response","synthetic":true},
+    {"id":"DHV-T-004","scenario":"Synthetic http_api register using invented volume data-a and node-a where applicable.","expected_outcome":"Verify the contract and resolve/test each outstanding facet for register.","status":"implemented","path":"command/agent/host_volume_endpoint_test.go","name":"TestHTTP_HostVolumeRegister_Ready","synthetic":true},
+    {"id":"DHV-T-005","scenario":"Synthetic http_api update using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected update outcome.","status":"implemented","path":"command/agent/host_volume_endpoint_test.go","name":"TestHTTP_HostVolumeWrite_Update","synthetic":true},
     {"id":"DHV-T-006","scenario":"Synthetic http_api deregister using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected deregister outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-007","scenario":"Synthetic http_api claim-read using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected claim-read outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-008","scenario":"Synthetic http_api delete-path-conflict using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected delete-path-conflict outcome.","status":"planned","synthetic":true},
@@ -60,7 +61,7 @@
     {"id":"DHV-T-039","scenario":"Synthetic http_api model.ModifyIndex using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected model.ModifyIndex outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-040","scenario":"Synthetic http_api model.CreateTime using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected model.CreateTime outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-041","scenario":"Synthetic http_api model.ModifyTime using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected model.ModifyTime outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-042","scenario":"Synthetic http_api model.Warnings using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected model.Warnings outcome.","status":"planned","synthetic":true},
+    {"id":"DHV-T-042","scenario":"Synthetic http_api model.Warnings using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected model.Warnings outcome.","status":"implemented","path":"command/agent/host_volume_endpoint_test.go","name":"TestHTTP_HostVolumeWrite_UnknownFieldsAndOverride","synthetic":true},
     {"id":"DHV-T-043","scenario":"Synthetic go_client types using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected types outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-044","scenario":"Synthetic go_client list using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected list outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-045","scenario":"Synthetic go_client read using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected read outcome.","status":"planned","synthetic":true},
@@ -261,15 +262,15 @@
       "operation_field": "create",
       "prd_refs": ["US-011","6.5"],
       "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for create that remain null? Consult permitted evidence before implementation."],
+      "unresolved_questions": ["How does a create over HTTP behave under concurrent requests for the same name or volume beyond the RPC rules (409 operation in progress, 400 name_conflict), and is that tested through HTTP?"],
       "assertions": {
-        "contract": {"status":"documented","value":"PUT /v1/volume/host/create","evidence_refs":["SRC-api"],"test_ids":["DHV-T-003"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-003"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-003"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-003"]},
-        "auth": {"status":"documented","value":"namespace:host-volume-create or host-volume-write; PolicyOverride requires sentinel-override.","evidence_refs":["SRC-api"],"test_ids":["DHV-T-003"]},
+        "contract": {"status":"documented","value":"PUT /v1/volume/host/create","evidence_refs":["SRC-api"],"test_ids":["DHV-T-003"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Documented (SRC-api-bodies): a JSON body with top-level Volume (required) and PolicyOverride (boolean, default false, optional); the ID field of the volume is included to update an existing volume. Wander policy: PUT and POST are both accepted; the body is decoded into its own type, so no top-level key sets the token, region or request namespace; key matching is case-insensitive; the body is read up to 1 MiB; a body with data after the JSON object or with a repeated top-level key (compared case-insensitively) is refused; with no ?namespace, Volume.Namespace is the request namespace and a different ?namespace is refused by the RPC; unknown top-level and Volume keys are ignored and named in Warnings (nested objects are not checked); PolicyOverride is passed on and has no effect.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-003"]},
+        "outputs": {"status":"requirement","value":"Documented (SRC-api-bodies): the body is {Volume, Warnings}, with Warnings null in the samples. Wander policy: Volume has the field names of the read API; Warnings is a string or null; the X-Nomad-Index header is the write index; the reply is not a blocking query and sends no known-leader or last-contact headers.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-003"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy (the public documentation gives no status codes or error bodies): 400 `invalid request body` for an empty body, a body over 1 MiB, malformed JSON, data after the object, a repeated top-level key or a field of the wrong type, and 400 `missing volume` for no volume, both before any RPC call and with no state change; 405 for methods other than PUT and POST; 403 permission denied; a coded RPC error (400, 403, 404, 409, 500, 502, 503) keeps its status and fixed text through the HTTP layer, also when the call was forwarded.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-003"]},
+        "auth": {"status":"requirement","value":"Documented (SRC-api): namespace:host-volume-create or host-volume-write, and namespace:sentinel-override when PolicyOverride is set. Wander policy: host-volume-create or host-volume-write (host-volume-register implies create); sentinel-override is not required, because PolicyOverride has no effect and there is no policy engine to override, so requiring a capability for a no-op would only refuse valid requests. Divergence from the documentation.","evidence_refs":["SRC-api","SRC-requirements"],"test_ids":["DHV-T-003"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-003"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-003"]}
+        "lifecycle": {"status":"requirement","value":"Wander policy: the create RPC replies after the client outcome, so a successful create returns State ready and a refusal by the client or no eligible node returns State failed with its StatusDescription, both as HTTP 200 with the volume. The documented sample shows pending; Wander never returns pending on success. A client transport error is a coded 502 or 500 and leaves a pending record.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-003"]}
       }
     },
     {
@@ -278,15 +279,15 @@
       "operation_field": "register",
       "prd_refs": ["US-011","6.5"],
       "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for register that remain null? Consult permitted evidence before implementation."],
+      "unresolved_questions": ["How does a register over HTTP behave under concurrent requests for the same name, node or volume beyond the RPC rules, and is that tested through HTTP?"],
       "assertions": {
-        "contract": {"status":"documented","value":"PUT /v1/volume/host/register","evidence_refs":["SRC-api"],"test_ids":["DHV-T-004"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-004"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-004"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-004"]},
-        "auth": {"status":"documented","value":"namespace:host-volume-register or host-volume-write; PolicyOverride requires sentinel-override.","evidence_refs":["SRC-api"],"test_ids":["DHV-T-004"]},
+        "contract": {"status":"documented","value":"PUT /v1/volume/host/register","evidence_refs":["SRC-api"],"test_ids":["DHV-T-004"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Documented (SRC-api-bodies): a JSON body with top-level Volume (required) and PolicyOverride (boolean, default false, optional); the ID field of the volume is included to update an existing volume. Wander policy: PUT and POST are both accepted; the body is decoded into its own type, so no top-level key sets the token, region or request namespace; key matching is case-insensitive; the body is read up to 1 MiB; a body with data after the JSON object or with a repeated top-level key (compared case-insensitively) is refused; with no ?namespace, Volume.Namespace is the request namespace and a different ?namespace is refused by the RPC; unknown top-level and Volume keys are ignored and named in Warnings (nested objects are not checked); PolicyOverride is passed on and has no effect.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-004"]},
+        "outputs": {"status":"requirement","value":"Documented (SRC-api-bodies): the body is {Volume, Warnings}, with Warnings null in the samples. Wander policy: Volume has the field names of the read API; Warnings is a string or null; the X-Nomad-Index header is the write index; the reply is not a blocking query and sends no known-leader or last-contact headers.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-004"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy (the public documentation gives no status codes or error bodies): 400 `invalid request body` for an empty body, a body over 1 MiB, malformed JSON, data after the object, a repeated top-level key or a field of the wrong type, and 400 `missing volume` for no volume, both before any RPC call and with no state change; 405 for methods other than PUT and POST; 403 permission denied; a coded RPC error (400, 403, 404, 409, 500, 502, 503) keeps its status and fixed text through the HTTP layer, also when the call was forwarded.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-004"]},
+        "auth": {"status":"requirement","value":"Documented (SRC-api): namespace:host-volume-register or host-volume-write, and namespace:sentinel-override when PolicyOverride is set. Wander policy: host-volume-register or host-volume-write; the create capability alone is refused; sentinel-override is not required (same divergence as create).","evidence_refs":["SRC-api","SRC-requirements"],"test_ids":["DHV-T-004"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-004"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-004"]}
+        "lifecycle": {"status":"requirement","value":"Wander policy: a register returns State ready once the node has accepted the directory, or State failed with its StatusDescription, both as HTTP 200. The documented register sample is ready.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-004"],"implementation":"implemented"}
       }
     },
     {
@@ -295,15 +296,15 @@
       "operation_field": "update",
       "prd_refs": ["US-011","6.5"],
       "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for update that remain null? Consult permitted evidence before implementation."],
+      "unresolved_questions": ["Is the HTTP-level behaviour of two concurrent updates of one volume (409 volume changed concurrently or operation in progress, from the RPC) tested through HTTP?"],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]},
-        "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]},
+        "contract": {"status":"requirement","value":"create or register with Volume.ID","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-005"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Documented (SRC-api-bodies): the ID field of the volume is included when updating an existing volume; there is no separate update path. Wander policy: the same body and endpoints as a new volume; only capacity bounds, requested capabilities, constraints and parameters change; name, type, node ID, node pool, plugin ID and, for register, host path are immutable and an omitted type, node ID, host path or node pool means unchanged; the update is recorded in Raft only and the plugin is not called.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-005"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"The same {Volume, Warnings} reply with the stored volume and the new ModifyIndex; X-Nomad-Index is the index of the update, or the stored ModifyIndex for an identical update.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: 404 `volume not found` for an unknown ID; 409 `volume state is \"<state>\"` for a volume that is not ready; 400 `immutable field <Name>`; 400 `volume origin mismatch` for create on a registered volume or register on a plugin-created one; nothing is written in any of these cases.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: an update through create needs host-volume-create, through register host-volume-register; host-volume-write implies both. There is no separate update capability.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"]}
+        "lifecycle": {"status":"requirement","value":"Wander policy: only a ready volume is updated, and the update is recorded only, with no call to the plugin or the client; the volume stays ready.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-005"],"implementation":"implemented"}
       }
     },
     {
@@ -924,12 +925,12 @@
       "operation_field": "model.Warnings",
       "prd_refs": ["US-001","6.5"],
       "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for model.Warnings that remain null? Consult permitted evidence before implementation."],
+      "unresolved_questions": ["Is a warning ever tied to an ACL, concurrency or lifecycle rule for model.Warnings? None is defined: only PolicyOverride and unknown keys produce a warning."],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]},
+        "contract": {"status":"requirement","value":"Warnings is a nullable string in the create and register reply: null for no warning, otherwise one or more messages. The documented samples show null (SRC-api-bodies); no warning text is documented.","evidence_refs":["SRC-api-bodies","SRC-requirements"],"test_ids":["DHV-T-042"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"A warning is produced by PolicyOverride true (`PolicyOverride has no effect: Wander has no policy engine`) and by unknown keys (`ignored unknown fields: ` followed by the names).","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Messages are joined by a newline, the PolicyOverride message first. Unknown names are top-level or Volume-level (`Volume.Name`), sorted, without duplicates, at most 14 shown then `and N more`, each at most 64 characters then `...`, with unprintable characters replaced by `?`.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"A warning never changes the status or the state: the request is handled as if the ignored parts were absent.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]},
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-042"]}
