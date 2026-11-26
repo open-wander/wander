@@ -1333,6 +1333,19 @@ node update on every server.
 - PATTERN: security - an endpoint whose only access control is the TLS
   certificate level needs a TLS test, or deleting the check passes CI.
 
+## 2026-11-26 — Inherited RPCContext.NodeID race fixed
+
+- One client connection runs its RPCs concurrently; six node RPCs each
+  check-and-set RPCContext.NodeID with no lock while addNodeConn and
+  removeNodeConn read it. Under -race any test with a real client could fail.
+  Fixed with a mutex and two helpers (bindNodeID sets once, nodeID reads) in
+  nomad/rpc.go, used at the six sites and in client_rpc.go. A new test runs
+  UpdateStatus and GetClientAllocs concurrently on one context: it failed 3 of
+  3 runs under -race before the fix, and passes after it.
+- Still open, test-only and inherited: TestClientEndpoint_UpdateStatus_Reconnect
+  shares one msgpack codec between goroutines (node_endpoint_test.go 864/945/
+  964) and races under -race.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
