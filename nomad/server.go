@@ -163,6 +163,10 @@ type Server struct {
 	nodeConns     map[string][]*nodeConnState
 	nodeConnsLock sync.RWMutex
 
+	// dhvCoordinator serialises dynamic host volume placement and tracks the
+	// volumes with a client call in flight.
+	dhvCoordinator *dynamicHostVolumeCoordinator
+
 	// peers is used to track the known Nomad servers. This is
 	// used for region forwarding and clustering.
 	peers      map[string][]*serverParts
@@ -339,6 +343,7 @@ func NewServer(config *Config, consulCatalog consul.CatalogAPI, consulConfigEntr
 		rpcServer:               rpc.NewServer(),
 		streamingRpcs:           structs.NewStreamingRpcRegistry(),
 		nodeConns:               make(map[string][]*nodeConnState),
+		dhvCoordinator:          newDynamicHostVolumeCoordinator(),
 		peers:                   make(map[string][]*serverParts),
 		localPeers:              make(map[raft.ServerAddress]*serverParts),
 		bootstrapped:            &atomic.Bool{},
