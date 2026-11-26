@@ -1008,6 +1008,9 @@ func upsertNodeTxn(txn *txn, index uint64, node *structs.Node) error {
 	if err := upsertCSIPluginsForNode(txn, node, index); err != nil {
 		return fmt.Errorf("csi plugin update failed: %v", err)
 	}
+	if err := deriveDynamicHostVolumesForNodeTxn(txn, index, node.ID, node); err != nil {
+		return fmt.Errorf("dynamic host volume update failed: %v", err)
+	}
 
 	return nil
 }
@@ -1046,6 +1049,9 @@ func deleteNodeTxn(txn *txn, index uint64, nodes []string) error {
 		node := existing.(*structs.Node)
 		if err := deleteNodeCSIPlugins(txn, node, index); err != nil {
 			return fmt.Errorf("csi plugin delete failed: %v", err)
+		}
+		if err := deriveDynamicHostVolumesForNodeTxn(txn, index, nodeID, nil); err != nil {
+			return fmt.Errorf("dynamic host volume update failed: %v", err)
 		}
 	}
 
@@ -1108,6 +1114,9 @@ func (s *StateStore) updateNodeStatusTxn(txn *txn, nodeID, status string, update
 	}
 	if err := txn.Insert("index", &IndexEntry{"nodes", txn.Index}); err != nil {
 		return fmt.Errorf("index update failed: %v", err)
+	}
+	if err := deriveDynamicHostVolumesForNodeTxn(txn, txn.Index, nodeID, copyNode); err != nil {
+		return fmt.Errorf("dynamic host volume update failed: %v", err)
 	}
 	return nil
 }
