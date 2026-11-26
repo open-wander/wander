@@ -923,7 +923,7 @@ in `nomad/structs/dynamic_host_volume_endpoint.go`.
 | Same name | One server mutex covers the node check or selection and the first write, so two requests for one name on one node cannot both pass the check; the state has no unique index on node and name. The loser gets 400 `name_conflict` and writes nothing. The mutex is released before the client call. |
 | Client call | After the pending record is written the server calls `ClientHostVolume.Create` or `ClientHostVolume.Register` with no lock, snapshot or write held. The volume is marked in flight, keyed by namespace and ID, until the request returns on every path. A second request for that volume gets 409 `operation in progress`; it does not wait. |
 | Client outcome | A reply with a status of `ready` or `unavailable` is recorded as `ready` with the reported path and capacity; `unavailable` is a stored state derived from the node, not a rejection. A create records the reported capacity. A register records capacity 0, because the reply carries none, and the host path that was requested. A reply with a reason is recorded as `failed` with the description `<reason>: <message>`, or the reason alone when the message is empty. Nothing else is stored. The directory of a register is never modified by the server. |
-| Failed reply | A recorded failure is a normal reply: the failed volume with its description and the write index, with no RPC error, because an error would drop the reply. The HTTP layer maps it from the state of the returned volume. |
+| Failed reply | A recorded failure is a normal reply: the failed volume with its description and the write index, with no RPC error, because an error would drop the reply. The HTTP layer returns it as HTTP 200 with the failed volume; see [HTTP create, register and update](#http-write-api). |
 | Transport error | An RPC error from the client call, a reply with neither reason nor status, or an outcome the state refuses is not a rejection: the client may have finished the work. The record stays `pending` (a later retry decides) and the call returns a coded error naming the state: 502 `client call failed, volume state is "pending"` or 500 `outcome not recorded, volume state is "pending"`. The error text of the transport failure is never stored or returned. If another writer has moved the record, for example to `deleting`, the error names that state with 409. |
 | Read back | After every write the record is read from a new snapshot and compared with the expected state. A volume found in another state, such as `deleting` after a concurrent delete, gives 409 `volume state is "<state>"`. A volume moved from `ready` to `unavailable` by a node update is accepted. |
 | Reply index | The index of the last Raft write made for the request, or the stored modify index of the volume for an identical update. |
@@ -948,6 +948,41 @@ in `nomad/structs/dynamic_host_volume_endpoint.go`.
 | Logging | The reconciler logs the namespace, the ID, the state and a code only, never a host path, a parameter or the text of a client error. |
 | Clock | Only the reconciler reads the clock: the modify time goes into the command and the age comes from the record. The apply reads no clock. |
 | Inherited code | `nomad/server.go` gains one field, `dhvCoordinator`, and its construction in `NewServer`. `nomad/leader.go` gains two calls: `establishLeadership` starts the reconciler and `revokeLeadership` stops it and waits for it to exit. Start stops a running instance first, because the reassert path of the leader loop runs revoke and then establish with the same stop channel. No other inherited code changes. |
+
+## HTTP create, register and update {#http-write-api}
+
+### Recorded evidence
+
+The public API documentation (SRC-api-bodies, read 2026-11-26, interface
+evidence only; the page shows no last-updated date) gives these facts. Create
+is `PUT /v1/volume/host/create` and register is `PUT /v1/volume/host/register`;
+neither is a blocking query. The body has a top-level `Volume` (required) and
+`PolicyOverride` (boolean, default false, optional). The `Volume` carries its
+`ID` when it updates an existing volume, and the same request without an ID
+creates a new one; there is no separate update path. The reply is
+`{"Volume": <volume>, "Warnings": null}`. The create sample shows the state
+`pending` and the register sample `ready`. The page gives no status codes, no
+error bodies and no warning text, so every status code and text below is
+Wander policy. The matrix entries are DHV-B-003, DHV-B-004, DHV-B-005 and
+DHV-B-042. Implemented in `command/agent/host_volume_endpoint.go`.
+
+### Wander policy
+
+| Question | Wander policy |
+| --- | --- |
+| Routes | `create` and `register` are routed before the read by ID. Volume IDs are UUIDs, so reserving the two words costs nothing. PUT and POST are accepted; every other method on these paths, GET included, is 405. `GET /v1/volume/host/:id` and 405 for other methods on an ID are unchanged, and an extra path segment is 404. |
+| Server calls | `HostVolume.Create` and `HostVolume.Register`. A volume with an ID updates the stored volume with the rules of the RPC (see [Create and register](#create-register-api)); the handler adds none. |
+| Body decoding | The body is decoded into a type of the agent package holding `Volume` and `PolicyOverride`, not into the RPC request. A top-level `Namespace`, `Region`, `AuthToken` or `IdempotencyToken` key therefore sets nothing; in particular a token in the body is not a credential. Key matching is case-insensitive, as for every JSON body of the API. The body is read up to 1 MiB and must be one JSON object: data after it is refused, as in the plugin output rule. A top-level key may appear once, compared under the same case folding as field matching (`Volume` and `volume` are the same key): the decoder merges repeated occurrences into one value while the unknown-field check sees only the last, so an unknown key in an earlier occurrence would go unnamed. Keys inside the volume are not checked for repeats. The shared `decodeBody` is inherited and unchanged. |
+| Fixed 400 texts | `invalid request body` for an empty body, a body over 1 MiB, malformed JSON, data after the object, a body that is not an object, a repeated top-level key, or a field of the wrong type; `missing volume` for no volume or a null volume. The decoder text is never returned, because it carries offsets and input characters. Both are checked before any RPC call and write nothing. |
+| Namespace | The request namespace is `?namespace`, else `Volume.Namespace`, else `default`, mirroring the inherited `namespaceForJob`. The ACL check runs on that namespace. When both are set and differ, the RPC answers 400 `volume namespace does not match the request namespace`. Without this the documented sample, which has a body namespace and no query, would fail in any namespace but `default`. The region follows the usual `?region`. |
+| Unknown fields | Chosen option: they are accepted, ignored and named in Warnings, so they are not silently taken as implemented. Top-level keys appear as `Name` and keys of the volume as `Volume.Name`; nested objects (constraints, requested capabilities) are not checked. The names are sorted, without duplicates, at most 14 are shown then `and N more`, each at most 64 characters then `...`, with unprintable characters replaced by `?`. A field of the volume that the model has is never unknown, whether or not the server ignores it (for example `State`). Strict refusal was rejected because clients that send fields of other releases would break. |
+| PolicyOverride | Passed to the RPC, which ignores it. The reply Warnings says `PolicyOverride has no effect: Wander has no policy engine`. The documentation lists `sentinel-override` as required with it; Wander does not require it, because there is no policy engine to override and a capability for a no-op would only refuse valid requests. This is a divergence from the documentation. |
+| Warnings | A string or null, never an empty string. Several messages are joined by a newline, the PolicyOverride message first. A warning never changes a status or a stored record. |
+| Reply | `{"Volume": ..., "Warnings": ...}` with HTTP 200. The volume has the same field names as the read API. `X-Nomad-Index` is the write index of the reply; no query metadata is sent because the reply carries none. |
+| Failed create or register | A volume the RPC recorded as `failed` (no eligible node, or a refusal by the client) is a normal reply: HTTP 200 with the failed volume and its `StatusDescription`. A successful create is `ready`, not `pending` as in the documented sample, because the RPC replies after the client outcome. |
+| Coded errors | A coded RPC error (400, 403, 404, 409, 500, 502, 503) keeps its status and fixed text, also when forwarded to another server or region, because the code is carried in the error text and `wrap` reads it from the start of the text. A 502 or 500 after the first write leaves a pending record, so those two do not mean no state change; the decode and validation 400s do. |
+| Capability | As the RPC: create needs `host-volume-create`, register `host-volume-register`, `host-volume-write` implies both, and an update needs the capability of the endpoint it goes through. Read or delete alone, or no token, is 403. |
+| Inherited code | none changed. `command/agent/http.go` is untouched: the existing `/v1/volume/host/` prefix route reaches the handler. |
 
 ## Extension workflow {#extension-workflow}
 

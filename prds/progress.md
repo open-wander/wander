@@ -1399,8 +1399,30 @@ node update on every server.
   wait; exclude waits the bound should not count explicitly.
 - PATTERN: reconcile - never record failed while a client call is still out;
   a late success becomes an orphan.
+## 2026-11-26 — Task 4.6d complete
+
+- PUT and POST /v1/volume/host/create and /register return {Volume, Warnings}
+  with X-Nomad-Index; an existing ID updates through the same calls.
+- Evidence: the public API page read on 2026-11-26 (new source
+  SRC-api-bodies) for paths, ACLs and the request and response shapes only;
+  the worker had no web access and got the facts in its brief.
+- Wander policy: unknown fields ignored and named in Warnings; PolicyOverride
+  has no effect and says so in Warnings (no sentinel-override needed); body
+  namespace used when the query has none; a failed create or register is
+  HTTP 200 with the failed volume; fixed 400 texts; body limit 1 MiB; a
+  repeated top-level key is refused; `create` and `register` are reserved.
+- The body decodes into an agent-local struct, so top-level AuthToken,
+  Namespace or Region keys cannot set RPC fields.
+- Not covered by an HTTP test: create to ready (needs a client plugin root);
+  forwarding of coded errors is characterised only.
+- Inherited flake: TestWorker_dequeueEvaluation can hang in
+  EvalBroker.waitForSchedulers until the package times out; reproduced on
+  main (30 runs) and seen once in CI on #99.
+- PATTERN: http - decoding a body straight into an RPC request that embeds
+  WriteRequest lets the body set AuthToken and Namespace; decode into a local
+  struct.
 
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.6c and 4.8 are done. Next: 4.6d (HTTP), then 4.7 and 4.9.
+- 4.2 to 4.6d and 4.8 are done. Next: 4.7 (delete, deregister, claims), then 4.9.
