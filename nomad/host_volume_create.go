@@ -56,10 +56,18 @@ type dynamicHostVolumeCoordinator struct {
 	mu       sync.Mutex
 	inFlight map[string]struct{}
 	hook     func(point string)
+
+	// The leader's retry loop keeps its settings and its run handle here, so
+	// the server needs no field of its own for it.
+	reconcileSettings dynamicHostVolumeReconcileSettings
+	reconcileRun      dynamicHostVolumeReconcileRun
 }
 
 func newDynamicHostVolumeCoordinator() *dynamicHostVolumeCoordinator {
-	return &dynamicHostVolumeCoordinator{inFlight: make(map[string]struct{})}
+	return &dynamicHostVolumeCoordinator{
+		inFlight:          make(map[string]struct{}),
+		reconcileSettings: defaultDynamicHostVolumeReconcileSettings(),
+	}
 }
 
 // begin marks the volume in flight. It reports false if it already is.
@@ -413,14 +421,7 @@ func (v *HostVolume) recordNoNode(vol *structs.DynamicHostVolume, diag *DynamicH
 		return false, 0, hostVolumeApplyError(err)
 	}
 
-	text := diag.Reason
-	for i, f := range diag.Filtered {
-		sep := ","
-		if i == 0 {
-			sep = ": "
-		}
-		text += fmt.Sprintf("%s%s=%d", sep, f.Reason, f.Count)
-	}
+	text := dynamicHostVolumeDiagnosticText(diag)
 	index, err := v.apply(structs.DynamicHostVolumeOutcomeRequestType, &structs.DynamicHostVolumeOutcomeRequest{
 		Key:          structs.DynamicHostVolumeKey{Namespace: vol.Namespace, ID: vol.ID},
 		State:        structs.DynamicHostVolumeStateFailed,
@@ -432,6 +433,21 @@ func (v *HostVolume) recordNoNode(vol *structs.DynamicHostVolume, diag *DynamicH
 		return false, 0, v.leftError(vol.Namespace, vol.ID, http.StatusInternalServerError, hostVolumeErrOutcome)
 	}
 	return true, index, nil
+}
+
+// dynamicHostVolumeDiagnosticText renders a diagnostic as its reason followed
+// by the codes and counts of the filtered nodes, for example
+// "no_eligible_node: node_pool=1".
+func dynamicHostVolumeDiagnosticText(diag *DynamicHostVolumeNodeDiagnostic) string {
+	text := diag.Reason
+	for i, f := range diag.Filtered {
+		sep := ","
+		if i == 0 {
+			sep = ": "
+		}
+		text += fmt.Sprintf("%s%s=%d", sep, f.Reason, f.Count)
+	}
+	return text
 }
 
 // registerHostVolumeNode checks the node a registration names. Register names
@@ -475,9 +491,15 @@ func registerHostVolumeNode(snap *state.StateSnapshot, vol *structs.DynamicHostV
 	return node, nil
 }
 
-// settle asks the node to act on the pending volume and records the answer. It
-// runs with no lock held. It returns the index of the outcome write.
-func (v *HostVolume) settle(register bool, vol *structs.DynamicHostVolume) (uint64, error) {
+// errHostVolumeClientReply marks a client reply that is neither a rejection nor
+// a success, so it settles nothing.
+var errHostVolumeClientReply = errors.New("client reply carries neither a reason nor a usable status")
+
+// clientCall asks the node to act on the pending volume and turns the reply
+// into the outcome to record. It runs with no lock held and writes nothing. It
+// returns the raw error of the call, or errHostVolumeClientReply for a reply
+// that settles nothing; neither is ever stored or returned to a caller.
+func (v *HostVolume) clientCall(register bool, vol *structs.DynamicHostVolume) (*structs.DynamicHostVolumeOutcomeRequest, error) {
 	var reason, message, status, hostPath string
 	var capacity int64
 	var err error
@@ -498,10 +520,8 @@ func (v *HostVolume) settle(register bool, vol *structs.DynamicHostVolume) (uint
 		}, &resp)
 		reason, message, status, hostPath, capacity = resp.Reason, resp.Message, resp.Status, resp.HostPath, resp.CapacityBytes
 	}
-	// The text of a transport error is never stored or returned: it can
-	// carry addresses and client output.
 	if err != nil {
-		return 0, v.leftError(vol.Namespace, vol.ID, http.StatusBadGateway, hostVolumeErrClientCall)
+		return nil, err
 	}
 
 	outcome := &structs.DynamicHostVolumeOutcomeRequest{
@@ -522,6 +542,18 @@ func (v *HostVolume) settle(register bool, vol *structs.DynamicHostVolume) (uint
 		outcome.State = structs.DynamicHostVolumeStateReady
 		outcome.HostPath, outcome.CapacityBytes = hostPath, capacity
 	default:
+		return nil, errHostVolumeClientReply
+	}
+	return outcome, nil
+}
+
+// settle asks the node to act on the pending volume and records the answer. It
+// runs with no lock held. It returns the index of the outcome write.
+func (v *HostVolume) settle(register bool, vol *structs.DynamicHostVolume) (uint64, error) {
+	outcome, err := v.clientCall(register, vol)
+	// The text of a transport error is never stored or returned: it can
+	// carry addresses and client output.
+	if err != nil {
 		return 0, v.leftError(vol.Namespace, vol.ID, http.StatusBadGateway, hostVolumeErrClientCall)
 	}
 	index, err := v.apply(structs.DynamicHostVolumeOutcomeRequestType, outcome)

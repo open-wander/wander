@@ -414,6 +414,51 @@ func TestStateStore_DynamicHostVolumeAssignNode(t *testing.T) {
 	})
 }
 
+// A request that named no pool, or all pools, is stored with that pool. Giving
+// the volume its node fills in the node's own pool and nothing else; a named
+// pool never changes.
+func TestStateStore_DynamicHostVolumeAssignNodeFillsPool(t *testing.T) {
+	seedPool := func(t *testing.T, pool string) (*StateStore, *structs.DynamicHostVolume) {
+		store := TestStateStore(t)
+		v := transitionVolume("volume-a")
+		v.NodePool = pool
+		require.NoError(t, store.CreateDynamicHostVolumes(11, []*structs.DynamicHostVolume{v}))
+		return store, transitionGet(t, store, "volume-a")
+	}
+	assign := func(cur *structs.DynamicHostVolume, pool string) *structs.DynamicHostVolume {
+		next := transitionPending("volume-a")
+		next.ModifyIndex, next.CreateIndex = cur.ModifyIndex, cur.CreateIndex
+		next.NodePool = pool
+		return next
+	}
+	for _, stored := range []string{"", structs.NodePoolAll} {
+		t.Run("pool "+stored+" takes the node pool", func(t *testing.T) {
+			store, cur := seedPool(t, stored)
+			require.NoError(t, store.CreateDynamicHostVolumes(20, []*structs.DynamicHostVolume{assign(cur, "synthetic-pool")}))
+			got := transitionGet(t, store, "volume-a")
+			require.Equal(t, "synthetic-pool", got.NodePool)
+			require.Equal(t, transitionNode, got.NodeID)
+			require.Equal(t, structs.DynamicHostVolumeStatePending, got.State)
+		})
+	}
+	t.Run("a named pool cannot change", func(t *testing.T) {
+		store, cur := seedPool(t, "synthetic-pool")
+		require.ErrorIs(t, store.CreateDynamicHostVolumes(20, []*structs.DynamicHostVolume{assign(cur, "other-pool")}),
+			ErrDynamicHostVolumeStateConflict)
+		require.True(t, cur.Equal(transitionGet(t, store, "volume-a")))
+	})
+	t.Run("the fill still refuses any other change", func(t *testing.T) {
+		store, cur := seedPool(t, "")
+		next := assign(cur, "synthetic-pool")
+		next.Name = "other"
+		require.Error(t, store.CreateDynamicHostVolumes(20, []*structs.DynamicHostVolume{next}))
+		next = assign(cur, "synthetic-pool")
+		next.RequestedCapacityMaxBytes = 5
+		require.ErrorIs(t, store.CreateDynamicHostVolumes(20, []*structs.DynamicHostVolume{next}), ErrDynamicHostVolumeStateConflict)
+		require.True(t, cur.Equal(transitionGet(t, store, "volume-a")))
+	})
+}
+
 func TestStateStore_DynamicHostVolumeUpdateRules(t *testing.T) {
 	readyStore := func(t *testing.T) (*StateStore, *structs.DynamicHostVolume, uint64) {
 		store := TestStateStore(t)
