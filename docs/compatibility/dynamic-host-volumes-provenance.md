@@ -834,6 +834,22 @@ decision of 2026-11-22. The tag and the minimum version are owner decisions of
 | Apply-time re-check | The plan applier re-reads, from the snapshot it evaluates, the record of every dynamic volume a new placement requests, and refuses the placement unless the record is `ready`, belongs to the node of the placement and carries the requested name. `deleting`, `unavailable`, `pending`, `requested`, `failed`, a removed record and a record of another node are all refused. A record the node no longer advertises is refused too, found by namespace, node and name. Only that node's part of the plan is rejected, the other nodes keep theirs, and the evaluation is refreshed. The refusal reason is the bounded string `dynamic host volume not usable`, which never names a volume, a source or a path. A static volume of the same name, which has an empty ID, is not affected, and neither is a source with no record. Allocations already on the node, such as in-place updates, are not re-checked, so running work keeps running. A node that is down or disconnected is refused by the inherited node check (`node is not ready for placements`), not by the volume re-check. |
 | Release | The derivation must ship in the same release as the 0.1.2 version gate on the commands. Until every server runs it, no volume record exists, so an older server computes the same state. If 0.1.2 is released without it, the minimum version of the gate must be raised to the release that contains it. |
 
+### Node read API {#node-read-api}
+
+Wander policy, from the owner decision that the node read API lists a dynamic
+host volume only when the token may read host volumes in its namespace.
+
+| Question | Wander policy |
+| --- | --- |
+| Rule | A dynamic host volume (an entry whose `ID` is set) appears in `Node.HostVolumes` and `NodeListStub.HostVolumes` only when a volume record with that ID exists on the node and the token holds `host-volume-read` (or a capability that implies it) in the namespace of that record. Static volumes, which have no ID, are listed as before. Namespace matching is the existing ACL matching, so wildcard and glob namespace policies apply. |
+| Unattributed ID | An advertised ID with no record on that node is hidden from every token except management, because it cannot be attributed to a namespace. A record that exists only on another node does not make the entry visible. If records in two namespaces carry the same ID on the node, the entry is shown only when both are readable. |
+| Bypass | Management tokens, a server with ACLs disabled, and client identity calls (a node secret, which resolves to no ACL) see every entry unchanged. Client identities are trusted between nodes as before. |
+| Paths filtered | `Node.GetNode` (`/v1/node/:id`), `Node.List` with or without fields (`/v1/nodes`) and `NodePool.ListNodes` (`/v1/node/pool/:name/nodes`). The filter runs on the server that answers, after forwarding, and builds a new map: the stored node is never modified. |
+| Blocking | The reply index stays the node index. The volume lookup adds no watch, so a change to a volume record alone does not wake a blocked node query. |
+| Inherited code | The three endpoints above are inherited. Each gains one call to `nodeHostVolumesForRead` (`nomad/host_volume_node_read.go`); `Node.List` now keeps the resolved ACL instead of discarding it, and `Node.GetNode` copies the node before replacing the map. |
+| Out of scope | Search and fuzzy search return node IDs and names only. Operator snapshot save is management only. `/v1/agent/self` returns only the local agent's static `host_volume` configuration. `Node.GetClientAllocs`, `Node.UpdateStatus` and `Node.Register` replies do not return the node. The scheduler, plan applier, Go API, CLI and UI only render what these endpoints return. |
+| Node event stream | The `Node` event topic carries static host volumes only, for every subscriber, management included. The broker builds one payload for all subscribers and the topic needs only `node:read`, so it cannot follow the per-namespace rule above. Dynamic entries are removed from node registration, update and deregistration events in `nomad/state/events_dynamic_host_volume.go`; dynamic volumes are read through the node and volume APIs instead. Owner decision of 2026-11-26. Inherited `nomad/state/events.go` changes in the two places that build a node event. |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

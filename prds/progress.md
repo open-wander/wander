@@ -1290,7 +1290,28 @@ node update on every server.
 - PATTERN: review - after removing a guard, grep the doc comment for claims the
   guard made.
 
+## 2026-11-26 — Task 4.8 complete
+
+- Node.GetNode, Node.List (with and without fields) and NodePool.ListNodes
+  show a dynamic host volume only when the token may read host volumes in
+  every namespace holding a record with that ID on the node. Static volumes
+  stay. ACLs off, client identity and management see everything. An
+  advertised ID with no record is hidden. New Wander helper
+  `nomad/host_volume_node_read.go`; one hook in each inherited endpoint.
+- NodePool.ListNodes was missing from the task; the advisor found it.
+- Owner decision 2026-11-26: the Node event stream strips dynamic host
+  volumes for every subscriber, management included, because the broker
+  shares one payload per event (`nomad/state/events_dynamic_host_volume.go`,
+  two hooks in inherited `events.go`).
+- The volume lookup takes no watch set, so a change to a volume record alone
+  does not wake a blocked node query; recorded in provenance.
+- PATTERN: security - Node.Sanitize returns the stored pointer when SecretID
+  is empty, and Node.Stub shares the HostVolumes map; build a new map and
+  copy the node before replacing a field.
+- PATTERN: security - a shared event payload cannot follow a per-token rule;
+  find every stream topic that carries a filtered field.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.5 are done. Next: 4.8, then 4.6, 4.7 and 4.9.
+- 4.2 to 4.5 and 4.8 are done. Next: 4.6, then 4.7 and 4.9.

@@ -549,6 +549,14 @@ func (s *StateStore) DynamicHostVolumesByNamespace(ws memdb.WatchSet, namespace 
 func (s *StateStore) DynamicHostVolumesByNodeID(ws memdb.WatchSet, namespace, node string) (memdb.ResultIterator, error) {
 	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, indexNodeID+"_prefix", namespace, node, "")
 }
+
+// DynamicHostVolumesByNode returns the volumes recorded on a node in every
+// namespace. The node read API uses it to attribute an advertised volume to a
+// namespace.
+func (s *StateStore) DynamicHostVolumesByNode(ws memdb.WatchSet, nodeID string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, dynamicHostVolumeNodeOnlyIndex, nodeID)
+}
+
 func (s *StateStore) DynamicHostVolumesByPluginID(ws memdb.WatchSet, namespace, plugin string) (memdb.ResultIterator, error) {
 	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, dynamicHostVolumePluginIndex+"_prefix", namespace, plugin, "")
 }

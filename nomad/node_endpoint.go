@@ -1048,6 +1048,15 @@ func (n *Node) GetNode(args *structs.NodeSpecificRequest,
 			// Setup the output
 			if out != nil {
 				out = out.Sanitize()
+				vols, changed, err := nodeHostVolumesForRead(aclObj, state, out.ID, out.HostVolumes)
+				if err != nil {
+					return err
+				}
+				if changed {
+					// The sanitized node may be the stored object; never modify it.
+					out = out.Copy()
+					out.HostVolumes = vols
+				}
 				reply.Node = out
 				reply.Index = out.ModifyIndex
 			} else {
@@ -1598,9 +1607,11 @@ func (n *Node) List(args *structs.NodeListRequest,
 	defer metrics.MeasureSince([]string{"nomad", "client", "list"}, time.Now())
 
 	// Check node read permissions
-	if aclObj, err := n.srv.ResolveACL(args); err != nil {
+	aclObj, err := n.srv.ResolveACL(args)
+	if err != nil {
 		return err
-	} else if aclObj != nil && !aclObj.AllowNodeRead() {
+	}
+	if aclObj != nil && !aclObj.AllowNodeRead() {
 		return structs.ErrPermissionDenied
 	}
 
@@ -1632,7 +1643,14 @@ func (n *Node) List(args *structs.NodeListRequest,
 			// responsible for appending a node to the nodes array.
 			paginatorImpl, err := paginator.NewPaginator(iter, tokenizer, nil, args.QueryOptions,
 				func(raw interface{}) error {
-					nodes = append(nodes, raw.(*structs.Node).Stub(args.Fields))
+					node := raw.(*structs.Node)
+					stub := node.Stub(args.Fields)
+					vols, _, err := nodeHostVolumesForRead(aclObj, state, node.ID, stub.HostVolumes)
+					if err != nil {
+						return err
+					}
+					stub.HostVolumes = vols
+					nodes = append(nodes, stub)
 					return nil
 				})
 			if err != nil {
