@@ -178,7 +178,10 @@ func createDynamicHostVolumeTxn(tx *txn, index uint64, candidate *structs.Dynami
 // assignDynamicHostVolumeNodeTxn moves a requested volume to pending. NodeID is
 // immutable everywhere else, so the generic check runs against a candidate whose
 // node is set back to the empty one, and the move may change nothing besides the
-// node, the state and the times.
+// node, the state and the times. A request that named no pool, or all pools, is
+// stored with that value; the move also gives such a volume the pool of its
+// node, so that a pending record always holds the pool of its node. A named
+// pool never changes.
 func assignDynamicHostVolumeNodeTxn(tx *txn, index uint64, existing, candidate *structs.DynamicHostVolume) error {
 	if existing.State != structs.DynamicHostVolumeStateRequested || existing.NodeID != "" ||
 		candidate.State != structs.DynamicHostVolumeStatePending || candidate.NodeID == "" ||
@@ -190,6 +193,9 @@ func assignDynamicHostVolumeNodeTxn(tx *txn, index uint64, existing, candidate *
 	}
 	probe := candidate.Copy()
 	probe.NodeID = existing.NodeID
+	if existing.NodePool == "" || existing.NodePool == structs.NodePoolAll {
+		probe.NodePool = existing.NodePool
+	}
 	if err := existing.ValidateImmutableFields(probe); err != nil {
 		return fmt.Errorf("volume identity: %w", err)
 	}

@@ -1368,7 +1368,39 @@ node update on every server.
   be moved to unavailable under the test; put fixtures on a node no client
   touches.
 
+## 2026-11-26 — Task 4.6c complete
+
+- Leader-only reconciler (nomad/host_volume_reconcile.go) drives volumes
+  left requested or pending to ready or failed. Started in
+  establishLeadership and stopped in revokeLeadership (two lines in inherited
+  leader.go); start stops any running copy, because leaderLoop's reassert path
+  calls establishLeadership again with the same stopCh.
+- Shares the coordinator in-flight set with the RPCs; re-reads the record and
+  requires the same ModifyIndex after marking it in flight.
+- Policy: backoff 1s doubling to 60s with jitter; bound 10 minutes from
+  ModifyTime or the last version-gate refusal, at least one attempt on this
+  leader first, then `retry_limit_reached`; unknown node fails at once with
+  `node_not_found`; a refused outcome is dropped; the version gate waits.
+- A client call past its deadline keeps the volume in flight until it
+  returns, and its real answer is recorded, so a slow success never leaves an
+  orphan behind a failed record. RPCs on that volume get 409 meanwhile.
+- Owner decision 2026-11-26: the assign step stores the node's pool when the
+  requested pool is empty or all; a named pool never changes. FSM change, so
+  it must ship in 0.1.2.
+- TestHostVolumeCreate_ACL flake was pre-existing on main: a client node write
+  moves a created volume to unavailable during a denied call. Fixed in the
+  test by repeating the denied call when the nodes index moved.
+- Process slip: the worker wrote the code before the tests; mutation runs
+  stand in for failing-first evidence.
+- Still open, inherited: TestCoreScheduler_JobGC_StoppedRemovesDynamicHostVolumeClaims
+  races under -race (TimeTable write in the test vs the FSM), and repeated
+  establishLeadership trips a race in nomad/drainer.
+- PATTERN: reconcile - an age bound measured from a stored time counts every
+  wait; exclude waits the bound should not count explicitly.
+- PATTERN: reconcile - never record failed while a client call is still out;
+  a late success becomes an orphan.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.6b and 4.8 are done; the inherited ctx.NodeID race is fixed (#98). Next: 4.6c, then 4.6d, 4.7 and 4.9.
+- 4.2 to 4.6c and 4.8 are done. Next: 4.6d (HTTP), then 4.7 and 4.9.

@@ -191,6 +191,13 @@ func (e *dhvEnv) tableIndex() uint64 {
 	return idx
 }
 
+func nodesIndex(t *testing.T, s *Server) uint64 {
+	t.Helper()
+	idx, err := s.State().Index("nodes")
+	must.NoError(t, err)
+	return idx
+}
+
 func (e *dhvEnv) records() []*structs.DynamicHostVolume {
 	e.t.Helper()
 	iter, err := e.s.State().DynamicHostVolumes(nil)
@@ -1309,18 +1316,30 @@ func TestHostVolumeCreate_ACL(t *testing.T) {
 			check := func(label string, allow bool, method, ns string, mk func() *structs.DynamicHostVolume) {
 				t.Run(label, func(t *testing.T) {
 					e := e.with(t)
-					index, recs := e.snapshotTable()
-					nc, nr := e.mock.counts()
-					err := send(method, ns, mk())
 					if allow {
-						must.NoError(t, err)
+						must.NoError(t, send(method, ns, mk()))
 						return
 					}
-					must.EqError(t, err, structs.ErrPermissionDenied.Error())
-					nc2, nr2 := e.mock.counts()
-					must.Eq(t, nc, nc2, must.Sprint("a denied call reached the client"))
-					must.Eq(t, nr, nr2, must.Sprint("a denied call reached the client"))
-					e.mustUnchanged(index, recs)
+					// Volumes created by the allowed calls sit on the client's
+					// node, which does not advertise them: a node write from the
+					// client moves them to unavailable and bumps the table index.
+					// A denied call never writes a node, so it is checked again
+					// when the nodes table moved during the call.
+					for try := 1; ; try++ {
+						nodes := nodesIndex(t, e.s)
+						index, recs := e.snapshotTable()
+						nc, nr := e.mock.counts()
+						err := send(method, ns, mk())
+						must.EqError(t, err, structs.ErrPermissionDenied.Error())
+						nc2, nr2 := e.mock.counts()
+						must.Eq(t, nc, nc2, must.Sprint("a denied call reached the client"))
+						must.Eq(t, nr, nr2, must.Sprint("a denied call reached the client"))
+						if try < 3 && nodesIndex(t, e.s) != nodes {
+							continue
+						}
+						e.mustUnchanged(index, recs)
+						return
+					}
 				})
 			}
 			newCreate := func() *structs.DynamicHostVolume { return dhvReqVolume("c-" + uuid.Short()) }
