@@ -36,6 +36,8 @@ type mockClientHostVolume struct {
 	// held, so a test can block a call or observe its timing.
 	createReply   func(*cstructs.HostVolumeCreateRequest) cstructs.HostVolumeCreateResponse
 	registerReply func(*cstructs.HostVolumeRegisterRequest) cstructs.HostVolumeRegisterResponse
+	deleteReply   func(*cstructs.HostVolumeDeleteRequest) cstructs.HostVolumeDeleteResponse
+	deregReply    func(*cstructs.HostVolumeDeregisterRequest) cstructs.HostVolumeDeregisterResponse
 	hook          func()
 }
 
@@ -75,6 +77,9 @@ func (m *mockClientHostVolume) Delete(req *cstructs.HostVolumeDeleteRequest, res
 	m.mu.Lock()
 	m.deletes = append(m.deletes, *req)
 	*resp = cstructs.HostVolumeDeleteResponse{VolumeID: req.VolumeID}
+	if m.deleteReply != nil {
+		*resp = m.deleteReply(req)
+	}
 	hook, err := m.hook, m.err
 	m.mu.Unlock()
 	if hook != nil {
@@ -87,6 +92,9 @@ func (m *mockClientHostVolume) Deregister(req *cstructs.HostVolumeDeregisterRequ
 	m.mu.Lock()
 	m.deregs = append(m.deregs, *req)
 	*resp = cstructs.HostVolumeDeregisterResponse{VolumeID: req.VolumeID}
+	if m.deregReply != nil {
+		*resp = m.deregReply(req)
+	}
 	hook, err := m.hook, m.err
 	m.mu.Unlock()
 	if hook != nil {
@@ -100,6 +108,22 @@ func (m *mockClientHostVolume) removalCounts() (int, int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.deletes), len(m.deregs)
+}
+
+// firstRemovals returns the first delete and deregister requests received, or
+// zero values when there were none, read under the mock's lock.
+func (m *mockClientHostVolume) firstRemovals() (cstructs.HostVolumeDeleteRequest, cstructs.HostVolumeDeregisterRequest) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var d cstructs.HostVolumeDeleteRequest
+	var r cstructs.HostVolumeDeregisterRequest
+	if len(m.deletes) > 0 {
+		d = m.deletes[0]
+	}
+	if len(m.deregs) > 0 {
+		r = m.deregs[0]
+	}
+	return d, r
 }
 
 // set changes the mock's configuration while the client may be serving calls.

@@ -344,7 +344,8 @@ func dynamicHostVolumeServerOwnedUnchanged(existing, candidate *structs.DynamicH
 
 // MarkDynamicHostVolumesDeleting moves volumes to deleting. A volume already
 // deleting is left untouched, so its modify index still matches a later
-// removal. The whole batch is refused if one volume cannot be marked.
+// removal, and is not checked for use again. A volume a live allocation uses is
+// refused. The whole batch is refused if one volume cannot be marked.
 func (s *StateStore) MarkDynamicHostVolumesDeleting(index uint64, keys []structs.DynamicHostVolumeKey, modifyTime int64) error {
 	return s.writeDynamicHostVolumeBatch(index, TableDynamicHostVolumes, len(keys), func(tx *txn, position int, seen map[string]bool) error {
 		key := keys[position]
@@ -360,6 +361,16 @@ func (s *StateStore) MarkDynamicHostVolumesDeleting(index uint64, keys []structs
 		}
 		if !dynamicHostVolumeTransitionAllowed(existing.State, structs.DynamicHostVolumeStateDeleting) {
 			return dynamicHostVolumeTransitionError(existing.State)
+		}
+		// The client deletes the directory after this mark, so a live
+		// allocation must refuse it here: Raft orders this apply with the plan
+		// applier, which closes the window a check made before the write leaves.
+		inUse, err := dynamicHostVolumeInUse(tx, existing)
+		if err != nil {
+			return err
+		}
+		if inUse {
+			return ErrDynamicHostVolumeStateInUse
 		}
 		volume := existing.Copy()
 		volume.State, volume.ModifyTime = structs.DynamicHostVolumeStateDeleting, modifyTime
