@@ -4,6 +4,7 @@
 package state
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -340,4 +341,28 @@ func TestStateStore_DynamicHostVolumeNode_EmptyNodeIDMatchesNothing(t *testing.T
 	got, err = dynamicHostVolumesOnNodeTxn(tx, dhvNodeA)
 	must.NoError(t, err)
 	must.Len(t, 1, got)
+}
+
+func TestStateStore_DynamicHostVolumesByNode_AllNamespaces(t *testing.T) {
+	store := testStateStore(t)
+	must.NoError(t, store.UpsertNamespaces(1, []*structs.Namespace{{Name: "ns-a"}, {Name: "ns-b"}}))
+	mk := func(ns, id, node string) *structs.DynamicHostVolume {
+		return &structs.DynamicHostVolume{
+			ID: id, Name: "name-" + id, Namespace: ns, Type: structs.VolumeTypeHost,
+			NodeID: node, NodePool: "default", HostPath: "/synthetic/" + id, PluginID: "plug",
+			State: structs.DynamicHostVolumeStateReady,
+		}
+	}
+	must.NoError(t, store.UpsertDynamicHostVolumes(2, []*structs.DynamicHostVolume{
+		mk("ns-a", "vol-1", "n1"), mk("ns-b", "vol-2", "n1"), mk("ns-a", "vol-3", "n2"),
+	}))
+
+	iter, err := store.DynamicHostVolumesByNode(nil, "n1")
+	must.NoError(t, err)
+	var ids []string
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		ids = append(ids, raw.(*structs.DynamicHostVolume).ID)
+	}
+	sort.Strings(ids)
+	must.Eq(t, []string{"vol-1", "vol-2"}, ids)
 }

@@ -571,7 +571,13 @@ func (n *NodePool) ListNodes(args *structs.NodePoolNodesRequest, reply *structs.
 			pager, err := paginator.NewPaginator(iter, tokenizer, nil, args.QueryOptions,
 				func(raw interface{}) error {
 					node := raw.(*structs.Node)
-					nodes = append(nodes, node.Stub(args.Fields))
+					stub := node.Stub(args.Fields)
+					vols, _, err := nodeHostVolumesForRead(aclObj, store, node.ID, stub.HostVolumes)
+					if err != nil {
+						return err
+					}
+					stub.HostVolumes = vols
+					nodes = append(nodes, stub)
 					return nil
 				})
 			if err != nil {
