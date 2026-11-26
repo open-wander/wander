@@ -1289,6 +1289,246 @@ func (f *dynamicWriterPlanFixture) evaluate(plan *structs.Plan) (bool, string) {
 	return fit, reason
 }
 
+// dynamicRecheckModifyTime is the fixed time the re-check tests pass to the
+// delete transition, so no test reads a clock.
+const dynamicRecheckModifyTime = int64(1_700_000_000_000_000_000)
+
+// markDeleting moves the record to deleting through the real state command.
+func (f *dynamicWriterPlanFixture) markDeleting() {
+	f.write(func(i uint64) error {
+		return f.state.MarkDynamicHostVolumesDeleting(i,
+			[]structs.DynamicHostVolumeKey{{Namespace: f.vol.Namespace, ID: f.vol.ID}}, dynamicRecheckModifyTime)
+	})
+	f.requireRecordState(structs.DynamicHostVolumeStateDeleting)
+}
+
+// upsertNode rewrites the node through the real node write, which derives
+// the record state.
+func (f *dynamicWriterPlanFixture) upsertNode(mutate func(n *structs.Node)) {
+	current, err := f.state.NodeByID(nil, f.node.ID)
+	must.NoError(f.t, err)
+	changed := current.Copy()
+	mutate(changed)
+	f.write(func(i uint64) error { return f.state.UpsertNode(structs.MsgTypeTestSetup, i, changed) })
+}
+
+// nodeDown changes the node status through the real status update.
+func (f *dynamicWriterPlanFixture) nodeDown() {
+	f.write(func(i uint64) error {
+		return f.state.UpdateNodeStatus(structs.MsgTypeTestSetup, i, f.node.ID, structs.NodeStatusDown, 0, nil)
+	})
+}
+
+func (f *dynamicWriterPlanFixture) requireRecordState(want structs.DynamicHostVolumeState) {
+	f.t.Helper()
+	got, err := f.state.DynamicHostVolumeByID(nil, f.vol.Namespace, f.vol.ID)
+	must.NoError(f.t, err)
+	must.NotNil(f.t, got)
+	must.Eq(f.t, want, got.State)
+}
+
+// noVolumeGroupJob returns a copy of the fixture job with a group that
+// requests no volume, so a plan can carry a placement that needs none.
+func (f *dynamicWriterPlanFixture) noVolumeGroupJob() (*structs.Job, string) {
+	job := f.job.Copy()
+	plain := job.TaskGroups[0].Copy()
+	plain.Name = "plain"
+	plain.Volumes = nil
+	job.TaskGroups = append(job.TaskGroups, plain)
+	return job, plain.Name
+}
+
+// withoutVolume returns the node as a fingerprint that no longer lists the
+// dynamic volume.
+func withoutVolume(n *structs.Node) { n.HostVolumes = map[string]*structs.ClientHostVolumeConfig{} }
+
+func TestPlanApply_EvalNodePlan_DynamicHostVolumeRecheck(t *testing.T) {
+	ci.Parallel(t)
+
+	const reasonNotUsable = "dynamic host volume not usable"
+
+	cases := []struct {
+		name string
+		// prepare changes the stored state after the plan is built.
+		prepare func(f *dynamicWriterPlanFixture)
+		fit     bool
+		reason  string
+	}{
+		{
+			name:    "volume marked deleting after the plan was built",
+			prepare: func(f *dynamicWriterPlanFixture) { f.markDeleting() },
+			reason:  reasonNotUsable,
+		},
+		{
+			name: "node update no longer advertises the volume",
+			prepare: func(f *dynamicWriterPlanFixture) {
+				f.upsertNode(withoutVolume)
+				f.requireRecordState(structs.DynamicHostVolumeStateUnavailable)
+			},
+			reason: reasonNotUsable,
+		},
+		{
+			// A static volume of the same name has an empty ID and is not
+			// a dynamic record, so the placement stays the inherited rule.
+			name: "static volume of the same name is not affected",
+			prepare: func(f *dynamicWriterPlanFixture) {
+				f.deleteVolume()
+				f.upsertNode(func(n *structs.Node) {
+					n.HostVolumes = map[string]*structs.ClientHostVolumeConfig{
+						"data-a": {Name: "data-a", Path: "/synthetic/static-path"},
+					}
+				})
+			},
+			fit: true,
+		},
+		{
+			name: "source never advertised and with no record is static",
+			prepare: func(f *dynamicWriterPlanFixture) {
+				f.deleteVolume()
+				f.upsertNode(withoutVolume)
+			},
+			fit: true,
+		},
+		{
+			name: "unchanged volume is usable",
+			prepare: func(f *dynamicWriterPlanFixture) {
+				f.requireRecordState(structs.DynamicHostVolumeStateReady)
+			},
+			fit: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDynamicWriterPlanFixture(t)
+			plan := &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}}}
+			tc.prepare(f)
+			fit, reason := f.evaluate(plan)
+			must.Eq(t, tc.fit, fit)
+			must.Eq(t, tc.reason, reason)
+		})
+	}
+}
+
+// A node that advertises the ID of a record held by another node cannot use
+// it. No real write produces this state, so the node is built by hand.
+func TestPlanApply_EvalNodePlan_DynamicHostVolumeOtherNode(t *testing.T) {
+	ci.Parallel(t)
+
+	f := newDynamicWriterPlanFixture(t)
+	other := mock.Node()
+	other.ReservedResources = nil
+	other.Reserved = nil
+	other.HostVolumes = map[string]*structs.ClientHostVolumeConfig{
+		"data-a": {Name: "data-a", Path: "/synthetic/other-path", ID: f.vol.ID},
+	}
+	f.write(func(i uint64) error { return f.state.UpsertNode(structs.MsgTypeTestSetup, i, other) })
+
+	placed := f.planAlloc()
+	placed.NodeID = other.ID
+	plan := &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{other.ID: {placed}}}
+
+	snap, err := f.state.Snapshot()
+	must.NoError(t, err)
+	fit, reason, err := evaluateNodePlan(snap, plan, other.ID)
+	must.NoError(t, err)
+	must.False(t, fit)
+	must.Eq(t, "dynamic host volume not usable", reason)
+}
+
+// A node that goes down is refused by the inherited node check, not by the
+// volume re-check.
+func TestPlanApply_EvalNodePlan_DynamicHostVolumeNodeDown(t *testing.T) {
+	ci.Parallel(t)
+
+	f := newDynamicWriterPlanFixture(t)
+	plan := &structs.Plan{Job: f.job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {f.planAlloc()}}}
+	f.nodeDown()
+	f.requireRecordState(structs.DynamicHostVolumeStateUnavailable)
+
+	fit, reason := f.evaluate(plan)
+	must.False(t, fit)
+	must.Eq(t, "node is not ready for placements", reason)
+}
+
+// Running work keeps running: a holder already on the node is not checked
+// again when the volume is deleting or unavailable.
+func TestPlanApply_EvalNodePlan_DynamicHostVolumeHolderKept(t *testing.T) {
+	ci.Parallel(t)
+
+	cases := []struct {
+		name    string
+		degrade func(f *dynamicWriterPlanFixture)
+	}{
+		{"volume deleting", func(f *dynamicWriterPlanFixture) { f.markDeleting() }},
+		{"volume unavailable", func(f *dynamicWriterPlanFixture) {
+			f.upsertNode(withoutVolume)
+			f.requireRecordState(structs.DynamicHostVolumeStateUnavailable)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDynamicWriterPlanFixture(t)
+			old := f.alloc()
+			f.upsertAllocs(old)
+			tc.degrade(f)
+
+			// The new placement needs no volume, so only a re-check of the
+			// existing holder could refuse the node.
+			job, plain := f.noVolumeGroupJob()
+			placed := f.planAlloc()
+			placed.TaskGroup = plain
+			plan := &structs.Plan{Job: job, NodeAllocation: map[string][]*structs.Allocation{f.node.ID: {old, placed}}}
+
+			fit, reason := f.evaluate(plan)
+			must.True(t, fit)
+			must.Eq(t, "", reason)
+		})
+	}
+}
+
+// Only the node whose volume is no longer usable loses its part of the plan.
+func TestPlanApply_EvalPlan_DynamicHostVolumeRejectsOneNode(t *testing.T) {
+	ci.Parallel(t)
+
+	f := newDynamicWriterPlanFixture(t)
+	other := mock.Node()
+	other.ReservedResources = nil
+	other.Reserved = nil
+	f.write(func(i uint64) error { return f.state.UpsertNode(structs.MsgTypeTestSetup, i, other) })
+
+	job, plain := f.noVolumeGroupJob()
+	otherAlloc := f.planAlloc()
+	otherAlloc.NodeID = other.ID
+	otherAlloc.TaskGroup = plain
+	plan := &structs.Plan{
+		Job: job,
+		NodeAllocation: map[string][]*structs.Allocation{
+			f.node.ID: {f.planAlloc()},
+			other.ID:  {otherAlloc},
+		},
+	}
+
+	f.markDeleting()
+
+	snap, err := f.state.Snapshot()
+	must.NoError(t, err)
+	pool := NewEvaluatePool(workerPoolSize, workerPoolBufferSize)
+	defer pool.Shutdown()
+	result, err := evaluatePlan(pool, snap, plan, testlog.HCLogger(t))
+	must.NoError(t, err)
+
+	must.MapContainsKey(t, result.NodeAllocation, other.ID)
+	must.MapNotContainsKey(t, result.NodeAllocation, f.node.ID)
+	must.Eq(t, []string{f.node.ID}, result.RejectedNodes)
+	must.NonZero(t, result.RefreshIndex)
+
+	fit, reason, err := evaluateNodePlan(snap, plan, f.node.ID)
+	must.NoError(t, err)
+	must.False(t, fit)
+	must.Eq(t, "dynamic host volume not usable", reason)
+}
+
 func TestPlanApply_EvalNodePlan_DynamicHostVolumeWriter(t *testing.T) {
 	ci.Parallel(t)
 

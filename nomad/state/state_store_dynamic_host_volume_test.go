@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
+	"github.com/shoenig/test/must"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1349,4 +1350,42 @@ func TestStateStore_DeleteDynamicHostVolumes_NodelessVolumeIsNeverInUse(t *testi
 	require.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, 12, nil, job))
 	require.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, 13, []*structs.Allocation{alloc}))
 	require.NoError(t, store.DeleteDynamicHostVolumes(30, []DynamicHostVolumeDelete{{Namespace: "default", ID: "volume-a", ExpectedModifyIndex: 10}}))
+}
+
+func TestStateStore_DynamicHostVolumeByNodeName(t *testing.T) {
+	store := TestStateStore(t)
+	vol := dynamicHostVolumeStateFixture("volume-a")
+	vol.Name, vol.NodeID = "data-a", "node-a"
+	must.NoError(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{vol}))
+
+	cases := []struct {
+		name                   string
+		namespace, node, vname string
+		found                  bool
+	}{
+		{"match", "default", "node-a", "data-a", true},
+		{"other node", "default", "node-b", "data-a", false},
+		{"other name", "default", "node-a", "data-b", false},
+		{"other namespace", "synthetic-b", "node-a", "data-a", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := store.DynamicHostVolumeByNodeName(nil, tc.namespace, tc.node, tc.vname)
+			must.NoError(t, err)
+			if !tc.found {
+				must.Nil(t, got)
+				return
+			}
+			must.NotNil(t, got)
+			must.Eq(t, "volume-a", got.ID)
+			// The result is a copy.
+			got.Name = "changed"
+			again, err := store.DynamicHostVolumeByNodeName(nil, tc.namespace, tc.node, tc.vname)
+			must.NoError(t, err)
+			must.NotNil(t, again)
+		})
+	}
+
+	_, err := store.DynamicHostVolumeByNodeName(nil, "default", "", "data-a")
+	must.Error(t, err)
 }
