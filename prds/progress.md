@@ -1441,7 +1441,24 @@ node update on every server.
 - PATTERN: client - "not held" may only mean success when the client's store
   loaded; otherwise a read failure turns into silent data loss on the server.
 
+## 2026-11-27 — Task 4.7d complete
+
+- #101 merged. HostVolume.ListClaims (host-volume-read, wildcard namespace
+  filtering across pages, claim ID prefix, job, group and volume filters,
+  blocking on the claims table index) and HostVolume.DeleteClaim
+  (host-volume-write, new Raft type 105 behind the version gate).
+- A claim is held while any non-client-terminal allocation of its job and
+  group uses its volume; the stored AllocationID only names the first
+  allocation, so checking it alone would let a replacement lose its claim.
+  Checked in the state apply; the RPC pre-checks so a refusal writes nothing.
+- Unknown claim is 404 (the observed binary returned 500; deliberate).
+- Public name AllocID versus stored AllocationID: mapping left to the HTTP
+  task.
+- Inherited code: one line each in helper/raftutil/msgtypes.go and fsm.go.
+- PATTERN: tests - a determinism test that deletes the only row compares two
+  empty tables; seed rows that survive and apply the same encoded bytes.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.6d, 4.7a and 4.8 are done. Next: 4.7b, then 4.7c; 4.7d can run beside them; then 4.7e and 4.9.
+- 4.2 to 4.6d, 4.7a, 4.7d and 4.8 are done; 4.7b is in progress. Next: 4.7c, then 4.7e and 4.9.

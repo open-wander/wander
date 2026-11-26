@@ -16,6 +16,33 @@ type HostVolumeListResponse struct {
 	QueryMeta
 }
 
+// HostVolumeClaimListRequest lists sticky claims. The query prefix applies to
+// the claim ID; the other fields are exact-match filters.
+type HostVolumeClaimListRequest struct {
+	JobID      string
+	TaskGroup  string
+	VolumeName string
+	QueryOptions
+}
+
+// HostVolumeClaimListResponse returns the stored claims, including the
+// allocation index that the public listing leaves out.
+type HostVolumeClaimListResponse struct {
+	Claims []*DynamicHostVolumeClaim
+	QueryMeta
+}
+
+// HostVolumeClaimDeleteRequest removes one sticky claim in the request
+// namespace.
+type HostVolumeClaimDeleteRequest struct {
+	ID string
+	WriteRequest
+}
+
+type HostVolumeClaimDeleteResponse struct {
+	WriteMeta
+}
+
 // HostVolumeGetRequest reads one dynamic host volume in the request namespace.
 type HostVolumeGetRequest struct {
 	ID string
@@ -103,3 +130,9 @@ func (v *DynamicHostVolume) Stub() *DynamicHostVolumeStub {
 func (v *DynamicHostVolume) GetID() string          { return v.ID }
 func (v *DynamicHostVolume) GetNamespace() string   { return v.Namespace }
 func (v *DynamicHostVolume) GetCreateIndex() uint64 { return v.CreateIndex }
+
+// The getters let the claim list paginator tokenise and namespace-filter claims.
+
+func (c *DynamicHostVolumeClaim) GetID() string          { return c.ID }
+func (c *DynamicHostVolumeClaim) GetNamespace() string   { return c.Namespace }
+func (c *DynamicHostVolumeClaim) GetCreateIndex() uint64 { return c.CreateIndex }

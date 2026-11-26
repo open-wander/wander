@@ -72,4 +72,5 @@ var msgTypeNames = map[structs.MessageType]string{
 	structs.DynamicHostVolumeUpdateRequestType:           "DynamicHostVolumeUpdateRequestType",
 	structs.DynamicHostVolumeMarkDeletingRequestType:     "DynamicHostVolumeMarkDeletingRequestType",
 	structs.DynamicHostVolumeRemoveRequestType:           "DynamicHostVolumeRemoveRequestType",
+	structs.DynamicHostVolumeClaimDeleteRequestType:      "DynamicHostVolumeClaimDeleteRequestType",
 }

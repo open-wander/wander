@@ -161,6 +161,22 @@ type DynamicHostVolumeRemoveRequest struct {
 	WriteRequest
 }
 
+// DynamicHostVolumeClaimKey names one sticky claim and the modify index the
+// deletion expects it to have.
+type DynamicHostVolumeClaimKey struct {
+	Namespace           string
+	ID                  string
+	ExpectedModifyIndex uint64
+}
+
+// DynamicHostVolumeClaimDeleteRequest removes sticky claims. The expected modify
+// index of each claim is read before the command is submitted, so a claim
+// rewritten in between is refused instead of removed.
+type DynamicHostVolumeClaimDeleteRequest struct {
+	Claims []DynamicHostVolumeClaimKey
+	WriteRequest
+}
+
 // DynamicHostVolumeClaim records a sticky allocation's volume identity.
 type DynamicHostVolumeClaim struct {
 	ID              string

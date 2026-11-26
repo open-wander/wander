@@ -79,6 +79,7 @@ func TestDynamicHostVolumeMessageTypes(t *testing.T) {
 		"DynamicHostVolumeUpdateRequestType":       DynamicHostVolumeUpdateRequestType,
 		"DynamicHostVolumeMarkDeletingRequestType": DynamicHostVolumeMarkDeletingRequestType,
 		"DynamicHostVolumeRemoveRequestType":       DynamicHostVolumeRemoveRequestType,
+		"DynamicHostVolumeClaimDeleteRequestType":  DynamicHostVolumeClaimDeleteRequestType,
 	}
 	owners := map[int]string{}
 	for name, number := range declared {
