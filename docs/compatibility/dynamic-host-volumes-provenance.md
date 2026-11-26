@@ -773,6 +773,54 @@ is required and that a name is required and unique per node.
 | `volume_kind_conflict` | the ID belongs to a plugin-created volume |
 | `registration_mismatch` | a repeat differs in namespace, name or path |
 
+## Create handshake (client) {#create-handshake}
+
+The server-to-client exchange is internal to Wander and is not a
+compatibility question. The public evidence covers only the create endpoint
+and that a volume has a name, a plugin and capacity bounds. The rules below
+are Wander policy, implemented in `client/host_volume_endpoint.go`,
+`client/hostvolume/manager.go` and `nomad/client_host_volume_endpoint.go`.
+
+### Wander policy
+
+1. The client RPC method is `HostVolume.Create`. Like `HostVolume.Register`
+   it is for servers only: it adds no HTTP route and performs no ACL check.
+2. The request carries VolumeID, Namespace, Name, NodeID, NodePool, PluginID,
+   both capacity bounds and Parameters. The response carries VolumeID,
+   HostPath, CapacityBytes, Status, Reason and Message. CapacityBytes is what
+   the plugin reported and is stored with the client record, so a repeat
+   answers with the same value. Zero means unknown.
+3. A repeat with the same volume ID, namespace, name, node and plugin returns
+   the stored status and runs no plugin, writes nothing and publishes
+   nothing, so a retry after a lost reply or a leadership change cannot
+   provision twice. Node pool, capacities and parameters are not compared.
+   The stored status can be `unavailable`; the client's own reconcile pass,
+   not the repeat, repairs it.
+4. A repeat that differs in namespace, name or plugin is rejected with
+   `create_mismatch` and changes nothing. An ID that belongs to a registered
+   volume is rejected with `invalid_input`, as before.
+5. The record is validated before the plugin runs, so a request that could
+   never be stored (for example an empty name) provisions nothing and returns
+   `invalid_input`.
+6. A classified rejection returns a nil RPC error with Reason set and an empty
+   Status. Only transport or internal failures return an RPC error. A
+   canceled wait is an error, not a rejection. One create is bounded by two
+   minutes.
+7. `ClientHostVolume.Create` and `ClientHostVolume.Register` on the server
+   route a call to the node: directly when this server holds the node
+   connection, otherwise by forwarding to the server that does, as the CSI
+   client endpoint does. They require a server certificate and check no
+   namespace capability, because the server HostVolume endpoints authorize
+   before they call.
+
+| Reason code | Cases |
+| --- | --- |
+| `create_mismatch` | a repeat differs in namespace, name or plugin |
+| `invalid_input` | malformed ID, name, namespace, node or plugin ID |
+| `node_mismatch` | well-formed NodeID of another node |
+| `name_conflict` | static or dynamic name already used on this node |
+| `plugin_unavailable` | the plugin is missing, unhealthy or unsupported |
+
 ## Read API (server and HTTP) {#read-api}
 
 ### Recorded evidence

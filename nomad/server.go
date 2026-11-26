@@ -1254,6 +1254,7 @@ func (s *Server) setupRpcServer(server *rpc.Server, ctx *RPCContext) {
 	_ = server.Register(NewACLEndpoint(s, ctx))
 	_ = server.Register(NewAllocEndpoint(s, ctx))
 	_ = server.Register(NewClientCSIEndpoint(s, ctx))
+	_ = server.Register(NewClientHostVolumeEndpoint(s, ctx))
 	_ = server.Register(NewCSIVolumeEndpoint(s, ctx))
 	_ = server.Register(NewHostVolumeEndpoint(s, ctx))
 	_ = server.Register(NewCSIPluginEndpoint(s, ctx))

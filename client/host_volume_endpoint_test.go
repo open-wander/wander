@@ -4,7 +4,9 @@
 package client
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -166,4 +168,106 @@ func TestHostVolume_Register_CanceledWaitIsAnError(t *testing.T) {
 
 	must.ErrorContains(t, err, "HostVolume.Register")
 	must.Eq(t, structs.HostVolumeRegisterResponse{}, resp)
+}
+
+// newCreateClient starts a client whose volumes directory and plugin
+// directory are temporary. The synthetic plugin "plug" appends a line to
+// scratch/creates on each create and answers with a directory under the
+// volumes directory.
+func newCreateClient(t *testing.T) (c *Client, volumes, scratch string) {
+	t.Helper()
+	plugins := t.TempDir()
+	volumes, scratch = t.TempDir(), t.TempDir()
+	body := "#!/bin/sh\n" + `case "$1" in
+fingerprint) echo '{"version":"1.0.0"}' ;;
+create)
+  echo "$DHV_VOLUME_ID" >> '` + scratch + `/creates'
+  d="$DHV_VOLUMES_DIR/$DHV_VOLUME_ID"
+  mkdir -p "$d"
+  printf '{"path":"%s","bytes":4096}\n' "$d" ;;
+esac
+`
+	must.NoError(t, os.WriteFile(filepath.Join(plugins, "plug"), []byte(body), 0o755))
+	must.NoError(t, os.Chmod(filepath.Join(plugins, "plug"), 0o755))
+	c, cleanup := TestClient(t, func(conf *config.Config) {
+		conf.HostVolumePluginDir = plugins
+		conf.HostVolumesDir = volumes
+	})
+	t.Cleanup(func() { _ = cleanup() })
+	return c, volumes, scratch
+}
+
+func createCount(t *testing.T, scratch string) int {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(scratch, "creates"))
+	if os.IsNotExist(err) {
+		return 0
+	}
+	must.NoError(t, err)
+	return strings.Count(string(b), "\n")
+}
+
+func TestHostVolume_Create(t *testing.T) {
+	ci.Parallel(t)
+
+	c, volumes, scratch := newCreateClient(t)
+	valid := func() *structs.HostVolumeCreateRequest {
+		return &structs.HostVolumeCreateRequest{
+			VolumeID: "vol-a", Namespace: "default", Name: "data", NodeID: c.NodeID(),
+			NodePool: "default", PluginID: "plug", CapacityMinBytes: 1, CapacityMaxBytes: 8192,
+			Parameters: map[string]string{"k": "v"},
+		}
+	}
+
+	// Rejections come back as a reason with no RPC error and run nothing.
+	rejections := []struct {
+		name   string
+		mutate func(*structs.HostVolumeCreateRequest)
+		reason string
+	}{
+		{"other node", func(r *structs.HostVolumeCreateRequest) { r.NodeID = "node-synthetic-other" }, hvstate.ReasonNodeMismatch},
+		{"empty name", func(r *structs.HostVolumeCreateRequest) { r.Name = "" }, hostvolume.ReasonInvalidInput},
+		{"bad plugin id", func(r *structs.HostVolumeCreateRequest) { r.PluginID = "../x" }, hostvolume.ReasonInvalidInput},
+		{"missing plugin", func(r *structs.HostVolumeCreateRequest) { r.PluginID = "absent" }, hvstate.ReasonPluginUnavailable},
+	}
+	for _, tc := range rejections {
+		t.Run(tc.name, func(t *testing.T) {
+			req := valid()
+			tc.mutate(req)
+			var resp structs.HostVolumeCreateResponse
+			must.NoError(t, c.ClientRPC("HostVolume.Create", req, &resp))
+			must.Eq(t, tc.reason, resp.Reason)
+			must.Eq(t, "", resp.Status)
+			must.Eq(t, 0, len(c.hostVolumeManager.Statuses()))
+			must.Eq(t, 0, createCount(t, scratch))
+		})
+	}
+
+	var resp structs.HostVolumeCreateResponse
+	must.NoError(t, c.ClientRPC("HostVolume.Create", valid(), &resp))
+	want := structs.HostVolumeCreateResponse{
+		VolumeID: "vol-a", HostPath: filepath.Join(volumes, "vol-a"), CapacityBytes: 4096, Status: "ready",
+	}
+	must.Eq(t, want, resp)
+	must.Eq(t, 1, createCount(t, scratch))
+	must.Eq(t, "vol-a", c.GetConfig().Node.HostVolumes["data"].ID)
+
+	t.Run("repeat runs nothing and answers the same", func(t *testing.T) {
+		var again structs.HostVolumeCreateResponse
+		must.NoError(t, c.ClientRPC("HostVolume.Create", valid(), &again))
+		must.Eq(t, want, again)
+		must.Eq(t, 1, createCount(t, scratch))
+	})
+
+	t.Run("mismatched repeat is refused", func(t *testing.T) {
+		req := valid()
+		req.Name = "other"
+		var r structs.HostVolumeCreateResponse
+		must.NoError(t, c.ClientRPC("HostVolume.Create", req, &r))
+		must.Eq(t, hostvolume.ReasonCreateMismatch, r.Reason)
+		must.Eq(t, "", r.Status)
+		must.Eq(t, 1, createCount(t, scratch))
+		must.Eq(t, 1, len(c.hostVolumeManager.Statuses()))
+		must.Eq(t, "data", c.hostVolumeManager.Statuses()[0].Name)
+	})
 }

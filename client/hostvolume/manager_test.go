@@ -684,8 +684,6 @@ func TestManager_ConcurrentOperationsNeverOverlap(t *testing.T) {
 	e.installPlugin()
 	e.flag("slow", true)
 	m := e.manager()
-	_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
-	must.NoError(t, err)
 
 	var wg sync.WaitGroup
 	for range 4 {
@@ -701,7 +699,7 @@ func TestManager_ConcurrentOperationsNeverOverlap(t *testing.T) {
 	}
 	wg.Wait()
 	must.Eq(t, 0, e.lines("overlap"), must.Sprint("two plugin operations ran at once"))
-	must.Eq(t, 5, e.lines("creates"), must.Sprint("one create per Create call"))
+	must.Eq(t, 1, e.lines("creates"), must.Sprint("concurrent creates of one ID run the plugin once"))
 }
 
 func TestManager_DeleteWaitingPassDoesNotRecreate(t *testing.T) {
@@ -1311,6 +1309,8 @@ func TestManager_StaleResultDoesNotOverwriteNewerRecord(t *testing.T) {
 	// evaluated vol-a and released its lock.
 	eventually(t, func() bool { return m.locks.refs("vol-b") == 2 }, 5*time.Second)
 
+	// Delete and create again replace the record while the pass waits.
+	must.NoError(t, m.Delete(ctx5(t), "vol-a"))
 	st, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
 	must.NoError(t, err)
 	must.Eq(t, hvstate.StatusReady, st.Status)
@@ -1355,9 +1355,9 @@ func TestManager_DeleteWaitingPeriodicPassDoesNotRecreate(t *testing.T) {
 	must.True(t, errors.Is(statErr, fs.ErrNotExist))
 }
 
-// A repeated create of an existing volume whose record cannot be stored must
-// not roll back: the rollback is the plugin's delete, and the volume is live.
-func TestManager_RepeatedCreateStoreFailureKeepsVolume(t *testing.T) {
+// A repeated create of an existing volume writes nothing, so a failing store
+// does not matter and nothing is rolled back: the volume is live.
+func TestManager_RepeatedCreateKeepsVolume(t *testing.T) {
 	e := newMgrEnv(t)
 	e.installPlugin()
 	m := e.manager()
@@ -1368,10 +1368,10 @@ func TestManager_RepeatedCreateStoreFailureKeepsVolume(t *testing.T) {
 
 	e.store.setPutError(errors.New("synthetic store failure"))
 	_, err = m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
-	must.Error(t, err)
+	must.NoError(t, err)
 
-	must.Eq(t, 2, e.lines("creates"))
-	must.Eq(t, 0, e.lines("deletes"), must.Sprint("the rollback deleted a volume that already had a record"))
+	must.Eq(t, 1, e.lines("creates"))
+	must.Eq(t, 0, e.lines("deletes"), must.Sprint("a repeat deleted a volume that already had a record"))
 	b, err := os.ReadFile(payload)
 	must.NoError(t, err)
 	must.Eq(t, "keep", string(b))
@@ -1572,4 +1572,97 @@ func TestManager_Namespace(t *testing.T) {
 
 	_, ok = m.Namespace("vol-missing")
 	must.False(t, ok)
+}
+
+func TestManager_CreateRepeat(t *testing.T) {
+	t.Run("same content runs the plugin once", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		first, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		pubs := e.pubCount()
+
+		again, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, first, again)
+		must.Eq(t, 1, e.lines("creates"))
+		must.Eq(t, pubs, e.pubCount())
+
+		// A restarted client answers the same way.
+		m2 := e.manager()
+		again, err = m2.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, first.Path, again.Path)
+		must.Eq(t, 1, e.lines("creates"))
+	})
+
+	t.Run("repeat reports the stored status", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.NoError(t, os.RemoveAll(filepath.Join(e.volumes, "vol-a")))
+		m.reconcile(ctx5(t), false)
+		must.Eq(t, hvstate.StatusUnavailable, mustStatus(t, m, "vol-a").Status)
+
+		again, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, hvstate.StatusUnavailable, again.Status)
+		must.Eq(t, 1, e.lines("creates"))
+	})
+
+	mismatches := []struct {
+		name   string
+		mutate func(*OpRequest)
+		plugin string
+	}{
+		{"namespace", func(r *OpRequest) { r.Namespace = "ns-other" }, "plug"},
+		{"name", func(r *OpRequest) { r.Name = "other" }, "plug"},
+		{"plugin", func(r *OpRequest) {}, "plug2"},
+	}
+	for _, tc := range mismatches {
+		t.Run("mismatch "+tc.name, func(t *testing.T) {
+			e := newMgrEnv(t)
+			e.installPlugin()
+			m := e.manager()
+			first, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+			must.NoError(t, err)
+			before := e.stored("vol-a")
+			pubs := e.pubCount()
+
+			req := e.req("vol-a", "data")
+			tc.mutate(&req)
+			_, err = m.Create(ctx5(t), tc.plugin, req)
+			asOpError(t, err, OperationCreate, ReasonCreateMismatch)
+			must.Eq(t, 1, e.lines("creates"))
+			must.Eq(t, before, e.stored("vol-a"))
+			must.Eq(t, pubs, e.pubCount())
+			must.Eq(t, first, mustStatus(t, m, "vol-a"))
+		})
+	}
+
+	t.Run("bytes survive a repeat", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		rec := e.pluginRec("vol-a", "data")
+		rec.CapacityBytes = 4096
+		e.seed(rec)
+		m := e.manager()
+		st, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, int64(4096), st.CapacityBytes)
+		must.Eq(t, 0, e.lines("creates"))
+	})
+}
+
+func TestManager_CreateInvalidRecordRunsNoPlugin(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	m := e.manager()
+	_, err := m.Create(ctx5(t), "plug", e.req("vol-a", ""))
+	asOpError(t, err, OperationCreate, ReasonInvalidInput)
+	must.Eq(t, 0, e.lines("creates"))
+	must.Nil(t, e.stored("vol-a"))
 }

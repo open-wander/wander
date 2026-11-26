@@ -18,6 +18,10 @@ import (
 // per-volume lock while a plugin create for the same ID runs.
 const hostVolumeRegisterTimeout = 2 * time.Minute
 
+// hostVolumeCreateTimeout bounds one create, which includes waiting for the
+// per-volume lock and running the plugin.
+const hostVolumeCreateTimeout = 2 * time.Minute
+
 // HostVolume is the client RPC endpoint for dynamic host volumes. It is
 // Wander policy and only servers call it.
 //
@@ -63,6 +67,51 @@ func (h *HostVolume) Register(req *structs.HostVolumeRegisterRequest, resp *stru
 	}
 	*resp = structs.HostVolumeRegisterResponse{
 		VolumeID: st.VolumeID, HostPath: st.Path, Status: string(st.Status),
+	}
+	return nil
+}
+
+// Create provisions a volume with the named plugin and records it. A repeat
+// for a volume this client already holds, with the same namespace, name, node
+// and plugin, returns the stored volume and runs no plugin. A classified
+// rejection returns a nil error with Reason set and nothing stored or
+// published. Only transport or internal failures, such as a store error, a
+// canceled wait or a missing manager, return an error.
+func (h *HostVolume) Create(req *structs.HostVolumeCreateRequest, resp *structs.HostVolumeCreateResponse) error {
+	defer metrics.MeasureSince([]string{"client", "host_volume", "create"}, time.Now())
+
+	m := h.c.hostVolumeManager
+	if m == nil {
+		return errors.New("HostVolume.Create: host volume manager is not available")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), hostVolumeCreateTimeout)
+	defer cancel()
+	go func() {
+		select {
+		case <-h.c.shutdownCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	st, err := m.Create(ctx, req.PluginID, hostvolume.OpRequest{
+		VolumeID: req.VolumeID, Namespace: req.Namespace, Name: req.Name,
+		NodeID: req.NodeID, NodePool: req.NodePool,
+		CapacityMinBytes: req.CapacityMinBytes, CapacityMaxBytes: req.CapacityMaxBytes,
+		Parameters: req.Parameters,
+	})
+	if err != nil {
+		var oe *hostvolume.OpError
+		if errors.As(err, &oe) && oe.Reason != hostvolume.ReasonCanceled {
+			*resp = structs.HostVolumeCreateResponse{Reason: oe.Reason, Message: oe.Message}
+			return nil
+		}
+		return errors.New("HostVolume.Create: " + err.Error())
+	}
+	*resp = structs.HostVolumeCreateResponse{
+		VolumeID: st.VolumeID, HostPath: st.Path, CapacityBytes: st.CapacityBytes,
+		Status: string(st.Status),
 	}
 	return nil
 }

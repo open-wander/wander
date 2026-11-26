@@ -87,6 +87,10 @@ const (
 	// registration differs in namespace, name or path.
 	ReasonVolumeKindConflict   = "volume_kind_conflict"
 	ReasonRegistrationMismatch = "registration_mismatch"
+
+	// ReasonCreateMismatch means a repeated create used the ID of a
+	// plugin-created volume but differs in namespace, name, node or plugin.
+	ReasonCreateMismatch = "create_mismatch"
 )
 
 // OpRequest holds the values for one create or delete call. Zero capacities
