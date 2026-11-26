@@ -36,6 +36,15 @@ func TestConvertServerConfigUsesCompatibilityVersion(t *testing.T) {
 	require.NotEqual(t, conf.Version.VersionNumber(), serverConf.Build)
 }
 
+func TestConvertServerConfigSetsWanderVersion(t *testing.T) {
+	conf := DevConfig(nil)
+	require.NoError(t, conf.normalizeAddrs())
+	serverConf, err := convertServerConfig(conf)
+	require.NoError(t, err)
+	require.Equal(t, version.GetVersion().VersionNumber(), serverConf.WanderVersion)
+	require.NotEqual(t, version.ClusterCompatibilityVersion, serverConf.WanderVersion)
+}
+
 func TestAgent_RPC_Ping(t *testing.T) {
 	ci.Parallel(t)
 	agent := NewTestAgent(t, t.Name(), nil)

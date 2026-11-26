@@ -164,22 +164,28 @@ func (s *StateStore) UpsertDynamicHostVolumes(index uint64, volumes []*structs.D
 		if err != nil {
 			return err
 		}
-		if volume.NodeID != "" {
-			conflict, err := tx.First(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, volume.Namespace, volume.NodeID, volume.Name)
-			if err != nil {
-				return ErrDynamicHostVolumeStateStorage
-			}
-			// Memdb unique indexes alone do not reject another object's key.
-			if conflict != nil && conflict.(*structs.DynamicHostVolume).ID != volume.ID {
-				return ErrDynamicHostVolumeStateConflict
-			}
-		}
-		volume.ModifyIndex = index
-		if err := tx.Insert(TableDynamicHostVolumes, volume); err != nil {
+		return insertDynamicHostVolumeTxn(tx, index, volume)
+	})
+}
+
+// insertDynamicHostVolumeTxn stamps the modify index and inserts the volume. A
+// node holds one volume per name and namespace, which memdb's unique indexes do
+// not enforce against another object's key, so it is checked here.
+func insertDynamicHostVolumeTxn(tx *txn, index uint64, volume *structs.DynamicHostVolume) error {
+	if volume.NodeID != "" {
+		conflict, err := tx.First(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, volume.Namespace, volume.NodeID, volume.Name)
+		if err != nil {
 			return ErrDynamicHostVolumeStateStorage
 		}
-		return nil
-	})
+		if conflict != nil && conflict.(*structs.DynamicHostVolume).ID != volume.ID {
+			return ErrDynamicHostVolumeStateConflict
+		}
+	}
+	volume.ModifyIndex = index
+	if err := tx.Insert(TableDynamicHostVolumes, volume); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
 }
 
 func (s *StateStore) UpsertDynamicHostVolumeClaims(index uint64, claims []*structs.DynamicHostVolumeClaim) error {

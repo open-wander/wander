@@ -131,6 +131,25 @@ const (
 	// Namespace types were moved from enterprise and therefore start at 64
 	NamespaceUpsertRequestType MessageType = 64
 	NamespaceDeleteRequestType MessageType = 65
+
+	// The dynamic host volume commands belong to Wander and have no Nomad 1.6.5
+	// counterpart. The block starts at 100 so it stays clear of the 1.6.5 types
+	// (0-60, 64-65), the free 61-63 gap and SystemInitializationType (127), and
+	// every value is below 128 so none carries IgnoreUnknownTypeFlag.
+	//
+	// The flag is deliberately not set. A server that does not know these types
+	// (Nomad 1.6.5 or an older Wander) would otherwise skip the entry and silently
+	// diverge from the leader, with no volume rows, and answer reads wrongly if it
+	// later led. Without the flag it stops loudly in Apply until it is upgraded.
+	// The guard against either outcome is the version gate checked when a command
+	// is submitted. The check is made at submission, so a server that joins
+	// between the check and the commit can still receive the entry; that window is
+	// accepted and not closed.
+	DynamicHostVolumeUpsertRequestType       MessageType = 100
+	DynamicHostVolumeOutcomeRequestType      MessageType = 101
+	DynamicHostVolumeUpdateRequestType       MessageType = 102
+	DynamicHostVolumeMarkDeletingRequestType MessageType = 103
+	DynamicHostVolumeRemoveRequestType       MessageType = 104
 )
 
 const (

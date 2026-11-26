@@ -135,6 +135,12 @@ type Config struct {
 	// operators track which versions are actively deployed
 	Build string
 
+	// WanderVersion is the Wander product version the server gossips in the
+	// wander_version serf tag. It is separate from Build, which stays on the
+	// Nomad compatibility version so Nomad 1.6.5 peers keep working. Empty
+	// advertises no tag, as a server that predates the tag does.
+	WanderVersion string
+
 	// Revision is a string that carries the version.GitCommit of Nomad that
 	// was compiled.
 	Revision string
