@@ -1244,8 +1244,35 @@ PATTERN: codegen - after adding structs to nomad/structs, run go generate in
 that package and test with -tags codegen_generated; CI builds with the
 generated msgpack codecs and a stale file fails there only.
 
+## 2026-11-26 — Task 4.4 complete
+
+- #88, #89 and #90 merged. Both #88 and #90 first failed CI: neither had
+  regenerated `structs.generated.go`, and local tests ran without the
+  `codegen_generated` tag.
+- Volumes move between ready and unavailable inside the node transaction,
+  hooked at the end of `upsertNodeTxn`, in `updateNodeStatusTxn` and per node
+  in `deleteNodeTxn` (one line each in inherited code). New file
+  `nomad/state/state_store_dynamic_host_volume_node.go`, and a `node_only`
+  memdb index on NodeID so a node write costs one lookup.
+- Owner decision 2026-11-26: `disconnected` counts as down, as do `down` and a
+  deleted node; `initializing` does not. The restart flap (ready, unavailable,
+  ready while a client restores) is accepted policy; running allocations are
+  not stopped.
+- The derivation must ship in the same release as the 0.1.2 gate; otherwise
+  the gate's minimum version must rise.
+- Review: MINOR. A fix round added the node-only index and a requested-state
+  fixture that exercises the state filter. The orchestrator made a disallowed
+  transition skip the volume instead of failing, since the inherited node
+  writes swallow errors and would drop the whole node update.
+- 4.5 looks largely covered by the plan applier re-check from #75; check
+  whether a deleting-volume race test exists before planning it.
+- Deslop was not running; not checked.
+
+PATTERN: state - a hook called from an inherited node write must never return
+an error on data: UpsertNode and DeleteNode swallow errors and drop the whole
+node update on every server.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 (#88) and the CSI fix (#89) are merged; 4.3 (#90) is in review. The
-  next tasks are 4.4 and 4.5 (both need 4.3) and 4.8.
+- 4.2 to 4.4 are done. Next: 4.5 (check what #75 already covers) and 4.8.

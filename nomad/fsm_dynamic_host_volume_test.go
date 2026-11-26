@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/raft"
 	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/state"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/shoenig/test/must"
@@ -217,5 +218,81 @@ func TestFSM_DynamicHostVolume_UpdateKeepsServerOwnedFields(t *testing.T) {
 			must.ErrorIs(t, err, structs.ErrDynamicHostVolumeImmutable)
 			must.True(t, before.Equal(dhvFSMGet(t, fsm, "volume-a")))
 		})
+	}
+}
+
+// dhvNodeFSMSequence applies node updates that move volumes between ready and
+// unavailable, after seeding the volumes through the Raft commands, and returns
+// the resulting records.
+func dhvNodeFSMSequence(t *testing.T, fsm *nomadFSM) map[string]*structs.DynamicHostVolume {
+	t.Helper()
+	nodeA, nodeB := "aaaaaaaa-0000-0000-0000-000000000001", "bbbbbbbb-0000-0000-0000-000000000002"
+	register := func(index uint64, id string, status string, advertised ...string) {
+		node := mock.Node()
+		node.ID, node.Status = id, status
+		node.HostVolumes = map[string]*structs.ClientHostVolumeConfig{}
+		for _, vol := range advertised {
+			node.HostVolumes["data-"+vol] = &structs.ClientHostVolumeConfig{Name: "data-" + vol, Path: "/srv/wander-synthetic/" + vol, ID: vol}
+		}
+		must.Nil(t, applyDynamicHostVolume(t, fsm, index, structs.NodeRegisterRequestType, &structs.NodeRegisterRequest{Node: node}))
+	}
+	register(5, nodeA, structs.NodeStatusReady, "volume-a", "volume-b")
+	register(6, nodeB, structs.NodeStatusReady, "volume-c")
+
+	// Seed each volume through the Raft commands, as the real flow does.
+	index := uint64(10)
+	for _, spec := range []struct{ id, node string }{{"volume-a", nodeA}, {"volume-b", nodeA}, {"volume-c", nodeB}} {
+		vol := dhvFSMVolume(spec.id)
+		vol.NodeID, vol.State = spec.node, structs.DynamicHostVolumeStatePending
+		must.Nil(t, applyDynamicHostVolume(t, fsm, index, structs.DynamicHostVolumeUpsertRequestType,
+			&structs.DynamicHostVolumeUpsertRequest{Volumes: []*structs.DynamicHostVolume{vol}}))
+		must.Nil(t, applyDynamicHostVolume(t, fsm, index+1, structs.DynamicHostVolumeOutcomeRequestType,
+			&structs.DynamicHostVolumeOutcomeRequest{Key: dhvFSMKey(spec.id), State: structs.DynamicHostVolumeStateReady,
+				HostPath: "/srv/wander-synthetic/" + spec.id, CapacityBytes: 64, ModifyTime: 200}))
+		index += 2
+	}
+
+	// volume-a is no longer listed: unavailable at 30.
+	register(30, nodeA, structs.NodeStatusReady, "volume-b")
+	must.Eq(t, structs.DynamicHostVolumeStateUnavailable, dhvFSMGet(t, fsm, "volume-a").State)
+	must.Eq(t, uint64(30), dhvFSMGet(t, fsm, "volume-a").ModifyIndex)
+	// Listed again: ready at 31.
+	register(31, nodeA, structs.NodeStatusReady, "volume-a", "volume-b")
+	must.Eq(t, structs.DynamicHostVolumeStateReady, dhvFSMGet(t, fsm, "volume-a").State)
+	// Down at 32: both volumes of node A become unavailable.
+	must.Nil(t, applyDynamicHostVolume(t, fsm, 32, structs.NodeUpdateStatusRequestType,
+		&structs.NodeUpdateStatusRequest{NodeID: nodeA, Status: structs.NodeStatusDown, UpdatedAt: 1}))
+	must.Eq(t, uint64(32), dhvFSMGet(t, fsm, "volume-b").ModifyIndex)
+	// Node B is deleted at 33.
+	must.Nil(t, applyDynamicHostVolume(t, fsm, 33, structs.NodeDeregisterRequestType,
+		&structs.NodeDeregisterRequest{NodeID: nodeB}))
+	got := dhvFSMGet(t, fsm, "volume-c")
+	must.Eq(t, structs.DynamicHostVolumeStateUnavailable, got.State)
+	must.Eq(t, uint64(33), got.ModifyIndex)
+
+	// A batch deregister reaches the same path.
+	register(34, nodeB, structs.NodeStatusReady, "volume-c")
+	must.Eq(t, structs.DynamicHostVolumeStateReady, dhvFSMGet(t, fsm, "volume-c").State)
+	must.Nil(t, applyDynamicHostVolume(t, fsm, 35, structs.NodeBatchDeregisterRequestType,
+		&structs.NodeBatchDeregisterRequest{NodeIDs: []string{nodeB}}))
+	must.Eq(t, structs.DynamicHostVolumeStateUnavailable, dhvFSMGet(t, fsm, "volume-c").State)
+	tableIndex, err := fsm.State().Index(state.TableDynamicHostVolumes)
+	must.NoError(t, err)
+	must.Eq(t, uint64(35), tableIndex)
+
+	out := map[string]*structs.DynamicHostVolume{}
+	for _, id := range []string{"volume-a", "volume-b", "volume-c"} {
+		out[id] = dhvFSMGet(t, fsm, id)
+	}
+	return out
+}
+
+func TestFSM_DynamicHostVolume_NodeUpdatesAreDeterministic(t *testing.T) {
+	ci.Parallel(t)
+	first := dhvNodeFSMSequence(t, testFSM(t))
+	second := dhvNodeFSMSequence(t, testFSM(t))
+	must.Eq(t, first, second)
+	for _, vol := range first {
+		must.Eq(t, structs.DynamicHostVolumeStateUnavailable, vol.State)
 	}
 }
