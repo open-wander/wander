@@ -79,6 +79,11 @@ type Record struct {
 	// plugin returned when the volume was created.
 	Path string
 
+	// CapacityBytes is the size the plugin reported when it created the
+	// volume, so a repeated create answers with the same value. Zero means
+	// unknown.
+	CapacityBytes int64
+
 	Status    Status
 	Reason    string
 	Message   string

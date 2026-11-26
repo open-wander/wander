@@ -92,6 +92,8 @@ type VolumeStatus struct {
 	Reason    string
 	Message   string
 	CheckedAt time.Time
+	// CapacityBytes is the size the plugin reported at create, or zero.
+	CapacityBytes int64
 }
 
 // RegisterRequest describes an existing external path to register.
@@ -684,6 +686,12 @@ func (m *Manager) nameTakenLocked(name, exceptID string) bool {
 // nothing. If the record cannot be stored after a successful create, the
 // matching delete runs as a best-effort rollback and the store error is
 // returned. The volume name must be unused on this node.
+//
+// Repeating a create with the same ID, namespace, name and plugin on this
+// node returns the stored status and runs nothing, writes nothing and
+// publishes nothing. A repeat that differs is rejected with
+// ReasonCreateMismatch and changes nothing. NodePool and the capacities are
+// not compared.
 func (m *Manager) Create(ctx context.Context, pluginID string, req OpRequest) (VolumeStatus, error) {
 	const op = OperationCreate
 	m.ensureLoaded()
@@ -705,8 +713,18 @@ func (m *Manager) Create(ctx context.Context, pluginID string, req OpRequest) (V
 	}
 	defer m.locks.release(req.VolumeID)
 
-	existed, oerr := m.precheck(op, req.VolumeID, req.Name, hvstate.KindPlugin)
-	if oerr != nil {
+	// A volume this client already holds answers with its current state and
+	// does not run the plugin again, so a retry after a lost reply or a
+	// leadership change cannot provision twice.
+	if old, _, ok := m.snapshot(req.VolumeID); ok && old.Kind == hvstate.KindPlugin {
+		if old.NodeID == m.cfg.NodeID && old.Namespace == req.Namespace &&
+			old.Name == req.Name && old.PluginID == pluginID {
+			return statusOf(old), nil
+		}
+		return VolumeStatus{}, opErr(op, ReasonCreateMismatch, "volume id is created with other values")
+	}
+
+	if oerr := m.precheck(op, req.VolumeID, req.Name, hvstate.KindPlugin); oerr != nil {
 		return VolumeStatus{}, oerr
 	}
 
@@ -717,6 +735,13 @@ func (m *Manager) Create(ctx context.Context, pluginID string, req OpRequest) (V
 		CapacityMinBytes: req.CapacityMinBytes, CapacityMaxBytes: req.CapacityMaxBytes,
 		Parameters: maps.Clone(req.Parameters),
 		Status:     hvstate.StatusReady,
+	}
+	// The record is checked before the plugin runs, so a request that could
+	// never be stored does not provision anything. The path is not known yet.
+	check := *rec
+	check.Path = "/placeholder"
+	if err := validateRecord(&check); err != nil {
+		return VolumeStatus{}, opErr(op, ReasonInvalidInput, err.Error())
 	}
 	var (
 		res CreateResult
@@ -738,14 +763,11 @@ func (m *Manager) Create(ctx context.Context, pluginID string, req OpRequest) (V
 		return VolumeStatus{}, err
 	}
 	rec.Path = res.Path
+	rec.CapacityBytes = res.Bytes
 	rec.CheckedAt = m.cfg.Clock()
 
 	if err := m.commit(op, rec); err != nil {
-		// A volume that already had a record is not removed: the create
-		// reused it.
-		if !existed {
-			m.rollbackCreate(rec)
-		}
+		m.rollbackCreate(rec)
 		return VolumeStatus{}, err
 	}
 	m.finalize(nil)
@@ -755,18 +777,18 @@ func (m *Manager) Create(ctx context.Context, pluginID string, req OpRequest) (V
 }
 
 // precheck rejects a request that would clash with an existing record. The
-// volume lock is held. It reports whether a record for the ID exists.
-func (m *Manager) precheck(op, id, name string, kind hvstate.Kind) (bool, *OpError) {
+// volume lock is held.
+func (m *Manager) precheck(op, id, name string, kind hvstate.Kind) *OpError {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	e := m.entries[id]
 	if e != nil && e.rec.Kind != kind {
-		return true, opErr(op, ReasonInvalidInput, "volume id is used by a volume of another kind")
+		return opErr(op, ReasonInvalidInput, "volume id is used by a volume of another kind")
 	}
 	if m.nameTakenLocked(name, id) {
-		return e != nil, opErr(op, hvstate.ReasonNameConflict, "the name is already used on this node")
+		return opErr(op, hvstate.ReasonNameConflict, "the name is already used on this node")
 	}
-	return e != nil, nil
+	return nil
 }
 
 // commit stores the record and makes it visible. The name is checked again
@@ -956,5 +978,6 @@ func statusOf(r *hvstate.Record) VolumeStatus {
 	return VolumeStatus{
 		VolumeID: r.VolumeID, Name: r.Name, Path: r.Path, Kind: r.Kind,
 		Status: r.Status, Reason: r.Reason, Message: r.Message, CheckedAt: r.CheckedAt,
+		CapacityBytes: r.CapacityBytes,
 	}
 }

@@ -1310,8 +1310,30 @@ node update on every server.
   copy the node before replacing a field.
 - PATTERN: security - a shared event payload cannot follow a per-token rule;
   find every stream topic that carries a filtered field.
+## 2026-11-26 — Task 4.6 split; 4.6a complete
+
+- The advisor judged 4.6 too large for one change and split it: 4.6a client
+  create handshake and routing, 4.6b server create/register/update RPCs with
+  ACLs, 4.6c leader retry, 4.6d HTTP and contract.
+- 4.6a: client RPC HostVolume.Create; Manager.Create answers a repeat with the
+  same ID, namespace, name, node and plugin from the stored record without
+  running the plugin (needed before leader retry can be safe); a differing
+  repeat is `create_mismatch`. Manager.Create now validates the record before
+  the plugin runs. Server endpoint ClientHostVolume.Create/Register routes to
+  the node like ClientCSI, server certificate only; tests cover the TLS and
+  Authenticate refusals.
+- Three existing manager tests encoded "a repeat runs the plugin again"; they
+  were rewritten to keep their intent, not deleted.
+- Owner decisions 2026-11-26: HTTP shapes for create/register/update come
+  from public API docs as interface evidence (SRC-api); update through create
+  or register needs that endpoint's own capability; an update is recorded only
+  and not sent to the plugin.
+- PATTERN: client - a create that may be retried must answer a repeat from its
+  stored record before any side effect, or a lost reply provisions twice.
+- PATTERN: security - an endpoint whose only access control is the TLS
+  certificate level needs a TLS test, or deleting the check passes CI.
 
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.5 and 4.8 are done. Next: 4.6, then 4.7 and 4.9.
+- 4.2 to 4.5, 4.6a and 4.8 are done. Next: 4.6b, then 4.6c, 4.6d, 4.7 and 4.9.
