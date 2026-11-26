@@ -1272,7 +1272,25 @@ PATTERN: state - a hook called from an inherited node write must never return
 an error on data: UpsertNode and DeleteNode swallow errors and drop the whole
 node update on every server.
 
+## 2026-11-26 — Task 4.5 complete
+
+- #93 merged. Most of the apply-time re-check was already on main from #75;
+  this task adds proof through real entry points (MarkDynamicHostVolumesDeleting,
+  UpsertNode, UpdateNodeStatus, evaluatePlan with two nodes) and closes one gap.
+- Gap: a placement whose source the node no longer advertises skipped the
+  check, so a dropped volume could still be placed on in the window between
+  scheduling and apply. The applier now looks the source up by namespace,
+  node and name (new `DynamicHostVolumeByNodeName`) and refuses it if a dynamic
+  record exists. A source with no record is static and keeps the inherited rule.
+  This follows PRD 6.4 ("exists, is ready and is on the node of the placement").
+- A down or disconnected node is refused by the inherited node check first, so
+  that case has no volume-specific reason; recorded in provenance.
+- PATTERN: tests - a criterion like "not rejected" cannot be proven by disabling
+  the check; pick the mutation that would wrongly reject (remove the skip).
+- PATTERN: review - after removing a guard, grep the doc comment for claims the
+  guard made.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.4 are done. Next: 4.5 (check what #75 already covers) and 4.8.
+- 4.2 to 4.5 are done. Next: 4.8, then 4.6, 4.7 and 4.9.

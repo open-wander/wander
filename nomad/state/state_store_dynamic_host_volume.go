@@ -511,6 +511,26 @@ func dynamicHostVolumeRecords[T dynamicHostVolumeCopyable[T]](s *StateStore, ws 
 func (s *StateStore) DynamicHostVolumeByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolume, error) {
 	return dynamicHostVolumeByID[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, namespace, id)
 }
+
+// DynamicHostVolumeByNodeName returns the record a node holds under a name in
+// a namespace, or nil. The pair is unique, so it finds the record of a source
+// the node no longer advertises.
+func (s *StateStore) DynamicHostVolumeByNodeName(ws memdb.WatchSet, namespace, nodeID, name string) (*structs.DynamicHostVolume, error) {
+	if err := dynamicHostVolumeKeys(3, namespace, nodeID, name); err != nil {
+		return nil, err
+	}
+	tx := s.db.ReadTxn()
+	watch, raw, err := tx.FirstWatch(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, namespace, nodeID, name)
+	if err != nil {
+		return nil, ErrDynamicHostVolumeStateStorage
+	}
+	ws.Add(watch)
+	if raw == nil {
+		return nil, nil
+	}
+	return raw.(*structs.DynamicHostVolume).Copy(), nil
+}
+
 func (s *StateStore) DynamicHostVolumeClaimByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolumeClaim, error) {
 	return dynamicHostVolumeByID[*structs.DynamicHostVolumeClaim](s, ws, TableDynamicHostVolumeClaims, namespace, id)
 }
