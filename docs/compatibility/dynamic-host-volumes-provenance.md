@@ -821,6 +821,63 @@ are Wander policy, implemented in `client/host_volume_endpoint.go`,
 | `name_conflict` | static or dynamic name already used on this node |
 | `plugin_unavailable` | the plugin is missing, unhealthy or unsupported |
 
+## Delete and deregister handshake (client) {#delete-handshake}
+
+This exchange is internal to Wander and is not a compatibility question, so
+it has no public-interface row. The rules below are Wander policy,
+implemented in `client/host_volume_endpoint.go`,
+`client/hostvolume/manager.go` and `nomad/client_host_volume_endpoint.go`.
+
+### Wander policy
+
+1. The client RPC methods are `HostVolume.Delete` and `HostVolume.Deregister`.
+   They are separate methods, not one method with a flag, so that a wrong
+   value can never run a plugin against registered external storage. Each
+   also checks the kind of the stored record on the client. Like Create they
+   are for servers only: no HTTP route and no ACL check.
+2. A request carries VolumeID, Namespace and NodeID and nothing else. The
+   client never takes a plugin, a path or a kind from the server: it uses its
+   own stored record. A reply carries VolumeID, Reason and Message.
+3. VolumeID, Namespace and NodeID are validated before the per-volume lock is
+   taken, so untrusted input is bounded before it becomes a lock table key.
+   The node is never defaulted.
+4. A volume this client does not hold answers success and runs nothing, so a
+   repeat after a lost reply, a client restart or a leadership change is safe.
+5. A record this client holds under another namespace or node is rejected with
+   `delete_mismatch` and nothing runs.
+6. `Delete` runs the delete operation of the record's plugin, then removes the
+   record and unpublishes the volume. A plugin failure (for example
+   `non_zero_exit`, `timeout` or `plugin_unavailable`) is a classified reply
+   and keeps the record and the published volume, so the server can retry.
+7. `Delete` of a registered record is refused with `volume_kind_conflict`.
+   `Deregister` of a plugin-created record is refused with
+   `volume_kind_conflict`. Neither changes anything.
+8. `Deregister` removes the record and unpublishes the volume. It never runs
+   a plugin and never inspects, changes or removes the directory.
+9. If the record store could not be read at all when the client started, both
+   methods return an error, not success, until the client restarts with a
+   readable store. Otherwise the server would drop the record of a directory
+   that still exists. While the failure persists, the server's delete retries
+   keep failing with an internal error until the client restarts, and the
+   leader's retry diagnostic is where an operator will see it. A single
+   record that was unreadable or invalid at start is skipped and logged with
+   its volume ID; it counts as not held, so its directory may stay on disk
+   and nothing advertises it.
+10. A classified rejection returns a nil RPC error with Reason set. Only
+    transport or internal failures return an RPC error. A canceled wait is an
+    error, not a rejection. One call is bounded by two minutes.
+11. `ClientHostVolume.Delete` and `ClientHostVolume.Deregister` on the server
+    route to the node exactly like Create and Register: directly or by
+    forwarding, server certificate only.
+
+| Reason code | Cases |
+| --- | --- |
+| `delete_mismatch` | the client holds the ID under another namespace or node |
+| `invalid_input` | malformed volume ID or empty namespace |
+| `node_mismatch` | NodeID of another node, or empty |
+| `volume_kind_conflict` | delete of a registered volume, or deregister of a plugin-created one |
+| `non_zero_exit`, `timeout`, `plugin_unavailable` | the plugin delete failed; the record is kept |
+
 ## Read API (server and HTTP) {#read-api}
 
 ### Recorded evidence

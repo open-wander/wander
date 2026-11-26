@@ -26,6 +26,8 @@ type mockClientHostVolume struct {
 	mu       sync.Mutex
 	creates  []cstructs.HostVolumeCreateRequest
 	registry []cstructs.HostVolumeRegisterRequest
+	deletes  []cstructs.HostVolumeDeleteRequest
+	deregs   []cstructs.HostVolumeDeregisterRequest
 	err      error
 
 	// The fields below configure the mock for the server endpoint tests and
@@ -67,6 +69,37 @@ func (m *mockClientHostVolume) Register(req *cstructs.HostVolumeRegisterRequest,
 		hook()
 	}
 	return err
+}
+
+func (m *mockClientHostVolume) Delete(req *cstructs.HostVolumeDeleteRequest, resp *cstructs.HostVolumeDeleteResponse) error {
+	m.mu.Lock()
+	m.deletes = append(m.deletes, *req)
+	*resp = cstructs.HostVolumeDeleteResponse{VolumeID: req.VolumeID}
+	hook, err := m.hook, m.err
+	m.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return err
+}
+
+func (m *mockClientHostVolume) Deregister(req *cstructs.HostVolumeDeregisterRequest, resp *cstructs.HostVolumeDeregisterResponse) error {
+	m.mu.Lock()
+	m.deregs = append(m.deregs, *req)
+	*resp = cstructs.HostVolumeDeregisterResponse{VolumeID: req.VolumeID}
+	hook, err := m.hook, m.err
+	m.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return err
+}
+
+// removalCounts returns how many delete and deregister calls arrived.
+func (m *mockClientHostVolume) removalCounts() (int, int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.deletes), len(m.deregs)
 }
 
 // set changes the mock's configuration while the client may be serving calls.
@@ -143,6 +176,20 @@ func TestClientHostVolume_Local(t *testing.T) {
 	must.Eq(t, *createReq, mock.creates[0])
 	must.Eq(t, *regReq, mock.registry[0])
 
+	delReq := &cstructs.HostVolumeDeleteRequest{VolumeID: "vol-a", Namespace: "default", NodeID: c.NodeID()}
+	var delResp cstructs.HostVolumeDeleteResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Delete", delReq, &delResp))
+	must.Eq(t, cstructs.HostVolumeDeleteResponse{VolumeID: "vol-a"}, delResp)
+	deregReq := &cstructs.HostVolumeDeregisterRequest{VolumeID: "vol-b", Namespace: "default", NodeID: c.NodeID()}
+	var deregResp cstructs.HostVolumeDeregisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Deregister", deregReq, &deregResp))
+	must.Eq(t, cstructs.HostVolumeDeregisterResponse{VolumeID: "vol-b"}, deregResp)
+	nd, ng := mock.removalCounts()
+	must.Eq(t, 1, nd)
+	must.Eq(t, 1, ng)
+	must.Eq(t, *delReq, mock.deletes[0])
+	must.Eq(t, *deregReq, mock.deregs[0])
+
 	t.Run("unknown node", func(t *testing.T) {
 		req := *createReq
 		req.NodeID = "5b0c0a5e-0000-4000-8000-000000000001"
@@ -151,12 +198,28 @@ func TestClientHostVolume_Local(t *testing.T) {
 		must.ErrorContains(t, err, "Unknown node")
 	})
 
+	t.Run("unknown node for delete and deregister", func(t *testing.T) {
+		const missing = "5b0c0a5e-0000-4000-8000-000000000001"
+		var d cstructs.HostVolumeDeleteResponse
+		must.ErrorContains(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Delete",
+			&cstructs.HostVolumeDeleteRequest{VolumeID: "vol-a", Namespace: "default", NodeID: missing}, &d), "Unknown node")
+		var g cstructs.HostVolumeDeregisterResponse
+		must.ErrorContains(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Deregister",
+			&cstructs.HostVolumeDeregisterRequest{VolumeID: "vol-b", Namespace: "default", NodeID: missing}, &g), "Unknown node")
+	})
+
 	t.Run("client error", func(t *testing.T) {
 		mock.mu.Lock()
 		mock.err = errors.New("synthetic client failure")
 		mock.mu.Unlock()
 		var r cstructs.HostVolumeCreateResponse
 		err := msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Create", createReq, &r)
+		must.ErrorContains(t, err, "synthetic client failure")
+		var d cstructs.HostVolumeDeleteResponse
+		err = msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Delete", delReq, &d)
+		must.ErrorContains(t, err, "synthetic client failure")
+		var g cstructs.HostVolumeDeregisterResponse
+		err = msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Deregister", deregReq, &g)
 		must.ErrorContains(t, err, "synthetic client failure")
 	})
 }
@@ -206,6 +269,18 @@ func TestClientHostVolume_Forwarded(t *testing.T) {
 	nc, nr := mock.counts()
 	must.Eq(t, 1, nc)
 	must.Eq(t, 1, nr)
+
+	var delResp cstructs.HostVolumeDeleteResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Delete",
+		&cstructs.HostVolumeDeleteRequest{VolumeID: "vol-a", Namespace: "default", NodeID: c.NodeID()}, &delResp))
+	must.Eq(t, "vol-a", delResp.VolumeID)
+	var deregResp cstructs.HostVolumeDeregisterResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Deregister",
+		&cstructs.HostVolumeDeregisterRequest{VolumeID: "vol-b", Namespace: "default", NodeID: c.NodeID()}, &deregResp))
+	must.Eq(t, "vol-b", deregResp.VolumeID)
+	nd, ng := mock.removalCounts()
+	must.Eq(t, 1, nd)
+	must.Eq(t, 1, ng)
 }
 
 // Only a caller presenting a server certificate for the local region may
@@ -263,6 +338,16 @@ func TestClientHostVolume_RequiresServerCertificate(t *testing.T) {
 			},
 			reply: &cstructs.HostVolumeRegisterResponse{},
 		},
+		{
+			method: "ClientHostVolume.Delete",
+			args:   &cstructs.HostVolumeDeleteRequest{VolumeID: "vol-a", Namespace: "default", NodeID: nodeID},
+			reply:  &cstructs.HostVolumeDeleteResponse{},
+		},
+		{
+			method: "ClientHostVolume.Deregister",
+			args:   &cstructs.HostVolumeDeregisterRequest{VolumeID: "vol-b", Namespace: "default", NodeID: nodeID},
+			reply:  &cstructs.HostVolumeDeregisterResponse{},
+		},
 	}
 
 	for _, call := range calls {
@@ -304,5 +389,15 @@ func TestClientHostVolume_AuthenticateFailure(t *testing.T) {
 	err = ep.Register(&cstructs.HostVolumeRegisterRequest{
 		VolumeID: "vol-b", Namespace: "default", Name: "ext", NodeID: nodeID, HostPath: "/synthetic/ext",
 	}, &cstructs.HostVolumeRegisterResponse{})
+	must.ErrorIs(t, err, structs.ErrPermissionDenied)
+
+	err = ep.Delete(&cstructs.HostVolumeDeleteRequest{
+		VolumeID: "vol-a", Namespace: "default", NodeID: nodeID,
+	}, &cstructs.HostVolumeDeleteResponse{})
+	must.ErrorIs(t, err, structs.ErrPermissionDenied)
+
+	err = ep.Deregister(&cstructs.HostVolumeDeregisterRequest{
+		VolumeID: "vol-b", Namespace: "default", NodeID: nodeID,
+	}, &cstructs.HostVolumeDeregisterResponse{})
 	must.ErrorIs(t, err, structs.ErrPermissionDenied)
 }

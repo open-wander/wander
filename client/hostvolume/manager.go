@@ -161,6 +161,10 @@ type Manager struct {
 	// read of the store.
 	loadOnce sync.Once
 
+	// loadErr is set when the store could not be read at all. It is written
+	// inside loadOnce and read after ensureLoaded, so it needs no lock.
+	loadErr bool
+
 	// pubMu serialises building and publishing the set so that an older
 	// set is never delivered after a newer one.
 	pubMu     sync.Mutex
@@ -274,6 +278,7 @@ func (m *Manager) load() {
 	recs, errs, err := m.cfg.Store.GetHostVolumes()
 	if err != nil {
 		m.logger.Error("failed to read host volume records", "error", errClass(err))
+		m.loadErr = true
 		return
 	}
 	for id := range errs {
@@ -837,32 +842,108 @@ func (m *Manager) runDelete(ctx context.Context, rec *hvstate.Record) error {
 	return m.cfg.Ops.Delete(ctx, cand, req, rec.Path)
 }
 
-// Delete runs the delete operation of a plugin-created volume, then removes
-// the record and unpublishes the volume. A failed delete keeps the record
-// and its status. Removing a registered record is not supported here and
-// changes nothing.
-func (m *Manager) Delete(ctx context.Context, volumeID string) error {
-	const op = OperationDelete
+// DeleteRequest names the volume for Delete and Deregister. It carries no
+// plugin and no path: the manager uses its own stored record.
+type DeleteRequest struct {
+	VolumeID  string
+	Namespace string
+	NodeID    string
+}
+
+// errStoreUnreadable is returned while the record store could not be read at
+// start. Answering "not held" then would let the server drop the record of a
+// directory that still exists, so the caller must retry later.
+var errStoreUnreadable = errors.New("host volume records could not be read")
+
+// begin validates a delete or deregister request and takes the volume lock.
+// Validation runs before the lock so that untrusted input is bounded before
+// it becomes a lock table key. The node is never defaulted. On success the
+// caller holds the lock and must release it with m.locks.release.
+func (m *Manager) begin(ctx context.Context, op string, req DeleteRequest) error {
 	m.ensureLoaded()
-	if err := m.locks.acquire(ctx, volumeID); err != nil {
+	if err := ValidateID(req.VolumeID); err != nil {
+		return opErr(op, ReasonInvalidInput, "invalid volume id")
+	}
+	if req.Namespace == "" {
+		return opErr(op, ReasonInvalidInput, "namespace is empty")
+	}
+	if req.NodeID != m.cfg.NodeID {
+		return opErr(op, hvstate.ReasonNodeMismatch, "")
+	}
+	if m.loadErr {
+		return errStoreUnreadable
+	}
+	if err := m.locks.acquire(ctx, req.VolumeID); err != nil {
 		return opErr(op, ReasonCanceled, "")
 	}
-	defer m.locks.release(volumeID)
+	return nil
+}
 
-	rec, _, ok := m.snapshot(volumeID)
+// held returns the record of a volume, or nil when this client does not hold
+// it, which counts as success for a repeated delete. A record held under
+// another namespace or node is a mismatch and changes nothing.
+func (m *Manager) held(op string, req DeleteRequest) (*hvstate.Record, error) {
+	rec, _, ok := m.snapshot(req.VolumeID)
 	if !ok {
-		return opErr(op, ReasonInvalidInput, "unknown volume")
+		return nil, nil
+	}
+	if rec.Namespace != req.Namespace || rec.NodeID != req.NodeID {
+		return nil, opErr(op, ReasonDeleteMismatch, "volume id is held with other values")
+	}
+	return rec, nil
+}
+
+// Delete runs the delete operation of a plugin-created volume, then removes
+// the record and unpublishes the volume. A failed delete keeps the record
+// and its status. A volume this client does not hold answers success and runs
+// nothing, so a repeat after a lost reply is safe. A record unreadable at
+// start counts as not held and its directory may stay on disk, but a store
+// that could not be read at all is an error. Removing a registered record is
+// refused with ErrRegisteredVolume and changes nothing: Deregister does that.
+func (m *Manager) Delete(ctx context.Context, req DeleteRequest) error {
+	const op = OperationDelete
+	if err := m.begin(ctx, op, req); err != nil {
+		return err
+	}
+	defer m.locks.release(req.VolumeID)
+
+	rec, err := m.held(op, req)
+	if rec == nil {
+		return err
 	}
 	if rec.Kind == hvstate.KindRegistered {
 		return ErrRegisteredVolume
 	}
-	if rec.NodeID != m.cfg.NodeID {
-		return opErr(op, hvstate.ReasonNodeMismatch, "")
-	}
 	if err := m.runDelete(ctx, rec); err != nil {
 		return err
 	}
+	return m.dropRecord(req.VolumeID)
+}
 
+// Deregister drops the record of a registered volume and unpublishes it. It
+// never runs a plugin and never touches the directory. The rules for a
+// volume not held and for mismatches are those of Delete. A plugin-created
+// volume is refused with ReasonVolumeKindConflict and changes nothing.
+func (m *Manager) Deregister(ctx context.Context, req DeleteRequest) error {
+	const op = OperationDeregister
+	if err := m.begin(ctx, op, req); err != nil {
+		return err
+	}
+	defer m.locks.release(req.VolumeID)
+
+	rec, err := m.held(op, req)
+	if rec == nil {
+		return err
+	}
+	if rec.Kind != hvstate.KindRegistered {
+		return opErr(op, ReasonVolumeKindConflict, "volume was created by a plugin")
+	}
+	return m.dropRecord(req.VolumeID)
+}
+
+// dropRecord removes the stored record and unpublishes the volume. The volume
+// lock is held.
+func (m *Manager) dropRecord(volumeID string) error {
 	m.mu.Lock()
 	if err := m.cfg.Store.DeleteHostVolume(volumeID); err != nil {
 		m.mu.Unlock()

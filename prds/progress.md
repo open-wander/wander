@@ -1422,7 +1422,26 @@ node update on every server.
   WriteRequest lets the body set AuthToken and Namespace; decode into a local
   struct.
 
+## 2026-11-26 — Task 4.7 split; 4.7a complete
+
+- #99 and #100 merged; all of 4.6 is on main.
+- 4.7 split into 4.7a client delete/deregister handshake and routing, 4.7b
+  server delete/deregister RPCs, 4.7c leader retry of deleting records plus
+  orphan detection, 4.7d claim list/delete RPCs, 4.7e HTTP.
+- 4.7a: separate client HostVolume.Delete and HostVolume.Deregister; a volume
+  the client does not hold answers success with no plugin run; deregister
+  never touches the directory; a client store that failed to load refuses
+  deletes with an internal error, so the server never drops a record for a
+  directory that still exists. Manager.Delete now takes a DeleteRequest.
+- Owner decisions 2026-11-26: force keeps the in-use refusal and is only for
+  a down, disconnected or unknown node (400 on a ready node), for delete and
+  deregister; cross-kind delete/deregister is refused with 400; deleting
+  records retry forever, capped at 60s, last error stored; the late-create
+  race is fixed in 4.7c, not only documented.
+- PATTERN: client - "not held" may only mean success when the client's store
+  loaded; otherwise a read failure turns into silent data loss on the server.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.6d and 4.8 are done. Next: 4.7 (delete, deregister, claims), then 4.9.
+- 4.2 to 4.6d, 4.7a and 4.8 are done. Next: 4.7b, then 4.7c; 4.7d can run beside them; then 4.7e and 4.9.

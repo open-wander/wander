@@ -45,6 +45,20 @@ func (a *ClientHostVolume) Register(args *cstructs.HostVolumeRegisterRequest, re
 	return a.sendNodeRPC(args.NodeID, "HostVolume.Register", "ClientHostVolume.Register", args, reply)
 }
 
+// Delete asks the node to delete a plugin-created volume. A rejection by the
+// client is in the reply, not in the error.
+func (a *ClientHostVolume) Delete(args *cstructs.HostVolumeDeleteRequest, reply *cstructs.HostVolumeDeleteResponse) error {
+	defer metrics.MeasureSince([]string{"nomad", "client_host_volume", "delete"}, time.Now())
+	return a.sendNodeRPC(args.NodeID, "HostVolume.Delete", "ClientHostVolume.Delete", args, reply)
+}
+
+// Deregister asks the node to drop the record of a registered volume. The
+// node never runs a plugin or touches the directory.
+func (a *ClientHostVolume) Deregister(args *cstructs.HostVolumeDeregisterRequest, reply *cstructs.HostVolumeDeregisterResponse) error {
+	defer metrics.MeasureSince([]string{"nomad", "client_host_volume", "deregister"}, time.Now())
+	return a.sendNodeRPC(args.NodeID, "HostVolume.Deregister", "ClientHostVolume.Deregister", args, reply)
+}
+
 func (a *ClientHostVolume) sendNodeRPC(nodeID, method, fwdMethod string, args, reply any) error {
 	// client requests aren't RequestWithIdentity, so a placeholder fills in
 	// the identity data for metrics
