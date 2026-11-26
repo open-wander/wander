@@ -115,3 +115,87 @@ func (h *HostVolume) Create(req *structs.HostVolumeCreateRequest, resp *structs.
 	}
 	return nil
 }
+
+// hostVolumeDeleteTimeout bounds one delete or deregistration, which includes
+// waiting for the per-volume lock and running the plugin.
+const hostVolumeDeleteTimeout = 2 * time.Minute
+
+// Delete runs the delete operation of a plugin-created volume and drops its
+// record. A volume this client no longer holds answers success and runs
+// nothing, so a repeat is safe. A classified rejection, including a failed
+// plugin delete that keeps the record, returns a nil error with Reason set.
+// A registered volume is refused with volume_kind_conflict: Deregister is the
+// only call that drops one, and it never runs a plugin. Only transport or
+// internal failures, such as a store error, a canceled wait or a missing
+// manager, return an error.
+func (h *HostVolume) Delete(req *structs.HostVolumeDeleteRequest, resp *structs.HostVolumeDeleteResponse) error {
+	defer metrics.MeasureSince([]string{"client", "host_volume", "delete"}, time.Now())
+
+	err := h.run("HostVolume.Delete", func(ctx context.Context, m *hostvolume.Manager) error {
+		return m.Delete(ctx, hostvolume.DeleteRequest{
+			VolumeID: req.VolumeID, Namespace: req.Namespace, NodeID: req.NodeID,
+		})
+	}, func(reason, message string) {
+		*resp = structs.HostVolumeDeleteResponse{Reason: reason, Message: message}
+	})
+	if err != nil {
+		return err
+	}
+	resp.VolumeID = req.VolumeID
+	return nil
+}
+
+// Deregister drops the record of a registered volume. It never runs a plugin
+// and never touches the directory. The reply rules are those of Delete, and a
+// plugin-created volume is refused with volume_kind_conflict.
+func (h *HostVolume) Deregister(req *structs.HostVolumeDeregisterRequest, resp *structs.HostVolumeDeregisterResponse) error {
+	defer metrics.MeasureSince([]string{"client", "host_volume", "deregister"}, time.Now())
+
+	err := h.run("HostVolume.Deregister", func(ctx context.Context, m *hostvolume.Manager) error {
+		return m.Deregister(ctx, hostvolume.DeleteRequest{
+			VolumeID: req.VolumeID, Namespace: req.Namespace, NodeID: req.NodeID,
+		})
+	}, func(reason, message string) {
+		*resp = structs.HostVolumeDeregisterResponse{Reason: reason, Message: message}
+	})
+	if err != nil {
+		return err
+	}
+	resp.VolumeID = req.VolumeID
+	return nil
+}
+
+// run calls op under the delete timeout and the client shutdown. A classified
+// rejection goes to reject and returns nil. Any other failure returns an
+// error named after method.
+func (h *HostVolume) run(method string, op func(context.Context, *hostvolume.Manager) error, reject func(reason, message string)) error {
+	m := h.c.hostVolumeManager
+	if m == nil {
+		return errors.New(method + ": host volume manager is not available")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), hostVolumeDeleteTimeout)
+	defer cancel()
+	go func() {
+		select {
+		case <-h.c.shutdownCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	err := op(ctx, m)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, hostvolume.ErrRegisteredVolume) {
+		reject(hostvolume.ReasonVolumeKindConflict, "volume is registered and has no plugin to delete it")
+		return nil
+	}
+	var oe *hostvolume.OpError
+	if errors.As(err, &oe) && oe.Reason != hostvolume.ReasonCanceled {
+		reject(oe.Reason, oe.Message)
+		return nil
+	}
+	return errors.New(method + ": " + err.Error())
+}
