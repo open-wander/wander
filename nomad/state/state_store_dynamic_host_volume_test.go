@@ -1389,3 +1389,153 @@ func TestStateStore_DynamicHostVolumeByNodeName(t *testing.T) {
 	_, err := store.DynamicHostVolumeByNodeName(nil, "default", "", "data-a")
 	must.Error(t, err)
 }
+
+// claimHeldFixture stores a volume on node A, a claim of job and group of
+// the allocation that volumeUserAlloc creates, and that allocation. The claim
+// records the first allocation of the group.
+func claimHeldFixture(t *testing.T, mutate func(job *structs.Job, alloc *structs.Allocation)) (*StateStore, *structs.DynamicHostVolumeClaim, *structs.Allocation) {
+	t.Helper()
+	store := TestStateStore(t)
+	must.NoError(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{claimCleanupVolume("volume-a", claimCleanupNodeA)}))
+	alloc := volumeUserAlloc(t, store, 12, mutate)
+	claim := claimCleanupClaim("claim-a", alloc.Namespace, alloc.JobID, "volume-a")
+	claim.TaskGroupName = alloc.TaskGroup
+	claim.AllocationID = alloc.ID
+	must.NoError(t, store.UpsertDynamicHostVolumeClaims(20, []*structs.DynamicHostVolumeClaim{claim}))
+	stored, err := store.DynamicHostVolumeClaimByID(nil, claim.Namespace, claim.ID)
+	must.NoError(t, err)
+	return store, stored, alloc
+}
+
+func TestStateStore_DeleteDynamicHostVolumeClaims_HeldByAllocation(t *testing.T) {
+	cases := []struct {
+		name    string
+		mutate  func(job *structs.Job, alloc *structs.Allocation)
+		blocked bool
+	}{
+		{"pending allocation", nil, true},
+		{"running allocation", func(_ *structs.Job, a *structs.Allocation) { a.ClientStatus = structs.AllocClientStatusRunning }, true},
+		{"desired stop but client still running", func(_ *structs.Job, a *structs.Allocation) {
+			a.DesiredStatus, a.ClientStatus = structs.AllocDesiredStatusStop, structs.AllocClientStatusRunning
+		}, true},
+		{"client complete", func(_ *structs.Job, a *structs.Allocation) { a.ClientStatus = structs.AllocClientStatusComplete }, false},
+		{"client failed", func(_ *structs.Job, a *structs.Allocation) { a.ClientStatus = structs.AllocClientStatusFailed }, false},
+		{"client lost", func(_ *structs.Job, a *structs.Allocation) { a.ClientStatus = structs.AllocClientStatusLost }, false},
+		{"another node", func(_ *structs.Job, a *structs.Allocation) { a.NodeID = claimCleanupNodeB }, false},
+		{"another source", func(j *structs.Job, _ *structs.Allocation) {
+			j.TaskGroups[0].Volumes["data"].Source = "data-volume-c"
+		}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, claim, _ := claimHeldFixture(t, tc.mutate)
+			err := store.DeleteDynamicHostVolumeClaims(30, []DynamicHostVolumeClaimDelete{
+				{Namespace: claim.Namespace, ID: claim.ID, ExpectedModifyIndex: claim.ModifyIndex}})
+			if tc.blocked {
+				must.ErrorIs(t, err, ErrDynamicHostVolumeStateInUse)
+				must.Eq(t, []string{"claim-a"}, claimIDsOf(t, store))
+				must.Eq(t, uint64(20), tableIndexOf(t, store, TableDynamicHostVolumeClaims))
+				return
+			}
+			must.NoError(t, err)
+			must.Eq(t, 0, len(claimIDsOf(t, store)))
+			must.Eq(t, uint64(30), tableIndexOf(t, store, TableDynamicHostVolumeClaims))
+		})
+	}
+}
+
+func TestStateStore_DeleteDynamicHostVolumeClaims_NoAllocation(t *testing.T) {
+	store := TestStateStore(t)
+	must.NoError(t, store.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{claimCleanupVolume("volume-a", claimCleanupNodeA)}))
+	must.NoError(t, store.UpsertDynamicHostVolumeClaims(11, []*structs.DynamicHostVolumeClaim{
+		claimCleanupClaim("claim-a", "default", "job-a", "volume-a")}))
+	must.NoError(t, store.DeleteDynamicHostVolumeClaims(30, []DynamicHostVolumeClaimDelete{
+		{Namespace: "default", ID: "claim-a", ExpectedModifyIndex: 11}}))
+	must.Eq(t, 0, len(claimIDsOf(t, store)))
+}
+
+// AllocationID records only the first allocation of the group. A replacement
+// allocation has another ID, and still holds the claim.
+func TestStateStore_DeleteDynamicHostVolumeClaims_ReplacementHoldsClaim(t *testing.T) {
+	store, claim, original := claimHeldFixture(t, nil)
+	setAllocStatus(t, store, 20, original, structs.AllocDesiredStatusStop, structs.AllocClientStatusComplete)
+
+	replacement := original.Copy()
+	replacement.ID = "00000000-0000-0000-0000-0000000000f1"
+	replacement.DesiredStatus, replacement.ClientStatus = structs.AllocDesiredStatusRun, structs.AllocClientStatusPending
+	must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, 22, []*structs.Allocation{replacement}))
+	must.NotEq(t, claim.AllocationID, replacement.ID)
+
+	del := []DynamicHostVolumeClaimDelete{{Namespace: claim.Namespace, ID: claim.ID, ExpectedModifyIndex: claim.ModifyIndex}}
+	must.ErrorIs(t, store.DeleteDynamicHostVolumeClaims(40, del), ErrDynamicHostVolumeStateInUse)
+	must.Eq(t, []string{"claim-a"}, claimIDsOf(t, store))
+
+	// Once the replacement is client-terminal as well the claim goes.
+	setAllocStatus(t, store, 30, replacement, structs.AllocDesiredStatusStop, structs.AllocClientStatusComplete)
+	must.NoError(t, store.DeleteDynamicHostVolumeClaims(40, del))
+	must.Eq(t, 0, len(claimIDsOf(t, store)))
+}
+
+// An allocation of another group or another job of the same node and volume
+// does not hold the claim.
+func TestStateStore_DeleteDynamicHostVolumeClaims_OtherGroupOrJobDoesNotHold(t *testing.T) {
+	for name, change := range map[string]func(c *structs.DynamicHostVolumeClaim){
+		"another group": func(c *structs.DynamicHostVolumeClaim) { c.TaskGroupName = "other-group" },
+		"another job":   func(c *structs.DynamicHostVolumeClaim) { c.JobID = "other-job" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, claim, _ := claimHeldFixture(t, nil)
+			other := claim.Copy()
+			other.ID = "claim-b"
+			other.CreateIndex, other.ModifyIndex = 0, 0
+			change(other)
+			must.NoError(t, store.UpsertDynamicHostVolumeClaims(25, []*structs.DynamicHostVolumeClaim{other}))
+			stored, err := store.DynamicHostVolumeClaimByID(nil, other.Namespace, other.ID)
+			must.NoError(t, err)
+			must.NoError(t, store.DeleteDynamicHostVolumeClaims(30, []DynamicHostVolumeClaimDelete{
+				{Namespace: stored.Namespace, ID: stored.ID, ExpectedModifyIndex: stored.ModifyIndex}}))
+			must.Eq(t, []string{"claim-a"}, claimIDsOf(t, store))
+		})
+	}
+}
+
+func TestStateStore_DeleteDynamicHostVolumeClaims_CASMismatch(t *testing.T) {
+	store, claim, _ := claimHeldFixture(t, func(_ *structs.Job, a *structs.Allocation) {
+		a.ClientStatus = structs.AllocClientStatusComplete
+	})
+	err := store.DeleteDynamicHostVolumeClaims(30, []DynamicHostVolumeClaimDelete{
+		{Namespace: claim.Namespace, ID: claim.ID, ExpectedModifyIndex: claim.ModifyIndex + 1}})
+	must.ErrorIs(t, err, ErrDynamicHostVolumeStateCAS)
+	must.Eq(t, []string{"claim-a"}, claimIDsOf(t, store))
+}
+
+// A claim whose volume record is gone falls back to the allocation recorded in
+// the claim.
+func TestStateStore_DeleteDynamicHostVolumeClaims_MissingVolumeFallsBackToAllocationID(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		client  string
+		blocked bool
+	}{{"live recorded allocation", structs.AllocClientStatusRunning, true},
+		{"terminal recorded allocation", structs.AllocClientStatusComplete, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := TestStateStore(t)
+			alloc := volumeUserAlloc(t, store, 12, func(_ *structs.Job, a *structs.Allocation) { a.ClientStatus = tc.client })
+			claim := claimCleanupClaim("claim-a", alloc.Namespace, alloc.JobID, "volume-gone")
+			claim.TaskGroupName, claim.AllocationID = alloc.TaskGroup, alloc.ID
+			// The claim is restored without its volume, as a snapshot could.
+			claim.CreateIndex, claim.ModifyIndex = 20, 20
+			restore, err := store.Restore()
+			must.NoError(t, err)
+			must.NoError(t, restore.DynamicHostVolumeClaimRestore(claim))
+			must.NoError(t, restore.Commit())
+			err = store.DeleteDynamicHostVolumeClaims(30, []DynamicHostVolumeClaimDelete{
+				{Namespace: claim.Namespace, ID: claim.ID, ExpectedModifyIndex: 20}})
+			if tc.blocked {
+				must.ErrorIs(t, err, ErrDynamicHostVolumeStateInUse)
+				return
+			}
+			must.NoError(t, err)
+		})
+	}
+}

@@ -339,6 +339,15 @@ func (s *StateStore) deleteDynamicHostVolumeRecords(index uint64, table string, 
 		if table == TableDynamicHostVolumes {
 			return deleteDynamicHostVolumeTxn(tx, index, raw.(*structs.DynamicHostVolume))
 		}
+		// A claim that an allocation still holds stays, so a replayed or
+		// racing entry cannot release a volume identity that is in use.
+		inUse, err := dynamicHostVolumeClaimInUse(tx, raw.(*structs.DynamicHostVolumeClaim))
+		if err != nil {
+			return err
+		}
+		if inUse {
+			return ErrDynamicHostVolumeStateInUse
+		}
 		if err := tx.Delete(table, raw); err != nil {
 			return ErrDynamicHostVolumeStateStorage
 		}
@@ -411,6 +420,58 @@ func dynamicHostVolumeInUse(tx *txn, vol *structs.DynamicHostVolume) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+// dynamicHostVolumeClaimInUse reports whether an allocation holds the claim:
+// one of the claim's namespace, job and task group that is not client-terminal
+// and uses the claim's volume on the volume's node. The claim records only the
+// first allocation of the group, and replacements reuse the claim without
+// updating it, so the recorded allocation alone would let a claim in use be
+// deleted. The release point is the one of dynamicHostVolumeInUse. A claim
+// whose volume record is missing is not expected, because removing a volume
+// removes its claims; it falls back to the recorded allocation.
+func dynamicHostVolumeClaimInUse(tx *txn, claim *structs.DynamicHostVolumeClaim) (bool, error) {
+	raw, err := tx.First(TableDynamicHostVolumes, indexID, claim.Namespace, claim.VolumeID)
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	if raw == nil {
+		recorded, err := tx.First("allocs", "id", claim.AllocationID)
+		if err != nil {
+			return false, ErrDynamicHostVolumeStateStorage
+		}
+		if recorded == nil {
+			return false, nil
+		}
+		alloc := recorded.(*structs.Allocation)
+		return alloc.Namespace == claim.Namespace && !alloc.ClientTerminalStatus(), nil
+	}
+	vol := raw.(*structs.DynamicHostVolume)
+	if vol.NodeID == "" {
+		return false, nil
+	}
+	iter, err := tx.Get("allocs", "job", claim.Namespace, claim.JobID)
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		alloc := raw.(*structs.Allocation)
+		if alloc.TaskGroup != claim.TaskGroupName || alloc.NodeID != vol.NodeID || alloc.ClientTerminalStatus() {
+			continue
+		}
+		if len(structs.DynamicHostVolumeAllocRequests(vol, alloc, nil)) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// DynamicHostVolumeClaimInUse reports whether an allocation holds the claim, by
+// the rule the claim delete enforces when it is applied.
+func (s *StateStore) DynamicHostVolumeClaimInUse(claim *structs.DynamicHostVolumeClaim) (bool, error) {
+	tx := s.db.ReadTxn()
+	defer tx.Abort()
+	return dynamicHostVolumeClaimInUse(tx, claim)
 }
 
 // deleteDynamicHostVolumeClaimsByJobTxn deletes the claims of one job when the

@@ -296,3 +296,124 @@ func TestFSM_DynamicHostVolume_NodeUpdatesAreDeterministic(t *testing.T) {
 		must.Eq(t, structs.DynamicHostVolumeStateUnavailable, vol.State)
 	}
 }
+
+// dhvClaimFSMSetup stores a volume, a claim on it and, when live is set, a
+// running allocation of the claim's group, through the FSM state.
+func dhvClaimFSMSetup(t *testing.T, fsm *nomadFSM, live bool) *structs.DynamicHostVolumeClaim {
+	t.Helper()
+	st := fsm.State()
+	must.NoError(t, st.UpsertNamespaces(5, []*structs.Namespace{{Name: "default"}}))
+	vol := dhvFSMVolume("volume-a")
+	vol.NodeID = "00000000-0000-0000-0000-00000000000a"
+	vol.State = structs.DynamicHostVolumeStateReady
+	must.NoError(t, st.UpsertDynamicHostVolumes(10, []*structs.DynamicHostVolume{vol}))
+
+	// A fixed job ID keeps the claim rows equal across separately seeded FSMs.
+	job := mock.Job()
+	job.ID = "job-a"
+	job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{
+		"data": {Name: "data", Type: structs.VolumeTypeHost, Source: vol.Name}}
+	must.NoError(t, st.UpsertJob(structs.MsgTypeTestSetup, 11, nil, job))
+	claim := &structs.DynamicHostVolumeClaim{ID: "claim-a", Namespace: "default", JobID: job.ID,
+		TaskGroupName: job.TaskGroups[0].Name, VolumeName: vol.Name, VolumeID: vol.ID,
+		AllocationID: "00000000-0000-0000-0000-0000000000c1", AllocationIndex: 1}
+	must.NoError(t, st.UpsertDynamicHostVolumeClaims(12, []*structs.DynamicHostVolumeClaim{claim}))
+	if live {
+		alloc := mock.Alloc()
+		alloc.Job, alloc.JobID, alloc.Namespace = job, job.ID, job.Namespace
+		alloc.TaskGroup = job.TaskGroups[0].Name
+		alloc.NodeID = vol.NodeID
+		alloc.Name = job.ID + "." + alloc.TaskGroup + "[0]"
+		alloc.ClientStatus, alloc.DesiredStatus = structs.AllocClientStatusPending, structs.AllocDesiredStatusRun
+		must.NoError(t, st.UpsertAllocs(structs.MsgTypeTestSetup, 13, []*structs.Allocation{alloc}))
+	}
+	got, err := st.DynamicHostVolumeClaimByID(nil, "default", "claim-a")
+	must.NoError(t, err)
+	return got
+}
+
+func dhvClaimsOf(t *testing.T, fsm *nomadFSM) []*structs.DynamicHostVolumeClaim {
+	t.Helper()
+	iter, err := fsm.State().DynamicHostVolumeClaims(nil)
+	must.NoError(t, err)
+	var out []*structs.DynamicHostVolumeClaim
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		out = append(out, raw.(*structs.DynamicHostVolumeClaim))
+	}
+	return out
+}
+
+func TestFSM_DynamicHostVolumeClaimDelete(t *testing.T) {
+	ci.Parallel(t)
+	delReq := func(c *structs.DynamicHostVolumeClaim) *structs.DynamicHostVolumeClaimDeleteRequest {
+		return &structs.DynamicHostVolumeClaimDeleteRequest{Claims: []structs.DynamicHostVolumeClaimKey{
+			{Namespace: c.Namespace, ID: c.ID, ExpectedModifyIndex: c.ModifyIndex}}}
+	}
+
+	t.Run("the same log entry gives identical tables on two fresh FSMs", func(t *testing.T) {
+		// The entry is encoded once and the same bytes reach both FSMs, as
+		// one Raft log entry reaches every server. Three claims are seeded
+		// and the middle one is deleted, so the rows that stay are compared
+		// and not two empty tables.
+		buf, err := structs.Encode(structs.DynamicHostVolumeClaimDeleteRequestType,
+			&structs.DynamicHostVolumeClaimDeleteRequest{Claims: []structs.DynamicHostVolumeClaimKey{
+				{Namespace: "default", ID: "claim-b", ExpectedModifyIndex: 14}}})
+		must.NoError(t, err)
+
+		var tables [][]*structs.DynamicHostVolumeClaim
+		var indexes []uint64
+		for range 2 {
+			fsm := testFSM(t)
+			first := dhvClaimFSMSetup(t, fsm, false)
+			for i, id := range []string{"claim-b", "claim-c"} {
+				must.NoError(t, fsm.State().UpsertDynamicHostVolumeClaims(uint64(14+i), []*structs.DynamicHostVolumeClaim{{
+					ID: id, Namespace: "default", JobID: first.JobID, TaskGroupName: first.TaskGroupName,
+					VolumeName: first.VolumeName, VolumeID: first.VolumeID,
+					AllocationID:    fmt.Sprintf("00000000-0000-0000-0000-0000000000c%d", i+2),
+					AllocationIndex: uint64(i + 2)}}))
+			}
+			must.Len(t, 3, dhvClaimsOf(t, fsm))
+			must.Nil(t, fsm.Apply(&raft.Log{Index: 20, Term: 1, Type: raft.LogCommand, Data: buf}))
+			tables = append(tables, dhvClaimsOf(t, fsm))
+			idx, err := fsm.State().Index(state.TableDynamicHostVolumeClaims)
+			must.NoError(t, err)
+			indexes = append(indexes, idx)
+		}
+
+		must.Eq(t, tables[0], tables[1])
+		must.Eq(t, []uint64{20, 20}, indexes)
+		must.Len(t, 2, tables[0])
+		must.Eq(t, &structs.DynamicHostVolumeClaim{ID: "claim-c", Namespace: "default",
+			JobID: "job-a", TaskGroupName: "web",
+			VolumeName: "data-volume-a", VolumeID: "volume-a",
+			AllocationID: "00000000-0000-0000-0000-0000000000c3", AllocationIndex: 3,
+			CreateIndex: 15, ModifyIndex: 15}, tables[0][1])
+		must.Eq(t, &structs.DynamicHostVolumeClaim{ID: "claim-a", Namespace: "default",
+			JobID: "job-a", TaskGroupName: "web",
+			VolumeName: "data-volume-a", VolumeID: "volume-a",
+			AllocationID: "00000000-0000-0000-0000-0000000000c1", AllocationIndex: 1,
+			CreateIndex: 12, ModifyIndex: 12}, tables[0][0])
+	})
+
+	t.Run("a held claim is refused and stays", func(t *testing.T) {
+		fsm := testFSM(t)
+		claim := dhvClaimFSMSetup(t, fsm, true)
+		resp := applyDynamicHostVolume(t, fsm, 20, structs.DynamicHostVolumeClaimDeleteRequestType, delReq(claim))
+		err, ok := resp.(error)
+		must.True(t, ok)
+		must.ErrorIs(t, err, state.ErrDynamicHostVolumeStateInUse)
+		must.Eq(t, []*structs.DynamicHostVolumeClaim{claim}, dhvClaimsOf(t, fsm))
+	})
+
+	t.Run("a stale modify index is refused and the claim stays", func(t *testing.T) {
+		fsm := testFSM(t)
+		claim := dhvClaimFSMSetup(t, fsm, false)
+		req := delReq(claim)
+		req.Claims[0].ExpectedModifyIndex++
+		resp := applyDynamicHostVolume(t, fsm, 20, structs.DynamicHostVolumeClaimDeleteRequestType, req)
+		err, ok := resp.(error)
+		must.True(t, ok)
+		must.ErrorIs(t, err, state.ErrDynamicHostVolumeStateCAS)
+		must.Len(t, 1, dhvClaimsOf(t, fsm))
+	})
+}

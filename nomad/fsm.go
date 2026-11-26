@@ -365,6 +365,8 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyDynamicHostVolumeMarkDeleting(buf[1:], log.Index)
 	case structs.DynamicHostVolumeRemoveRequestType:
 		return n.applyDynamicHostVolumeRemove(buf[1:], log.Index)
+	case structs.DynamicHostVolumeClaimDeleteRequestType:
+		return n.applyDynamicHostVolumeClaimDelete(buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -669,6 +671,26 @@ func (n *nomadFSM) applyDynamicHostVolumeRemove(buf []byte, index uint64) interf
 
 	if err := n.state.RemoveDynamicHostVolumes(index, req.Keys); err != nil {
 		n.logger.Error("RemoveDynamicHostVolumes failed", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (n *nomadFSM) applyDynamicHostVolumeClaimDelete(buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_dynamic_host_volume_claim_delete"}, time.Now())
+	var req structs.DynamicHostVolumeClaimDeleteRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	deletes := make([]state.DynamicHostVolumeClaimDelete, 0, len(req.Claims))
+	for _, key := range req.Claims {
+		deletes = append(deletes, state.DynamicHostVolumeClaimDelete{
+			Namespace: key.Namespace, ID: key.ID, ExpectedModifyIndex: key.ExpectedModifyIndex})
+	}
+	if err := n.state.DeleteDynamicHostVolumeClaims(index, deletes); err != nil {
+		n.logger.Error("DeleteDynamicHostVolumeClaims failed", "error", err)
 		return err
 	}
 

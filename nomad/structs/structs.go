@@ -150,6 +150,7 @@ const (
 	DynamicHostVolumeUpdateRequestType       MessageType = 102
 	DynamicHostVolumeMarkDeletingRequestType MessageType = 103
 	DynamicHostVolumeRemoveRequestType       MessageType = 104
+	DynamicHostVolumeClaimDeleteRequestType  MessageType = 105
 )
 
 const (

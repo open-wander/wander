@@ -919,7 +919,7 @@ decision of 2026-11-22. The tag and the minimum version are owner decisions of
 
 | Question | Wander policy |
 | --- | --- |
-| Commands | Five Raft message types, 100 to 104: upsert (create or register), outcome (the client's answer), update, mark deleting and remove. The numbers stay clear of the 1.6.5 types, of 127 and of the `IgnoreUnknownTypeFlag` bit. |
+| Commands | Six Raft message types, 100 to 105: upsert (create or register), outcome (the client's answer), update, mark deleting, remove and claim delete (see [Claim list and delete](#claim-api)). The numbers stay clear of the 1.6.5 types, of 127 and of the `IgnoreUnknownTypeFlag` bit. |
 | Unknown type | The commands do not carry `IgnoreUnknownTypeFlag`. A server that does not know them stops in apply rather than skipping the entry and silently diverging from the leader. |
 | Version tag | Every server gossips the Wander product version, for example `0.1.2-dev`, in the serf tag `wander_version`. The `build` tag stays on the Nomad compatibility version 1.6.5, so Nomad 1.6.5 peers keep working. |
 | Gate | A command is submitted only when every server in the region that is alive or failed carries `wander_version` at 0.1.2 or later. Prerelease and metadata are ignored, so `0.1.2-dev` passes. A missing or unreadable tag blocks, so a Nomad 1.6.5 server or an older Wander server stops the commands. Servers that have left and servers of other regions are not counted. No servers at all blocks. The check is made when a command is submitted. A server that joins between the check and the commit is a window that is accepted, not closed. |
@@ -1040,6 +1040,47 @@ DHV-B-042. Implemented in `command/agent/host_volume_endpoint.go`.
 | Coded errors | A coded RPC error (400, 403, 404, 409, 500, 502, 503) keeps its status and fixed text, also when forwarded to another server or region, because the code is carried in the error text and `wrap` reads it from the start of the text. A 502 or 500 after the first write leaves a pending record, so those two do not mean no state change; the decode and validation 400s do. |
 | Capability | As the RPC: create needs `host-volume-create`, register `host-volume-register`, `host-volume-write` implies both, and an update needs the capability of the endpoint it goes through. Read or delete alone, or no token, is 403. |
 | Inherited code | none changed. `command/agent/http.go` is untouched: the existing `/v1/volume/host/` prefix route reaches the handler. |
+
+## Claim list and delete (server) {#claim-api}
+
+### Recorded evidence
+
+The public API documentation (SRC-api-claims, read 2026-11-26, interface
+evidence only; the page shows no last-updated date) gives these facts. List
+claims is `GET /v1/volumes/claims`, a blocking query needing
+`namespace:host-volume-read`, with the query keys `claim_id` (a prefix),
+`namespace`, `job_id`, `task_group`, `volume_name`, `next_token` and `per_page`;
+the reply is an array of objects with `AllocID`, `CreateIndex`, `ID`, `JobID`,
+`ModifyIndex`, `Namespace`, `TaskGroupName`, `VolumeID` and `VolumeName`.
+Delete claim is `DELETE /v1/volumes/claim/:claim_id` (the page's sample shows
+`/v1/volume/claim/:id`), not a blocking query, needing
+`namespace:host-volume-write`, with an empty response body. No claim read
+endpoint and no status code is documented. The matrix entries are DHV-B-147,
+DHV-B-148 and DHV-B-156. The plural and singular path conflict is a matter for
+the HTTP task. Implemented in `nomad/host_volume_claim.go` (`HostVolume.ListClaims`
+and `HostVolume.DeleteClaim`), `nomad/fsm.go` and
+`nomad/state/state_store_dynamic_host_volume.go`.
+
+### Wander policy
+
+| Question | Wander policy |
+| --- | --- |
+| List ACL | `host-volume-read` in the request namespace, which `host-volume-create`, `-register` and `-write` imply, as for the volume list. A wildcard namespace returns only claims in namespaces where the token holds it, across pages; a token with it in no existing namespace gets an empty list, and a token with it nowhere is denied. The namespace filter runs before every other filter and before the page token is built. |
+| List filters | The claim ID prefix, `job_id`, `task_group` and `volume_name`. The prefix is matched by the ID index in a single namespace and in memory for a wildcard, because the state helpers treat `*` as a literal namespace. The other three are exact matches. |
+| List paging | `per_page` and `next_token` on namespace and claim ID. The ID index is always the one iterated, so the order does not depend on the filters and a token stays valid when a filter changes. |
+| List blocking | The query blocks on the index of the claims table, floored at 1. The volume list reports the volumes table only, and reusing it would leave a claim list asleep through a claim delete. |
+| List fields | The RPC returns the stored claim, including `AllocationIndex`, which the public reply lacks. The stored field keeps the name `AllocationID`; the public name is `AllocID`. No codec tag is added and no rename is made. Whether and how the HTTP reply maps it belongs to the HTTP task. |
+| Delete ACL | `host-volume-write` in the claim's namespace; no other capability implies it, so read alone is denied. The permission check comes before the lookup. |
+| Delete namespace | A wildcard namespace is 400 `a claim delete needs a single namespace`. An empty ID is 400 `missing claim ID`, and an ID with a NUL byte is 400 `invalid claim ID`. |
+| Unknown claim | 404 `claim not found`. The observed binary answered 500 with its own text for a missing claim; Wander uses 404, which the HTTP task can map directly. The permission check comes first, so the answer reveals nothing across namespaces. A repeated delete is therefore 404, not success. |
+| Claim in use | 409 `claim in use`, fixed text. A claim is held while any allocation of the claim's namespace, job and task group that is not client-terminal uses the claim's volume on the volume's node, by the rule of `DynamicHostVolumeAllocRequests` and the release point of the volume delete (an allocation counts until the client reports it complete, failed or lost). `AllocationID` records only the allocation that created the claim and is not updated when a replacement or rescheduled allocation reuses the claim, so checking it alone would let a claim in use be deleted. A claim whose volume record is missing, which removing a volume prevents, falls back to the allocation recorded in the claim. |
+| Where the rule runs | In the state store apply, which returns the in-use error and leaves the claim and the table index unchanged, so a replayed or racing entry cannot remove a held claim. The RPC repeats the check before submitting, only to refuse without writing a log entry; both answers are the same 409. |
+| Concurrent change | The entry carries the modify index read with the claim as compare-and-set value, chosen before the command is submitted. A claim rewritten or removed in between is 409 `volume changed concurrently, retry`, never 500. |
+| Raft command | Message type 105, `DynamicHostVolumeClaimDeleteRequestType`, submitted only through the version gate, so a region with a server older than 0.1.2 gets 503 with the gate text and nothing written. It carries no `IgnoreUnknownTypeFlag`, for the reason given under Raft commands. One claim per entry, and an entry is never batched with other claim writes, because a write must be above the claims table index. |
+| Determinism | Applying the same entry to two fresh state machines gives identical claim tables and table index; the apply reads no clock and no random source. |
+| Snapshot | No change. Snapshot types 29 and 30 already persist and restore the claims table, and a delete only removes rows. No snapshot type is added. |
+| Forwarding | Coded errors keep their code and fixed text when the call is forwarded to the leader or another region. |
+| Inherited code | Two inherited files change by one line each: `helper/raftutil/msgtypes.go` lists type 105 by name, and `nomad/fsm.go` registers it in the apply switch. No other inherited code changes. |
 
 ## Extension workflow {#extension-workflow}
 

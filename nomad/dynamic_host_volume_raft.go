@@ -25,7 +25,8 @@ func isDynamicHostVolumeMessage(t structs.MessageType) bool {
 		structs.DynamicHostVolumeOutcomeRequestType,
 		structs.DynamicHostVolumeUpdateRequestType,
 		structs.DynamicHostVolumeMarkDeletingRequestType,
-		structs.DynamicHostVolumeRemoveRequestType:
+		structs.DynamicHostVolumeRemoveRequestType,
+		structs.DynamicHostVolumeClaimDeleteRequestType:
 		return true
 	}
 	return false
