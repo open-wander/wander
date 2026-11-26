@@ -27,24 +27,53 @@ type mockClientHostVolume struct {
 	creates  []cstructs.HostVolumeCreateRequest
 	registry []cstructs.HostVolumeRegisterRequest
 	err      error
+
+	// The fields below configure the mock for the server endpoint tests and
+	// are left nil by the handshake tests. A reply function replaces the
+	// default reply, and hook runs after the request is recorded with no lock
+	// held, so a test can block a call or observe its timing.
+	createReply   func(*cstructs.HostVolumeCreateRequest) cstructs.HostVolumeCreateResponse
+	registerReply func(*cstructs.HostVolumeRegisterRequest) cstructs.HostVolumeRegisterResponse
+	hook          func()
 }
 
 func (m *mockClientHostVolume) Create(req *cstructs.HostVolumeCreateRequest, resp *cstructs.HostVolumeCreateResponse) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.creates = append(m.creates, *req)
 	*resp = cstructs.HostVolumeCreateResponse{
 		VolumeID: req.VolumeID, HostPath: "/synthetic/" + req.VolumeID, CapacityBytes: 4096, Status: "ready",
 	}
-	return m.err
+	if m.createReply != nil {
+		*resp = m.createReply(req)
+	}
+	hook, err := m.hook, m.err
+	m.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return err
 }
 
 func (m *mockClientHostVolume) Register(req *cstructs.HostVolumeRegisterRequest, resp *cstructs.HostVolumeRegisterResponse) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.registry = append(m.registry, *req)
 	*resp = cstructs.HostVolumeRegisterResponse{VolumeID: req.VolumeID, HostPath: req.HostPath, Status: "ready"}
-	return m.err
+	if m.registerReply != nil {
+		*resp = m.registerReply(req)
+	}
+	hook, err := m.hook, m.err
+	m.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return err
+}
+
+// set changes the mock's configuration while the client may be serving calls.
+func (m *mockClientHostVolume) set(f func(*mockClientHostVolume)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	f(m)
 }
 
 func (m *mockClientHostVolume) counts() (int, int) {

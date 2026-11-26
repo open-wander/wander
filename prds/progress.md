@@ -1345,8 +1345,30 @@ node update on every server.
 - Still open, test-only and inherited: TestClientEndpoint_UpdateStatus_Reconnect
   shares one msgpack codec between goroutines (node_endpoint_test.go 864/945/
   964) and races under -race.
+## 2026-11-26 — Task 4.6b complete
+
+- #94, #95 and #96 merged. Server HostVolume.Create and HostVolume.Register
+  (nomad/host_volume_create.go): new volume and update by existing ID, every
+  write through dynamicHostVolumeRaftApply, client call made after the
+  placement lock is released, every reply read back from state. A server
+  coordinator serialises placement and tracks in-flight volumes for the
+  coming leader retry.
+- Owner decisions 2026-11-26, accepted as built: plugin ID and node pool are
+  immutable on update; a create where every candidate uses the name is 400
+  name_conflict with no write; only ready volumes can be updated (409).
+- Not tested: a refused failed-outcome write on the no-eligible-node path; it
+  shares leftError with the tested pending path and would need a production
+  test hook.
+- Inherited data race found: n.ctx.NodeID written in Node.UpdateStatus and
+  read in GetClientAllocs on one connection. Any test with a real client can
+  fail under -race. Owner decision: fix in a separate PR before 4.6b merges.
+- Watchers: GitHub leaves mergeStateStatus UNKNOWN after checks finish; poll
+  the checks only.
+- PATTERN: tests - a fixture volume on a node a test client also updates can
+  be moved to unavailable under the test; put fixtures on a node no client
+  touches.
 
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.5, 4.6a and 4.8 are done. Next: 4.6b, then 4.6c, 4.6d, 4.7 and 4.9.
+- 4.2 to 4.6b and 4.8 are done; the inherited ctx.NodeID race is fixed (#98). Next: 4.6c, then 4.6d, 4.7 and 4.9.

@@ -27,6 +27,38 @@ type HostVolumeGetResponse struct {
 	QueryMeta
 }
 
+// HostVolumeCreateRequest asks the servers to create a dynamic host volume with
+// a plugin, or, when Volume.ID names a stored volume, to update its mutable
+// fields. PolicyOverride is accepted and ignored: Wander has no policy engine.
+type HostVolumeCreateRequest struct {
+	Volume         *DynamicHostVolume
+	PolicyOverride bool
+	WriteRequest
+}
+
+// HostVolumeCreateResponse carries the stored volume read back after the
+// request, and the index of the last write made for it.
+type HostVolumeCreateResponse struct {
+	Volume *DynamicHostVolume
+	WriteMeta
+}
+
+// HostVolumeRegisterRequest asks the servers to register an existing directory
+// on a node as a dynamic host volume, or, when Volume.ID names a stored volume,
+// to update its mutable fields. PolicyOverride is accepted and ignored.
+type HostVolumeRegisterRequest struct {
+	Volume         *DynamicHostVolume
+	PolicyOverride bool
+	WriteRequest
+}
+
+// HostVolumeRegisterResponse carries the stored volume read back after the
+// request, and the index of the last write made for it.
+type HostVolumeRegisterResponse struct {
+	Volume *DynamicHostVolume
+	WriteMeta
+}
+
 // DynamicHostVolumeStub is the listing form of a volume. It leaves out the
 // host path, parameters, constraints, attachments and requested capabilities;
 // a read returns the full record.
