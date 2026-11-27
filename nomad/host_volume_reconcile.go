@@ -23,11 +23,16 @@ const (
 	hostVolumeCodeRetryLimit      = "retry_limit_reached"
 	hostVolumeCodeNodeNotFound    = "node_not_found"
 	hostVolumeCodeRequestedOrigin = "invalid_requested_origin"
+
+	// Codes stored as the status description of a deleting volume that waits.
+	// A removal is never recorded failed: it is retried until it succeeds.
+	hostVolumeCodeClientUnreachable = "client_unreachable"
+	hostVolumeCodeVolumeInUse       = "volume_in_use"
 )
 
 // dynamicHostVolumeReconcileSettings are the timings of the leader's retry of
-// volumes left requested or pending. Production uses the defaults; tests set
-// shorter values before the reconciler starts.
+// volumes left requested, pending or deleting. Production uses the defaults;
+// tests set shorter values before the reconciler starts.
 type dynamicHostVolumeReconcileSettings struct {
 	// Interval is the time between two scans of the volume table.
 	Interval time.Duration
@@ -35,9 +40,11 @@ type dynamicHostVolumeReconcileSettings struct {
 	// again: the delay doubles with each attempt, with jitter.
 	BackoffBase time.Duration
 	BackoffCap  time.Duration
-	// Bound is the age after which a volume that keeps failing transiently is
-	// recorded as failed. It is counted from the record's modify time, or from
-	// the last refusal of the version gate when that is later.
+	// Bound is the age after which a requested or pending volume that keeps
+	// failing transiently is recorded as failed. It is counted from the
+	// record's modify time, or from the last refusal of the version gate when
+	// that is later. It does not apply to deleting volumes: a removal is
+	// retried until it succeeds and is never recorded failed.
 	Bound time.Duration
 	// CallTimeout is the deadline of one client call.
 	CallTimeout time.Duration
@@ -213,7 +220,7 @@ func (r *dynamicHostVolumeReconciler) pass(ctx context.Context) {
 	seen := make(map[string]bool)
 	for raw := iter.Next(); raw != nil; raw = iter.Next() {
 		rec := raw.(*structs.DynamicHostVolume)
-		if rec.State != structs.DynamicHostVolumeStateRequested && rec.State != structs.DynamicHostVolumeStatePending {
+		if !dynamicHostVolumeReconciled(rec.State) {
 			continue
 		}
 		key := rec.Namespace + "/" + rec.ID
@@ -258,6 +265,14 @@ func (r *dynamicHostVolumeReconciler) process(ctx context.Context, scanned *stru
 		r.forget(key)
 		return
 	}
+	if cur.State == structs.DynamicHostVolumeStateDeleting {
+		if !r.prepareRemoval(ctx, key, cur) {
+			return
+		}
+		handedOff = true
+		r.call(ctx, key, cur)
+		return
+	}
 	if cur.State == structs.DynamicHostVolumeStateRequested {
 		var ok bool
 		if cur, ok = r.assign(ctx, key, cur); !ok {
@@ -278,10 +293,21 @@ func (r *dynamicHostVolumeReconciler) reload(scanned *structs.DynamicHostVolume)
 	if err != nil || cur == nil || cur.ModifyIndex != scanned.ModifyIndex {
 		return nil
 	}
-	if cur.State != structs.DynamicHostVolumeStateRequested && cur.State != structs.DynamicHostVolumeStatePending {
+	if !dynamicHostVolumeReconciled(cur.State) {
 		return nil
 	}
 	return cur.Copy()
+}
+
+// dynamicHostVolumeReconciled reports whether the leader drives volumes in the
+// state: requested and pending ones towards ready, deleting ones towards
+// removal.
+func dynamicHostVolumeReconciled(st structs.DynamicHostVolumeState) bool {
+	switch st {
+	case structs.DynamicHostVolumeStateRequested, structs.DynamicHostVolumeStatePending, structs.DynamicHostVolumeStateDeleting:
+		return true
+	}
+	return false
 }
 
 // assign chooses a node for a requested volume and records it as pending, or
@@ -342,7 +368,9 @@ func (r *dynamicHostVolumeReconciler) selectAndAssign(ctx context.Context, key s
 
 type dynamicHostVolumeCallResult struct {
 	outcome *structs.DynamicHostVolumeOutcomeRequest
-	err     error
+	// reason is the fixed code of a rejected removal.
+	reason string
+	err    error
 }
 
 // call asks the client again and records the answer. The client call has a
@@ -369,8 +397,13 @@ func (r *dynamicHostVolumeReconciler) startCall(key string, cur *structs.Dynamic
 	c := &dynamicHostVolumeCall{key: key, cur: cur, results: make(chan dynamicHostVolumeCallResult, 1)}
 	register := cur.Origin == structs.DynamicHostVolumeOriginRegistered
 	go func() {
-		outcome, err := r.hv.clientCall(register, cur)
-		c.results <- dynamicHostVolumeCallResult{outcome, err}
+		if cur.State == structs.DynamicHostVolumeStateDeleting {
+			reason, err := r.hv.removalCall(register, cur)
+			c.results <- dynamicHostVolumeCallResult{reason: reason, err: err}
+		} else {
+			outcome, err := r.hv.clientCall(register, cur)
+			c.results <- dynamicHostVolumeCallResult{outcome: outcome, err: err}
+		}
 		select {
 		case r.returned <- struct{}{}:
 		default:
@@ -411,6 +444,10 @@ func (r *dynamicHostVolumeReconciler) abandonOverdue() {
 func (r *dynamicHostVolumeReconciler) finish(ctx context.Context, c *dynamicHostVolumeCall, res dynamicHostVolumeCallResult) {
 	defer r.coord.end(c.key)
 	if ctx.Err() != nil {
+		return
+	}
+	if c.cur.State == structs.DynamicHostVolumeStateDeleting {
+		r.finishRemoval(ctx, c, res)
 		return
 	}
 	switch {
@@ -525,4 +562,110 @@ func (r *dynamicHostVolumeReconciler) forget(key string) {
 		return
 	}
 	r.backoff[key] = &dynamicHostVolumeBackoff{gateAt: e.gateAt}
+}
+
+// prepareRemoval makes the checks that need no client call and reports whether
+// the client must be called. A volume with no node never reached one, so its
+// record is removed at once. A volume a live allocation uses is checked before
+// the call, because the plugin delete wipes the directory and the removal of
+// the record is refused only afterwards. The state of the node is not checked:
+// the call fails and is retried, and force through the RPC is the operator's
+// way out for a node that is gone.
+func (r *dynamicHostVolumeReconciler) prepareRemoval(ctx context.Context, key string, cur *structs.DynamicHostVolume) bool {
+	if cur.NodeID == "" {
+		r.removeRecord(ctx, key, cur)
+		return false
+	}
+	snap, err := r.srv.State().Snapshot()
+	if err != nil {
+		r.wait(key, false)
+		return false
+	}
+	inUse, err := snap.DynamicHostVolumeInUse(cur)
+	if err != nil {
+		r.wait(key, false)
+		return false
+	}
+	if inUse {
+		r.deletingRetry(ctx, key, cur, hostVolumeCodeVolumeInUse)
+		return false
+	}
+	return true
+}
+
+// finishRemoval records the answer of a removal call. A deleting volume is
+// never recorded failed: whatever went wrong is stored as a fixed code and the
+// removal is tried again, however long that takes.
+func (r *dynamicHostVolumeReconciler) finishRemoval(ctx context.Context, c *dynamicHostVolumeCall, res dynamicHostVolumeCallResult) {
+	switch {
+	case res.err != nil && structs.IsErrUnknownNode(res.err):
+		r.deletingRetry(ctx, c.key, c.cur, hostVolumeCodeNodeNotFound)
+	case res.err != nil:
+		// No connection, a transport error, or a client that could not read
+		// its records: the node may be down, so wait and ask again.
+		r.deletingRetry(ctx, c.key, c.cur, hostVolumeCodeClientUnreachable)
+	case res.reason != "":
+		r.deletingRetry(ctx, c.key, c.cur, res.reason)
+	default:
+		r.removeRecord(ctx, c.key, c.cur)
+	}
+}
+
+// removeRecord removes the record of a volume the client no longer holds.
+func (r *dynamicHostVolumeReconciler) removeRecord(ctx context.Context, key string, cur *structs.DynamicHostVolume) {
+	if ctx.Err() != nil {
+		return
+	}
+	_, err := r.hv.apply(structs.DynamicHostVolumeRemoveRequestType, &structs.DynamicHostVolumeRemoveRequest{
+		Keys:         []structs.DynamicHostVolumeKey{{Namespace: cur.Namespace, ID: cur.ID}},
+		WriteRequest: r.hv.writeRequest(),
+	})
+	switch {
+	case err == nil:
+		delete(r.backoff, key)
+		r.logger.Debug("removed volume", "namespace", cur.Namespace, "id", cur.ID)
+	case errors.Is(err, ErrDynamicHostVolumeVersion):
+		r.wait(key, true)
+		r.logger.Debug("waiting for the version gate", "namespace", cur.Namespace, "id", cur.ID)
+	case errors.Is(err, state.ErrDynamicHostVolumeStateInUse):
+		r.deletingRetry(ctx, key, cur, hostVolumeCodeVolumeInUse)
+	case errors.Is(err, state.ErrDynamicHostVolumeStateTransition):
+		r.forget(key)
+	default:
+		r.wait(key, false)
+	}
+}
+
+// deletingRetry stores the reason a removal is waiting and schedules the next
+// attempt. The code is written only when it differs from the stored one, so a
+// volume that keeps failing the same way costs no Raft write. The write does not
+// go through record: that resets the backoff, and the delay would never reach
+// its cap. A refused write never fails the volume.
+func (r *dynamicHostVolumeReconciler) deletingRetry(ctx context.Context, key string, cur *structs.DynamicHostVolume, code string) {
+	if ctx.Err() != nil {
+		return
+	}
+	if cur.StatusDescription != code {
+		r.coord.at("reconcile-outcome-apply")
+		_, err := r.hv.apply(structs.DynamicHostVolumeOutcomeRequestType, &structs.DynamicHostVolumeOutcomeRequest{
+			Key:          structs.DynamicHostVolumeKey{Namespace: cur.Namespace, ID: cur.ID},
+			State:        structs.DynamicHostVolumeStateDeleting,
+			Diagnostic:   code,
+			WriteRequest: r.hv.writeRequest(),
+		})
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrDynamicHostVolumeVersion):
+			r.wait(key, true)
+			return
+		case errors.Is(err, state.ErrDynamicHostVolumeStateTransition),
+			errors.Is(err, state.ErrDynamicHostVolumeStateCAS),
+			errors.Is(err, state.ErrDynamicHostVolumeStateConflict):
+			// The record moved on, for example it was removed meanwhile.
+			r.forget(key)
+			return
+		}
+	}
+	r.wait(key, false)
+	r.logger.Debug("removal is waiting", "namespace", cur.Namespace, "id", cur.ID)
 }

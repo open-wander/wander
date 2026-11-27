@@ -466,6 +466,11 @@ func TestHostVolumeReconcile_OutcomeRefused(t *testing.T) {
 	e.seedVolumes(dhvSeedVolume("vol-1", "data", e.nodeID, structs.DynamicHostVolumeStatePending, structs.DynamicHostVolumeOriginPluginCreated))
 	var once sync.Once
 	e.mock.set(func(m *mockClientHostVolume) {
+		// The leader now drives a deleting volume to removal; a rejecting client
+		// keeps the volume deleting so the test can still read it.
+		m.deleteReply = func(*cstructs.HostVolumeDeleteRequest) cstructs.HostVolumeDeleteResponse {
+			return cstructs.HostVolumeDeleteResponse{Reason: "nonzero_exit"}
+		}
 		m.hook = func() {
 			once.Do(func() {
 				_, _, err := e.s.dynamicHostVolumeRaftApply(structs.DynamicHostVolumeMarkDeletingRequestType,

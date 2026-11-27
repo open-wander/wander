@@ -61,6 +61,8 @@ type MemDB struct {
 	// volume_id -> dynamic host volume record
 	hostVolumes map[string]*hvstate.Record
 
+	hostVolumeTombstones map[string]*hvstate.Tombstone
+
 	logger hclog.Logger
 
 	mu sync.RWMutex
@@ -364,6 +366,35 @@ func (m *MemDB) DeleteHostVolume(volumeID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.hostVolumes, volumeID)
+	return nil
+}
+
+func (m *MemDB) PutHostVolumeTombstone(t *hvstate.Tombstone) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.hostVolumeTombstones == nil {
+		m.hostVolumeTombstones = make(map[string]*hvstate.Tombstone)
+	}
+	c := *t
+	m.hostVolumeTombstones[t.VolumeID] = &c
+	return nil
+}
+
+func (m *MemDB) GetHostVolumeTombstones() ([]*hvstate.Tombstone, map[string]error, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*hvstate.Tombstone, 0, len(m.hostVolumeTombstones))
+	for _, t := range m.hostVolumeTombstones {
+		c := *t
+		out = append(out, &c)
+	}
+	return out, map[string]error{}, nil
+}
+
+func (m *MemDB) DeleteHostVolumeTombstone(volumeID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.hostVolumeTombstones, volumeID)
 	return nil
 }
 

@@ -159,6 +159,18 @@ func (m *ErrDB) DeleteHostVolume(string) error {
 	return fmt.Errorf("Error!")
 }
 
+func (m *ErrDB) PutHostVolumeTombstone(*hvstate.Tombstone) error {
+	return fmt.Errorf("Error!")
+}
+
+func (m *ErrDB) GetHostVolumeTombstones() ([]*hvstate.Tombstone, map[string]error, error) {
+	return nil, nil, fmt.Errorf("Error!")
+}
+
+func (m *ErrDB) DeleteHostVolumeTombstone(string) error {
+	return fmt.Errorf("Error!")
+}
+
 func (m *ErrDB) Close() error {
 	return fmt.Errorf("Error!")
 }

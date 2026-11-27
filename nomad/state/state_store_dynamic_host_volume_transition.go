@@ -224,7 +224,9 @@ func boundDynamicHostVolumeDiagnostic(diagnostic string) string {
 
 // RecordDynamicHostVolumeOutcome records the result of the client call: ready
 // (from pending only, with the host path and capacity) or failed (from requested
-// or pending, with a diagnostic). Repeating the recorded outcome is a no-op.
+// or pending, with a diagnostic). It also stores the reason a removal is still
+// waiting: deleting, from deleting only, changes just the status description.
+// Repeating the recorded outcome is a no-op.
 func (s *StateStore) RecordDynamicHostVolumeOutcome(index uint64, req *structs.DynamicHostVolumeOutcomeRequest) error {
 	if req == nil {
 		return ErrDynamicHostVolumeStateInvalid
@@ -235,7 +237,7 @@ func (s *StateStore) RecordDynamicHostVolumeOutcome(index uint64, req *structs.D
 		if req.HostPath == "" || !filepath.IsAbs(req.HostPath) || strings.ContainsRune(req.HostPath, 0) || req.CapacityBytes < 0 {
 			return ErrDynamicHostVolumeStateInvalid
 		}
-	case structs.DynamicHostVolumeStateFailed:
+	case structs.DynamicHostVolumeStateFailed, structs.DynamicHostVolumeStateDeleting:
 		if diagnostic == "" {
 			return ErrDynamicHostVolumeStateInvalid
 		}
@@ -249,6 +251,20 @@ func (s *StateStore) RecordDynamicHostVolumeOutcome(index uint64, req *structs.D
 		}
 		if existing == nil {
 			return dynamicHostVolumeTransitionError(structs.DynamicHostVolumeStateUnknown)
+		}
+		if req.State == structs.DynamicHostVolumeStateDeleting {
+			// Only the status description of a deleting volume changes: the
+			// leader stores why the removal is still waiting. State, times and
+			// every other field stay as they are, and a repeat is a no-op.
+			if existing.State != structs.DynamicHostVolumeStateDeleting {
+				return dynamicHostVolumeTransitionError(existing.State)
+			}
+			if existing.StatusDescription == diagnostic {
+				return nil
+			}
+			volume := existing.Copy()
+			volume.StatusDescription = diagnostic
+			return insertDynamicHostVolumeTxn(tx, index, volume)
 		}
 		if existing.State == req.State {
 			if req.State == structs.DynamicHostVolumeStateReady && existing.HostPath == req.HostPath && existing.CapacityBytes == req.CapacityBytes {

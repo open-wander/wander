@@ -662,3 +662,61 @@ func TestStateStore_DynamicHostVolumeReadyUnavailableNotBlocked(t *testing.T) {
 	cur.State = structs.DynamicHostVolumeStateReady
 	require.NoError(t, store.UpsertDynamicHostVolumes(index+2, []*structs.DynamicHostVolume{cur}))
 }
+
+func outcomeDeleting(id, code string) *structs.DynamicHostVolumeOutcomeRequest {
+	return &structs.DynamicHostVolumeOutcomeRequest{
+		Key: structs.DynamicHostVolumeKey{Namespace: "default", ID: id}, State: structs.DynamicHostVolumeStateDeleting,
+		Diagnostic: code, ModifyTime: 999}
+}
+
+func TestStateStore_DynamicHostVolumeOutcomeDeleting(t *testing.T) {
+	t.Run("stores the code and changes nothing else", func(t *testing.T) {
+		store := TestStateStore(t)
+		index := transitionSeed(t, store, "volume-a", structs.DynamicHostVolumeStateDeleting)
+		before := transitionGet(t, store, "volume-a")
+		require.NoError(t, store.RecordDynamicHostVolumeOutcome(index+1, outcomeDeleting("volume-a", "client_unreachable")))
+		got := transitionGet(t, store, "volume-a")
+		require.Equal(t, structs.DynamicHostVolumeStateDeleting, got.State)
+		require.Equal(t, "client_unreachable", got.StatusDescription)
+		require.Equal(t, index+1, got.ModifyIndex)
+		require.Equal(t, before.ModifyTime, got.ModifyTime)
+		want := before.Copy()
+		want.StatusDescription, want.ModifyIndex = got.StatusDescription, got.ModifyIndex
+		require.True(t, want.Equal(got))
+	})
+	t.Run("a repeat is a no-op", func(t *testing.T) {
+		store := TestStateStore(t)
+		index := transitionSeed(t, store, "volume-a", structs.DynamicHostVolumeStateDeleting)
+		require.NoError(t, store.RecordDynamicHostVolumeOutcome(index+1, outcomeDeleting("volume-a", "volume_in_use")))
+		require.NoError(t, store.RecordDynamicHostVolumeOutcome(index+2, outcomeDeleting("volume-a", "volume_in_use")))
+		require.Equal(t, index+1, transitionGet(t, store, "volume-a").ModifyIndex)
+	})
+	t.Run("a new code replaces the old one", func(t *testing.T) {
+		store := TestStateStore(t)
+		index := transitionSeed(t, store, "volume-a", structs.DynamicHostVolumeStateDeleting)
+		require.NoError(t, store.RecordDynamicHostVolumeOutcome(index+1, outcomeDeleting("volume-a", "volume_in_use")))
+		require.NoError(t, store.RecordDynamicHostVolumeOutcome(index+2, outcomeDeleting("volume-a", "node_not_found")))
+		require.Equal(t, "node_not_found", transitionGet(t, store, "volume-a").StatusDescription)
+	})
+	t.Run("a code is needed", func(t *testing.T) {
+		store := TestStateStore(t)
+		index := transitionSeed(t, store, "volume-a", structs.DynamicHostVolumeStateDeleting)
+		require.ErrorIs(t, store.RecordDynamicHostVolumeOutcome(index+1, outcomeDeleting("volume-a", "")), ErrDynamicHostVolumeStateInvalid)
+	})
+	t.Run("a missing record is refused", func(t *testing.T) {
+		store := TestStateStore(t)
+		requireTransitionRefused(t, store.RecordDynamicHostVolumeOutcome(5, outcomeDeleting("volume-a", "node_not_found")), "")
+	})
+	for _, from := range []structs.DynamicHostVolumeState{
+		structs.DynamicHostVolumeStateRequested, structs.DynamicHostVolumeStatePending, structs.DynamicHostVolumeStateReady,
+		structs.DynamicHostVolumeStateUnavailable, structs.DynamicHostVolumeStateFailed,
+	} {
+		t.Run("refused from "+string(from), func(t *testing.T) {
+			store := TestStateStore(t)
+			index := transitionSeed(t, store, "volume-a", from)
+			before := transitionGet(t, store, "volume-a")
+			requireTransitionRefused(t, store.RecordDynamicHostVolumeOutcome(index+1, outcomeDeleting("volume-a", "node_not_found")), from)
+			require.True(t, before.Equal(transitionGet(t, store, "volume-a")))
+		})
+	}
+}

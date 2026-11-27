@@ -249,6 +249,23 @@ func hostVolumeNodeStatusName(node *structs.Node) string {
 // carry addresses and host paths. The record stays deleting in both cases, and
 // a repeat of the request runs the call again.
 func (v *HostVolume) callRemoval(deregister bool, vol *structs.DynamicHostVolume) error {
+	reason, err := v.removalCall(deregister, vol)
+	deleting := structs.DynamicHostVolumeStateDeleting
+	if err != nil {
+		return hostVolumeStateError(http.StatusBadGateway, hostVolumeErrClientCall, deleting)
+	}
+	if reason == "" {
+		return nil
+	}
+	return hostVolumeStateError(http.StatusBadGateway, hostVolumeErrRejected+": "+reason, deleting)
+}
+
+// removalCall makes the client call of a removal and tells the answers apart.
+// It returns the RPC error as it is, so the leader's retry can tell an unknown
+// node from a transport failure, and the client's rejection reason replaced by
+// a fixed code when it is not one of the listed reasons. An empty reason and a
+// nil error mean the client has removed the volume.
+func (v *HostVolume) removalCall(deregister bool, vol *structs.DynamicHostVolume) (string, error) {
 	var reason string
 	var err error
 	if deregister {
@@ -264,15 +281,11 @@ func (v *HostVolume) callRemoval(deregister bool, vol *structs.DynamicHostVolume
 		}, &resp)
 		reason = resp.Reason
 	}
-	deleting := structs.DynamicHostVolumeStateDeleting
 	if err != nil {
-		return hostVolumeStateError(http.StatusBadGateway, hostVolumeErrClientCall, deleting)
+		return "", err
 	}
-	if reason == "" {
-		return nil
-	}
-	if !slices.Contains(hostVolumeClientReasons, reason) {
+	if reason != "" && !slices.Contains(hostVolumeClientReasons, reason) {
 		reason = hostVolumeReasonOther
 	}
-	return hostVolumeStateError(http.StatusBadGateway, hostVolumeErrRejected+": "+reason, deleting)
+	return reason, nil
 }

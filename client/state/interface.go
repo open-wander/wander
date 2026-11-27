@@ -143,6 +143,18 @@ type StateDB interface {
 	// DeleteHostVolume removes a record. A missing record is not an error.
 	DeleteHostVolume(volumeID string) error
 
+	// PutHostVolumeTombstone stores the mark that a volume was deleted,
+	// replacing any mark with the same volume ID. Marks are kept apart from
+	// the records.
+	PutHostVolumeTombstone(*hvstate.Tombstone) error
+
+	// GetHostVolumeTombstones returns every readable mark and a map of volume
+	// IDs to decode errors, like GetHostVolumes.
+	GetHostVolumeTombstones() ([]*hvstate.Tombstone, map[string]error, error)
+
+	// DeleteHostVolumeTombstone removes a mark. A missing mark is not an error.
+	DeleteHostVolumeTombstone(volumeID string) error
+
 	// Close the database. Unsafe for further use after calling regardless
 	// of return value.
 	Close() error
