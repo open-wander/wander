@@ -61,6 +61,9 @@ node/
 
 hostvolumes/
 |--> <volume-id> -> *hvstate.Record
+
+hostvolumetombstones/
+|--> <volume-id> -> *hvstate.Tombstone
 */
 
 var (
@@ -137,6 +140,11 @@ var (
 	// records are stored, keyed by volume ID. Stores created before the
 	// bucket existed simply do not have it.
 	hostVolumesBucket = []byte("hostvolumes")
+
+	// hostVolumeTombstonesBucket is the bucket name in which the marks of
+	// deleted dynamic host volumes are stored, keyed by volume ID. It is apart
+	// from the records, so that reading the records never sees a mark.
+	hostVolumeTombstonesBucket = []byte("hostvolumetombstones")
 
 	// nodeBucket is the bucket name in which data about the node is stored.
 	nodeBucket = []byte("node")
@@ -1053,6 +1061,65 @@ func (s *BoltStateDB) GetHostVolumes() ([]*hvstate.Record, map[string]error, err
 func (s *BoltStateDB) DeleteHostVolume(volumeID string) error {
 	return s.db.Update(func(tx *boltdd.Tx) error {
 		b := tx.Bucket(hostVolumesBucket)
+		if b == nil {
+			return nil
+		}
+		return b.Delete([]byte(volumeID))
+	})
+}
+
+// PutHostVolumeTombstone stores the mark of a deleted dynamic host volume.
+func (s *BoltStateDB) PutHostVolumeTombstone(t *hvstate.Tombstone) error {
+	return s.db.Update(func(tx *boltdd.Tx) error {
+		b, err := tx.CreateBucketIfNotExists(hostVolumeTombstonesBucket)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(t.VolumeID), t)
+	})
+}
+
+// GetHostVolumeTombstones returns all readable marks. Each mark is decoded on
+// its own: a value that cannot be decoded, or that is stored under another
+// volume's key, is reported by key and does not stop the others.
+func (s *BoltStateDB) GetHostVolumeTombstones() ([]*hvstate.Tombstone, map[string]error, error) {
+	var out []*hvstate.Tombstone
+	errs := map[string]error{}
+
+	err := s.db.View(func(tx *boltdd.Tx) error {
+		b := tx.Bucket(hostVolumeTombstonesBucket)
+		if b == nil {
+			return nil
+		}
+		c := b.BoltBucket().Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if v == nil {
+				errs[string(k)] = fmt.Errorf("unexpected nested bucket")
+				continue
+			}
+			var t hvstate.Tombstone
+			if err := codec.NewDecoderBytes(v, structs.MsgpackHandle).Decode(&t); err != nil {
+				errs[string(k)] = fmt.Errorf("failed to decode host volume tombstone")
+				continue
+			}
+			if t.VolumeID != string(k) {
+				errs[string(k)] = fmt.Errorf("host volume tombstone does not match its key")
+				continue
+			}
+			out = append(out, &t)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return out, errs, nil
+}
+
+// DeleteHostVolumeTombstone removes a mark.
+func (s *BoltStateDB) DeleteHostVolumeTombstone(volumeID string) error {
+	return s.db.Update(func(tx *boltdd.Tx) error {
+		b := tx.Bucket(hostVolumeTombstonesBucket)
 		if b == nil {
 			return nil
 		}

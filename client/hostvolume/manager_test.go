@@ -1328,6 +1328,12 @@ func TestManager_StaleResultDoesNotOverwriteNewerRecord(t *testing.T) {
 
 	// Delete and create again replace the record while the pass waits.
 	must.NoError(t, m.Delete(ctx5(t), delReq("vol-a")))
+	// The delete leaves a tombstone that refuses the create. The test needs the
+	// record replaced, so the mark is lifted as its retention would.
+	must.NoError(t, e.store.DeleteHostVolumeTombstone("vol-a"))
+	m.mu.Lock()
+	delete(m.tombstones, "vol-a")
+	m.mu.Unlock()
 	st, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
 	must.NoError(t, err)
 	must.Eq(t, hvstate.StatusReady, st.Status)

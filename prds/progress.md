@@ -1480,7 +1480,39 @@ node update on every server.
 - PATTERN: tests - do not build fixtures through an RPC that depends on
   fingerprinted client state; seed the records the test needs.
 
+## 2026-11-27 — Task 4.7c complete
+
+- #103 merged. The leader reconciler now drives deleting volumes: in-use
+  check before the client call, the right client call (delete or
+  deregister), removal through type 104. Retried forever, backoff capped
+  at 60s, never recorded failed; the last error is a fixed code
+  (client_unreachable, node_not_found, volume_in_use, or the client's
+  listed reason) written only when it changes.
+- The outcome command (type 102) now accepts deleting from deleting and
+  sets only the status description. Owner accepted 2026-11-27: changes an
+  existing apply, so 4.7c must ship in 0.1.2.
+- Late-create race fixed on the client: delete and deregister persist a
+  tombstone (24h retention, separate bolt bucket); create and register
+  refuse a tombstoned ID with volume_deleted before any plugin runs; a
+  store that failed to load refuses creates. Inherited client/state files
+  extended.
+- Owner accepted 2026-11-27 two edited existing tests:
+  TestHostVolumeReconcile_OutcomeRefused (client rejects so the volume
+  stays deleting) and TestManager_StaleResultDoesNotOverwriteNewerRecord
+  (lifts the tombstone before re-creating).
+- Orphan detection was not in the delivered work; owner decision
+  2026-11-27: new task 4.7g, detect and show orphans, operator removal,
+  no automatic deletion.
+- Tests first mostly held; three reconciler tests were shown failing only
+  by mutation. Review MINOR, one fix round: write-on-change counted by
+  applies, backoff cap asserted with a lower bound, log capture, tombstone
+  ID rule aligned with ValidateID.
+- PATTERN: tests - write-on-change asserted through ModifyIndex is vacuous
+  when the apply already makes a repeat a no-op; count the applies.
+- PATTERN: tests - a backoff-cap test needs a lower bound, not only an
+  upper one.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.7b, 4.7d and 4.8 are done. Next: 4.7c, then 4.7f, 4.7e and 4.9.
+- 4.2 to 4.7d and 4.8 are done. Next: 4.7f, 4.7g, 4.7e and 4.9.

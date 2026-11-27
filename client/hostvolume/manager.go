@@ -28,6 +28,13 @@ const (
 	// DefaultRestoreTimeout bounds the whole initial restore. Each plugin
 	// call is also bounded by the Ops timeouts. Wander policy.
 	DefaultRestoreTimeout = 5 * time.Minute
+
+	// DefaultTombstoneRetention is how long the client refuses a create or
+	// register for an ID it has deleted. The server's call deadline is one
+	// minute and an abandoned call ends with the client operation timeouts, so
+	// a day is far past the last request an old leader can still deliver.
+	// Wander policy.
+	DefaultTombstoneRetention = 24 * time.Hour
 )
 
 // Errors a PluginLookup returns to say why a plugin cannot be used.
@@ -45,6 +52,13 @@ type Store interface {
 	PutHostVolume(*hvstate.Record) error
 	GetHostVolumes() ([]*hvstate.Record, map[string]error, error)
 	DeleteHostVolume(volumeID string) error
+
+	// The tombstone calls keep the marks of deleted volumes apart from the
+	// records. GetHostVolumeTombstones reports keys it cannot decode like
+	// GetHostVolumes does.
+	PutHostVolumeTombstone(*hvstate.Tombstone) error
+	GetHostVolumeTombstones() ([]*hvstate.Tombstone, map[string]error, error)
+	DeleteHostVolumeTombstone(volumeID string) error
 }
 
 // PluginLookup finds a plugin by ID and checks that its fingerprint is
@@ -79,6 +93,10 @@ type ManagerConfig struct {
 	Clock          func() time.Time
 	Interval       time.Duration
 	RestoreTimeout time.Duration
+
+	// TombstoneRetention is how long the mark of a deleted volume is kept. The
+	// default is DefaultTombstoneRetention.
+	TombstoneRetention time.Duration
 }
 
 // VolumeStatus is a copy of the last known state of one volume: Wander
@@ -156,6 +174,13 @@ type Manager struct {
 	entries map[string]*entry
 	nextRev uint64
 
+	// tombstones holds the time each deleted volume ID was deleted, and
+	// badTombstones the IDs whose mark could not be read or is invalid. Both
+	// refuse a create or register of the ID; only the first expires. Both are
+	// guarded by mu.
+	tombstones    map[string]time.Time
+	badTombstones map[string]bool
+
 	// loadOnce reads the store before anything else touches entries, so a
 	// record written through an entry point is never replaced by a later
 	// read of the store.
@@ -201,6 +226,9 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 	if cfg.RestoreTimeout <= 0 {
 		cfg.RestoreTimeout = DefaultRestoreTimeout
 	}
+	if cfg.TombstoneRetention <= 0 {
+		cfg.TombstoneRetention = DefaultTombstoneRetention
+	}
 	if cfg.StaticName == nil {
 		cfg.StaticName = func(string) bool { return false }
 	}
@@ -209,6 +237,9 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		logger:   cfg.Logger.Named("host_volumes"),
 		entries:  make(map[string]*entry),
 		restored: make(chan struct{}),
+
+		tombstones:    make(map[string]time.Time),
+		badTombstones: make(map[string]bool),
 	}
 	if cfg.Lookup == nil {
 		m.cfg.Lookup = m.defaultLookup
@@ -299,6 +330,87 @@ func (m *Manager) load() {
 			loaded: true,
 		}
 	}
+	m.loadTombstonesLocked()
+}
+
+// loadTombstonesLocked reads the marks of deleted volumes and drops the expired
+// ones. A store that cannot be read at all sets loadErr, like the records: a
+// create would otherwise run for an ID that may be deleted. A mark that cannot
+// be decoded or is invalid still refuses its own ID, because a refusal that is
+// too wide costs a retry and a miss brings a deleted volume back.
+func (m *Manager) loadTombstonesLocked() {
+	ts, errs, err := m.cfg.Store.GetHostVolumeTombstones()
+	if err != nil {
+		m.logger.Error("failed to read host volume tombstones", "error", errClass(err))
+		m.loadErr = true
+		return
+	}
+	for id := range errs {
+		m.logger.Warn("unreadable host volume tombstone refuses its volume ID", "volume_id", id)
+		m.badTombstones[id] = true
+	}
+	for _, t := range ts {
+		if err := t.Validate(); err != nil {
+			m.logger.Warn("invalid host volume tombstone refuses its volume ID", "volume_id", t.VolumeID)
+			m.badTombstones[t.VolumeID] = true
+			continue
+		}
+		m.tombstones[t.VolumeID] = t.DeletedAt
+	}
+	m.pruneTombstonesLocked()
+}
+
+// pruneTombstonesLocked removes the marks older than the retention. A failed
+// store delete is logged and the mark is dropped from memory anyway: it has
+// expired, and the next start prunes it again.
+func (m *Manager) pruneTombstonesLocked() {
+	now := m.cfg.Clock()
+	for id, at := range m.tombstones {
+		if now.Before(at.Add(m.cfg.TombstoneRetention)) {
+			continue
+		}
+		if err := m.cfg.Store.DeleteHostVolumeTombstone(id); err != nil {
+			m.logger.Warn("failed to remove an expired host volume tombstone", "volume_id", id, "error", errClass(err))
+		}
+		delete(m.tombstones, id)
+	}
+}
+
+func (m *Manager) pruneTombstones() {
+	m.ensureLoaded()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pruneTombstonesLocked()
+}
+
+// tombstoned reports whether the volume ID was deleted on this node.
+func (m *Manager) tombstoned(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.tombstones[id]
+	return ok || m.badTombstones[id]
+}
+
+// putTombstone records that the volume ID is being deleted. It runs with the
+// volume lock held and before the plugin delete or the removal of the record,
+// so a crash or a create in between cannot leave the ID open. A failure is
+// returned and the delete does not go on: the server keeps the volume deleting
+// and asks again.
+func (m *Manager) putTombstone(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t := &hvstate.Tombstone{VolumeID: id, DeletedAt: m.cfg.Clock()}
+	if err := m.cfg.Store.PutHostVolumeTombstone(t); err != nil {
+		return fmt.Errorf("host volume %s: store tombstone: %s", id, errClass(err))
+	}
+	m.tombstones[id] = t.DeletedAt
+	delete(m.badTombstones, id)
+	return nil
+}
+
+// refuseDeleted is the refusal of a create or register for a deleted ID.
+func refuseDeleted(op string) *OpError {
+	return opErr(op, hvstate.ReasonVolumeDeleted, "the volume was deleted on this node")
 }
 
 func errClass(err error) string {
@@ -334,6 +446,7 @@ func (m *Manager) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			m.pruneTombstones()
 			m.reconcile(ctx, false)
 		}
 	}
@@ -712,11 +825,21 @@ func (m *Manager) Create(ctx context.Context, pluginID string, req OpRequest) (V
 	if _, oerr := validateFields(op, req); oerr != nil {
 		return VolumeStatus{}, oerr
 	}
+	if m.loadErr {
+		return VolumeStatus{}, errStoreUnreadable
+	}
 
 	if err := m.locks.acquire(ctx, req.VolumeID); err != nil {
 		return VolumeStatus{}, opErr(op, ReasonCanceled, "")
 	}
 	defer m.locks.release(req.VolumeID)
+
+	// A deleted ID is refused before anything else, even for a volume still
+	// held: a request that an earlier leader sent before the delete must not
+	// bring the volume back.
+	if m.tombstoned(req.VolumeID) {
+		return VolumeStatus{}, refuseDeleted(op)
+	}
 
 	// A volume this client already holds answers with its current state and
 	// does not run the plugin again, so a retry after a lost reply or a
@@ -908,11 +1031,17 @@ func (m *Manager) Delete(ctx context.Context, req DeleteRequest) error {
 	defer m.locks.release(req.VolumeID)
 
 	rec, err := m.held(op, req)
-	if rec == nil {
+	if err != nil {
 		return err
+	}
+	if rec == nil {
+		return m.putTombstone(req.VolumeID)
 	}
 	if rec.Kind == hvstate.KindRegistered {
 		return ErrRegisteredVolume
+	}
+	if err := m.putTombstone(req.VolumeID); err != nil {
+		return err
 	}
 	if err := m.runDelete(ctx, rec); err != nil {
 		return err
@@ -932,11 +1061,17 @@ func (m *Manager) Deregister(ctx context.Context, req DeleteRequest) error {
 	defer m.locks.release(req.VolumeID)
 
 	rec, err := m.held(op, req)
-	if rec == nil {
+	if err != nil {
 		return err
+	}
+	if rec == nil {
+		return m.putTombstone(req.VolumeID)
 	}
 	if rec.Kind != hvstate.KindRegistered {
 		return opErr(op, ReasonVolumeKindConflict, "volume was created by a plugin")
+	}
+	if err := m.putTombstone(req.VolumeID); err != nil {
+		return err
 	}
 	return m.dropRecord(req.VolumeID)
 }
@@ -994,11 +1129,18 @@ func (m *Manager) AddRegistered(ctx context.Context, req RegisterRequest) (Volum
 	if req.NodeID != m.cfg.NodeID {
 		return VolumeStatus{}, opErr(op, hvstate.ReasonNodeMismatch, "")
 	}
+	if m.loadErr {
+		return VolumeStatus{}, errStoreUnreadable
+	}
 
 	if err := m.locks.acquire(ctx, req.VolumeID); err != nil {
 		return VolumeStatus{}, opErr(op, ReasonCanceled, "")
 	}
 	defer m.locks.release(req.VolumeID)
+
+	if m.tombstoned(req.VolumeID) {
+		return VolumeStatus{}, refuseDeleted(op)
+	}
 
 	if old, _, ok := m.snapshot(req.VolumeID); ok {
 		switch {
