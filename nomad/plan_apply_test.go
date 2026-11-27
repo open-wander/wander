@@ -1470,8 +1470,11 @@ func TestPlanApply_EvalNodePlan_DynamicHostVolumeHolderKept(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newDynamicWriterPlanFixture(t)
 			old := f.alloc()
-			f.upsertAllocs(old)
+			// The volume degrades first: marking a volume deleting is refused
+			// while a live allocation holds it, so a holder of a deleting volume
+			// is a record the state no longer produces by marking.
 			tc.degrade(f)
+			f.upsertAllocs(old)
 
 			// The new placement needs no volume, so only a re-check of the
 			// existing holder could refuse the node.

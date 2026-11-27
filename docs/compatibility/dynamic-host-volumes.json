@@ -203,8 +203,8 @@
     {"id":"DHV-T-180","scenario":"Synthetic scheduling_lifecycle node-unavailability using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected node-unavailability outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-181","scenario":"Synthetic scheduling_lifecycle terminal-allocation using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected terminal-allocation outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-182","scenario":"Synthetic scheduling_lifecycle reschedule using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected reschedule outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-183","scenario":"Synthetic scheduling_lifecycle delete using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected delete outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-184","scenario":"Synthetic scheduling_lifecycle deregister using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected deregister outcome.","status":"planned","synthetic":true},
+    {"id":"DHV-T-183","scenario":"Synthetic scheduling_lifecycle delete using invented volume data-a and node-a where applicable.","expected_outcome":"The delete RPC removes a ready volume through the deleting state, refuses a volume in use, and applies the force rules.","status":"implemented","path":"nomad/host_volume_delete_test.go","name":"TestHostVolumeDelete_Created","synthetic":true},
+    {"id":"DHV-T-184","scenario":"Synthetic scheduling_lifecycle deregister using invented volume data-a and node-a where applicable.","expected_outcome":"The deregister RPC removes a ready volume through the deleting state, refuses a volume in use, and applies the force rules.","status":"implemented","path":"nomad/host_volume_delete_test.go","name":"TestHostVolumeDeregister_Registered","synthetic":true},
     {"id":"DHV-T-185","scenario":"Synthetic scheduling_lifecycle retry-idempotency using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected retry-idempotency outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-186","scenario":"Synthetic scheduling_lifecycle per-volume-serialization using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected per-volume-serialization outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-187","scenario":"Synthetic scheduling_lifecycle restore-snapshot using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected restore-snapshot outcome.","status":"planned","synthetic":true},
@@ -3322,16 +3322,16 @@
       "surface": "scheduling_lifecycle",
       "operation_field": "delete",
       "prd_refs": ["US-016","6.5"],
-      "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for delete that remain null? Consult permitted evidence before implementation."],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
-        "errors": {"status":"observed","value":"Deleting a volume whose node is down or has been garbage collected is refused with status 500: volume cannot be removed from unknown node without force=true.","evidence_refs":["SRC-observe-node-down"],"test_ids":["DHV-T-183"]},
-        "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
-        "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"]}
+        "contract": {"status":"requirement","value":"Wander policy: the server RPC HostVolume.Delete takes VolumeID, Force and the request namespace, marks the plugin-created volume deleting, calls the node with no lock held, removes the record and replies with the write index. The plugin delete runs once, on the node.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: Force defaults to false. It only skips the client call for a node that is down, disconnected or unknown. The wildcard namespace and an empty ID are 400, and the volume must exist in the request namespace.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: the reply carries only the write index of the removal. A repeat for a removed volume is 404.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: 400 `volume was registered, use deregister` for the other kind and 400 `volume origin is unknown`; 409 `volume in use`, with or without force; 400 for force on a node that is not down, disconnected or unknown, and for a node that is gone without force; 404 `volume not found`; 502 `client rejected: <code>, volume state is \"deleting\"` and `client call failed, volume state is \"deleting\"`; 503 for the version gate. Divergence from the observation of a 500 for an unknown node without force (SRC-observe-node-down): Wander answers 400.","evidence_refs":["SRC-observe-node-down","SRC-api","SRC-requirements"],"test_ids":["DHV-T-183"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Documented (SRC-api): namespace:host-volume-write or namespace:host-volume-delete for delete. Wander policy: deregister needs host-volume-delete as well, because there is no deregister capability; host-volume-write implies it; a refused call writes nothing and never reaches the client.","evidence_refs":["SRC-api","SRC-requirements"],"test_ids":["DHV-T-183"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: the volume is in flight for the whole call, so a concurrent request, update or retry for it gets 409 `operation in progress`; of two concurrent removals one succeeds and a later one is 404.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: a ready, unavailable, failed, requested or pending volume moves to deleting (103), then the record is removed (104). A client rejection, a transport failure or a gate refusal after the mark leaves the volume deleting, and a repeat finishes it. The mark and the removal both refuse a volume a live allocation uses.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-183"],"implementation":"implemented"}
       }
     },
     {
@@ -3339,16 +3339,16 @@
       "surface": "scheduling_lifecycle",
       "operation_field": "deregister",
       "prd_refs": ["US-016","6.5"],
-      "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for deregister that remain null? Consult permitted evidence before implementation."],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"]},
-        "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"]},
-        "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"]}
+        "contract": {"status":"requirement","value":"Wander policy: the server RPC HostVolume.Deregister takes VolumeID, Force and the request namespace, marks the registered volume deleting, calls the node with no lock held, removes the record and replies with the write index. The client never runs a plugin and the directory is untouched.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: Force defaults to false. It only skips the client call for a node that is down, disconnected or unknown. The wildcard namespace and an empty ID are 400, and the volume must exist in the request namespace.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: the reply carries only the write index of the removal. A repeat for a removed volume is 404.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: 400 `volume was created by a plugin, use delete` for the other kind and 400 `volume origin is unknown`; 409 `volume in use`, with or without force; 400 for force on a node that is not down, disconnected or unknown, and for a node that is gone without force; 404 `volume not found`; 502 `client rejected: <code>, volume state is \"deleting\"` and `client call failed, volume state is \"deleting\"`; 503 for the version gate. Divergence from the observation of a 500 for an unknown node without force (SRC-observe-node-down): Wander answers 400.","evidence_refs":["SRC-observe-node-down","SRC-api","SRC-requirements"],"test_ids":["DHV-T-184"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Documented (SRC-api): namespace:host-volume-write or namespace:host-volume-delete for delete. Wander policy: deregister needs host-volume-delete as well, because there is no deregister capability; host-volume-write implies it; a refused call writes nothing and never reaches the client.","evidence_refs":["SRC-api","SRC-requirements"],"test_ids":["DHV-T-184"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: the volume is in flight for the whole call, so a concurrent request, update or retry for it gets 409 `operation in progress`; of two concurrent removals one succeeds and a later one is 404.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: a ready, unavailable, failed, requested or pending volume moves to deleting (103), then the record is removed (104). A client rejection, a transport failure or a gate refusal after the mark leaves the volume deleting, and a repeat finishes it. The mark and the removal both refuse a volume a live allocation uses.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-184"],"implementation":"implemented"}
       }
     },
     {

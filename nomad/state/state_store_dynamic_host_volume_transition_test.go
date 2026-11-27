@@ -585,11 +585,71 @@ func TestStateStore_DynamicHostVolumeRemoveRefusedWhileInUse(t *testing.T) {
 		v.Name = "data-volume-a"
 		return v
 	}()}))
+	// The allocation arrives after the mark, as one committed between the
+	// mark and the removal would.
+	require.NoError(t, store.MarkDynamicHostVolumesDeleting(15, []structs.DynamicHostVolumeKey{transitionKey("volume-a")}, 600))
 	volumeUserAlloc(t, store, 20, nil)
-	require.NoError(t, store.MarkDynamicHostVolumesDeleting(30, []structs.DynamicHostVolumeKey{transitionKey("volume-a")}, 600))
 	err := store.RemoveDynamicHostVolumes(31, []structs.DynamicHostVolumeKey{transitionKey("volume-a")})
 	require.ErrorIs(t, err, ErrDynamicHostVolumeStateInUse)
 	require.Equal(t, structs.DynamicHostVolumeStateDeleting, transitionGet(t, store, "volume-a").State)
+}
+
+// A volume a live allocation uses is never marked deleting: the client deletes
+// its directory after the mark, so a mark that passed would destroy live data.
+// The check runs in the apply, which Raft orders with the plan applier, so an
+// allocation committed after the server looked is still seen.
+func TestStateStore_DynamicHostVolumeMarkDeletingRefusedWhileInUse(t *testing.T) {
+	store := TestStateStore(t)
+	require.NoError(t, store.CreateDynamicHostVolumes(10, []*structs.DynamicHostVolume{func() *structs.DynamicHostVolume {
+		v := transitionPending("volume-a")
+		v.NodeID = claimCleanupNodeA
+		v.Name = "data-volume-a"
+		return v
+	}()}))
+	volumeUserAlloc(t, store, 20, nil)
+	before := tableIndexOf(t, store, TableDynamicHostVolumes)
+
+	err := store.MarkDynamicHostVolumesDeleting(30, []structs.DynamicHostVolumeKey{transitionKey("volume-a")}, 600)
+	require.ErrorIs(t, err, ErrDynamicHostVolumeStateInUse)
+	require.Equal(t, structs.DynamicHostVolumeStatePending, transitionGet(t, store, "volume-a").State)
+	require.Equal(t, before, tableIndexOf(t, store, TableDynamicHostVolumes))
+}
+
+// A volume that is already deleting is not checked again: marking it is a
+// no-op, and its removal is what refuses while an allocation uses it.
+func TestStateStore_DynamicHostVolumeMarkDeletingRepeatSkipsInUse(t *testing.T) {
+	store := TestStateStore(t)
+	require.NoError(t, store.CreateDynamicHostVolumes(10, []*structs.DynamicHostVolume{func() *structs.DynamicHostVolume {
+		v := transitionPending("volume-a")
+		v.NodeID = claimCleanupNodeA
+		v.Name = "data-volume-a"
+		return v
+	}()}))
+	require.NoError(t, store.MarkDynamicHostVolumesDeleting(11, []structs.DynamicHostVolumeKey{transitionKey("volume-a")}, 600))
+	volumeUserAlloc(t, store, 20, nil)
+
+	require.NoError(t, store.MarkDynamicHostVolumesDeleting(30, []structs.DynamicHostVolumeKey{transitionKey("volume-a")}, 700))
+	got := transitionGet(t, store, "volume-a")
+	require.Equal(t, structs.DynamicHostVolumeStateDeleting, got.State)
+	require.Equal(t, uint64(11), got.ModifyIndex)
+}
+
+// DynamicHostVolumeInUse is the read the server uses before it writes anything.
+func TestStateStore_DynamicHostVolumeInUseRead(t *testing.T) {
+	store := TestStateStore(t)
+	vol := transitionPending("volume-a")
+	vol.NodeID = claimCleanupNodeA
+	vol.Name = "data-volume-a"
+	require.NoError(t, store.CreateDynamicHostVolumes(10, []*structs.DynamicHostVolume{vol}))
+
+	inUse, err := store.DynamicHostVolumeInUse(vol)
+	require.NoError(t, err)
+	require.False(t, inUse)
+
+	volumeUserAlloc(t, store, 20, nil)
+	inUse, err = store.DynamicHostVolumeInUse(vol)
+	require.NoError(t, err)
+	require.True(t, inUse)
 }
 
 func TestStateStore_DynamicHostVolumeReadyUnavailableNotBlocked(t *testing.T) {

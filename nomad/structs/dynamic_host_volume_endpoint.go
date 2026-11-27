@@ -86,6 +86,36 @@ type HostVolumeRegisterResponse struct {
 	WriteMeta
 }
 
+// HostVolumeDeleteRequest asks the servers to delete a plugin-created dynamic
+// host volume. Force skips the call to the node only when the node is down,
+// disconnected or unknown; it never skips the check for a volume in use.
+type HostVolumeDeleteRequest struct {
+	VolumeID string
+	Force    bool
+	WriteRequest
+}
+
+// HostVolumeDeleteResponse carries the index of the write that removed the
+// volume.
+type HostVolumeDeleteResponse struct {
+	WriteMeta
+}
+
+// HostVolumeDeregisterRequest asks the servers to deregister a registered
+// dynamic host volume. The directory is never touched. Force has the rules of
+// HostVolumeDeleteRequest.
+type HostVolumeDeregisterRequest struct {
+	VolumeID string
+	Force    bool
+	WriteRequest
+}
+
+// HostVolumeDeregisterResponse carries the index of the write that removed the
+// volume.
+type HostVolumeDeregisterResponse struct {
+	WriteMeta
+}
+
 // DynamicHostVolumeStub is the listing form of a volume. It leaves out the
 // host path, parameters, constraints, attachments and requested capabilities;
 // a read returns the full record.

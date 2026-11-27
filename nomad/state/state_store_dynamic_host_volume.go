@@ -395,6 +395,13 @@ func deleteDynamicHostVolumeTxn(tx *txn, index uint64, vol *structs.DynamicHostV
 	return nil
 }
 
+// DynamicHostVolumeInUse reports whether a live allocation uses the volume. It
+// is the same check the apply commands make, for a caller that wants to refuse
+// before it writes anything.
+func (s *StateStore) DynamicHostVolumeInUse(vol *structs.DynamicHostVolume) (bool, error) {
+	return dynamicHostVolumeInUse(s.db.ReadTxn(), vol)
+}
+
 // dynamicHostVolumeInUse reports whether an allocation on the volume's node
 // uses it. An allocation counts until the client reports it terminal, the
 // same release point the scheduler's proposed allocations use, so one the

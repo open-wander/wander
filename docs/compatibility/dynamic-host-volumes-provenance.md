@@ -1082,6 +1082,37 @@ and `HostVolume.DeleteClaim`), `nomad/fsm.go` and
 | Forwarding | Coded errors keep their code and fixed text when the call is forwarded to the leader or another region. |
 | Inherited code | Two inherited files change by one line each: `helper/raftutil/msgtypes.go` lists type 105 by name, and `nomad/fsm.go` registers it in the apply switch. No other inherited code changes. |
 
+## Delete and deregister (server) {#delete-deregister-api}
+
+### Recorded evidence
+
+The public contract documents deleting a dynamic host volume: the capability
+is `host-volume-write` or `host-volume-delete`, and deleting a volume that is
+in use is an error (SRC-api). It documents no force, no deregister call, no
+error codes and no body. A black-box observation shows that deleting a volume
+whose node is down or garbage collected is refused without force
+(SRC-observe-node-down). Everything below that goes beyond those facts is
+Wander policy, implemented in `nomad/host_volume_delete.go`, with the request
+types in `nomad/structs/dynamic_host_volume_endpoint.go`.
+
+### Wander policy
+
+| Question | Wander policy |
+| --- | --- |
+| Calls | `HostVolume.Delete` for a plugin-created volume and `HostVolume.Deregister` for a registered one, rate metric label `host_volume` (write). Both take `VolumeID`, `Force` and the request namespace, forward to the leader first, and reply with the write index of the removal. Delete marks the volume deleting, calls `ClientHostVolume.Delete` with no lock held other than the in-flight mark, and removes the record. Deregister does the same with `ClientHostVolume.Deregister` and never runs a plugin. |
+| Deregister capability | The public contract has no deregister capability, so deregister needs `host-volume-delete`, as delete does; `host-volume-write` implies it. Create, register and read grant neither. A capability held only in another namespace grants nothing, a deny overrides an allow, and the wildcard namespace is refused with 400 `a volume write needs a single namespace`. A refused call never reaches the client and writes nothing. |
+| Force | Force only skips the call to the node, and only when the node is down, disconnected or not in the state store: the record is removed with no client call. Without force, such a node gives 400 `node is <status>, force is needed to remove the volume` before any write. Force on a node in any other status gives 400 `force is only for a down, disconnected or unknown node, node status is "<status>"`, with the status taken from a fixed list. Force works for delete and deregister. Force never skips the in-use check. |
+| Cross-kind calls | Delete of a registered volume is refused with 400 `volume was registered, use deregister`, and deregister of a plugin-created volume with 400 `volume was created by a plugin, use delete`. A volume with an unknown origin is refused with 400 `volume origin is unknown` by both. The check is made on the stored origin, before any write, and the client is never called. |
+| Volume in use | A volume that a non-terminal allocation uses is refused with 409 `volume in use`, with and without force, before anything is written. The allocations of a disconnected node are unknown, not terminal, so force on such a node usually still gives 409; the allocations of a down node are lost, which is terminal. The mark that follows makes the same check inside the Raft apply, because the plan applier can commit an allocation between the first check and the mark, and the client deletes the directory after the mark. That apply refuses with the same 409, writes nothing and never calls the client. A volume that is already deleting is not checked again by the mark, so its removal refuses instead. |
+| No node | A requested or failed volume with no node has nothing on disk. It is removed with no client call and without force. A failed volume that has a node gets the normal client call, which answers success for a volume it no longer holds. |
+| Repeat of a deleting volume | A volume that is already deleting is accepted again: the mark is a no-op and the removal runs the client call again. This is how a retry finishes after a rejection, a transport failure or a lost reply. |
+| Unknown volume | 404 `volume not found`, also for a repeat after the removal and a volume in another namespace. An empty ID is 400 `missing volume ID`. |
+| Concurrency | The volume is marked in flight for the whole call. A second delete or deregister, an update, or the leader's retry for the same volume gets 409 `operation in progress`. One of two concurrent deletes succeeds, and a later one is 404. |
+| Client rejection | A rejection by the client leaves the volume deleting and returns 502 `client rejected: <code>, volume state is "deleting"`. The code is the client reason when it is on a fixed list (`delete_mismatch`, `volume_kind_conflict`, the plugin reasons) and `client_rejected` otherwise. The client message is never returned: it can carry host paths. Nothing else is written. |
+| Transport failure | A client call that fails in transit returns 502 `client call failed, volume state is "deleting"`. The text of the failure is never returned. |
+| Version gate | A gate refusal of the mark is 503 `dynamic host volumes need every server to run Wander 0.1.2 or later` and writes nothing. A gate that refuses the removal after the mark leaves the record deleting and returns 503 with that text followed by `, volume state is "deleting"`. A repeat once the gate opens finishes the removal. Any other failure to record the removal is 500 `outcome not recorded, volume state is "deleting"`. |
+| Inherited code | none changed. `MarkDynamicHostVolumesDeleting` in `nomad/state/state_store_dynamic_host_volume_transition.go` is Wander code from the Raft command work; it now refuses a volume in use, and `StateStore.DynamicHostVolumeInUse` is a new exported read over the same check. Existing tests changed for that rule: `TestStateStore_DynamicHostVolumeRemoveRefusedWhileInUse` marks the volume before the allocation arrives, and `TestPlanApply_EvalNodePlan_DynamicHostVolumeHolderKept` in `nomad/plan_apply_test.go` degrades the volume before the holder allocation is upserted. The changed apply result of type 103 is safe only because nothing ran 103 before this endpoint and the version gate needs Wander 0.1.2, which is unreleased; a build that had applied 103 with the old rule would diverge on replay or in a mixed cluster. |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

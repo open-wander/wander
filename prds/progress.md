@@ -1458,7 +1458,29 @@ node update on every server.
 - PATTERN: tests - a determinism test that deletes the only row compares two
   empty tables; seed rows that survive and apply the same encoded bytes.
 
+## 2026-11-27 — Task 4.7b complete
+
+- #102 merged. Server HostVolume.Delete and HostVolume.Deregister
+  (nomad/host_volume_delete.go) with the owner's force, in-use and
+  cross-kind rules. Deregister needs host-volume-delete.
+- MarkDynamicHostVolumesDeleting (type 103) now also refuses a volume in
+  use, so an allocation the plan applier commits between the RPC check and
+  the mark cannot have its storage deleted. Changes an apply result; safe
+  only because 103 had no caller before and 0.1.2 is unreleased.
+- A client rejection returns 502 with a reason code from a fixed list,
+  never the client's message.
+- Review rejected twice: the delete tests created fixtures through the real
+  create RPC, which depends on the test client's fingerprinted plugin
+  attribute; fixtures are now seeded in state. Workers again skipped tests
+  first (third time this phase); a mutation pass of seven mutations stood
+  in, all caught.
+- Owner decision 2026-11-27: audit log lines are task 4.7f.
+- Flake seen once in review: TestHostVolumeReconcile_VersionGateNotCounted
+  (timing; not seen in later runs).
+- PATTERN: tests - do not build fixtures through an RPC that depends on
+  fingerprinted client state; seed the records the test needs.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.6d, 4.7a, 4.7d and 4.8 are done; 4.7b is in progress. Next: 4.7c, then 4.7e and 4.9.
+- 4.2 to 4.7b, 4.7d and 4.8 are done. Next: 4.7c, then 4.7f, 4.7e and 4.9.
