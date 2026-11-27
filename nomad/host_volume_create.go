@@ -114,11 +114,16 @@ func (c *dynamicHostVolumeCoordinator) at(point string) {
 // Create creates a dynamic host volume with a plugin, or, when the volume
 // carries the ID of a stored volume, updates its mutable fields in Raft only.
 // PolicyOverride is accepted and ignored: Wander has no policy engine.
-func (v *HostVolume) Create(args *structs.HostVolumeCreateRequest, reply *structs.HostVolumeCreateResponse) error {
+func (v *HostVolume) Create(args *structs.HostVolumeCreateRequest, reply *structs.HostVolumeCreateResponse) (retErr error) {
 	authErr := v.srv.Authenticate(v.ctx, args)
 	if done, err := v.srv.forward("HostVolume.Create", args, args, reply); done {
 		return err
 	}
+	// The audit line is written here, after the forward, so that a forwarded
+	// call is logged once, by the server that runs it, and on every return
+	// path below.
+	audit := newHostVolumeVolumeAudit(hostVolumeAuditCreate, args.RequestNamespace(), args.Volume)
+	defer func() { v.srv.auditHostVolumeCall(args, authErr, audit, retErr, reply.Volume) }()
 	v.srv.MeasureRPCRate("host_volume", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -139,7 +144,7 @@ func (v *HostVolume) Create(args *structs.HostVolumeCreateRequest, reply *struct
 	if err != nil {
 		return err
 	}
-	out, index, err := v.write(false, ns, vol)
+	out, index, err := v.write(false, ns, vol, audit)
 	if err != nil {
 		return err
 	}
@@ -151,11 +156,16 @@ func (v *HostVolume) Create(args *structs.HostVolumeCreateRequest, reply *struct
 // or, when the volume carries the ID of a stored volume, updates its mutable
 // fields in Raft only. The directory is never modified. PolicyOverride is
 // accepted and ignored.
-func (v *HostVolume) Register(args *structs.HostVolumeRegisterRequest, reply *structs.HostVolumeRegisterResponse) error {
+func (v *HostVolume) Register(args *structs.HostVolumeRegisterRequest, reply *structs.HostVolumeRegisterResponse) (retErr error) {
 	authErr := v.srv.Authenticate(v.ctx, args)
 	if done, err := v.srv.forward("HostVolume.Register", args, args, reply); done {
 		return err
 	}
+	// The audit line is written here, after the forward, so that a forwarded
+	// call is logged once, by the server that runs it, and on every return
+	// path below.
+	audit := newHostVolumeVolumeAudit(hostVolumeAuditRegister, args.RequestNamespace(), args.Volume)
+	defer func() { v.srv.auditHostVolumeCall(args, authErr, audit, retErr, reply.Volume) }()
 	v.srv.MeasureRPCRate("host_volume", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -176,12 +186,23 @@ func (v *HostVolume) Register(args *structs.HostVolumeRegisterRequest, reply *st
 	if err != nil {
 		return err
 	}
-	out, index, err := v.write(true, ns, vol)
+	out, index, err := v.write(true, ns, vol, audit)
 	if err != nil {
 		return err
 	}
 	reply.Volume, reply.Index = out, index
 	return nil
+}
+
+// newHostVolumeVolumeAudit starts the audit value of a create or a register. A
+// volume that carries an ID is an update of that volume. The ID of a new volume
+// is set once its record exists.
+func newHostVolumeVolumeAudit(op, ns string, vol *structs.DynamicHostVolume) *hostVolumeAudit {
+	a := &hostVolumeAudit{op: op, ns: ns}
+	if vol != nil && vol.ID != "" {
+		a.op, a.volumeID = hostVolumeAuditUpdate, vol.ID
+	}
+	return a
 }
 
 func hostVolumeCoded(code int, msg string) error {
@@ -288,11 +309,11 @@ func (v *HostVolume) writeRequest() structs.WriteRequest {
 
 // write runs a create or a register. A volume without an ID is new; one with
 // an ID updates the stored volume.
-func (v *HostVolume) write(register bool, ns string, req *structs.DynamicHostVolume) (*structs.DynamicHostVolume, uint64, error) {
+func (v *HostVolume) write(register bool, ns string, req *structs.DynamicHostVolume, audit *hostVolumeAudit) (*structs.DynamicHostVolume, uint64, error) {
 	if req.ID != "" {
 		return v.update(register, ns, req)
 	}
-	return v.add(register, ns, req)
+	return v.add(register, ns, req, audit)
 }
 
 // add records a new volume pending on its node, asks the node to act, and
@@ -300,7 +321,7 @@ func (v *HostVolume) write(register bool, ns string, req *structs.DynamicHostVol
 // answers with a rejection gives a failed record in a normal reply; a call
 // that fails in transit leaves the record pending, because the client may have
 // finished the work, and a later retry decides.
-func (v *HostVolume) add(register bool, ns string, req *structs.DynamicHostVolume) (*structs.DynamicHostVolume, uint64, error) {
+func (v *HostVolume) add(register bool, ns string, req *structs.DynamicHostVolume, audit *hostVolumeAudit) (*structs.DynamicHostVolume, uint64, error) {
 	vol := req.Copy()
 	now := time.Now().UnixNano()
 	vol.ID = uuid.Generate()
@@ -330,7 +351,7 @@ func (v *HostVolume) add(register bool, ns string, req *structs.DynamicHostVolum
 	}
 	defer coord.end(key)
 
-	failed, index, err := v.place(register, vol)
+	failed, index, err := v.place(register, vol, audit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -365,7 +386,7 @@ func validateHostVolume(register bool, vol *structs.DynamicHostVolume) error {
 // lock. It returns true, with the index of the last write, when no node was
 // eligible and the volume was recorded as failed; otherwise the record is
 // pending on its node. The lock is released before it returns.
-func (v *HostVolume) place(register bool, vol *structs.DynamicHostVolume) (bool, uint64, error) {
+func (v *HostVolume) place(register bool, vol *structs.DynamicHostVolume, audit *hostVolumeAudit) (bool, uint64, error) {
 	coord := v.srv.dhvCoordinator
 	coord.placeMu.Lock()
 	defer coord.placeMu.Unlock()
@@ -391,7 +412,7 @@ func (v *HostVolume) place(register bool, vol *structs.DynamicHostVolume) (bool,
 		case err != nil:
 			return false, 0, err
 		case diag != nil:
-			return v.recordNoNode(vol, diag)
+			return v.recordNoNode(vol, diag, audit)
 		}
 		vol.NodeID, vol.NodePool = node.ID, node.NodePool
 	}
@@ -402,6 +423,7 @@ func (v *HostVolume) place(register bool, vol *structs.DynamicHostVolume) (bool,
 	}); err != nil {
 		return false, 0, hostVolumeApplyError(err)
 	}
+	audit.volumeID = vol.ID
 	return false, 0, nil
 }
 
@@ -409,7 +431,7 @@ func (v *HostVolume) place(register bool, vol *structs.DynamicHostVolume) (bool,
 // then failed, with the diagnostic codes as its description. A name that every
 // candidate node already uses is a conflict of the request, not a placement
 // failure, and writes nothing.
-func (v *HostVolume) recordNoNode(vol *structs.DynamicHostVolume, diag *DynamicHostVolumeNodeDiagnostic) (bool, uint64, error) {
+func (v *HostVolume) recordNoNode(vol *structs.DynamicHostVolume, diag *DynamicHostVolumeNodeDiagnostic, audit *hostVolumeAudit) (bool, uint64, error) {
 	if len(diag.Filtered) == 1 && diag.Filtered[0].Reason == DynamicHostVolumeReasonNameConflict {
 		return false, 0, hostVolumeCoded(http.StatusBadRequest, hostVolumeErrNameConflict)
 	}
@@ -420,6 +442,7 @@ func (v *HostVolume) recordNoNode(vol *structs.DynamicHostVolume, diag *DynamicH
 	}); err != nil {
 		return false, 0, hostVolumeApplyError(err)
 	}
+	audit.volumeID = vol.ID
 
 	text := dynamicHostVolumeDiagnosticText(diag)
 	index, err := v.apply(structs.DynamicHostVolumeOutcomeRequestType, &structs.DynamicHostVolumeOutcomeRequest{

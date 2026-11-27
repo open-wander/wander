@@ -487,6 +487,27 @@ func (r *dynamicHostVolumeReconciler) record(ctx context.Context, key string, cu
 	}
 	delete(r.backoff, key)
 	r.logger.Debug("recorded outcome", "namespace", cur.Namespace, "id", cur.ID, "state", string(outcome.State))
+	r.audit(cur, string(outcome.State))
+}
+
+// audit writes the audit line of a volume the leader has settled: a volume
+// that became ready or failed, or whose record was removed. It is called only
+// after the write succeeded, so a retry that settles nothing writes no line.
+// The operation is the one that left the volume unsettled: a requested or
+// pending volume is a create or a register, a deleting one a delete or a
+// deregister, by origin.
+func (r *dynamicHostVolumeReconciler) audit(cur *structs.DynamicHostVolume, outcome string) {
+	registered := cur.Origin == structs.DynamicHostVolumeOriginRegistered
+	op := hostVolumeAuditCreate
+	switch {
+	case cur.State == structs.DynamicHostVolumeStateDeleting && registered:
+		op = hostVolumeAuditDeregister
+	case cur.State == structs.DynamicHostVolumeStateDeleting:
+		op = hostVolumeAuditDelete
+	case registered:
+		op = hostVolumeAuditRegister
+	}
+	r.srv.auditHostVolume(hostVolumeActorLeader, &hostVolumeAudit{op: op, ns: cur.Namespace, volumeID: cur.ID}, outcome, "")
 }
 
 // writeFailed handles a refused write. A refusal of the version gate waits and
@@ -624,6 +645,7 @@ func (r *dynamicHostVolumeReconciler) removeRecord(ctx context.Context, key stri
 	case err == nil:
 		delete(r.backoff, key)
 		r.logger.Debug("removed volume", "namespace", cur.Namespace, "id", cur.ID)
+		r.audit(cur, hostVolumeOutcomeRemoved)
 	case errors.Is(err, ErrDynamicHostVolumeVersion):
 		r.wait(key, true)
 		r.logger.Debug("waiting for the version gate", "namespace", cur.Namespace, "id", cur.ID)

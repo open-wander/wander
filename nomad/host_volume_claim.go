@@ -158,11 +158,13 @@ func (v *HostVolume) ListClaims(args *structs.HostVolumeClaimListRequest, reply 
 // check here only gives the refusal without a log entry. A claim that does not
 // exist is 404: the permission check comes first, so the answer reveals nothing
 // about other namespaces.
-func (v *HostVolume) DeleteClaim(args *structs.HostVolumeClaimDeleteRequest, reply *structs.HostVolumeClaimDeleteResponse) error {
+func (v *HostVolume) DeleteClaim(args *structs.HostVolumeClaimDeleteRequest, reply *structs.HostVolumeClaimDeleteResponse) (retErr error) {
 	authErr := v.srv.Authenticate(v.ctx, args)
 	if done, err := v.srv.forward("HostVolume.DeleteClaim", args, args, reply); done {
 		return err
 	}
+	audit := &hostVolumeAudit{op: hostVolumeAuditDeleteClaim, ns: args.RequestNamespace(), claimID: args.ID}
+	defer func() { v.srv.auditHostVolumeCall(args, authErr, audit, retErr, nil) }()
 	v.srv.MeasureRPCRate("host_volume", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
