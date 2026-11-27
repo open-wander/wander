@@ -388,6 +388,9 @@ func (s *Server) establishLeadership(stopCh chan struct{}) error {
 	// Reap any cancelable evaluations
 	s.reapCancelableEvalsCh = s.reapCancelableEvaluations(stopCh)
 
+	// Retry dynamic host volumes left requested or pending
+	s.startDynamicHostVolumeReconciler(stopCh)
+
 	// Periodically unblock failed allocations
 	go s.periodicUnblockFailedEvals(stopCh)
 
@@ -1459,6 +1462,9 @@ func (s *Server) revokeLeadership() error {
 
 	// Disable the volume watcher
 	s.volumeWatcher.SetEnabled(false, nil, "")
+
+	// Stop the dynamic host volume retry loop and wait for it to exit
+	s.stopDynamicHostVolumeReconciler()
 
 	// Disable any enterprise systems required.
 	if err := s.revokeEnterpriseLeadership(); err != nil {

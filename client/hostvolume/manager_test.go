@@ -41,6 +41,7 @@ type faultStore struct {
 	mu      sync.Mutex
 	puts    int
 	failPut error
+	failGet error
 }
 
 func (f *faultStore) PutHostVolume(r *hvstate.Record) error {
@@ -52,6 +53,22 @@ func (f *faultStore) PutHostVolume(r *hvstate.Record) error {
 		return err
 	}
 	return f.Store.PutHostVolume(r)
+}
+
+func (f *faultStore) GetHostVolumes() ([]*hvstate.Record, map[string]error, error) {
+	f.mu.Lock()
+	err := f.failGet
+	f.mu.Unlock()
+	if err != nil {
+		return nil, nil, err
+	}
+	return f.Store.GetHostVolumes()
+}
+
+func (f *faultStore) setGetError(err error) {
+	f.mu.Lock()
+	f.failGet = err
+	f.mu.Unlock()
 }
 
 func (f *faultStore) setPutError(err error) {
@@ -631,7 +648,7 @@ func TestManager_CreateAndDelete(t *testing.T) {
 		m := e.manager()
 		_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
 		must.NoError(t, err)
-		must.NoError(t, m.Delete(ctx5(t), "vol-a"))
+		must.NoError(t, m.Delete(ctx5(t), delReq("vol-a")))
 		must.Nil(t, e.stored("vol-a"))
 		must.MapLen(t, 0, e.published())
 		_, ok := m.Status("vol-a")
@@ -646,7 +663,7 @@ func TestManager_CreateAndDelete(t *testing.T) {
 		_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
 		must.NoError(t, err)
 		e.flag("faildelete", true)
-		err = m.Delete(ctx5(t), "vol-a")
+		err = m.Delete(ctx5(t), delReq("vol-a"))
 		asOpError(t, err, OperationDelete, ReasonNonZeroExit)
 		must.NotNil(t, e.stored("vol-a"))
 		must.Eq(t, hvstate.StatusReady, mustStatus(t, m, "vol-a").Status)
@@ -661,7 +678,7 @@ func TestManager_CreateAndDelete(t *testing.T) {
 		m := e.manager()
 		_, err := m.AddRegistered(ctx5(t), RegisterRequest{NodeID: testNode, Namespace: "ns-synthetic", VolumeID: "vol-r", Name: "reg", Path: dir})
 		must.NoError(t, err)
-		err = m.Delete(ctx5(t), "vol-r")
+		err = m.Delete(ctx5(t), delReq("vol-r"))
 		must.True(t, errors.Is(err, ErrRegisteredVolume))
 		must.NotNil(t, e.stored("vol-r"))
 		must.Eq(t, 0, e.lines("deletes"))
@@ -684,8 +701,6 @@ func TestManager_ConcurrentOperationsNeverOverlap(t *testing.T) {
 	e.installPlugin()
 	e.flag("slow", true)
 	m := e.manager()
-	_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
-	must.NoError(t, err)
 
 	var wg sync.WaitGroup
 	for range 4 {
@@ -701,7 +716,7 @@ func TestManager_ConcurrentOperationsNeverOverlap(t *testing.T) {
 	}
 	wg.Wait()
 	must.Eq(t, 0, e.lines("overlap"), must.Sprint("two plugin operations ran at once"))
-	must.Eq(t, 5, e.lines("creates"), must.Sprint("one create per Create call"))
+	must.Eq(t, 1, e.lines("creates"), must.Sprint("concurrent creates of one ID run the plugin once"))
 }
 
 func TestManager_DeleteWaitingPassDoesNotRecreate(t *testing.T) {
@@ -1231,7 +1246,7 @@ func TestManager_EntryPointBeforeRestorePublishesOnlyCheckedVolumes(t *testing.T
 			must.NoError(t, err)
 		}, []string{"new"}, []string{"del", "kept", "new"}},
 		{"delete", func(t *testing.T, e *mgrEnv, m *Manager) {
-			must.NoError(t, m.Delete(ctx5(t), "vol-del"))
+			must.NoError(t, m.Delete(ctx5(t), delReq("vol-del")))
 		}, nil, []string{"kept"}},
 	}
 	for _, tc := range cases {
@@ -1311,6 +1326,14 @@ func TestManager_StaleResultDoesNotOverwriteNewerRecord(t *testing.T) {
 	// evaluated vol-a and released its lock.
 	eventually(t, func() bool { return m.locks.refs("vol-b") == 2 }, 5*time.Second)
 
+	// Delete and create again replace the record while the pass waits.
+	must.NoError(t, m.Delete(ctx5(t), delReq("vol-a")))
+	// The delete leaves a tombstone that refuses the create. The test needs the
+	// record replaced, so the mark is lifted as its retention would.
+	must.NoError(t, e.store.DeleteHostVolumeTombstone("vol-a"))
+	m.mu.Lock()
+	delete(m.tombstones, "vol-a")
+	m.mu.Unlock()
 	st, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
 	must.NoError(t, err)
 	must.Eq(t, hvstate.StatusReady, st.Status)
@@ -1355,9 +1378,9 @@ func TestManager_DeleteWaitingPeriodicPassDoesNotRecreate(t *testing.T) {
 	must.True(t, errors.Is(statErr, fs.ErrNotExist))
 }
 
-// A repeated create of an existing volume whose record cannot be stored must
-// not roll back: the rollback is the plugin's delete, and the volume is live.
-func TestManager_RepeatedCreateStoreFailureKeepsVolume(t *testing.T) {
+// A repeated create of an existing volume writes nothing, so a failing store
+// does not matter and nothing is rolled back: the volume is live.
+func TestManager_RepeatedCreateKeepsVolume(t *testing.T) {
 	e := newMgrEnv(t)
 	e.installPlugin()
 	m := e.manager()
@@ -1368,10 +1391,10 @@ func TestManager_RepeatedCreateStoreFailureKeepsVolume(t *testing.T) {
 
 	e.store.setPutError(errors.New("synthetic store failure"))
 	_, err = m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
-	must.Error(t, err)
+	must.NoError(t, err)
 
-	must.Eq(t, 2, e.lines("creates"))
-	must.Eq(t, 0, e.lines("deletes"), must.Sprint("the rollback deleted a volume that already had a record"))
+	must.Eq(t, 1, e.lines("creates"))
+	must.Eq(t, 0, e.lines("deletes"), must.Sprint("a repeat deleted a volume that already had a record"))
 	b, err := os.ReadFile(payload)
 	must.NoError(t, err)
 	must.Eq(t, "keep", string(b))
@@ -1572,4 +1595,273 @@ func TestManager_Namespace(t *testing.T) {
 
 	_, ok = m.Namespace("vol-missing")
 	must.False(t, ok)
+}
+
+func TestManager_CreateRepeat(t *testing.T) {
+	t.Run("same content runs the plugin once", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		first, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		pubs := e.pubCount()
+
+		again, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, first, again)
+		must.Eq(t, 1, e.lines("creates"))
+		must.Eq(t, pubs, e.pubCount())
+
+		// A restarted client answers the same way.
+		m2 := e.manager()
+		again, err = m2.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, first.Path, again.Path)
+		must.Eq(t, 1, e.lines("creates"))
+	})
+
+	t.Run("repeat reports the stored status", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.NoError(t, os.RemoveAll(filepath.Join(e.volumes, "vol-a")))
+		m.reconcile(ctx5(t), false)
+		must.Eq(t, hvstate.StatusUnavailable, mustStatus(t, m, "vol-a").Status)
+
+		again, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, hvstate.StatusUnavailable, again.Status)
+		must.Eq(t, 1, e.lines("creates"))
+	})
+
+	mismatches := []struct {
+		name   string
+		mutate func(*OpRequest)
+		plugin string
+	}{
+		{"namespace", func(r *OpRequest) { r.Namespace = "ns-other" }, "plug"},
+		{"name", func(r *OpRequest) { r.Name = "other" }, "plug"},
+		{"plugin", func(r *OpRequest) {}, "plug2"},
+	}
+	for _, tc := range mismatches {
+		t.Run("mismatch "+tc.name, func(t *testing.T) {
+			e := newMgrEnv(t)
+			e.installPlugin()
+			m := e.manager()
+			first, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+			must.NoError(t, err)
+			before := e.stored("vol-a")
+			pubs := e.pubCount()
+
+			req := e.req("vol-a", "data")
+			tc.mutate(&req)
+			_, err = m.Create(ctx5(t), tc.plugin, req)
+			asOpError(t, err, OperationCreate, ReasonCreateMismatch)
+			must.Eq(t, 1, e.lines("creates"))
+			must.Eq(t, before, e.stored("vol-a"))
+			must.Eq(t, pubs, e.pubCount())
+			must.Eq(t, first, mustStatus(t, m, "vol-a"))
+		})
+	}
+
+	t.Run("bytes survive a repeat", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		rec := e.pluginRec("vol-a", "data")
+		rec.CapacityBytes = 4096
+		e.seed(rec)
+		m := e.manager()
+		st, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.Eq(t, int64(4096), st.CapacityBytes)
+		must.Eq(t, 0, e.lines("creates"))
+	})
+}
+
+func TestManager_CreateInvalidRecordRunsNoPlugin(t *testing.T) {
+	e := newMgrEnv(t)
+	e.installPlugin()
+	m := e.manager()
+	_, err := m.Create(ctx5(t), "plug", e.req("vol-a", ""))
+	asOpError(t, err, OperationCreate, ReasonInvalidInput)
+	must.Eq(t, 0, e.lines("creates"))
+	must.Nil(t, e.stored("vol-a"))
+}
+
+func delReq(id string) DeleteRequest {
+	return DeleteRequest{VolumeID: id, Namespace: "ns-synthetic", NodeID: testNode}
+}
+
+func TestManager_DeleteHandshake(t *testing.T) {
+	t.Run("unknown volume succeeds and runs nothing", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		must.NoError(t, m.Delete(ctx5(t), delReq("vol-gone")))
+		must.Eq(t, 0, e.lines("deletes"))
+	})
+
+	t.Run("repeat after success runs the plugin once", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		must.NoError(t, m.Delete(ctx5(t), delReq("vol-a")))
+		must.NoError(t, m.Delete(ctx5(t), delReq("vol-a")))
+		must.Eq(t, 1, e.lines("deletes"))
+		// A restarted client holds nothing either.
+		must.NoError(t, e.manager().Delete(ctx5(t), delReq("vol-a")))
+		must.Eq(t, 1, e.lines("deletes"))
+	})
+
+	t.Run("mismatch changes nothing", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		req := delReq("vol-a")
+		req.Namespace = "other"
+		asOpError(t, m.Delete(ctx5(t), req), OperationDelete, ReasonDeleteMismatch)
+		must.Eq(t, 0, e.lines("deletes"))
+		must.NotNil(t, e.stored("vol-a"))
+		must.Eq(t, "vol-a", e.published()["data"].ID)
+	})
+
+	t.Run("bad input is bounded before the lock table", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		m := e.manager()
+		// Hold the lock of the valid ID for the whole table. A rejection must
+		// then come back at once with its own reason: had begin taken the lock
+		// before validating, each call would wait out its deadline and report
+		// a canceled wait instead. Releasing on a validation failure would
+		// still leave the table empty, so the map check alone cannot tell.
+		must.NoError(t, m.locks.acquire(ctx5(t), "vol-a"))
+		for _, tc := range []struct {
+			name   string
+			mutate func(*DeleteRequest)
+			reason string
+		}{
+			{"empty id", func(r *DeleteRequest) { r.VolumeID = "" }, ReasonInvalidInput},
+			{"traversal id", func(r *DeleteRequest) { r.VolumeID = "../x" }, ReasonInvalidInput},
+			{"long id", func(r *DeleteRequest) { r.VolumeID = strings.Repeat("a", MaxIDLen+1) }, ReasonInvalidInput},
+			{"empty namespace", func(r *DeleteRequest) { r.Namespace = "" }, ReasonInvalidInput},
+			{"other node", func(r *DeleteRequest) { r.NodeID = otherTestNode }, hvstate.ReasonNodeMismatch},
+			{"empty node", func(r *DeleteRequest) { r.NodeID = "" }, hvstate.ReasonNodeMismatch},
+		} {
+			req := delReq("vol-a")
+			tc.mutate(&req)
+			for _, call := range []struct {
+				op string
+				fn func(context.Context, DeleteRequest) error
+			}{
+				{OperationDelete, m.Delete},
+				{OperationDeregister, m.Deregister},
+			} {
+				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+				start := time.Now()
+				err := call.fn(ctx, req)
+				cancel()
+				asOpError(t, err, call.op, tc.reason)
+				must.Less(t, 250*time.Millisecond, time.Since(start), must.Sprint(tc.name, " ", call.op))
+			}
+			m.locks.mu.Lock()
+			must.MapLen(t, 1, m.locks.m, must.Sprint(tc.name))
+			must.Eq(t, 1, m.locks.m["vol-a"].refs, must.Sprint(tc.name))
+			m.locks.mu.Unlock()
+		}
+		m.locks.release("vol-a")
+		m.locks.mu.Lock()
+		must.MapLen(t, 0, m.locks.m)
+		m.locks.mu.Unlock()
+		must.Eq(t, 0, e.lines("deletes"))
+	})
+
+	t.Run("store read failure is an error not a success", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		e.seed(e.pluginRec("vol-a", "data"))
+		e.store.setGetError(errors.New("disk read"))
+		m := e.manager()
+		err := m.Delete(ctx5(t), delReq("vol-a"))
+		must.Error(t, err)
+		var oe *OpError
+		must.False(t, errors.As(err, &oe))
+		must.Error(t, m.Deregister(ctx5(t), delReq("vol-a")))
+		must.Eq(t, 0, e.lines("deletes"))
+		e.store.setGetError(nil)
+		must.NotNil(t, e.stored("vol-a"))
+	})
+
+	t.Run("unreadable record answers success and logs the ID", func(t *testing.T) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		e.seed(&hvstate.Record{VolumeID: "vol-bad", Namespace: "ns-synthetic", NodeID: testNode,
+			Kind: hvstate.KindPlugin, PluginID: "plug", Path: "relative", Status: hvstate.StatusReady, Name: "x"})
+		m := e.manager()
+		must.NoError(t, m.Delete(ctx5(t), delReq("vol-bad")))
+		must.Eq(t, 0, e.lines("deletes"))
+		must.StrContains(t, e.logText(), "vol-bad")
+	})
+}
+
+func TestManager_Deregister(t *testing.T) {
+	setup := func(t *testing.T) (*mgrEnv, *Manager, string) {
+		e := newMgrEnv(t)
+		e.installPlugin()
+		dir := t.TempDir()
+		must.NoError(t, os.WriteFile(filepath.Join(dir, "marker"), []byte("x"), 0o600))
+		m := e.manager()
+		_, err := m.AddRegistered(ctx5(t), RegisterRequest{NodeID: testNode, Namespace: "ns-synthetic", VolumeID: "vol-r", Name: "reg", Path: dir})
+		must.NoError(t, err)
+		return e, m, dir
+	}
+
+	t.Run("drops the record and leaves the directory", func(t *testing.T) {
+		e, m, dir := setup(t)
+		before, err := os.Stat(dir)
+		must.NoError(t, err)
+		must.NoError(t, m.Deregister(ctx5(t), delReq("vol-r")))
+		must.Nil(t, e.stored("vol-r"))
+		must.MapLen(t, 0, e.published())
+		_, ok := m.Status("vol-r")
+		must.False(t, ok)
+		must.Eq(t, 0, e.lines("deletes"))
+		_, err = os.Stat(filepath.Join(dir, "marker"))
+		must.NoError(t, err)
+		after, err := os.Stat(dir)
+		must.NoError(t, err)
+		must.Eq(t, before.ModTime(), after.ModTime())
+		must.Eq(t, before.Mode(), after.Mode())
+	})
+
+	t.Run("repeat and unknown succeed", func(t *testing.T) {
+		e, m, _ := setup(t)
+		must.NoError(t, m.Deregister(ctx5(t), delReq("vol-r")))
+		must.NoError(t, m.Deregister(ctx5(t), delReq("vol-r")))
+		must.NoError(t, m.Deregister(ctx5(t), delReq("vol-never")))
+		must.Eq(t, 0, e.lines("deletes"))
+	})
+
+	t.Run("plugin volume is refused", func(t *testing.T) {
+		e, m, _ := setup(t)
+		_, err := m.Create(ctx5(t), "plug", e.req("vol-a", "data"))
+		must.NoError(t, err)
+		asOpError(t, m.Deregister(ctx5(t), delReq("vol-a")), OperationDeregister, ReasonVolumeKindConflict)
+		must.NotNil(t, e.stored("vol-a"))
+		must.Eq(t, 0, e.lines("deletes"))
+		must.Eq(t, "vol-a", e.published()["data"].ID)
+	})
+
+	t.Run("mismatch changes nothing", func(t *testing.T) {
+		e, m, _ := setup(t)
+		req := delReq("vol-r")
+		req.Namespace = "other"
+		asOpError(t, m.Deregister(ctx5(t), req), OperationDeregister, ReasonDeleteMismatch)
+		must.NotNil(t, e.stored("vol-r"))
+	})
 }

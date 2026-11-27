@@ -85,12 +85,15 @@ type DynamicHostVolume struct {
 	Constraints               []*Constraint
 	Parameters                map[string]string
 	State                     DynamicHostVolumeState
-	Origin                    DynamicHostVolumeOrigin
-	Attachments               []*DynamicHostVolumeAttachment
-	CreateTime                int64
-	ModifyTime                int64
-	CreateIndex               uint64
-	ModifyIndex               uint64
+	// StatusDescription is the diagnostic of the last failed step. It is stored
+	// as the producer sent it and bounded by DynamicHostVolumeMaxDiagnosticBytes.
+	StatusDescription string
+	Origin            DynamicHostVolumeOrigin
+	Attachments       []*DynamicHostVolumeAttachment
+	CreateTime        int64
+	ModifyTime        int64
+	CreateIndex       uint64
+	ModifyIndex       uint64
 }
 
 type DynamicHostVolumeCapability struct {
@@ -104,6 +107,74 @@ type DynamicHostVolumeAttachment struct {
 	AttachmentMode DynamicHostVolumeAttachmentMode
 	AccessMode     DynamicHostVolumeAccessMode
 	ReadOnly       bool
+}
+
+// DynamicHostVolumeMaxDiagnosticBytes bounds the diagnostic stored on a record.
+const DynamicHostVolumeMaxDiagnosticBytes = 1024
+
+// DynamicHostVolumeKey names one volume record.
+type DynamicHostVolumeKey struct {
+	Namespace string
+	ID        string
+}
+
+// The requests below are the Raft commands of the volume state machine. Every
+// field that decides the result is chosen before the command is submitted, so
+// applying an entry needs no clock and no random source.
+
+// DynamicHostVolumeUpsertRequest creates volumes (requested, or pending when
+// the node is known) or gives a requested volume its node.
+type DynamicHostVolumeUpsertRequest struct {
+	Volumes []*DynamicHostVolume
+	WriteRequest
+}
+
+// DynamicHostVolumeOutcomeRequest records the result of the client call: ready
+// with the host path and capacity, or failed with a diagnostic.
+type DynamicHostVolumeOutcomeRequest struct {
+	Key           DynamicHostVolumeKey
+	State         DynamicHostVolumeState
+	HostPath      string
+	CapacityBytes int64
+	Diagnostic    string
+	ModifyTime    int64
+	WriteRequest
+}
+
+// DynamicHostVolumeUpdateRequest changes the mutable fields of a ready volume.
+// Volume.ModifyIndex is the compare-and-set index.
+type DynamicHostVolumeUpdateRequest struct {
+	Volume *DynamicHostVolume
+	WriteRequest
+}
+
+// DynamicHostVolumeMarkDeletingRequest moves volumes to deleting.
+type DynamicHostVolumeMarkDeletingRequest struct {
+	Keys       []DynamicHostVolumeKey
+	ModifyTime int64
+	WriteRequest
+}
+
+// DynamicHostVolumeRemoveRequest removes deleting volumes and their claims.
+type DynamicHostVolumeRemoveRequest struct {
+	Keys []DynamicHostVolumeKey
+	WriteRequest
+}
+
+// DynamicHostVolumeClaimKey names one sticky claim and the modify index the
+// deletion expects it to have.
+type DynamicHostVolumeClaimKey struct {
+	Namespace           string
+	ID                  string
+	ExpectedModifyIndex uint64
+}
+
+// DynamicHostVolumeClaimDeleteRequest removes sticky claims. The expected modify
+// index of each claim is read before the command is submitted, so a claim
+// rewritten in between is refused instead of removed.
+type DynamicHostVolumeClaimDeleteRequest struct {
+	Claims []DynamicHostVolumeClaimKey
+	WriteRequest
 }
 
 // DynamicHostVolumeClaim records a sticky allocation's volume identity.
@@ -142,7 +213,7 @@ func (v *DynamicHostVolume) Equal(other *DynamicHostVolume) bool {
 		v.CapacityBytes == other.CapacityBytes &&
 		v.RequestedCapacityMinBytes == other.RequestedCapacityMinBytes &&
 		v.RequestedCapacityMaxBytes == other.RequestedCapacityMaxBytes &&
-		v.State == other.State && v.Origin == other.Origin &&
+		v.State == other.State && v.StatusDescription == other.StatusDescription && v.Origin == other.Origin &&
 		v.CreateTime == other.CreateTime && v.ModifyTime == other.ModifyTime &&
 		v.CreateIndex == other.CreateIndex && v.ModifyIndex == other.ModifyIndex &&
 		(v.Parameters == nil) == (other.Parameters == nil) && maps.Equal(v.Parameters, other.Parameters) &&

@@ -68,3 +68,33 @@ func TestRecord_CopyIsDeep(t *testing.T) {
 	var nilRec *Record
 	must.Nil(t, nilRec.Copy())
 }
+
+func TestTombstone_Validate(t *testing.T) {
+	good := Tombstone{VolumeID: "vol-1", DeletedAt: time.Unix(1700000000, 0)}
+	must.NoError(t, good.Validate())
+
+	// Every ID the manager accepts must validate, or its tombstone would
+	// reload invalid and never expire.
+	for _, id := range []string{"vol.1", "a.b.c", "v-1_x.2", "vol."} {
+		ts := good
+		ts.VolumeID = id
+		must.NoError(t, ts.Validate(), must.Sprint(id))
+	}
+
+	cases := map[string]func(ts *Tombstone){
+		"leading dot": func(ts *Tombstone) { ts.VolumeID = ".vol" },
+		"id space":    func(ts *Tombstone) { ts.VolumeID = "a b" },
+		"empty id":    func(ts *Tombstone) { ts.VolumeID = "" },
+		"id slash":    func(ts *Tombstone) { ts.VolumeID = "a/b" },
+		"id too long": func(ts *Tombstone) { ts.VolumeID = strings.Repeat("a", MaxIDLen+1) },
+		"zero time":   func(ts *Tombstone) { ts.DeletedAt = time.Time{} },
+	}
+	for name, mod := range cases {
+		t.Run(name, func(t *testing.T) {
+			ts := good
+			mod(&ts)
+			must.Error(t, ts.Validate())
+		})
+	}
+	must.Eq(t, "volume_deleted", ReasonVolumeDeleted)
+}

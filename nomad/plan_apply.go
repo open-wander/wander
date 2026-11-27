@@ -809,8 +809,10 @@ const (
 // evaluateDynamicHostVolumes re-checks, against the snapshot, the dynamic host
 // volumes that new placements on the node use. Two evaluations can each find a
 // volume free and both commit, so the record must still be usable and no
-// other proposed allocation may hold the volume exclusively. Plans that place
-// nothing on a node-advertised dynamic volume read no further state.
+// other proposed allocation may hold the volume exclusively. A requested source
+// the node does not advertise is looked up by node and name, so a record the
+// node has dropped is refused; plans without host volume requests read no
+// further state.
 //
 // The plan and the snapshot are shared with evaluations of other nodes, so
 // nothing is modified here: a job missing from a plan allocation is resolved
@@ -818,7 +820,7 @@ const (
 func evaluateDynamicHostVolumes(snap *state.StateSnapshot, plan *structs.Plan, node *structs.Node,
 	existing []*structs.Allocation) (bool, string, error) {
 
-	if plan.Job == nil || len(node.HostVolumes) == 0 {
+	if plan.Job == nil {
 		return true, "", nil
 	}
 
@@ -849,7 +851,20 @@ func evaluateDynamicHostVolumes(snap *state.StateSnapshot, plan *structs.Plan, n
 
 		for source, requests := range structs.HostVolumeRequestsBySource(tg.Volumes, alloc.Name) {
 			nodeVolume, ok := node.HostVolumes[source]
-			if !ok || nodeVolume.ID == "" {
+			if ok && nodeVolume.ID == "" {
+				continue
+			}
+			if !ok {
+				// A node that stopped advertising a dynamic volume cannot
+				// serve it, whatever the record still says. A source with
+				// no record is a static volume and keeps the inherited rule.
+				vol, err := snap.DynamicHostVolumeByNodeName(nil, job.Namespace, node.ID, source)
+				if err != nil {
+					return false, "", fmt.Errorf("failed to get dynamic host volume for '%s': %v", node.ID, err)
+				}
+				if vol != nil {
+					return false, planRejectDynamicHostVolumeUnusable, nil
+				}
 				continue
 			}
 

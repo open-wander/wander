@@ -164,22 +164,28 @@ func (s *StateStore) UpsertDynamicHostVolumes(index uint64, volumes []*structs.D
 		if err != nil {
 			return err
 		}
-		if volume.NodeID != "" {
-			conflict, err := tx.First(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, volume.Namespace, volume.NodeID, volume.Name)
-			if err != nil {
-				return ErrDynamicHostVolumeStateStorage
-			}
-			// Memdb unique indexes alone do not reject another object's key.
-			if conflict != nil && conflict.(*structs.DynamicHostVolume).ID != volume.ID {
-				return ErrDynamicHostVolumeStateConflict
-			}
-		}
-		volume.ModifyIndex = index
-		if err := tx.Insert(TableDynamicHostVolumes, volume); err != nil {
+		return insertDynamicHostVolumeTxn(tx, index, volume)
+	})
+}
+
+// insertDynamicHostVolumeTxn stamps the modify index and inserts the volume. A
+// node holds one volume per name and namespace, which memdb's unique indexes do
+// not enforce against another object's key, so it is checked here.
+func insertDynamicHostVolumeTxn(tx *txn, index uint64, volume *structs.DynamicHostVolume) error {
+	if volume.NodeID != "" {
+		conflict, err := tx.First(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, volume.Namespace, volume.NodeID, volume.Name)
+		if err != nil {
 			return ErrDynamicHostVolumeStateStorage
 		}
-		return nil
-	})
+		if conflict != nil && conflict.(*structs.DynamicHostVolume).ID != volume.ID {
+			return ErrDynamicHostVolumeStateConflict
+		}
+	}
+	volume.ModifyIndex = index
+	if err := tx.Insert(TableDynamicHostVolumes, volume); err != nil {
+		return ErrDynamicHostVolumeStateStorage
+	}
+	return nil
 }
 
 func (s *StateStore) UpsertDynamicHostVolumeClaims(index uint64, claims []*structs.DynamicHostVolumeClaim) error {
@@ -333,6 +339,15 @@ func (s *StateStore) deleteDynamicHostVolumeRecords(index uint64, table string, 
 		if table == TableDynamicHostVolumes {
 			return deleteDynamicHostVolumeTxn(tx, index, raw.(*structs.DynamicHostVolume))
 		}
+		// A claim that an allocation still holds stays, so a replayed or
+		// racing entry cannot release a volume identity that is in use.
+		inUse, err := dynamicHostVolumeClaimInUse(tx, raw.(*structs.DynamicHostVolumeClaim))
+		if err != nil {
+			return err
+		}
+		if inUse {
+			return ErrDynamicHostVolumeStateInUse
+		}
 		if err := tx.Delete(table, raw); err != nil {
 			return ErrDynamicHostVolumeStateStorage
 		}
@@ -380,6 +395,13 @@ func deleteDynamicHostVolumeTxn(tx *txn, index uint64, vol *structs.DynamicHostV
 	return nil
 }
 
+// DynamicHostVolumeInUse reports whether a live allocation uses the volume. It
+// is the same check the apply commands make, for a caller that wants to refuse
+// before it writes anything.
+func (s *StateStore) DynamicHostVolumeInUse(vol *structs.DynamicHostVolume) (bool, error) {
+	return dynamicHostVolumeInUse(s.db.ReadTxn(), vol)
+}
+
 // dynamicHostVolumeInUse reports whether an allocation on the volume's node
 // uses it. An allocation counts until the client reports it terminal, the
 // same release point the scheduler's proposed allocations use, so one the
@@ -405,6 +427,58 @@ func dynamicHostVolumeInUse(tx *txn, vol *structs.DynamicHostVolume) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+// dynamicHostVolumeClaimInUse reports whether an allocation holds the claim:
+// one of the claim's namespace, job and task group that is not client-terminal
+// and uses the claim's volume on the volume's node. The claim records only the
+// first allocation of the group, and replacements reuse the claim without
+// updating it, so the recorded allocation alone would let a claim in use be
+// deleted. The release point is the one of dynamicHostVolumeInUse. A claim
+// whose volume record is missing is not expected, because removing a volume
+// removes its claims; it falls back to the recorded allocation.
+func dynamicHostVolumeClaimInUse(tx *txn, claim *structs.DynamicHostVolumeClaim) (bool, error) {
+	raw, err := tx.First(TableDynamicHostVolumes, indexID, claim.Namespace, claim.VolumeID)
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	if raw == nil {
+		recorded, err := tx.First("allocs", "id", claim.AllocationID)
+		if err != nil {
+			return false, ErrDynamicHostVolumeStateStorage
+		}
+		if recorded == nil {
+			return false, nil
+		}
+		alloc := recorded.(*structs.Allocation)
+		return alloc.Namespace == claim.Namespace && !alloc.ClientTerminalStatus(), nil
+	}
+	vol := raw.(*structs.DynamicHostVolume)
+	if vol.NodeID == "" {
+		return false, nil
+	}
+	iter, err := tx.Get("allocs", "job", claim.Namespace, claim.JobID)
+	if err != nil {
+		return false, ErrDynamicHostVolumeStateStorage
+	}
+	for raw := iter.Next(); raw != nil; raw = iter.Next() {
+		alloc := raw.(*structs.Allocation)
+		if alloc.TaskGroup != claim.TaskGroupName || alloc.NodeID != vol.NodeID || alloc.ClientTerminalStatus() {
+			continue
+		}
+		if len(structs.DynamicHostVolumeAllocRequests(vol, alloc, nil)) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// DynamicHostVolumeClaimInUse reports whether an allocation holds the claim, by
+// the rule the claim delete enforces when it is applied.
+func (s *StateStore) DynamicHostVolumeClaimInUse(claim *structs.DynamicHostVolumeClaim) (bool, error) {
+	tx := s.db.ReadTxn()
+	defer tx.Abort()
+	return dynamicHostVolumeClaimInUse(tx, claim)
 }
 
 // deleteDynamicHostVolumeClaimsByJobTxn deletes the claims of one job when the
@@ -505,6 +579,26 @@ func dynamicHostVolumeRecords[T dynamicHostVolumeCopyable[T]](s *StateStore, ws 
 func (s *StateStore) DynamicHostVolumeByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolume, error) {
 	return dynamicHostVolumeByID[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, namespace, id)
 }
+
+// DynamicHostVolumeByNodeName returns the record a node holds under a name in
+// a namespace, or nil. The pair is unique, so it finds the record of a source
+// the node no longer advertises.
+func (s *StateStore) DynamicHostVolumeByNodeName(ws memdb.WatchSet, namespace, nodeID, name string) (*structs.DynamicHostVolume, error) {
+	if err := dynamicHostVolumeKeys(3, namespace, nodeID, name); err != nil {
+		return nil, err
+	}
+	tx := s.db.ReadTxn()
+	watch, raw, err := tx.FirstWatch(TableDynamicHostVolumes, dynamicHostVolumeNodeNameIndex, namespace, nodeID, name)
+	if err != nil {
+		return nil, ErrDynamicHostVolumeStateStorage
+	}
+	ws.Add(watch)
+	if raw == nil {
+		return nil, nil
+	}
+	return raw.(*structs.DynamicHostVolume).Copy(), nil
+}
+
 func (s *StateStore) DynamicHostVolumeClaimByID(ws memdb.WatchSet, namespace, id string) (*structs.DynamicHostVolumeClaim, error) {
 	return dynamicHostVolumeByID[*structs.DynamicHostVolumeClaim](s, ws, TableDynamicHostVolumeClaims, namespace, id)
 }
@@ -523,6 +617,14 @@ func (s *StateStore) DynamicHostVolumesByNamespace(ws memdb.WatchSet, namespace 
 func (s *StateStore) DynamicHostVolumesByNodeID(ws memdb.WatchSet, namespace, node string) (memdb.ResultIterator, error) {
 	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, indexNodeID+"_prefix", namespace, node, "")
 }
+
+// DynamicHostVolumesByNode returns the volumes recorded on a node in every
+// namespace. The node read API uses it to attribute an advertised volume to a
+// namespace.
+func (s *StateStore) DynamicHostVolumesByNode(ws memdb.WatchSet, nodeID string) (memdb.ResultIterator, error) {
+	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, dynamicHostVolumeNodeOnlyIndex, nodeID)
+}
+
 func (s *StateStore) DynamicHostVolumesByPluginID(ws memdb.WatchSet, namespace, plugin string) (memdb.ResultIterator, error) {
 	return dynamicHostVolumeRecords[*structs.DynamicHostVolume](s, ws, TableDynamicHostVolumes, dynamicHostVolumePluginIndex+"_prefix", namespace, plugin, "")
 }

@@ -170,6 +170,41 @@ func ServersMeetMinimumVersion(members []serf.Member, region string, minVersion 
 	return true
 }
 
+// wanderVersionTag is the serf tag that carries the Wander product version. It
+// is separate from the build tag, which is pinned to the Nomad compatibility
+// version, so only this tag tells a Wander server from Nomad 1.6.5.
+const wanderVersionTag = "wander_version"
+
+// ServersMeetMinimumWanderVersion returns whether every server of the region
+// advertises a wander_version of at least minVersion. Unlike
+// ServersMeetMinimumVersion it fails closed:
+//   - a server without the tag, or with one that does not parse, blocks (that is
+//     Nomad 1.6.5 or an older Wander, whatever its build tag says);
+//   - a failed server counts, because it rejoins and replays the log;
+//   - left and leaving servers are ignored, as are other regions, which have
+//     their own Raft;
+//   - no server at all, not even the caller, does not pass.
+//
+// The comparison drops the prerelease and metadata, so 0.1.2-dev meets 0.1.2.
+func ServersMeetMinimumWanderVersion(members []serf.Member, region string, minVersion *version.Version) bool {
+	seen := false
+	minCore := minVersion.Core()
+	for _, member := range members {
+		if member.Tags["role"] != "nomad" || member.Tags["region"] != region {
+			continue
+		}
+		if member.Status != serf.StatusAlive && member.Status != serf.StatusFailed {
+			continue
+		}
+		seen = true
+		advertised, err := version.NewVersion(member.Tags[wanderVersionTag])
+		if err != nil || advertised.Core().LessThan(minCore) {
+			return false
+		}
+	}
+	return seen
+}
+
 // shuffleStrings randomly shuffles the list of strings
 func shuffleStrings(list []string) {
 	for i := range list {

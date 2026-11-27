@@ -57,6 +57,7 @@ func TestConfigForServer(t testing.T) *Config {
 	defaultEnterpriseTestConfig(config)
 
 	config.Build = version.ClusterCompatibilityVersion + "+unittest"
+	config.WanderVersion = version.GetVersion().VersionNumber()
 	config.DevMode = true
 	config.DataDir = t.TempDir()
 	config.EnableEventBroker = true

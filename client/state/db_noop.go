@@ -150,6 +150,18 @@ func (n NoopDB) DeleteHostVolume(string) error {
 	return nil
 }
 
+func (n NoopDB) PutHostVolumeTombstone(*hvstate.Tombstone) error {
+	return nil
+}
+
+func (n NoopDB) GetHostVolumeTombstones() ([]*hvstate.Tombstone, map[string]error, error) {
+	return nil, nil, nil
+}
+
+func (n NoopDB) DeleteHostVolumeTombstone(string) error {
+	return nil
+}
+
 func (n NoopDB) Close() error {
 	return nil
 }

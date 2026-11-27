@@ -67,4 +67,10 @@ var msgTypeNames = map[structs.MessageType]string{
 	structs.NodePoolDeleteRequestType:                    "NodePoolDeleteRequestType",
 	structs.NamespaceUpsertRequestType:                   "NamespaceUpsertRequestType",
 	structs.NamespaceDeleteRequestType:                   "NamespaceDeleteRequestType",
+	structs.DynamicHostVolumeUpsertRequestType:           "DynamicHostVolumeUpsertRequestType",
+	structs.DynamicHostVolumeOutcomeRequestType:          "DynamicHostVolumeOutcomeRequestType",
+	structs.DynamicHostVolumeUpdateRequestType:           "DynamicHostVolumeUpdateRequestType",
+	structs.DynamicHostVolumeMarkDeletingRequestType:     "DynamicHostVolumeMarkDeletingRequestType",
+	structs.DynamicHostVolumeRemoveRequestType:           "DynamicHostVolumeRemoveRequestType",
+	structs.DynamicHostVolumeClaimDeleteRequestType:      "DynamicHostVolumeClaimDeleteRequestType",
 }

@@ -355,6 +355,18 @@ func (n *nomadFSM) Apply(log *raft.Log) interface{} {
 		return n.applyACLBindingRulesUpsert(buf[1:], log.Index)
 	case structs.ACLBindingRulesDeleteRequestType:
 		return n.applyACLBindingRulesDelete(buf[1:], log.Index)
+	case structs.DynamicHostVolumeUpsertRequestType:
+		return n.applyDynamicHostVolumeUpsert(buf[1:], log.Index)
+	case structs.DynamicHostVolumeOutcomeRequestType:
+		return n.applyDynamicHostVolumeOutcome(buf[1:], log.Index)
+	case structs.DynamicHostVolumeUpdateRequestType:
+		return n.applyDynamicHostVolumeUpdate(buf[1:], log.Index)
+	case structs.DynamicHostVolumeMarkDeletingRequestType:
+		return n.applyDynamicHostVolumeMarkDeleting(buf[1:], log.Index)
+	case structs.DynamicHostVolumeRemoveRequestType:
+		return n.applyDynamicHostVolumeRemove(buf[1:], log.Index)
+	case structs.DynamicHostVolumeClaimDeleteRequestType:
+		return n.applyDynamicHostVolumeClaimDelete(buf[1:], log.Index)
 	}
 
 	// Check enterprise only message types.
@@ -584,6 +596,101 @@ func (n *nomadFSM) applyNodePoolDelete(msgType structs.MessageType, buf []byte, 
 
 	if err := n.state.DeleteNodePools(msgType, index, req.Names); err != nil {
 		n.logger.Error("DeleteNodePools failed", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (n *nomadFSM) applyDynamicHostVolumeUpsert(buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_dynamic_host_volume_upsert"}, time.Now())
+	var req structs.DynamicHostVolumeUpsertRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.CreateDynamicHostVolumes(index, req.Volumes); err != nil {
+		n.logger.Error("CreateDynamicHostVolumes failed", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (n *nomadFSM) applyDynamicHostVolumeOutcome(buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_dynamic_host_volume_outcome"}, time.Now())
+	var req structs.DynamicHostVolumeOutcomeRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.RecordDynamicHostVolumeOutcome(index, &req); err != nil {
+		n.logger.Error("RecordDynamicHostVolumeOutcome failed", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (n *nomadFSM) applyDynamicHostVolumeUpdate(buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_dynamic_host_volume_update"}, time.Now())
+	var req structs.DynamicHostVolumeUpdateRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.UpdateDynamicHostVolume(index, req.Volume); err != nil {
+		n.logger.Error("UpdateDynamicHostVolume failed", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (n *nomadFSM) applyDynamicHostVolumeMarkDeleting(buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_dynamic_host_volume_mark_deleting"}, time.Now())
+	var req structs.DynamicHostVolumeMarkDeletingRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.MarkDynamicHostVolumesDeleting(index, req.Keys, req.ModifyTime); err != nil {
+		n.logger.Error("MarkDynamicHostVolumesDeleting failed", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (n *nomadFSM) applyDynamicHostVolumeRemove(buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_dynamic_host_volume_remove"}, time.Now())
+	var req structs.DynamicHostVolumeRemoveRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	if err := n.state.RemoveDynamicHostVolumes(index, req.Keys); err != nil {
+		n.logger.Error("RemoveDynamicHostVolumes failed", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (n *nomadFSM) applyDynamicHostVolumeClaimDelete(buf []byte, index uint64) interface{} {
+	defer metrics.MeasureSince([]string{"nomad", "fsm", "apply_dynamic_host_volume_claim_delete"}, time.Now())
+	var req structs.DynamicHostVolumeClaimDeleteRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+
+	deletes := make([]state.DynamicHostVolumeClaimDelete, 0, len(req.Claims))
+	for _, key := range req.Claims {
+		deletes = append(deletes, state.DynamicHostVolumeClaimDelete{
+			Namespace: key.Namespace, ID: key.ID, ExpectedModifyIndex: key.ExpectedModifyIndex})
+	}
+	if err := n.state.DeleteDynamicHostVolumeClaims(index, deletes); err != nil {
+		n.logger.Error("DeleteDynamicHostVolumeClaims failed", "error", err)
 		return err
 	}
 

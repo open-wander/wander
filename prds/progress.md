@@ -1180,7 +1180,359 @@ stored copy.
   read after the first server of the clean install restarted. The fix and the
   log dump are in their own pull request; the cause is not yet known.
 
+## 2026-11-23 — Release rehearsal hang resolved
+
+- The 500 was a keyring replication race inherited from 1.6.5: after a
+  leader restart the new leader lacks the root key until its replicator
+  copies it, about a second. The marker read now retries for 30 seconds and
+  a stop that hangs is bounded and dumps the agent log. Merged as #85.
+
+## 2026-11-25 — Task 4.2 complete
+
+- `HostVolume.List` and `HostVolume.Get`, registered next to the CSI volume
+  endpoint; `GET /v1/volumes?type=host` dispatches from the CSI list handler
+  and `/v1/volume/host/` is a new route. Inherited files: one line each in
+  `nomad/server.go`, `command/agent/http.go` and
+  `command/agent/csi_endpoint.go`.
+- host-volume-read is checked after forwarding. The wildcard list follows
+  `Job.List` (allowed namespaces plus a namespace filter first), not
+  `CSIVolume.List`. The list stub has no host path; read returns the full
+  record. The policy is in the provenance record, Read API.
+- Review: MINOR. Four policy points had no test (the empty list for a token
+  whose readable namespaces do not exist, the index clamp, NUL in a list key,
+  HTTP prefix/paging/filter) and one subtest was vacuous. A fix round added
+  tests for all of them, each shown to fail with its guard removed.
+- Inherited defect found, not fixed here: `CSIVolume.List` with namespace `*`
+  passes the ACL check when any one namespace allows a CSI list capability
+  (or list-jobs), then iterates every CSI volume with no namespace filter, so
+  a token scoped to one namespace sees CSI volume stubs of all namespaces.
+- Deslop: the remaining groups are the RPC preamble every endpoint repeats
+  and table setup in the tests.
+
+PATTERN: acl - a wildcard namespace list must filter per namespace with the
+allowed-namespaces helper before the filter expression and pagination; the
+CSI volume list is not a safe model for this.
+PATTERN: workflow - a reused workflow script must take its risk and review
+checklists from args; a hard-coded list from an earlier task told the advisor
+that this task's work belonged to later tasks.
+
+## 2026-11-26 — Task 4.3 complete
+
+- Five Raft commands (types 100-104) for upsert, outcome, update, mark
+  deleting and remove, with the transition table checked inside the state
+  store apply. Register starts in pending and uses the outcome command.
+- Owner decisions of 2026-11-25: servers gossip the product version in the
+  serf tag `wander_version` (build stays 1.6.5), and the commands are refused
+  unless every server in the region carries 0.1.2 or later, prerelease
+  ignored. Submission goes through `dynamicHostVolumeRaftApply`.
+- Review: MINOR. A fix round made update refuse changes to the server-owned
+  fields (host path, capacity, diagnostic, attachments), bounded the
+  diagnostic on create, tested that the agent sets the tag from the product
+  version, and made the message-type uniqueness test evaluate every constant.
+  The orchestrator extracted the repeated key-and-lookup step into
+  `dynamicHostVolumeWriteLookup` after Deslop.
+- For 4.6: the create RPC must read the state back after a repeat, because a
+  repeat on a deleting or failed volume is a no-op in the apply.
+- Inherited race, not fixed: 25 tests in `nomad/core_sched_test.go` replace
+  `fsm.timetable.table` while the server runs, which `-race` reports; the
+  test added with #78 copied that idiom.
+- CSI wildcard list leak fixed separately in #89.
+
+PATTERN: state - check transitions inside the state store apply, not in the
+RPC, so a replayed log entry cannot make an illegal move.
+PATTERN: codegen - after adding structs to nomad/structs, run go generate in
+that package and test with -tags codegen_generated; CI builds with the
+generated msgpack codecs and a stale file fails there only.
+
+## 2026-11-26 — Task 4.4 complete
+
+- #88, #89 and #90 merged. Both #88 and #90 first failed CI: neither had
+  regenerated `structs.generated.go`, and local tests ran without the
+  `codegen_generated` tag.
+- Volumes move between ready and unavailable inside the node transaction,
+  hooked at the end of `upsertNodeTxn`, in `updateNodeStatusTxn` and per node
+  in `deleteNodeTxn` (one line each in inherited code). New file
+  `nomad/state/state_store_dynamic_host_volume_node.go`, and a `node_only`
+  memdb index on NodeID so a node write costs one lookup.
+- Owner decision 2026-11-26: `disconnected` counts as down, as do `down` and a
+  deleted node; `initializing` does not. The restart flap (ready, unavailable,
+  ready while a client restores) is accepted policy; running allocations are
+  not stopped.
+- The derivation must ship in the same release as the 0.1.2 gate; otherwise
+  the gate's minimum version must rise.
+- Review: MINOR. A fix round added the node-only index and a requested-state
+  fixture that exercises the state filter. The orchestrator made a disallowed
+  transition skip the volume instead of failing, since the inherited node
+  writes swallow errors and would drop the whole node update.
+- 4.5 looks largely covered by the plan applier re-check from #75; check
+  whether a deleting-volume race test exists before planning it.
+- Deslop was not running; not checked.
+
+PATTERN: state - a hook called from an inherited node write must never return
+an error on data: UpsertNode and DeleteNode swallow errors and drop the whole
+node update on every server.
+
+## 2026-11-26 — Task 4.5 complete
+
+- #93 merged. Most of the apply-time re-check was already on main from #75;
+  this task adds proof through real entry points (MarkDynamicHostVolumesDeleting,
+  UpsertNode, UpdateNodeStatus, evaluatePlan with two nodes) and closes one gap.
+- Gap: a placement whose source the node no longer advertises skipped the
+  check, so a dropped volume could still be placed on in the window between
+  scheduling and apply. The applier now looks the source up by namespace,
+  node and name (new `DynamicHostVolumeByNodeName`) and refuses it if a dynamic
+  record exists. A source with no record is static and keeps the inherited rule.
+  This follows PRD 6.4 ("exists, is ready and is on the node of the placement").
+- A down or disconnected node is refused by the inherited node check first, so
+  that case has no volume-specific reason; recorded in provenance.
+- PATTERN: tests - a criterion like "not rejected" cannot be proven by disabling
+  the check; pick the mutation that would wrongly reject (remove the skip).
+- PATTERN: review - after removing a guard, grep the doc comment for claims the
+  guard made.
+
+## 2026-11-26 — Task 4.8 complete
+
+- Node.GetNode, Node.List (with and without fields) and NodePool.ListNodes
+  show a dynamic host volume only when the token may read host volumes in
+  every namespace holding a record with that ID on the node. Static volumes
+  stay. ACLs off, client identity and management see everything. An
+  advertised ID with no record is hidden. New Wander helper
+  `nomad/host_volume_node_read.go`; one hook in each inherited endpoint.
+- NodePool.ListNodes was missing from the task; the advisor found it.
+- Owner decision 2026-11-26: the Node event stream strips dynamic host
+  volumes for every subscriber, management included, because the broker
+  shares one payload per event (`nomad/state/events_dynamic_host_volume.go`,
+  two hooks in inherited `events.go`).
+- The volume lookup takes no watch set, so a change to a volume record alone
+  does not wake a blocked node query; recorded in provenance.
+- PATTERN: security - Node.Sanitize returns the stored pointer when SecretID
+  is empty, and Node.Stub shares the HostVolumes map; build a new map and
+  copy the node before replacing a field.
+- PATTERN: security - a shared event payload cannot follow a per-token rule;
+  find every stream topic that carries a filtered field.
+## 2026-11-26 — Task 4.6 split; 4.6a complete
+
+- The advisor judged 4.6 too large for one change and split it: 4.6a client
+  create handshake and routing, 4.6b server create/register/update RPCs with
+  ACLs, 4.6c leader retry, 4.6d HTTP and contract.
+- 4.6a: client RPC HostVolume.Create; Manager.Create answers a repeat with the
+  same ID, namespace, name, node and plugin from the stored record without
+  running the plugin (needed before leader retry can be safe); a differing
+  repeat is `create_mismatch`. Manager.Create now validates the record before
+  the plugin runs. Server endpoint ClientHostVolume.Create/Register routes to
+  the node like ClientCSI, server certificate only; tests cover the TLS and
+  Authenticate refusals.
+- Three existing manager tests encoded "a repeat runs the plugin again"; they
+  were rewritten to keep their intent, not deleted.
+- Owner decisions 2026-11-26: HTTP shapes for create/register/update come
+  from public API docs as interface evidence (SRC-api); update through create
+  or register needs that endpoint's own capability; an update is recorded only
+  and not sent to the plugin.
+- PATTERN: client - a create that may be retried must answer a repeat from its
+  stored record before any side effect, or a lost reply provisions twice.
+- PATTERN: security - an endpoint whose only access control is the TLS
+  certificate level needs a TLS test, or deleting the check passes CI.
+
+## 2026-11-26 — Inherited RPCContext.NodeID race fixed
+
+- One client connection runs its RPCs concurrently; six node RPCs each
+  check-and-set RPCContext.NodeID with no lock while addNodeConn and
+  removeNodeConn read it. Under -race any test with a real client could fail.
+  Fixed with a mutex and two helpers (bindNodeID sets once, nodeID reads) in
+  nomad/rpc.go, used at the six sites and in client_rpc.go. A new test runs
+  UpdateStatus and GetClientAllocs concurrently on one context: it failed 3 of
+  3 runs under -race before the fix, and passes after it.
+- Still open, test-only and inherited: TestClientEndpoint_UpdateStatus_Reconnect
+  shares one msgpack codec between goroutines (node_endpoint_test.go 864/945/
+  964) and races under -race.
+## 2026-11-26 — Task 4.6b complete
+
+- #94, #95 and #96 merged. Server HostVolume.Create and HostVolume.Register
+  (nomad/host_volume_create.go): new volume and update by existing ID, every
+  write through dynamicHostVolumeRaftApply, client call made after the
+  placement lock is released, every reply read back from state. A server
+  coordinator serialises placement and tracks in-flight volumes for the
+  coming leader retry.
+- Owner decisions 2026-11-26, accepted as built: plugin ID and node pool are
+  immutable on update; a create where every candidate uses the name is 400
+  name_conflict with no write; only ready volumes can be updated (409).
+- Not tested: a refused failed-outcome write on the no-eligible-node path; it
+  shares leftError with the tested pending path and would need a production
+  test hook.
+- Inherited data race found: n.ctx.NodeID written in Node.UpdateStatus and
+  read in GetClientAllocs on one connection. Any test with a real client can
+  fail under -race. Owner decision: fix in a separate PR before 4.6b merges.
+- Watchers: GitHub leaves mergeStateStatus UNKNOWN after checks finish; poll
+  the checks only.
+- PATTERN: tests - a fixture volume on a node a test client also updates can
+  be moved to unavailable under the test; put fixtures on a node no client
+  touches.
+
+## 2026-11-26 — Task 4.6c complete
+
+- Leader-only reconciler (nomad/host_volume_reconcile.go) drives volumes
+  left requested or pending to ready or failed. Started in
+  establishLeadership and stopped in revokeLeadership (two lines in inherited
+  leader.go); start stops any running copy, because leaderLoop's reassert path
+  calls establishLeadership again with the same stopCh.
+- Shares the coordinator in-flight set with the RPCs; re-reads the record and
+  requires the same ModifyIndex after marking it in flight.
+- Policy: backoff 1s doubling to 60s with jitter; bound 10 minutes from
+  ModifyTime or the last version-gate refusal, at least one attempt on this
+  leader first, then `retry_limit_reached`; unknown node fails at once with
+  `node_not_found`; a refused outcome is dropped; the version gate waits.
+- A client call past its deadline keeps the volume in flight until it
+  returns, and its real answer is recorded, so a slow success never leaves an
+  orphan behind a failed record. RPCs on that volume get 409 meanwhile.
+- Owner decision 2026-11-26: the assign step stores the node's pool when the
+  requested pool is empty or all; a named pool never changes. FSM change, so
+  it must ship in 0.1.2.
+- TestHostVolumeCreate_ACL flake was pre-existing on main: a client node write
+  moves a created volume to unavailable during a denied call. Fixed in the
+  test by repeating the denied call when the nodes index moved.
+- Process slip: the worker wrote the code before the tests; mutation runs
+  stand in for failing-first evidence.
+- Still open, inherited: TestCoreScheduler_JobGC_StoppedRemovesDynamicHostVolumeClaims
+  races under -race (TimeTable write in the test vs the FSM), and repeated
+  establishLeadership trips a race in nomad/drainer.
+- PATTERN: reconcile - an age bound measured from a stored time counts every
+  wait; exclude waits the bound should not count explicitly.
+- PATTERN: reconcile - never record failed while a client call is still out;
+  a late success becomes an orphan.
+## 2026-11-26 — Task 4.6d complete
+
+- PUT and POST /v1/volume/host/create and /register return {Volume, Warnings}
+  with X-Nomad-Index; an existing ID updates through the same calls.
+- Evidence: the public API page read on 2026-11-26 (new source
+  SRC-api-bodies) for paths, ACLs and the request and response shapes only;
+  the worker had no web access and got the facts in its brief.
+- Wander policy: unknown fields ignored and named in Warnings; PolicyOverride
+  has no effect and says so in Warnings (no sentinel-override needed); body
+  namespace used when the query has none; a failed create or register is
+  HTTP 200 with the failed volume; fixed 400 texts; body limit 1 MiB; a
+  repeated top-level key is refused; `create` and `register` are reserved.
+- The body decodes into an agent-local struct, so top-level AuthToken,
+  Namespace or Region keys cannot set RPC fields.
+- Not covered by an HTTP test: create to ready (needs a client plugin root);
+  forwarding of coded errors is characterised only.
+- Inherited flake: TestWorker_dequeueEvaluation can hang in
+  EvalBroker.waitForSchedulers until the package times out; reproduced on
+  main (30 runs) and seen once in CI on #99.
+- PATTERN: http - decoding a body straight into an RPC request that embeds
+  WriteRequest lets the body set AuthToken and Namespace; decode into a local
+  struct.
+
+## 2026-11-26 — Task 4.7 split; 4.7a complete
+
+- #99 and #100 merged; all of 4.6 is on main.
+- 4.7 split into 4.7a client delete/deregister handshake and routing, 4.7b
+  server delete/deregister RPCs, 4.7c leader retry of deleting records plus
+  orphan detection, 4.7d claim list/delete RPCs, 4.7e HTTP.
+- 4.7a: separate client HostVolume.Delete and HostVolume.Deregister; a volume
+  the client does not hold answers success with no plugin run; deregister
+  never touches the directory; a client store that failed to load refuses
+  deletes with an internal error, so the server never drops a record for a
+  directory that still exists. Manager.Delete now takes a DeleteRequest.
+- Owner decisions 2026-11-26: force keeps the in-use refusal and is only for
+  a down, disconnected or unknown node (400 on a ready node), for delete and
+  deregister; cross-kind delete/deregister is refused with 400; deleting
+  records retry forever, capped at 60s, last error stored; the late-create
+  race is fixed in 4.7c, not only documented.
+- PATTERN: client - "not held" may only mean success when the client's store
+  loaded; otherwise a read failure turns into silent data loss on the server.
+
+## 2026-11-27 — Task 4.7d complete
+
+- #101 merged. HostVolume.ListClaims (host-volume-read, wildcard namespace
+  filtering across pages, claim ID prefix, job, group and volume filters,
+  blocking on the claims table index) and HostVolume.DeleteClaim
+  (host-volume-write, new Raft type 105 behind the version gate).
+- A claim is held while any non-client-terminal allocation of its job and
+  group uses its volume; the stored AllocationID only names the first
+  allocation, so checking it alone would let a replacement lose its claim.
+  Checked in the state apply; the RPC pre-checks so a refusal writes nothing.
+- Unknown claim is 404 (the observed binary returned 500; deliberate).
+- Public name AllocID versus stored AllocationID: mapping left to the HTTP
+  task.
+- Inherited code: one line each in helper/raftutil/msgtypes.go and fsm.go.
+- PATTERN: tests - a determinism test that deletes the only row compares two
+  empty tables; seed rows that survive and apply the same encoded bytes.
+
+## 2026-11-27 — Task 4.7b complete
+
+- #102 merged. Server HostVolume.Delete and HostVolume.Deregister
+  (nomad/host_volume_delete.go) with the owner's force, in-use and
+  cross-kind rules. Deregister needs host-volume-delete.
+- MarkDynamicHostVolumesDeleting (type 103) now also refuses a volume in
+  use, so an allocation the plan applier commits between the RPC check and
+  the mark cannot have its storage deleted. Changes an apply result; safe
+  only because 103 had no caller before and 0.1.2 is unreleased.
+- A client rejection returns 502 with a reason code from a fixed list,
+  never the client's message.
+- Review rejected twice: the delete tests created fixtures through the real
+  create RPC, which depends on the test client's fingerprinted plugin
+  attribute; fixtures are now seeded in state. Workers again skipped tests
+  first (third time this phase); a mutation pass of seven mutations stood
+  in, all caught.
+- Owner decision 2026-11-27: audit log lines are task 4.7f.
+- Flake seen once in review: TestHostVolumeReconcile_VersionGateNotCounted
+  (timing; not seen in later runs).
+- PATTERN: tests - do not build fixtures through an RPC that depends on
+  fingerprinted client state; seed the records the test needs.
+
+## 2026-11-27 — Task 4.7c complete
+
+- #103 merged. The leader reconciler now drives deleting volumes: in-use
+  check before the client call, the right client call (delete or
+  deregister), removal through type 104. Retried forever, backoff capped
+  at 60s, never recorded failed; the last error is a fixed code
+  (client_unreachable, node_not_found, volume_in_use, or the client's
+  listed reason) written only when it changes.
+- The outcome command (type 102) now accepts deleting from deleting and
+  sets only the status description. Owner accepted 2026-11-27: changes an
+  existing apply, so 4.7c must ship in 0.1.2.
+- Late-create race fixed on the client: delete and deregister persist a
+  tombstone (24h retention, separate bolt bucket); create and register
+  refuse a tombstoned ID with volume_deleted before any plugin runs; a
+  store that failed to load refuses creates. Inherited client/state files
+  extended.
+- Owner accepted 2026-11-27 two edited existing tests:
+  TestHostVolumeReconcile_OutcomeRefused (client rejects so the volume
+  stays deleting) and TestManager_StaleResultDoesNotOverwriteNewerRecord
+  (lifts the tombstone before re-creating).
+- Orphan detection was not in the delivered work; owner decision
+  2026-11-27: new task 4.7g, detect and show orphans, operator removal,
+  no automatic deletion.
+- Tests first mostly held; three reconciler tests were shown failing only
+  by mutation. Review MINOR, one fix round: write-on-change counted by
+  applies, backoff cap asserted with a lower bound, log capture, tombstone
+  ID rule aligned with ValidateID.
+- PATTERN: tests - write-on-change asserted through ModifyIndex is vacuous
+  when the apply already makes a repeat a no-op; count the applies.
+- PATTERN: tests - a backoff-cap test needs a lower bound, not only an
+  upper one.
+
+## 2026-11-27 — Task 4.7f complete
+
+- #106 merged (4.7c). Audit lines: nomad/host_volume_audit.go, one Info
+  line "volume operation" per volume-changing call under
+  nomad.dynamic_host_volume.audit (the nomad. prefix kept, consistent
+  with other server subsystems; owner may still ask to drop it).
+- Keys: actor (accessor ID, anonymous, management with ACLs off,
+  workload:<alloc>, client:<node>, unauthenticated, leader for the
+  reconciler), namespace, volume_id or claim_id, operation, outcome from
+  a closed set, reason only for client_rejected, force=true only when
+  used. Deferred after the forward block, so a forwarded call logs once
+  on the leader; the reconciler logs only when it settles a volume.
+- First review REJECT: a new table test set its in-use allocation on the
+  live mock client's node 15 steps before the delete; fixed by writing it
+  right before the step. Full suite green 3 of 3.
+- Owner decision 2026-11-27: DHV paused for task S.1 (tracked
+  privately until fixed).
+- PATTERN: tests - fixtures that depend on a live mock client must be
+  written right before the step that relies on them.
+
 ## Resume point
 
-- Phases 1 to 3 are merged, swept and archived; the planning pass is merged.
-- Tasks 3.8 to 3.10 are merged; 4.1 is in review. The next task is 4.2.
+- Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
+- 4.2 to 4.7f and 4.8 are done. DHV paused for S.1. Then 4.7g, 4.7e and 4.9.

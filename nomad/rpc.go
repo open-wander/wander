@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/rpc"
 	"strings"
+	"sync"
 	"time"
 
 	metrics "github.com/armon/go-metrics"
@@ -104,8 +105,11 @@ type RPCContext struct {
 	// connection.
 	VerifiedChains [][]*x509.Certificate
 
-	// NodeID marks the NodeID that initiated the connection.
-	NodeID string
+	// NodeID marks the NodeID that initiated the connection. RPCs on one
+	// connection run concurrently, so after the context is shared it is read
+	// with nodeID and set with bindNodeID, which hold nodeIDLock.
+	NodeID     string
+	nodeIDLock sync.Mutex
 }
 
 // Certificate returns the first certificate available in the chain.
@@ -891,4 +895,29 @@ func (r *rpcHandler) validateRaftTLS(rpcCtx *RPCContext) error {
 
 	// Certificate is valid for the expected name
 	return nil
+}
+
+// bindNodeID sets the node that owns the connection, once. It reports whether
+// this call set it; the caller then registers the connection for the node.
+func (ctx *RPCContext) bindNodeID(id string) bool {
+	if ctx == nil || id == "" {
+		return false
+	}
+	ctx.nodeIDLock.Lock()
+	defer ctx.nodeIDLock.Unlock()
+	if ctx.NodeID != "" {
+		return false
+	}
+	ctx.NodeID = id
+	return true
+}
+
+// nodeID returns the node that owns the connection, or "".
+func (ctx *RPCContext) nodeID() string {
+	if ctx == nil {
+		return ""
+	}
+	ctx.nodeIDLock.Lock()
+	defer ctx.nodeIDLock.Unlock()
+	return ctx.NodeID
 }

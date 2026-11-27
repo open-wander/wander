@@ -46,6 +46,11 @@ const (
 	ReasonInvalidRecord     = "invalid_record"
 )
 
+// ReasonVolumeDeleted is the reason a create or register is refused for an ID
+// the client has deleted or deregistered, so a late request from a server that
+// no longer knows the volume cannot bring it back (Wander policy).
+const ReasonVolumeDeleted = "volume_deleted"
+
 const (
 	// MaxIDLen bounds the volume ID, namespace, name and node ID.
 	MaxIDLen = 256
@@ -78,6 +83,11 @@ type Record struct {
 	// Path is the volume path. For a plugin volume it is the path the
 	// plugin returned when the volume was created.
 	Path string
+
+	// CapacityBytes is the size the plugin reported when it created the
+	// volume, so a repeated create answers with the same value. Zero means
+	// unknown.
+	CapacityBytes int64
 
 	Status    Status
 	Reason    string
@@ -206,6 +216,37 @@ func validPath(p string) error {
 		return errors.New("path is not clean")
 	case filepath.Dir(p) == p:
 		return errors.New("path is a filesystem root")
+	}
+	return nil
+}
+
+// Tombstone says that the client deleted or deregistered a volume. It is kept
+// for a retention period so that a create or register of the same ID that was
+// sent before the delete, and arrives after it, is refused rather than
+// provisioning a volume the server has already forgotten.
+type Tombstone struct {
+	VolumeID  string
+	DeletedAt time.Time
+}
+
+// Validate checks a tombstone. Tombstones loaded from disk are untrusted.
+func (t *Tombstone) Validate() error {
+	if err := validToken("volume id", t.VolumeID); err != nil {
+		return err
+	}
+	// The characters are those the manager accepts for a volume ID, so a
+	// tombstone written for any accepted ID reloads valid and expires.
+	if t.VolumeID[0] == '.' {
+		return errors.New("volume id starts with a dot")
+	}
+	for i := 0; i < len(t.VolumeID); i++ {
+		c := t.VolumeID[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '-' || c == '_') {
+			return errors.New("volume id has an invalid character")
+		}
+	}
+	if t.DeletedAt.IsZero() {
+		return errors.New("deletion time is empty")
 	}
 	return nil
 }

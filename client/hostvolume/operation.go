@@ -24,6 +24,9 @@ import (
 const (
 	OperationCreate = "create"
 	OperationDelete = "delete"
+	// OperationDeregister drops the record of a registered volume. It never
+	// runs a plugin.
+	OperationDeregister = "deregister"
 )
 
 // Environment variable names of the create and delete protocol, as recorded
@@ -87,6 +90,14 @@ const (
 	// registration differs in namespace, name or path.
 	ReasonVolumeKindConflict   = "volume_kind_conflict"
 	ReasonRegistrationMismatch = "registration_mismatch"
+
+	// ReasonCreateMismatch means a repeated create used the ID of a
+	// plugin-created volume but differs in namespace, name, node or plugin.
+	ReasonCreateMismatch = "create_mismatch"
+
+	// ReasonDeleteMismatch means a delete or deregistration named a volume
+	// this client holds under another namespace or node.
+	ReasonDeleteMismatch = "delete_mismatch"
 )
 
 // OpRequest holds the values for one create or delete call. Zero capacities

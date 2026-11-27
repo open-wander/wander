@@ -904,6 +904,182 @@ func TestCSIVolumeEndpoint_ListAllNamespaces(t *testing.T) {
 	require.Equal(t, structs.DefaultNamespace, resp2.Volumes[0].Namespace)
 }
 
+// TestCSIVolumeEndpoint_List_WildcardNamespaceACL checks that listing with the
+// wildcard namespace only returns volumes from namespaces the token may list
+// volumes in. The ACL pre-check passes for the wildcard as soon as any one
+// namespace grants a listing capability, so the per-namespace filter is what
+// keeps volumes in other namespaces out of the reply, including through the
+// node, prefix, filter expression and paging paths.
+func TestCSIVolumeEndpoint_List_WildcardNamespaceACL(t *testing.T) {
+	ci.Parallel(t)
+	srv, root, shutdown := TestACLServer(t, func(c *Config) {
+		c.NumSchedulers = 0 // Prevent automatic dequeue
+	})
+	defer shutdown()
+	testutil.WaitForLeader(t, srv.RPC)
+
+	state := srv.fsm.State()
+	codec := rpcClient(t, srv)
+
+	const (
+		nsReadable = "team-a"
+		nsHidden   = "team-b"
+	)
+	must.NoError(t, state.UpsertNamespaces(1000, []*structs.Namespace{
+		{Name: nsReadable}, {Name: nsHidden},
+	}))
+
+	plugin := mock.CSIPlugin()
+	var vols []*structs.CSIVolume
+	for _, v := range []struct{ id, ns string }{
+		{"vol-a1", nsReadable},
+		{"vol-b1", nsHidden},
+		{"vol-a2", nsReadable},
+		{"vol-b2", nsHidden},
+	} {
+		vol := mock.CSIVolume(plugin)
+		vol.ID = v.id
+		vol.Namespace = v.ns
+		vols = append(vols, vol)
+	}
+	must.NoError(t, state.UpsertCSIVolume(1001, vols))
+
+	// A node running one alloc per namespace, each using a volume from its
+	// own namespace, so the node_id path has volumes from both namespaces.
+	node := mock.Node()
+	must.NoError(t, state.UpsertNode(structs.MsgTypeTestSetup, 1002, node))
+	var allocs []*structs.Allocation
+	for _, v := range []struct{ id, ns string }{
+		{"vol-a1", nsReadable},
+		{"vol-b1", nsHidden},
+	} {
+		alloc := mock.Alloc()
+		alloc.NodeID = node.ID
+		alloc.Namespace = v.ns
+		alloc.Job.Namespace = v.ns
+		alloc.Job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{
+			"data": {Name: "data", Type: structs.VolumeTypeCSI, Source: v.id},
+		}
+		allocs = append(allocs, alloc)
+	}
+	must.NoError(t, state.UpsertAllocs(structs.MsgTypeTestSetup, 1003, allocs))
+
+	listVolTok := mock.CreatePolicyAndToken(t, state, 1010, "csi-list-team-a",
+		mock.NamespacePolicy(nsReadable, "", []string{acl.NamespaceCapabilityCSIListVolume}))
+	listJobsTok := mock.CreatePolicyAndToken(t, state, 1020, "list-jobs-team-a",
+		mock.NamespacePolicy(nsReadable, "", []string{acl.NamespaceCapabilityListJobs}))
+	missingNSTok := mock.CreatePolicyAndToken(t, state, 1030, "csi-list-missing",
+		mock.NamespacePolicy("does-not-exist", "", []string{acl.NamespaceCapabilityCSIListVolume}))
+
+	// list pages through CSIVolume.List until there is no next token and
+	// returns the IDs seen across every page.
+	list := func(t *testing.T, req *structs.CSIVolumeListRequest) []string {
+		t.Helper()
+		ids := []string{}
+		for range 10 {
+			var resp structs.CSIVolumeListResponse
+			must.NoError(t, msgpackrpc.CallWithCodec(codec, "CSIVolume.List", req, &resp))
+			must.NotNil(t, resp.Volumes)
+			for _, v := range resp.Volumes {
+				ids = append(ids, v.ID)
+			}
+			if resp.NextToken == "" {
+				return ids
+			}
+			req.NextToken = resp.NextToken
+		}
+		t.Fatal("paging did not finish")
+		return nil
+	}
+
+	readable := []string{"vol-a1", "vol-a2"}
+	all := []string{"vol-a1", "vol-a2", "vol-b1", "vol-b2"}
+
+	cases := []struct {
+		name     string
+		token    string
+		ns       string
+		nodeID   string
+		prefix   string
+		filter   string
+		perPage  int32
+		expected []string
+	}{
+		{name: "list-volume wildcard", token: listVolTok.SecretID, expected: readable},
+		{name: "list-volume wildcard paged", token: listVolTok.SecretID, perPage: 1, expected: readable},
+		{name: "list-volume wildcard node", token: listVolTok.SecretID, nodeID: node.ID, expected: []string{"vol-a1"}},
+		{name: "list-volume wildcard node paged", token: listVolTok.SecretID, nodeID: node.ID, perPage: 1, expected: []string{"vol-a1"}},
+		{name: "list-volume wildcard prefix", token: listVolTok.SecretID, prefix: "vol-", expected: readable},
+		{name: "list-volume wildcard prefix paged", token: listVolTok.SecretID, prefix: "vol-", perPage: 1, expected: readable},
+		{name: "list-volume wildcard hidden prefix", token: listVolTok.SecretID, prefix: "vol-b", expected: []string{}},
+		{name: "list-volume wildcard hidden filter", token: listVolTok.SecretID, filter: `Namespace == "team-b"`, expected: []string{}},
+		{name: "list-volume wildcard hidden filter paged", token: listVolTok.SecretID, filter: `Namespace == "team-b"`, perPage: 1, expected: []string{}},
+		{name: "list-volume single namespace", token: listVolTok.SecretID, ns: nsReadable, expected: readable},
+		{name: "list-jobs wildcard", token: listJobsTok.SecretID, expected: readable},
+		{name: "list-jobs wildcard paged", token: listJobsTok.SecretID, perPage: 1, expected: readable},
+		{name: "list-jobs wildcard node", token: listJobsTok.SecretID, nodeID: node.ID, expected: []string{"vol-a1"}},
+		{name: "list-jobs wildcard prefix", token: listJobsTok.SecretID, prefix: "vol-", expected: readable},
+		{name: "list-jobs wildcard hidden filter", token: listJobsTok.SecretID, filter: `Namespace == "team-b"`, expected: []string{}},
+		{name: "missing namespace grant wildcard", token: missingNSTok.SecretID, expected: []string{}},
+		{name: "missing namespace grant wildcard node", token: missingNSTok.SecretID, nodeID: node.ID, expected: []string{}},
+		{name: "management wildcard", token: root.SecretID, expected: all},
+		{name: "management wildcard paged", token: root.SecretID, perPage: 1, expected: all},
+		{name: "management wildcard node", token: root.SecretID, nodeID: node.ID, expected: []string{"vol-a1", "vol-b1"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ns := tc.ns
+			if ns == "" {
+				ns = structs.AllNamespacesSentinel
+			}
+			req := &structs.CSIVolumeListRequest{
+				NodeID: tc.nodeID,
+				QueryOptions: structs.QueryOptions{
+					Region:    "global",
+					Namespace: ns,
+					AuthToken: tc.token,
+					Prefix:    tc.prefix,
+					Filter:    tc.filter,
+					PerPage:   tc.perPage,
+				},
+			}
+			must.SliceContainsAll(t, list(t, req), tc.expected)
+		})
+	}
+
+	// A namespace the token has no grant for is still refused outright.
+	t.Run("list-volume hidden namespace denied", func(t *testing.T) {
+		req := &structs.CSIVolumeListRequest{
+			QueryOptions: structs.QueryOptions{
+				Region:    "global",
+				Namespace: nsHidden,
+				AuthToken: listVolTok.SecretID,
+			},
+		}
+		var resp structs.CSIVolumeListResponse
+		err := msgpackrpc.CallWithCodec(codec, "CSIVolume.List", req, &resp)
+		must.EqError(t, err, structs.ErrPermissionDenied.Error())
+	})
+
+	// The reply index still tracks the volume table when the token may not
+	// list volumes in any existing namespace.
+	t.Run("missing namespace grant keeps index", func(t *testing.T) {
+		req := &structs.CSIVolumeListRequest{
+			QueryOptions: structs.QueryOptions{
+				Region:    "global",
+				Namespace: structs.AllNamespacesSentinel,
+				AuthToken: missingNSTok.SecretID,
+			},
+		}
+		var resp structs.CSIVolumeListResponse
+		must.NoError(t, msgpackrpc.CallWithCodec(codec, "CSIVolume.List", req, &resp))
+		must.NotNil(t, resp.Volumes)
+		must.SliceEmpty(t, resp.Volumes)
+		must.Eq(t, uint64(1001), resp.Index)
+	})
+}
+
 func TestCSIVolumeEndpoint_List_PaginationFiltering(t *testing.T) {
 	ci.Parallel(t)
 	s1, cleanupS1 := TestServer(t, nil)
