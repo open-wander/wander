@@ -1512,7 +1512,27 @@ node update on every server.
 - PATTERN: tests - a backoff-cap test needs a lower bound, not only an
   upper one.
 
+## 2026-11-27 — Task 4.7f complete
+
+- #106 merged (4.7c). Audit lines: nomad/host_volume_audit.go, one Info
+  line "volume operation" per volume-changing call under
+  nomad.dynamic_host_volume.audit (the nomad. prefix kept, consistent
+  with other server subsystems; owner may still ask to drop it).
+- Keys: actor (accessor ID, anonymous, management with ACLs off,
+  workload:<alloc>, client:<node>, unauthenticated, leader for the
+  reconciler), namespace, volume_id or claim_id, operation, outcome from
+  a closed set, reason only for client_rejected, force=true only when
+  used. Deferred after the forward block, so a forwarded call logs once
+  on the leader; the reconciler logs only when it settles a volume.
+- First review REJECT: a new table test set its in-use allocation on the
+  live mock client's node 15 steps before the delete; fixed by writing it
+  right before the step. Full suite green 3 of 3.
+- Owner decision 2026-11-27: DHV paused for task S.1 (tracked
+  privately until fixed).
+- PATTERN: tests - fixtures that depend on a live mock client must be
+  written right before the step that relies on them.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.7d and 4.8 are done. Next: 4.7f, 4.7g, 4.7e and 4.9.
+- 4.2 to 4.7f and 4.8 are done. DHV paused for S.1. Then 4.7g, 4.7e and 4.9.

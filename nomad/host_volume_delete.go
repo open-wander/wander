@@ -44,11 +44,13 @@ const hostVolumeReasonOther = "client_rejected"
 // deleting, asks the node to run the plugin delete, and removes the record.
 // Delete needs the host-volume-delete capability, which host-volume-write
 // implies.
-func (v *HostVolume) Delete(args *structs.HostVolumeDeleteRequest, reply *structs.HostVolumeDeleteResponse) error {
+func (v *HostVolume) Delete(args *structs.HostVolumeDeleteRequest, reply *structs.HostVolumeDeleteResponse) (retErr error) {
 	authErr := v.srv.Authenticate(v.ctx, args)
 	if done, err := v.srv.forward("HostVolume.Delete", args, args, reply); done {
 		return err
 	}
+	audit := &hostVolumeAudit{op: hostVolumeAuditDelete, ns: args.RequestNamespace(), volumeID: args.VolumeID, force: args.Force}
+	defer func() { v.srv.auditHostVolumeCall(args, authErr, audit, retErr, nil) }()
 	v.srv.MeasureRPCRate("host_volume", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied
@@ -77,11 +79,13 @@ func (v *HostVolume) Delete(args *structs.HostVolumeDeleteRequest, reply *struct
 // deleting, asks the node to drop its record, and removes the record. No
 // plugin runs and the directory is never touched. There is no deregister
 // capability, so Deregister needs host-volume-delete too.
-func (v *HostVolume) Deregister(args *structs.HostVolumeDeregisterRequest, reply *structs.HostVolumeDeregisterResponse) error {
+func (v *HostVolume) Deregister(args *structs.HostVolumeDeregisterRequest, reply *structs.HostVolumeDeregisterResponse) (retErr error) {
 	authErr := v.srv.Authenticate(v.ctx, args)
 	if done, err := v.srv.forward("HostVolume.Deregister", args, args, reply); done {
 		return err
 	}
+	audit := &hostVolumeAudit{op: hostVolumeAuditDeregister, ns: args.RequestNamespace(), volumeID: args.VolumeID, force: args.Force}
+	defer func() { v.srv.auditHostVolumeCall(args, authErr, audit, retErr, nil) }()
 	v.srv.MeasureRPCRate("host_volume", structs.RateMetricWrite, args)
 	if authErr != nil {
 		return structs.ErrPermissionDenied

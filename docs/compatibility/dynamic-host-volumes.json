@@ -220,7 +220,8 @@
     {"id":"DHV-T-197","scenario":"Synthetic ui ACL-hidden-actions using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected ACL-hidden-actions outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-198","scenario":"Synthetic ui confirmation using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected confirmation outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-199","scenario":"Synthetic ui namespace-region using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected namespace-region outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-200","scenario":"Synthetic ui errors-empty-unavailable using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected errors-empty-unavailable outcome.","status":"planned","synthetic":true}
+    {"id":"DHV-T-200","scenario":"Synthetic ui errors-empty-unavailable using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected errors-empty-unavailable outcome.","status":"planned","synthetic":true},
+    {"id":"DHV-T-201","scenario":"Synthetic audit trail of create, register, update, delete, deregister, forced removals and claim delete using invented volume data-a and node-a.","expected_outcome":"Each volume-changing call and each settlement by the leader writes one Info line under dynamic_host_volume.audit with the actor, namespace, ID, operation and a coded outcome, and never a token secret, host path, parameter, plugin output or client message.","status":"implemented","path":"nomad/host_volume_audit_test.go","name":"TestHostVolumeAudit_Operations","synthetic":true}
   ],
   "behaviors": [
     {
@@ -3621,6 +3622,23 @@
         "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-200"]},
         "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-200"]},
         "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-200"]}
+      }
+    },
+    {
+      "id": "DHV-B-201",
+      "surface": "scheduling_lifecycle",
+      "operation_field": "audit-log",
+      "prd_refs": ["US-016","FR-33"],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
+      "assertions": {
+        "contract": {"status":"requirement","value":"Wander policy: one helper, called by every volume-changing server call, writes one Info line under the logger name dynamic_host_volume.audit (nomad.dynamic_host_volume.audit under the agent's server logger) for create, register, update, delete, deregister, claim delete, and for the leader's settlement of a volume. The Enterprise-style audit block (sinks, filters) is not provided.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: no configuration. The line is always written. force=true appears only when force was used.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: the keys are actor, namespace, volume_id or claim_id, operation, outcome, plus reason for a client rejection and force. The outcome is a code from a closed set (ok, ready, failed, removed, denied, invalid, not_found, in_use, in_progress, conflict, version_gate, client_rejected, client_unreachable, outcome_not_recorded, error), never error text. No token secret, host path, plugin parameter, plugin output or client message is logged.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: every return path maps to an outcome, refusals included. An unauthenticated or denied call that reaches the server that runs it logs outcome=denied. A call that cannot be forwarded to a leader logs nowhere.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: the actor is the token accessor ID, anonymous for the anonymous token, management when ACLs are disabled, workload:<allocation ID> for a workload identity, client:<node ID> for a node secret, unauthenticated when authentication failed, and leader for the leader's own settlements.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: a call forwarded from a follower is logged once, by the server that runs it. The reconciler logs once when it settles a volume, not on each attempt or code write.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: a create left pending by the RPC and settled later by the reconciler gives two lines, with different actors, because they are two events.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"}
       }
     }
   ]
