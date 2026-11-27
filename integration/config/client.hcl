@@ -8,7 +8,8 @@
 #
 # Clients have no servers list: they discover the servers through the local
 # Consul agent (consul.client_auto_join, default true). docker, exec and
-# raw_exec are enabled, and bridge networking uses the Debian CNI plugins.
+# raw_exec are enabled, bridge networking uses the Debian CNI plugins, and
+# templates read Vault with the task tokens the servers derive.
 # -------------------------------------------------------------------------------
 
 datacenter = "dc1"
@@ -38,4 +39,9 @@ plugin "raw_exec" {
 
 consul {
   address = "127.0.0.1:8500"
+}
+
+vault {
+  enabled = true
+  address = "http://10.77.0.20:8200"
 }

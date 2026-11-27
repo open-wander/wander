@@ -9,6 +9,7 @@
 # Three servers bootstrap one Raft cluster with no server_join or retry_join.
 # They find each other through the local Consul agent (consul.server_auto_join,
 # default true), so a cluster that forms has exercised the Consul integration.
+# Vault uses the token integration, the only one Wander has.
 # -------------------------------------------------------------------------------
 
 datacenter = "dc1"
@@ -31,4 +32,12 @@ server {
 
 consul {
   address = "127.0.0.1:8500"
+}
+
+# --- vault-init creates this token with a fixed ID ---
+vault {
+  enabled          = true
+  address          = "http://10.77.0.20:8200"
+  token            = "wander-it-server-token"
+  create_from_role = "wander-cluster"
 }
