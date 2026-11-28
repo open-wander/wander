@@ -22,6 +22,19 @@ checked against a pinned SHA-256 digest before use. The rehearsal itself is
 1.6.5 archive as arguments, so the same check can be run against local release
 artifacts.
 
+## gosec on changed lines
+
+The security job runs `ci/check_gosec_changed.py` with gosec `v2.30.0`. It
+runs gosec on the packages that hold Go files changed since the base commit (the
+PR base, or the previous head for a push) and fails only for findings on added
+or changed lines. Test files are skipped, as gosec skips them by default.
+Findings in inherited code are triaged separately. A confirmed false positive is
+marked in the source with `#nosec <rule> -- <reason>`. Run it locally with:
+
+```sh
+python3 ci/check_gosec_changed.py origin/main
+```
+
 ## License boundary check
 
 The security job runs `ci/check-license-boundary.sh` before dependency scans.
