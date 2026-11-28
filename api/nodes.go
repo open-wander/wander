@@ -517,6 +517,11 @@ type DriverInfo struct {
 type HostVolumeInfo struct {
 	Path     string
 	ReadOnly bool
+
+	// ID and Namespace identify a dynamic host volume. They are empty for a
+	// static volume.
+	ID        string
+	Namespace string
 }
 
 // HostNetworkInfo is used to return metadata about a given HostNetwork
