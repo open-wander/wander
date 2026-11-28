@@ -1597,7 +1597,27 @@ node update on every server.
 - PATTERN: tests - a reflection filler that sets every field, checked to
   have done so, makes a wire round-trip test catch drift.
 
+## 2026-11-28 — Task 5.1 complete
+
+- #111 (4.9) merged; phase 4 complete. Public CLI pages read as
+  interface evidence (SRC-cli, v2.1.x, 2026-11-28).
+- volume init -type host|csi (default csi) with -json; host specs in HCL
+  v1 or JSON (one decoder, as the CSI path), from a file or stdin, into
+  api.HostVolume; unknown keys refused with fixed text, also inside
+  capability and constraint blocks. volume create prints the ID and
+  monitors with a blocking Info until ready or failed; -detach, -verbose,
+  -policy-override. volume register says no storage was created or
+  modified. Update through an ID. CSI branches byte-identical.
+- Review REJECT: init tests used ci.Parallel with t.Chdir and failed
+  without CI=true; no real-agent test. Fixed, then MINOR: -detach help
+  text, stdout/stderr split asserted, -verbose prints nine fields (a
+  complete shared formatter comes with volume status).
+- PATTERN: tests - run focused tests with CI unset too; ci.Parallel with
+  t.Chdir or t.Setenv panics outside CI.
+- PATTERN: tests - an httptest fake needs one real-agent test beside it
+  to prove the paths and reply shapes.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- Phase 4 is done (4.9 on its branch). Next: phase 5 (5.1 CLI create and register).
+- Phase 4 is done. 5.1 done on its branch, 5.3 in progress. Next: 5.2.

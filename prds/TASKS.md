@@ -47,8 +47,8 @@ must follow the clean-room and private-data rules in the linked PRD and
 
 | # | Task | PRD | Status | Notes |
 |---|------|-----|--------|-------|
-| 5.1 | Implement CLI parsing, initialization, create, and register workflows | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 4.9 |
-| 5.2 | Implement CLI list, status, delete, deregister, and claim workflows | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 4.9, 5.1 |
+| 5.1 | Implement CLI parsing, initialization, create, and register workflows | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | DONE (2026-11-28) | Needs: 4.9 |
+| 5.2 | Implement CLI list, status, delete, deregister, and claim workflows | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 4.9, 5.1. Owner decisions 2026-11-28: destructive host volume commands (delete, deregister, claim delete, orphan delete) prompt on a terminal and -y skips, never prompting without a terminal; volume delete -type host deletes a plugin volume and deregisters a registered one, saying the directory was kept; volume deregister -type host is a Wander extra; orphans get volume orphan list and volume orphan delete -mode=delete|forget. Share one complete volume formatter with the create -verbose output |
 | 5.3 | Add UI dynamic-volume list and detail pages | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 4.2, 4.9 |
 | 5.4 | Add UI create, register, update, delete, deregister, and claim workflows | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 4.6, 4.7, 5.3 |
 

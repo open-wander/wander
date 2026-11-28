@@ -39,6 +39,10 @@ Init Options:
 
   -json
     Create an example JSON volume specification.
+
+  -type
+    Create an example for a specific type of volume. Use either "csi" or
+    "host", defaults to "csi".
 `
 	return strings.TrimSpace(helpText)
 }
@@ -50,6 +54,7 @@ func (c *VolumeInitCommand) Synopsis() string {
 func (c *VolumeInitCommand) AutocompleteFlags() complete.Flags {
 	return complete.Flags{
 		"-json": complete.PredictNothing,
+		"-type": complete.PredictSet("csi", "host"),
 	}
 }
 
@@ -61,9 +66,11 @@ func (c *VolumeInitCommand) Name() string { return "volume init" }
 
 func (c *VolumeInitCommand) Run(args []string) int {
 	var jsonOutput bool
+	var volType string
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
 	flags.BoolVar(&jsonOutput, "json", false, "")
+	flags.StringVar(&volType, "type", "csi", "")
 
 	if err := flags.Parse(args); err != nil {
 		return 1
@@ -77,11 +84,21 @@ func (c *VolumeInitCommand) Run(args []string) int {
 		return 1
 	}
 
+	hclSpec, jsonSpec := defaultHclVolumeSpec, defaultJsonVolumeSpec
+	switch strings.ToLower(volType) {
+	case "csi":
+	case "host":
+		hclSpec, jsonSpec = defaultHclHostVolumeSpec, defaultJsonHostVolumeSpec
+	default:
+		c.Ui.Error(`Volume type must be "csi" or "host"`)
+		return 1
+	}
+
 	fileName := DefaultHclVolumeInitName
-	fileContent := defaultHclVolumeSpec
+	fileContent := hclSpec
 	if jsonOutput {
 		fileName = DefaultJsonVolumeInitName
-		fileContent = defaultJsonVolumeSpec
+		fileContent = jsonSpec
 	}
 	if len(args) == 1 {
 		fileName = args[0]

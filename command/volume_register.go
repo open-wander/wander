@@ -29,17 +29,31 @@ Usage: nomad volume register [options] <input>
   is read from the file at the supplied path.
 
   When ACLs are enabled, this command requires a token with the
-  'csi-write-volume' capability for the volume's namespace.
+  'csi-write-volume' capability for the volume's namespace. For a dynamic host
+  volume it requires the 'host-volume-register' capability.
+
+  For a dynamic host volume the command records a directory that exists on a
+  node already. No storage is created or modified.
 
 General Options:
 
-  ` + generalOptionsUsage(usageOptsDefault)
+  ` + generalOptionsUsage(usageOptsDefault) + `
+
+Register Options:
+
+  -policy-override
+    Override soft mandatory Sentinel policies. Used for dynamic host volumes
+    only.
+`
 
 	return strings.TrimSpace(helpText)
 }
 
 func (c *VolumeRegisterCommand) AutocompleteFlags() complete.Flags {
-	return c.Meta.AutocompleteFlags(FlagSetClient)
+	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
+		complete.Flags{
+			"-policy-override": complete.PredictNothing,
+		})
 }
 
 func (c *VolumeRegisterCommand) AutocompleteArgs() complete.Predictor {
@@ -55,6 +69,8 @@ func (c *VolumeRegisterCommand) Name() string { return "volume register" }
 func (c *VolumeRegisterCommand) Run(args []string) int {
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
+	var policyOverride bool
+	flags.BoolVar(&policyOverride, "policy-override", false, "")
 
 	if err := flags.Parse(args); err != nil {
 		c.Ui.Error(fmt.Sprintf("Error parsing arguments %s", err))
@@ -107,6 +123,8 @@ func (c *VolumeRegisterCommand) Run(args []string) int {
 		if code != 0 {
 			return code
 		}
+	case "host":
+		return c.hostRegister(client, ast, policyOverride)
 	default:
 		c.Ui.Error(fmt.Sprintf("Error unknown volume type: %s", volType))
 		return 1
