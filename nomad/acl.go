@@ -153,19 +153,22 @@ func (s *Server) remoteIPFromRPCContext(ctx *RPCContext) (net.IP, error) {
 // preferred, but it is best for the RPC caller to only include the credentials
 // for the identity they intend the operation to be performed with.
 func (s *Server) ResolveACL(args structs.RequestWithIdentity) (*acl.ACL, error) {
-	identity := args.GetIdentity()
-	if !s.config.ACLEnabled || identity == nil {
+	if !s.config.ACLEnabled {
 		return nil, nil
 	}
-	aclToken := identity.GetACLToken()
-	if aclToken != nil {
+	identity := args.GetIdentity()
+	if aclToken := identity.GetACLToken(); aclToken != nil {
 		return s.ResolveACLForToken(aclToken)
 	}
-	claims := identity.GetClaims()
-	if claims != nil {
+	if claims := identity.GetClaims(); claims != nil {
 		return s.ResolveClaims(claims)
 	}
-	return nil, nil
+
+	// With ACLs enabled a nil ACL means "ACLs are disabled", so an identity
+	// with neither a token nor claims (such as a client node, which is not
+	// authorised by ACL policy, or a missing identity) must get an ACL that
+	// allows nothing. Node-originated RPCs use ResolveClientOrACL.
+	return structs.CompileACLObject(s.aclCache, nil)
 }
 
 // ResolveACLForToken resolves an ACL from a token only. It should be used only
@@ -189,16 +192,12 @@ func (s *Server) ResolveACLForToken(aclToken *structs.ACLToken) (*acl.ACL, error
 // falls back to verifying the client ID if one has been set
 func (s *Server) ResolveClientOrACL(args structs.RequestWithIdentity) (*acl.ACL, error) {
 	identity := args.GetIdentity()
-	if !s.config.ACLEnabled || identity == nil || identity.ClientID != "" {
+	if !s.config.ACLEnabled || (identity != nil && identity.ClientID != "") {
 		return nil, nil
-	}
-	aclObj, err := s.ResolveACL(args)
-	if err != nil {
-		return nil, err
 	}
 
 	// Returns either the users aclObj, or nil if ACLs are disabled.
-	return aclObj, nil
+	return s.ResolveACL(args)
 }
 
 // ResolveToken is used to translate an ACL Token Secret ID into

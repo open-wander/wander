@@ -522,8 +522,8 @@ func (sv *Variables) handleMixedAuthEndpoint(args structs.QueryOptions, policy, 
 
 func (sv *Variables) authorize(aclObj *acl.ACL, claims *structs.IdentityClaims, ns, policy, pathOrPrefix string) error {
 
-	if aclObj == nil && claims == nil {
-		return nil // ACLs aren't enabled
+	if !sv.srv.config.ACLEnabled {
+		return nil
 	}
 
 	// Perform normal ACL validation. If the ACL object is nil, that means we're

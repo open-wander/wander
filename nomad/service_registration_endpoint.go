@@ -124,6 +124,21 @@ func (s *ServiceRegistration) DeleteByID(
 			minNomadServiceRegistrationVersion)
 	}
 
+	// A client node may delete only the registrations that belong to it. The
+	// owner comes from the stored registration, never from the request.
+	nodeOwned := false
+	if identity := args.GetIdentity(); s.srv.config.ACLEnabled &&
+		identity != nil && identity.ClientID != "" {
+		reg, err := s.srv.fsm.State().GetServiceRegistrationByID(nil, args.RequestNamespace(), args.ID)
+		if err != nil {
+			return err
+		}
+		if reg != nil && reg.NodeID != identity.ClientID {
+			return structs.ErrPermissionDenied
+		}
+		nodeOwned = true
+	}
+
 	// Perform the ACL token resolution.
 	aclObj, err := s.srv.ResolveACL(args)
 
@@ -131,13 +146,15 @@ func (s *ServiceRegistration) DeleteByID(
 	case nil:
 		// If ACLs are enabled, ensure the caller has the submit-job namespace
 		// capability.
-		if aclObj != nil {
+		if aclObj != nil && !nodeOwned {
 			hasSubmitJob := aclObj.AllowNsOp(args.RequestNamespace(), acl.NamespaceCapabilitySubmitJob)
 			if !hasSubmitJob {
 				return structs.ErrPermissionDenied
 			}
 		}
 	default:
+		// Node secrets are handled above, so ResolveACL does not return
+		// ErrTokenNotFound here; this fallback is kept as inherited.
 		// This endpoint is generally called by Nomad nodes, so we want to
 		// perform this check, unless the token resolution gave us a terminal
 		// error.
