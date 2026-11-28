@@ -1532,7 +1532,29 @@ node update on every server.
 - PATTERN: tests - fixtures that depend on a live mock client must be
   written right before the step that relies on them.
 
+## 2026-11-28 — Task 4.7e complete
+
+- An ACL fix merged to main (2768122d01);
+  DHV resumed. #107 merged (4.7f).
+- HTTP: DELETE /v1/volume/host/:id/delete and /deregister (Wander), with
+  force parsed strictly (only one value, exactly true or false);
+  GET /v1/volumes/claims, blocking, documented filters and paging, public
+  field names (AllocID), [] when empty, filter refused, claim_id and a
+  differing prefix refused; DELETE /v1/volumes/claim/:claim_id (plural
+  path only, the singular sample path is 404 as observed). Coded RPC
+  errors pass through unchanged.
+- Review REJECT then MINOR: a CSI regression test failed every run while
+  reported green, paging asserted only in aggregate, contract rows named
+  the wrong test (split into DHV-T-203..205). Reviewer mutation run: 13
+  of 13 mutants killed.
+- PATTERN: review - rerun focused tests; a worker's green report can be
+  false.
+- PATTERN: tests - assert per-page sizes in paging tests.
+- PATTERN: contract - rewriting dynamic-host-volumes.json with json.dump
+  reformats the whole file; keep its hand layout (one compact line per
+  source and test case, behaviours with compact assertion values).
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.7f and 4.8 are done. DHV paused for S.1. Then 4.7g, 4.7e and 4.9.
+- 4.2 to 4.7f and 4.8 are done. 4.7e done on its branch; 4.7g in progress. Then 4.9.
