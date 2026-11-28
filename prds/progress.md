@@ -1597,7 +1597,30 @@ node update on every server.
 - PATTERN: tests - a reflection filler that sets every field, checked to
   have done so, makes a wire round-trip test catch drift.
 
+## 2026-11-28 — Task 5.3 complete
+
+- /ui/host-volumes and /ui/host-volumes/{id}?namespace=, sidebar entry
+  "Host Volumes" after CSI; CSI pages unchanged. List: name, state,
+  namespace, node, node pool, plugin or "None (registered)", capacity,
+  claim count (counted by namespace and volume ID). Node filter in the
+  handler; wildcard namespace passed through to the server; detail with
+  namespace * is 404 before any API call. Claims that fail to load show
+  a dash with "Claims unavailable" rather than failing the page.
+- Detail: identity, status and diagnostics, placement, plugin,
+  capacity, capabilities, constraints, attachments, claims, lifecycle.
+  Host path and parameters only as Info returns them, escaped, sorted.
+- Browser tests: a Go driver starts the server and runs a dedicated
+  Playwright config with synthetic data for every state.
+- Review MINOR, one fix round: handler tests through NewRouter with its
+  middleware, a vacuous refute fixed, console errors checked in every
+  browser test.
+- Local tooling: the templ on PATH (v0.3.1118) is newer than go.mod's
+  v0.3.977 and generates code that does not build; use make templ-deps
+  or a v0.3.977 binary.
+- PATTERN: tests - permission cases must go through the router; with
+  ACLs disabled a missing middleware is invisible.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- Phase 4 is done (4.9 on its branch). Next: phase 5 (5.1 CLI create and register).
+- Phase 4 is done. 5.1 and 5.3 done on their branches. Next: 5.2 and 5.4.

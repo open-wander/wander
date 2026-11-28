@@ -79,6 +79,15 @@ func (h *Handler) ListJobs(w http.ResponseWriter, r *http.Request) {
 - `CanWriteCSI(namespace string) bool`
 - `CanListCSI(namespace string) bool`
 
+#### Host Volume Capabilities
+- `CanReadHostVolume(namespace string) bool`
+
+`CanReadHostVolume` answers for one concrete namespace (the `host-volume-read`
+capability). Do not use it to pre-check the wildcard namespace `*`: a token
+scoped to named namespaces holds no capability for `*`, but the server answers a
+wildcard list with the namespaces the token may read. The dynamic host volume
+list therefore pre-checks only a concrete namespace and passes `*` through.
+
 #### Generic Capability Check
 - `HasCapability(namespace, capability string) bool`
 

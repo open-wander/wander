@@ -363,6 +363,14 @@ func (p *UserPermissions) CanListCSI(namespace string) bool {
 	return p.HasCapability(namespace, acl.NamespaceCapabilityCSIListVolume)
 }
 
+// CanReadHostVolume returns true if the user can read dynamic host volumes in
+// the namespace. It answers for one concrete namespace only: the wildcard "*"
+// never matches a token scoped to named namespaces, so callers must not use it
+// to pre-check a wildcard list, which the server filters itself.
+func (p *UserPermissions) CanReadHostVolume(namespace string) bool {
+	return p.HasCapability(namespace, acl.NamespaceCapabilityHostVolumeRead)
+}
+
 // CanReadAgent returns true when the token may read agent-level data such as
 // the monitor stream.
 func (p *UserPermissions) CanReadAgent() bool {

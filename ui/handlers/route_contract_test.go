@@ -35,6 +35,7 @@ var topLevelPageContracts = []string{
 	"/ui/roles/new",
 	"/ui/csi/plugins",
 	"/ui/csi/volumes",
+	"/ui/host-volumes",
 	"/ui/settings",
 	"/ui/settings/tokens",
 	"/ui/evaluations",
@@ -104,6 +105,7 @@ func TestTopLevelDataRoutesDistinguishUnavailableBackend(t *testing.T) {
 		"/ui/access-control/roles",
 		"/ui/csi/plugins",
 		"/ui/csi/volumes",
+		"/ui/host-volumes",
 		"/ui/evaluations",
 		"/ui/deployments",
 	}
@@ -214,6 +216,7 @@ func TestDynamicUIRoutesRejectUnsupportedMethods(t *testing.T) {
 		"/ui/csi/volumes/example",
 		"/ui/csi/plugins/example",
 		"/ui/csi/plugins/example/allocations",
+		"/ui/host-volumes/example",
 		"/ui/settings/token",
 		"/ui/evaluations/example",
 		"/ui/deployments/example",
@@ -300,6 +303,7 @@ func TestMissingDynamicResourcesHaveTruthfulStatus(t *testing.T) {
 		{path: "/ui/roles/missing", wantStatus: http.StatusForbidden},
 		{path: "/ui/csi/volumes/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/csi/plugins/missing", wantStatus: http.StatusNotFound},
+		{path: "/ui/host-volumes/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/evaluations/missing", wantStatus: http.StatusNotFound},
 		{path: "/ui/deployments/missing", wantStatus: http.StatusNotFound},
 	} {
@@ -351,7 +355,7 @@ func newEmptyRouteContractBackend(t *testing.T) *httptest.Server {
 		switch r.URL.Path {
 		case "/v1/jobs", "/v1/allocations", "/v1/nodes", "/v1/services",
 			"/v1/namespaces", "/v1/regions", "/v1/vars", "/v1/acl/policies",
-			"/v1/plugins", "/v1/volumes", "/v1/evaluations", "/v1/deployments":
+			"/v1/plugins", "/v1/volumes", "/v1/volumes/claims", "/v1/evaluations", "/v1/deployments":
 			_, _ = w.Write([]byte(`[]`))
 		case "/v1/agent/members":
 			_, _ = w.Write([]byte(`{"ServerName":"","ServerRegion":"global","ServerDC":"dc1","Members":[]}`))
