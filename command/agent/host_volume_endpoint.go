@@ -46,6 +46,14 @@ func (s *HTTPServer) hostVolumesList(resp http.ResponseWriter, req *http.Request
 func (s *HTTPServer) HostVolumeSpecificRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	reqSuffix := strings.TrimPrefix(req.URL.Path, "/v1/volume/host/")
 	tokens := strings.Split(reqSuffix, "/")
+	if len(tokens) == 2 && tokens[0] != "" && (tokens[1] == "delete" || tokens[1] == "deregister") {
+		// Only the path the operation table names is served; the documented
+		// sample omits /delete and stays a 405 on the bare ID.
+		if req.Method != http.MethodDelete {
+			return nil, CodedError(405, ErrInvalidMethod)
+		}
+		return s.hostVolumeRemove(tokens[0], tokens[1] == "deregister", resp, req)
+	}
 	if len(tokens) != 1 || tokens[0] == "" {
 		return nil, CodedError(404, resourceNotFoundErr)
 	}
@@ -62,6 +70,144 @@ func (s *HTTPServer) HostVolumeSpecificRequest(resp http.ResponseWriter, req *ht
 		return nil, CodedError(405, ErrInvalidMethod)
 	}
 	return s.hostVolumeGet(tokens[0], resp, req)
+}
+
+// hostVolumeErrForce is the fixed text for a force value that is not exactly
+// "true" or "false". It never echoes the value.
+const hostVolumeErrForce = "invalid force value"
+
+// parseHostVolumeForce reads the force query parameter. Absent means false.
+// Only one value, exactly "true" or "false", is accepted: the lenient
+// spellings of strconv.ParseBool are refused so that a typo cannot be read
+// as a choice about a destructive flag.
+func parseHostVolumeForce(req *http.Request) (bool, error) {
+	values, present := req.URL.Query()["force"]
+	if !present {
+		return false, nil
+	}
+	if len(values) == 1 {
+		switch values[0] {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		}
+	}
+	return false, CodedError(400, hostVolumeErrForce)
+}
+
+// hostVolumeRemove serves DELETE /v1/volume/host/:volume_id/delete and
+// /deregister. The ID must be the full ID. The request body is never read, and
+// RPC errors are returned unchanged so that their codes and fixed texts reach
+// the caller.
+func (s *HTTPServer) hostVolumeRemove(id string, deregister bool, resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	force, err := parseHostVolumeForce(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var wr structs.WriteRequest
+	s.parseWriteRequest(req, &wr)
+
+	if deregister {
+		args := structs.HostVolumeDeregisterRequest{VolumeID: id, Force: force, WriteRequest: wr}
+		var out structs.HostVolumeDeregisterResponse
+		if err := s.agent.RPC("HostVolume.Deregister", &args, &out); err != nil {
+			return nil, err
+		}
+		setIndex(resp, out.Index)
+		return nil, nil
+	}
+	args := structs.HostVolumeDeleteRequest{VolumeID: id, Force: force, WriteRequest: wr}
+	var out structs.HostVolumeDeleteResponse
+	if err := s.agent.RPC("HostVolume.Delete", &args, &out); err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return nil, nil
+}
+
+// hostVolumeClaim is the public form of a sticky claim. The stored claim names
+// the allocation AllocationID and keeps the index of that allocation, which
+// the public listing leaves out.
+type hostVolumeClaim struct {
+	AllocID       string
+	CreateIndex   uint64
+	ID            string
+	JobID         string
+	ModifyIndex   uint64
+	Namespace     string
+	TaskGroupName string
+	VolumeID      string
+	VolumeName    string
+}
+
+// HostVolumeClaimsRequest serves GET /v1/volumes/claims as a blocking query.
+// claim_id is the ID prefix. It is applied after parse, which fills the prefix
+// from the prefix parameter, and a prefix that differs from it is refused.
+// filter is refused: the expression would run against stored field names, not
+// the public ones.
+func (s *HTTPServer) HostVolumeClaimsRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if req.Method != http.MethodGet {
+		return nil, CodedError(405, ErrInvalidMethod)
+	}
+
+	args := structs.HostVolumeClaimListRequest{}
+	if s.parse(resp, req, &args.Region, &args.QueryOptions) {
+		return nil, nil
+	}
+	if args.Filter != "" {
+		return nil, CodedError(400, "filter is not supported for claims")
+	}
+
+	query := req.URL.Query()
+	args.JobID = query.Get("job_id")
+	args.TaskGroup = query.Get("task_group")
+	args.VolumeName = query.Get("volume_name")
+	if claimID := query.Get("claim_id"); claimID != "" {
+		if args.Prefix != "" && args.Prefix != claimID {
+			return nil, CodedError(400, "claim_id and prefix differ")
+		}
+		args.Prefix = claimID
+	}
+
+	var out structs.HostVolumeClaimListResponse
+	if err := s.agent.RPC("HostVolume.ListClaims", &args, &out); err != nil {
+		return nil, err
+	}
+
+	setMeta(resp, &out.QueryMeta)
+	claims := make([]hostVolumeClaim, 0, len(out.Claims))
+	for _, c := range out.Claims {
+		claims = append(claims, hostVolumeClaim{
+			AllocID: c.AllocationID, CreateIndex: c.CreateIndex, ID: c.ID, JobID: c.JobID,
+			ModifyIndex: c.ModifyIndex, Namespace: c.Namespace, TaskGroupName: c.TaskGroupName,
+			VolumeID: c.VolumeID, VolumeName: c.VolumeName,
+		})
+	}
+	return claims, nil
+}
+
+// HostVolumeClaimSpecificRequest serves DELETE /v1/volumes/claim/:claim_id.
+// Only the plural path is served: the documented sample path with a singular
+// volume is not routed. The reply has no body.
+func (s *HTTPServer) HostVolumeClaimSpecificRequest(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	id := strings.TrimPrefix(req.URL.Path, "/v1/volumes/claim/")
+	if id == "" || strings.Contains(id, "/") {
+		return nil, CodedError(404, resourceNotFoundErr)
+	}
+	if req.Method != http.MethodDelete {
+		return nil, CodedError(405, ErrInvalidMethod)
+	}
+
+	args := structs.HostVolumeClaimDeleteRequest{ID: id}
+	s.parseWriteRequest(req, &args.WriteRequest)
+	var out structs.HostVolumeClaimDeleteResponse
+	if err := s.agent.RPC("HostVolume.DeleteClaim", &args, &out); err != nil {
+		return nil, err
+	}
+	setIndex(resp, out.Index)
+	return nil, nil
 }
 
 func (s *HTTPServer) hostVolumeGet(id string, resp http.ResponseWriter, req *http.Request) (interface{}, error) {

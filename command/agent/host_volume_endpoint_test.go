@@ -16,9 +16,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/open-wander/wander/acl"
 	"github.com/open-wander/wander/ci"
+	"github.com/open-wander/wander/nomad"
 	"github.com/open-wander/wander/nomad/mock"
 	"github.com/open-wander/wander/nomad/structs"
 	"github.com/open-wander/wander/testutil"
@@ -217,6 +219,9 @@ func TestHTTP_HostVolume_Routes(t *testing.T) {
 			"/v1/volume/host/vol-1":             200,
 			"/v1/volume/host/nope":              404,
 			"/v1/volume/host/vol-1?namespace=*": 400,
+			"/v1/volume/host/vol-1/other":       404,
+			"/v1/volume/host/vol-1/delete":      405,
+			"/v1/volume/host/vol-1/deregister":  405,
 		} {
 			req, err := http.NewRequest(http.MethodGet, path, nil)
 			must.NoError(t, err)
@@ -273,6 +278,22 @@ func TestHTTP_VolumesType_Unchanged(t *testing.T) {
 		_, err = s.Server.CSIVolumesRequest(httptest.NewRecorder(), req)
 		must.True(t, asCoded(err, &coded))
 		must.Eq(t, 405, coded.Code())
+
+		// The CSI routes beside the claim routes keep their codes through the
+		// real mux.
+		for _, tc := range []struct {
+			method, path string
+			code         int
+		}{
+			{http.MethodGet, "/v1/volumes?type=csi", 200},
+			{http.MethodGet, "/v1/volumes", 200},
+			{http.MethodGet, "/v1/volume/csi/none", 404},
+			// The inherited CSI deregister handler answers 500 for an unknown ID.
+			{http.MethodDelete, "/v1/volume/csi/none", 500},
+		} {
+			resp := hostVolumeServe(t, s, tc.method, tc.path, "", nil)
+			must.Eq(t, tc.code, resp.Code, must.Sprint(tc.method+" "+tc.path+": "+resp.Body.String()))
+		}
 	})
 }
 
@@ -820,5 +841,483 @@ func TestHTTP_HostVolumeRegister_Ready(t *testing.T) {
 		must.Eq(t, "registered", out.Volume["Origin"])
 		must.Eq(t, any(nodeID), out.Volume["NodeID"])
 		must.Nil(t, out.Warnings)
+	})
+}
+
+// removeFixture is one volume the remove and claim tests seed. Each case that
+// removes a volume has its own, so the cases do not depend on each other.
+type removeFixture struct {
+	id, node string
+	origin   structs.DynamicHostVolumeOrigin
+	state    structs.DynamicHostVolumeState
+}
+
+func seedRemoveNode(t *testing.T, s *TestAgent, status string) string {
+	t.Helper()
+	store := s.Agent.Server().State()
+	idx, err := store.LatestIndex()
+	must.NoError(t, err)
+	node := mock.Node()
+	node.Status = status
+	must.NoError(t, store.UpsertNode(structs.MsgTypeTestSetup, idx, node))
+	return node.ID
+}
+
+func seedRemoveVolumes(t *testing.T, s *TestAgent, fixtures []removeFixture) {
+	t.Helper()
+	store := s.Agent.Server().State()
+	idx, err := store.LatestIndex()
+	must.NoError(t, err)
+	vols := []*structs.DynamicHostVolume{}
+	for _, f := range fixtures {
+		v := &structs.DynamicHostVolume{
+			ID: f.id, Name: "name-" + f.id, Namespace: "default", Type: structs.VolumeTypeHost,
+			NodeID: f.node, NodePool: "default", HostPath: "/synthetic/secret/" + f.id, PluginID: "plug",
+			Origin: f.origin, State: f.state,
+		}
+		if f.origin == structs.DynamicHostVolumeOriginRegistered {
+			v.PluginID = ""
+		}
+		vols = append(vols, v)
+	}
+	must.NoError(t, store.UpsertDynamicHostVolumes(idx, vols))
+}
+
+// volumeStored reports whether the volume is in the state store.
+func volumeStored(t *testing.T, s *TestAgent, id string) *structs.DynamicHostVolume {
+	t.Helper()
+	vol, err := s.Agent.Server().State().DynamicHostVolumeByID(nil, "default", id)
+	must.NoError(t, err)
+	return vol
+}
+
+// mustFixedError checks the status, the exact fixed text and that nothing a
+// caller sent or the server stored leaks into the body.
+func mustFixedError(t *testing.T, resp *httptest.ResponseRecorder, code int, text string) {
+	t.Helper()
+	must.Eq(t, code, resp.Code, must.Sprint(resp.Body.String()))
+	must.Eq(t, text, resp.Body.String())
+	must.StrNotContains(t, resp.Body.String(), "/synthetic")
+	must.StrNotContains(t, resp.Body.String(), "secret")
+}
+
+const (
+	removeUseDelete   = "volume was created by a plugin, use delete"
+	removeUseDereg    = "volume was registered, use deregister"
+	removeInvalidForc = "invalid force value"
+)
+
+func TestHTTP_HostVolumeRemove(t *testing.T) {
+	ci.Parallel(t)
+	httpACLTest(t, nil, func(s *TestAgent) {
+		down := seedRemoveNode(t, s, structs.NodeStatusDown)
+		ready := seedRemoveNode(t, s, structs.NodeStatusReady)
+		pc, reg := structs.DynamicHostVolumeOriginPluginCreated, structs.DynamicHostVolumeOriginRegistered
+		st := structs.DynamicHostVolumeStateReady
+		seedRemoveVolumes(t, s, []removeFixture{
+			{"pc-nonode-1", "", pc, structs.DynamicHostVolumeStateFailed},
+			{"pc-nonode-2", "", pc, structs.DynamicHostVolumeStateFailed},
+			{"reg-nonode-1", "", reg, st},
+			{"pc-down-1", down, pc, st},
+			{"reg-down-1", down, reg, st},
+			{"pc-keep", "", pc, structs.DynamicHostVolumeStateFailed},
+			{"reg-keep", "", reg, st},
+			{"pc-ready", ready, pc, st},
+			{"pc-offline", ready, pc, st},
+			{"pc-busy", down, pc, st},
+		})
+		// A running allocation of another job uses pc-busy by its name.
+		store := s.Agent.Server().State()
+		idx, err := store.LatestIndex()
+		must.NoError(t, err)
+		job := mock.Job()
+		job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{
+			"data": {Name: "data", Type: structs.VolumeTypeHost, Source: "name-pc-busy"}}
+		must.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, idx, nil, job))
+		alloc := mock.Alloc()
+		alloc.Job, alloc.JobID, alloc.Namespace = job, job.ID, job.Namespace
+		alloc.TaskGroup, alloc.NodeID = job.TaskGroups[0].Name, down
+		alloc.ClientStatus, alloc.DesiredStatus = structs.AllocClientStatusRunning, structs.AllocDesiredStatusRun
+		must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, idx, []*structs.Allocation{alloc}))
+
+		root := s.RootToken
+		serve := func(method, path string) *httptest.ResponseRecorder {
+			return hostVolumeServe(t, s, method, path, "", root)
+		}
+
+		t.Run("removed", func(t *testing.T) {
+			for _, tc := range []struct{ path, id string }{
+				{"/v1/volume/host/pc-nonode-1/delete", "pc-nonode-1"},
+				{"/v1/volume/host/pc-nonode-2/delete?force=false", "pc-nonode-2"},
+				{"/v1/volume/host/reg-nonode-1/deregister", "reg-nonode-1"},
+				{"/v1/volume/host/pc-down-1/delete?force=true", "pc-down-1"},
+				{"/v1/volume/host/reg-down-1/deregister?force=true", "reg-down-1"},
+			} {
+				resp := serve(http.MethodDelete, tc.path)
+				must.Eq(t, 200, resp.Code, must.Sprint(tc.path+": "+resp.Body.String()))
+				must.Eq(t, "", resp.Body.String(), must.Sprint(tc.path))
+				must.NotEq(t, "", resp.Header().Get("X-Nomad-Index"), must.Sprint(tc.path))
+				must.Nil(t, volumeStored(t, s, tc.id), must.Sprint(tc.path))
+			}
+		})
+
+		t.Run("invalid force", func(t *testing.T) {
+			for _, q := range []string{"force=yes", "force=", "force=1", "force=TRUE", "force=t", "force=true&force=true", "force=false&force=true"} {
+				for _, action := range []string{"delete", "deregister"} {
+					resp := serve(http.MethodDelete, "/v1/volume/host/pc-keep/"+action+"?"+q)
+					mustFixedError(t, resp, 400, removeInvalidForc)
+					must.NotNil(t, volumeStored(t, s, "pc-keep"))
+				}
+			}
+		})
+
+		t.Run("coded errors", func(t *testing.T) {
+			for _, tc := range []struct {
+				name, path string
+				code       int
+				text       string
+			}{
+				{"cross kind delete", "/v1/volume/host/reg-keep/delete", 400, removeUseDereg},
+				{"cross kind deregister", "/v1/volume/host/pc-keep/deregister", 400, removeUseDelete},
+				{"wildcard namespace", "/v1/volume/host/pc-keep/delete?namespace=*", 400, "a volume write needs a single namespace"},
+				{"force on a ready node", "/v1/volume/host/pc-ready/delete?force=true", 400,
+					`force is only for a down, disconnected or unknown node, node status is "ready"`},
+				{"unknown id", "/v1/volume/host/nope/delete", 404, "volume not found"},
+				{"id prefix", "/v1/volume/host/pc-kee/delete", 404, "volume not found"},
+				{"create word as id", "/v1/volume/host/create/delete", 404, "volume not found"},
+				{"in use", "/v1/volume/host/pc-busy/delete?force=true", 409, "volume in use"},
+				{"in use without force", "/v1/volume/host/pc-busy/delete", 409, "volume in use"},
+				{"no connected client", "/v1/volume/host/pc-offline/delete", 502, `client call failed, volume state is "deleting"`},
+			} {
+				resp := serve(http.MethodDelete, tc.path)
+				mustFixedError(t, resp, tc.code, tc.text)
+			}
+			must.NotNil(t, volumeStored(t, s, "pc-keep"))
+			must.NotNil(t, volumeStored(t, s, "reg-keep"))
+			must.NotNil(t, volumeStored(t, s, "pc-busy"))
+			must.Eq(t, structs.DynamicHostVolumeStateDeleting, volumeStored(t, s, "pc-offline").State)
+		})
+
+		t.Run("routing", func(t *testing.T) {
+			for _, tc := range []struct {
+				method, path string
+				code         int
+			}{
+				{http.MethodGet, "/v1/volume/host/pc-keep/delete", 405},
+				{http.MethodPut, "/v1/volume/host/pc-keep/delete", 405},
+				{http.MethodPost, "/v1/volume/host/pc-keep/deregister", 405},
+				{http.MethodGet, "/v1/volume/host/pc-keep/deregister", 405},
+				// The documented sample leaves out /delete; Wander serves only
+				// the path the operation table names.
+				{http.MethodDelete, "/v1/volume/host/pc-keep", 405},
+				{http.MethodDelete, "/v1/volume/host/pc-keep/other", 404},
+				{http.MethodDelete, "/v1/volume/host/pc-keep/delete/x", 404},
+			} {
+				resp := serve(tc.method, tc.path)
+				must.Eq(t, tc.code, resp.Code, must.Sprint(tc.method+" "+tc.path))
+			}
+			must.NotNil(t, volumeStored(t, s, "pc-keep"))
+		})
+
+		t.Run("acl", func(t *testing.T) {
+			resp := hostVolumeServe(t, s, http.MethodDelete, "/v1/volume/host/pc-keep/delete", "", nil)
+			mustFixedError(t, resp, 403, "Permission denied")
+			reader := mock.CreatePolicyAndToken(t, store, 900, "dhv-reader",
+				mock.NamespacePolicy("default", "", []string{acl.NamespaceCapabilityHostVolumeRead}))
+			resp = hostVolumeServe(t, s, http.MethodDelete, "/v1/volume/host/pc-keep/delete", "", reader)
+			mustFixedError(t, resp, 403, "Permission denied")
+			must.NotNil(t, volumeStored(t, s, "pc-keep"))
+		})
+	})
+}
+
+// A removal refused by the version gate returns 503 with the fixed text, from
+// a second server that does not report a Wander version.
+func TestHTTP_HostVolumeRemove_VersionGate(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		pc := structs.DynamicHostVolumeOriginPluginCreated
+		seedRemoveVolumes(t, s, []removeFixture{{"pc-nonode", "", pc, structs.DynamicHostVolumeStateFailed}})
+
+		old, cleanup := nomad.TestServer(t, func(c *nomad.Config) {
+			c.BootstrapExpect = 0
+			c.WanderVersion = ""
+		})
+		defer cleanup()
+		nomad.TestJoin(t, s.Agent.Server(), old)
+		testutil.WaitForResult(func() (bool, error) {
+			n := len(s.Agent.Server().Members())
+			return n == 2, fmt.Errorf("members: %d", n)
+		}, func(err error) { must.NoError(t, err) })
+
+		resp := hostVolumeServe(t, s, http.MethodDelete, "/v1/volume/host/pc-nonode/delete", "", nil)
+		mustFixedError(t, resp, 503, "dynamic host volumes need every server to run Wander 0.1.2 or later")
+	})
+}
+
+// claimFixture is one synthetic sticky claim.
+type claimFixture struct {
+	ns, id, job, group, volume string
+	live                       bool
+}
+
+func seedHTTPClaims(t *testing.T, s *TestAgent, specs ...claimFixture) {
+	t.Helper()
+	store := s.Agent.Server().State()
+	idx, err := store.LatestIndex()
+	must.NoError(t, err)
+	must.NoError(t, store.UpsertNamespaces(idx, []*structs.Namespace{{Name: "ns-b"}}))
+	var vols []*structs.DynamicHostVolume
+	var claims []*structs.DynamicHostVolumeClaim
+	seen := map[string]bool{}
+	for i, sp := range specs {
+		if key := sp.ns + "/" + sp.volume; !seen[key] {
+			seen[key] = true
+			vols = append(vols, &structs.DynamicHostVolume{
+				ID: "vol-" + sp.volume, Name: sp.volume, Namespace: sp.ns, Type: structs.VolumeTypeHost,
+				NodeID: "node-" + sp.ns, NodePool: "default", HostPath: "/synthetic/" + sp.volume, PluginID: "plug",
+				Origin: structs.DynamicHostVolumeOriginPluginCreated, State: structs.DynamicHostVolumeStateReady,
+			})
+		}
+		claims = append(claims, &structs.DynamicHostVolumeClaim{ID: sp.id, Namespace: sp.ns, JobID: sp.job,
+			TaskGroupName: sp.group, VolumeName: sp.volume, VolumeID: "vol-" + sp.volume,
+			AllocationID: fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1), AllocationIndex: 7})
+	}
+	must.NoError(t, store.UpsertDynamicHostVolumes(idx, vols))
+	for _, sp := range specs {
+		if !sp.live {
+			continue
+		}
+		job := mock.Job()
+		job.ID, job.Namespace = sp.job, sp.ns
+		job.TaskGroups[0].Name = sp.group
+		job.TaskGroups[0].Volumes = map[string]*structs.VolumeRequest{
+			"data": {Name: "data", Type: structs.VolumeTypeHost, Source: sp.volume}}
+		must.NoError(t, store.UpsertJob(structs.MsgTypeTestSetup, idx, nil, job))
+		alloc := mock.Alloc()
+		alloc.Job, alloc.JobID, alloc.Namespace, alloc.TaskGroup = job, job.ID, job.Namespace, sp.group
+		alloc.NodeID = "node-" + sp.ns
+		alloc.ClientStatus, alloc.DesiredStatus = structs.AllocClientStatusPending, structs.AllocDesiredStatusRun
+		must.NoError(t, store.UpsertAllocs(structs.MsgTypeTestSetup, idx, []*structs.Allocation{alloc}))
+	}
+	must.NoError(t, store.UpsertDynamicHostVolumeClaims(idx, claims))
+}
+
+var standardClaims = []claimFixture{
+	{ns: "default", id: "c-aaa", job: "job-a", group: "g1", volume: "data-a"},
+	{ns: "default", id: "c-aab", job: "job-a", group: "g2", volume: "data-b"},
+	{ns: "default", id: "c-bbb", job: "job-b", group: "g1", volume: "data-a"},
+	{ns: "ns-b", id: "n-ccc", job: "job-c", group: "g1", volume: "data-c"},
+}
+
+func claimListIDs(t *testing.T, resp *httptest.ResponseRecorder) []string {
+	t.Helper()
+	must.Eq(t, 200, resp.Code, must.Sprint(resp.Body.String()))
+	var rows []map[string]any
+	must.NoError(t, json.Unmarshal(resp.Body.Bytes(), &rows))
+	ids := []string{}
+	for _, r := range rows {
+		ids = append(ids, r["Namespace"].(string)+"/"+r["ID"].(string))
+	}
+	return ids
+}
+
+func TestHTTP_HostVolumeClaimList(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		seedHTTPClaims(t, s, standardClaims...)
+		list := func(query string) *httptest.ResponseRecorder {
+			return hostVolumeServe(t, s, http.MethodGet, "/v1/volumes/claims?"+query, "", nil)
+		}
+
+		t.Run("filters", func(t *testing.T) {
+			for _, tc := range []struct {
+				query string
+				want  []string
+			}{
+				{"", []string{"default/c-aaa", "default/c-aab", "default/c-bbb"}},
+				{"namespace=*", []string{"default/c-aaa", "default/c-aab", "default/c-bbb", "ns-b/n-ccc"}},
+				{"namespace=ns-b", []string{"ns-b/n-ccc"}},
+				{"job_id=job-a", []string{"default/c-aaa", "default/c-aab"}},
+				{"task_group=g1", []string{"default/c-aaa", "default/c-bbb"}},
+				{"volume_name=data-b", []string{"default/c-aab"}},
+				{"job_id=job-a&task_group=g1", []string{"default/c-aaa"}},
+				{"claim_id=c-aa", []string{"default/c-aaa", "default/c-aab"}},
+				{"claim_id=c-aa&prefix=c-aa", []string{"default/c-aaa", "default/c-aab"}},
+				{"namespace=*&claim_id=n-", []string{"ns-b/n-ccc"}},
+				{"claim_id=zzz", []string{}},
+			} {
+				must.Eq(t, tc.want, claimListIDs(t, list(tc.query)), must.Sprint(tc.query))
+			}
+		})
+
+		t.Run("empty list is an array", func(t *testing.T) {
+			resp := list("job_id=nobody")
+			must.Eq(t, 200, resp.Code)
+			must.Eq(t, "[]", strings.TrimSpace(resp.Body.String()))
+		})
+
+		t.Run("public keys", func(t *testing.T) {
+			resp := list("claim_id=c-aaa")
+			var rows []map[string]any
+			must.NoError(t, json.Unmarshal(resp.Body.Bytes(), &rows))
+			must.Len(t, 1, rows)
+			keys := slices.Sorted(maps.Keys(rows[0]))
+			must.Eq(t, []string{"AllocID", "CreateIndex", "ID", "JobID", "ModifyIndex", "Namespace",
+				"TaskGroupName", "VolumeID", "VolumeName"}, keys)
+			must.Eq(t, "00000000-0000-0000-0000-000000000001", rows[0]["AllocID"])
+			must.Eq(t, "vol-data-a", rows[0]["VolumeID"])
+			must.NotEq(t, "", resp.Header().Get("X-Nomad-Index"))
+			must.NotEq(t, "", resp.Header().Get("X-Nomad-KnownLeader"))
+		})
+
+		t.Run("paging", func(t *testing.T) {
+			var got []string
+			token := ""
+			for page := range 4 {
+				q := "namespace=*&per_page=1"
+				if token != "" {
+					q += "&next_token=" + url.QueryEscape(token)
+				}
+				resp := list(q)
+				ids := claimListIDs(t, resp)
+				must.Len(t, 1, ids, must.Sprintf("page %d", page))
+				got = append(got, ids...)
+				token = resp.Header().Get("X-Nomad-NextToken")
+				if page < 3 {
+					must.NotEq(t, "", token, must.Sprintf("page %d token", page))
+				} else {
+					must.Eq(t, "", token)
+				}
+			}
+			must.Eq(t, []string{"default/c-aaa", "default/c-aab", "default/c-bbb", "ns-b/n-ccc"}, got)
+		})
+
+		t.Run("refused queries", func(t *testing.T) {
+			mustFixedError(t, list("claim_id=c-a&prefix=c-b"), 400, "claim_id and prefix differ")
+			mustFixedError(t, list("filter="+url.QueryEscape(`JobID == "job-a"`)), 400, "filter is not supported for claims")
+			must.Eq(t, 405, hostVolumeServe(t, s, http.MethodPost, "/v1/volumes/claims", "", nil).Code)
+			must.Eq(t, 405, hostVolumeServe(t, s, http.MethodDelete, "/v1/volumes/claims", "", nil).Code)
+			must.Eq(t, 404, hostVolumeServe(t, s, http.MethodGet, "/v1/volumes/claims/", "", nil).Code)
+		})
+	})
+}
+
+func TestHTTP_HostVolumeClaimList_Blocking(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		seedHTTPClaims(t, s, standardClaims...)
+		first := hostVolumeServe(t, s, http.MethodGet, "/v1/volumes/claims", "", nil)
+		index, err := strconv.ParseUint(first.Header().Get("X-Nomad-Index"), 10, 64)
+		must.NoError(t, err)
+
+		type result struct{ resp *httptest.ResponseRecorder }
+		done := make(chan result, 1)
+		go func() {
+			done <- result{hostVolumeServe(t, s, http.MethodGet,
+				fmt.Sprintf("/v1/volumes/claims?index=%d&wait=20s", index), "", nil)}
+		}()
+		select {
+		case <-done:
+			t.Fatal("a blocking query returned before the claims changed")
+		case <-time.After(300 * time.Millisecond):
+		}
+
+		del := hostVolumeServe(t, s, http.MethodDelete, "/v1/volumes/claim/c-bbb", "", nil)
+		must.Eq(t, 200, del.Code, must.Sprint(del.Body.String()))
+
+		select {
+		case r := <-done:
+			must.Eq(t, []string{"default/c-aaa", "default/c-aab"}, claimListIDs(t, r.resp))
+			got, err := strconv.ParseUint(r.resp.Header().Get("X-Nomad-Index"), 10, 64)
+			must.NoError(t, err)
+			must.Greater(t, index, got)
+		case <-time.After(10 * time.Second):
+			t.Fatal("a blocking query did not wake on a claim delete")
+		}
+	})
+}
+
+func TestHTTP_HostVolumeClaimDelete(t *testing.T) {
+	ci.Parallel(t)
+	httpACLTest(t, nil, func(s *TestAgent) {
+		held := claimFixture{ns: "default", id: "c-held", job: "job-h", group: "g", volume: "data-h", live: true}
+		seedHTTPClaims(t, s, append(slices.Clone(standardClaims), held)...)
+		store := s.Agent.Server().State()
+		stored := func(ns, id string) bool {
+			c, err := store.DynamicHostVolumeClaimByID(nil, ns, id)
+			must.NoError(t, err)
+			return c != nil
+		}
+		root := s.RootToken
+		del := func(path string, tok *structs.ACLToken) *httptest.ResponseRecorder {
+			return hostVolumeServe(t, s, http.MethodDelete, path, "", tok)
+		}
+
+		reader := mock.CreatePolicyAndToken(t, store, 900, "claim-reader",
+			mock.NamespacePolicy("default", "", []string{acl.NamespaceCapabilityHostVolumeRead}))
+		for _, tc := range []struct {
+			name, path string
+			tok        *structs.ACLToken
+			code       int
+			text       string
+		}{
+			{"no token", "/v1/volumes/claim/c-aaa", nil, 403, "Permission denied"},
+			{"read only", "/v1/volumes/claim/c-aaa", reader, 403, "Permission denied"},
+			{"unknown", "/v1/volumes/claim/nope", root, 404, "claim not found"},
+			{"other namespace", "/v1/volumes/claim/n-ccc", root, 404, "claim not found"},
+			{"held", "/v1/volumes/claim/c-held", root, 409, "claim in use"},
+			{"wildcard", "/v1/volumes/claim/c-aaa?namespace=*", root, 400, "a claim delete needs a single namespace"},
+		} {
+			mustFixedError(t, del(tc.path, tc.tok), tc.code, tc.text)
+			must.True(t, stored("default", "c-aaa"), must.Sprint(tc.name))
+			must.True(t, stored("default", "c-held"), must.Sprint(tc.name))
+		}
+
+		resp := del("/v1/volumes/claim/c-aaa", root)
+		must.Eq(t, 200, resp.Code, must.Sprint(resp.Body.String()))
+		must.Eq(t, "", resp.Body.String())
+		must.NotEq(t, "", resp.Header().Get("X-Nomad-Index"))
+		must.False(t, stored("default", "c-aaa"))
+		resp = del("/v1/volumes/claim/n-ccc?namespace=ns-b", root)
+		must.Eq(t, 200, resp.Code, must.Sprint(resp.Body.String()))
+		must.False(t, stored("ns-b", "n-ccc"))
+
+		for _, tc := range []struct {
+			method, path string
+			code         int
+		}{
+			{http.MethodGet, "/v1/volumes/claim/c-aab", 405},
+			{http.MethodPut, "/v1/volumes/claim/c-aab", 405},
+			{http.MethodPost, "/v1/volumes/claim/c-aab", 405},
+			{http.MethodDelete, "/v1/volumes/claim/", 404},
+			{http.MethodDelete, "/v1/volumes/claim/c-aab/x", 404},
+			// Only the plural path is served: the official binary answered 404
+			// for the singular sample path.
+			{http.MethodDelete, "/v1/volume/claim/c-aab", 404},
+		} {
+			must.Eq(t, tc.code, hostVolumeServe(t, s, tc.method, tc.path, "", root).Code, must.Sprint(tc.method+" "+tc.path))
+		}
+		must.True(t, stored("default", "c-aab"))
+	})
+}
+
+func TestHTTP_HostVolumeClaimDelete_VersionGate(t *testing.T) {
+	ci.Parallel(t)
+	httpTest(t, nil, func(s *TestAgent) {
+		seedHTTPClaims(t, s, standardClaims...)
+		old, cleanup := nomad.TestServer(t, func(c *nomad.Config) {
+			c.BootstrapExpect = 0
+			c.WanderVersion = ""
+		})
+		defer cleanup()
+		nomad.TestJoin(t, s.Agent.Server(), old)
+		testutil.WaitForResult(func() (bool, error) {
+			n := len(s.Agent.Server().Members())
+			return n == 2, fmt.Errorf("members: %d", n)
+		}, func(err error) { must.NoError(t, err) })
+
+		resp := hostVolumeServe(t, s, http.MethodDelete, "/v1/volumes/claim/c-aaa", "", nil)
+		mustFixedError(t, resp, 503, "dynamic host volumes need every server to run Wander 0.1.2 or later")
 	})
 }
