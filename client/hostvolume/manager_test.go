@@ -293,7 +293,7 @@ func TestManager_RegisteredSurvivesRestart(t *testing.T) {
 	st := mustStatus(t, m2, "vol-reg")
 	must.Eq(t, hvstate.StatusReady, st.Status)
 	must.Eq(t, dir, st.Path)
-	must.Eq(t, &structs.ClientHostVolumeConfig{Name: "data", Path: dir, ID: "vol-reg"}, e.published()["data"])
+	must.Eq(t, &structs.ClientHostVolumeConfig{Name: "data", Path: dir, ID: "vol-reg", Namespace: "ns"}, e.published()["data"])
 
 	ents, err := os.ReadDir(dir)
 	must.NoError(t, err)
@@ -584,7 +584,7 @@ func TestManager_PublishedEntries(t *testing.T) {
 	m.Restore(ctx5(t))
 	pub := e.published()
 	must.MapLen(t, 1, pub)
-	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dir, ReadOnly: false, ID: "vol-a"}, *pub["data"])
+	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dir, ReadOnly: false, ID: "vol-a", Namespace: "ns-synthetic"}, *pub["data"])
 	for _, v := range pub {
 		must.NotEq(t, foreign.Path, v.Path)
 	}
@@ -1435,13 +1435,13 @@ func TestManager_ChangedEntryIsRepublished(t *testing.T) {
 
 	m := e.manager()
 	m.Restore(ctx5(t))
-	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dirA, ID: "vol-a"}, *e.published()["data"])
+	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dirA, ID: "vol-a", Namespace: "ns-synthetic"}, *e.published()["data"])
 	pubs := e.pubCount()
 
 	must.NoError(t, os.Remove(dirA))
 	m.reconcile(ctx5(t), false)
 	must.Eq(t, pubs+1, e.pubCount())
-	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dirB, ID: "vol-b"}, *e.published()["data"])
+	must.Eq(t, structs.ClientHostVolumeConfig{Name: "data", Path: dirB, ID: "vol-b", Namespace: "ns-synthetic"}, *e.published()["data"])
 }
 
 // A plugin create with the ID of a registered volume would replace the

@@ -95,3 +95,22 @@ type HostVolumeDeregisterResponse struct {
 	Reason   string
 	Message  string
 }
+
+// HostVolumeForgetRequest asks a client to drop the record of a dynamic host
+// volume of either kind and keep its directory. It is internal Wander design,
+// sent by servers only. The client never runs a plugin and never touches the
+// directory. Sending it again is safe: a client that no longer holds the
+// volume answers with success.
+type HostVolumeForgetRequest struct {
+	VolumeID  string
+	Namespace string
+	NodeID    string
+}
+
+// HostVolumeForgetResponse reports the outcome of a forget, with the same
+// rules as HostVolumeDeleteResponse.
+type HostVolumeForgetResponse struct {
+	VolumeID string
+	Reason   string
+	Message  string
+}

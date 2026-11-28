@@ -1532,7 +1532,32 @@ node update on every server.
 - PATTERN: tests - fixtures that depend on a live mock client must be
   written right before the step that relies on them.
 
+## 2026-11-28 — Task 4.7g complete
+
+- Owner decisions 2026-11-28: list endpoint plus a later CLI; removal
+  needs an explicit mode (delete runs the plugin delete, forget drops the
+  client record and keeps the data), no default; the client advertises
+  each dynamic volume's namespace.
+- An orphan is an advertised dynamic volume ID with no record on that
+  node, computed on request: HostVolume.ListOrphans and
+  GET /v1/volumes/host/orphans; HostVolume.RemoveOrphan and
+  DELETE /v1/volume/host/orphan/:node_id/:volume_id?mode=. No Raft write;
+  one audit line (orphan_delete, orphan_forget). Refused with 409 when a
+  record exists (re-checked before the client call) or a live allocation
+  mounts it, 404 when no longer advertised, 400 for a registered orphan in
+  delete mode.
+- Client Forget drops either kind without a plugin and writes the
+  tombstone. Client Delete and Deregister now also refuse with
+  volume_in_use while a live allocation mounts the volume; the leader
+  retry keeps such a volume deleting.
+- Review MINOR, one fix round: inherited files listed in full, authorise
+  before the mode refusal (403 before 400), old-client namespace limit
+  recorded, end-to-end plugin delete test. Contract rows renumbered to
+  DHV-T-206..212 so they do not clash with the claims HTTP branch.
+- PATTERN: rpc - authorise before validating request fields, so a caller
+  who may not act learns nothing from a 400.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.7f and 4.8 are done. DHV paused for S.1. Then 4.7g, 4.7e and 4.9.
+- 4.2 to 4.8 are done (4.7e and 4.7g on their branches). Then 4.9.

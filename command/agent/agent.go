@@ -757,9 +757,11 @@ func convertClientConfig(agentConfig *Config) (*clientconfig.Config, error) {
 
 	hvMap := make(map[string]*structs.ClientHostVolumeConfig, len(agentConfig.Client.HostVolumes))
 	for _, v := range agentConfig.Client.HostVolumes {
-		// ID marks dynamic volumes and is never operator configuration.
+		// ID and Namespace mark dynamic volumes and are never operator
+		// configuration.
 		sv := v.Copy()
 		sv.ID = ""
+		sv.Namespace = ""
 		hvMap[sv.Name] = sv
 	}
 	conf.HostVolumes = hvMap

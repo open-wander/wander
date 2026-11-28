@@ -165,6 +165,26 @@ func (h *HostVolume) Deregister(req *structs.HostVolumeDeregisterRequest, resp *
 	return nil
 }
 
+// Forget drops the record of a volume of either kind and keeps its directory.
+// It never runs a plugin. The reply rules are those of Delete, and a volume
+// that a live allocation mounts is refused with volume_in_use.
+func (h *HostVolume) Forget(req *structs.HostVolumeForgetRequest, resp *structs.HostVolumeForgetResponse) error {
+	defer metrics.MeasureSince([]string{"client", "host_volume", "forget"}, time.Now())
+
+	err := h.run("HostVolume.Forget", func(ctx context.Context, m *hostvolume.Manager) error {
+		return m.Forget(ctx, hostvolume.DeleteRequest{
+			VolumeID: req.VolumeID, Namespace: req.Namespace, NodeID: req.NodeID,
+		})
+	}, func(reason, message string) {
+		*resp = structs.HostVolumeForgetResponse{Reason: reason, Message: message}
+	})
+	if err != nil {
+		return err
+	}
+	resp.VolumeID = req.VolumeID
+	return nil
+}
+
 // run calls op under the delete timeout and the client shutdown. A classified
 // rejection goes to reject and returns nil. Any other failure returns an
 // error named after method.

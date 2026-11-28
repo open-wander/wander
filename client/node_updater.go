@@ -506,13 +506,14 @@ func (b *batchNodeUpdates) batchDevicesUpdates(f devicemanager.UpdateNodeDevices
 }
 
 // hostVolumesFor returns the host volumes of the node as they are now that an
-// allocation of the namespace may mount. Node.HostVolumes carries no
-// namespace, so a dynamic entry is kept only when the record that the volume
-// manager holds for its ID is in that namespace. An entry whose record is
-// missing, for example because the volume was deleted since the node was
-// updated, is dropped too. This is Wander policy: the server already places
-// an allocation only on a volume of its namespace, and this keeps a client
-// from mounting a volume of another namespace if that check were bypassed.
+// allocation of the namespace may mount. The namespace a dynamic entry
+// advertises is only a hint for listing orphans, so an entry is kept only when
+// the record that the volume manager holds for its ID is in that namespace. An
+// entry whose record is missing, for example because the volume was deleted
+// since the node was updated, is dropped too. This is Wander policy: the
+// server already places an allocation only on a volume of its namespace, and
+// this keeps a client from mounting a volume of another namespace if that
+// check were bypassed.
 //
 // The node's map is rebuilt for every update and never changed in place, so
 // it is read without the config lock and is not modified here.

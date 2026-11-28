@@ -28,6 +28,7 @@ type mockClientHostVolume struct {
 	registry []cstructs.HostVolumeRegisterRequest
 	deletes  []cstructs.HostVolumeDeleteRequest
 	deregs   []cstructs.HostVolumeDeregisterRequest
+	forgets  []cstructs.HostVolumeForgetRequest
 	err      error
 
 	// The fields below configure the mock for the server endpoint tests and
@@ -38,6 +39,7 @@ type mockClientHostVolume struct {
 	registerReply func(*cstructs.HostVolumeRegisterRequest) cstructs.HostVolumeRegisterResponse
 	deleteReply   func(*cstructs.HostVolumeDeleteRequest) cstructs.HostVolumeDeleteResponse
 	deregReply    func(*cstructs.HostVolumeDeregisterRequest) cstructs.HostVolumeDeregisterResponse
+	forgetReply   func(*cstructs.HostVolumeForgetRequest) cstructs.HostVolumeForgetResponse
 	hook          func()
 }
 
@@ -101,6 +103,28 @@ func (m *mockClientHostVolume) Deregister(req *cstructs.HostVolumeDeregisterRequ
 		hook()
 	}
 	return err
+}
+
+func (m *mockClientHostVolume) Forget(req *cstructs.HostVolumeForgetRequest, resp *cstructs.HostVolumeForgetResponse) error {
+	m.mu.Lock()
+	m.forgets = append(m.forgets, *req)
+	*resp = cstructs.HostVolumeForgetResponse{VolumeID: req.VolumeID}
+	if m.forgetReply != nil {
+		*resp = m.forgetReply(req)
+	}
+	hook, err := m.hook, m.err
+	m.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return err
+}
+
+// forgetCount returns how many forget calls arrived.
+func (m *mockClientHostVolume) forgetCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.forgets)
 }
 
 // removalCounts returns how many delete and deregister calls arrived.
@@ -305,6 +329,42 @@ func TestClientHostVolume_Forwarded(t *testing.T) {
 	nd, ng := mock.removalCounts()
 	must.Eq(t, 1, nd)
 	must.Eq(t, 1, ng)
+
+	var forgetResp cstructs.HostVolumeForgetResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Forget",
+		&cstructs.HostVolumeForgetRequest{VolumeID: "vol-c", Namespace: "default", NodeID: c.NodeID()}, &forgetResp))
+	must.Eq(t, "vol-c", forgetResp.VolumeID)
+	must.Eq(t, 1, mock.forgetCount())
+}
+
+// Forget reaches the node, reports an unknown node and passes on a client
+// error.
+func TestClientHostVolume_Forget(t *testing.T) {
+	ci.Parallel(t)
+
+	s, cleanup := TestServer(t, func(c *Config) { c.BootstrapExpect = 1 })
+	t.Cleanup(cleanup)
+	testutil.WaitForLeader(t, s.RPC)
+	mock := &mockClientHostVolume{}
+	c := startMockHostVolumeClient(t, s, mock)
+	waitForNodeInState(t, s, c.NodeID())
+	codec := rpcClient(t, s)
+
+	req := &cstructs.HostVolumeForgetRequest{VolumeID: "vol-a", Namespace: "default", NodeID: c.NodeID()}
+	var resp cstructs.HostVolumeForgetResponse
+	must.NoError(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Forget", req, &resp))
+	must.Eq(t, cstructs.HostVolumeForgetResponse{VolumeID: "vol-a"}, resp)
+	must.Eq(t, 1, mock.forgetCount())
+	nd, ng := mock.removalCounts()
+	must.Eq(t, 0, nd+ng)
+	must.Eq(t, *req, mock.forgets[0])
+
+	missing := *req
+	missing.NodeID = "5b0c0a5e-0000-4000-8000-000000000001"
+	must.ErrorContains(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Forget", &missing, &resp), "Unknown node")
+
+	mock.set(func(m *mockClientHostVolume) { m.err = errors.New("synthetic client failure") })
+	must.ErrorContains(t, msgpackrpc.CallWithCodec(codec, "ClientHostVolume.Forget", req, &resp), "synthetic client failure")
 }
 
 // Only a caller presenting a server certificate for the local region may

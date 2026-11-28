@@ -50,3 +50,19 @@ func TestClientHostVolumeConfig_DecodeWithoutID(t *testing.T) {
 	require.True(t, out.ReadOnly)
 	require.Equal(t, "", out.ID)
 }
+
+func TestClientHostVolumeConfig_NamespaceRoundTrip(t *testing.T) {
+	in := &Node{HostVolumes: map[string]*ClientHostVolumeConfig{
+		"dyn":    {Name: "dyn", Path: "/synthetic/dyn", ID: "vol-synthetic-1", Namespace: "ns-synthetic"},
+		"static": {Name: "static", Path: "/synthetic/static"},
+	}}
+
+	buf, err := Encode(NodeRegisterRequestType, in)
+	require.NoError(t, err)
+
+	var out Node
+	require.NoError(t, Decode(buf[1:], &out))
+	require.Equal(t, "ns-synthetic", out.HostVolumes["dyn"].Namespace)
+	require.Equal(t, "", out.HostVolumes["static"].Namespace)
+	require.Equal(t, "ns-synthetic", in.HostVolumes["dyn"].Copy().Namespace)
+}

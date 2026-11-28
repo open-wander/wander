@@ -221,7 +221,14 @@
     {"id":"DHV-T-198","scenario":"Synthetic ui confirmation using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected confirmation outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-199","scenario":"Synthetic ui namespace-region using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected namespace-region outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-200","scenario":"Synthetic ui errors-empty-unavailable using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected errors-empty-unavailable outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-201","scenario":"Synthetic audit trail of create, register, update, delete, deregister, forced removals and claim delete using invented volume data-a and node-a.","expected_outcome":"Each volume-changing call and each settlement by the leader writes one Info line under dynamic_host_volume.audit with the actor, namespace, ID, operation and a coded outcome, and never a token secret, host path, parameter, plugin output or client message.","status":"implemented","path":"nomad/host_volume_audit_test.go","name":"TestHostVolumeAudit_Operations","synthetic":true}
+    {"id":"DHV-T-201","scenario":"Synthetic audit trail of create, register, update, delete, deregister, forced removals and claim delete using invented volume data-a and node-a.","expected_outcome":"Each volume-changing call and each settlement by the leader writes one Info line under dynamic_host_volume.audit with the actor, namespace, ID, operation and a coded outcome, and never a token secret, host path, parameter, plugin output or client message.","status":"implemented","path":"nomad/host_volume_audit_test.go","name":"TestHostVolumeAudit_Operations","synthetic":true},
+    {"id":"DHV-T-206","scenario":"Synthetic orphan listing over invented nodes node-a and node-b advertising volumes data-a and data-b, with and without records, in several namespaces and for several tokens.","expected_outcome":"The listing returns only advertised dynamic volumes with no record on their node, filtered by node, namespace and ACL, sorted, with no host path. An advertised volume with an empty namespace is listed only for the wildcard and a caller with node read.","status":"implemented","path":"nomad/host_volume_orphan_test.go","name":"TestHostVolumeListOrphans","synthetic":true},
+    {"id":"DHV-T-207","scenario":"Synthetic orphan removal over invented volume data-a on node-a with every refusal: bad mode, denied token, not advertised, other namespace, existing record, volume in use, client answers.","expected_outcome":"A removal needs a mode with no default and host-volume-delete, answers 404, 409 and 400 from fixed texts, calls the client once, writes nothing to Raft and leaves no volume in flight.","status":"implemented","path":"nomad/host_volume_orphan_test.go","name":"TestHostVolumeRemoveOrphan_Refusals","synthetic":true},
+    {"id":"DHV-T-208","scenario":"Synthetic client forget and live-allocation refusal over invented volumes data-a and data-b held by node-a.","expected_outcome":"Forget drops the record of a volume of either kind, keeps the directory, runs no plugin and writes the tombstone. A live allocation that mounts the volume refuses delete, deregister and forget with volume_in_use and changes nothing.","status":"implemented","path":"client/hostvolume/manager_forget_test.go","name":"TestManager_InUseRefusal","synthetic":true},
+    {"id":"DHV-T-209","scenario":"Synthetic HTTP requests for the orphan routes through the real mux and through a real client that registers an invented directory.","expected_outcome":"The list route and the remove route reach their handlers, other methods are 405, wrong paths are 404, the mode has no default, a registered orphan cannot be deleted but can be forgotten with its directory kept, and nothing is written to the volume table.","status":"implemented","path":"command/agent/host_volume_orphan_endpoint_test.go","name":"TestHTTP_HostVolumeOrphans_RegisteredEndToEnd","synthetic":true},
+    {"id":"DHV-T-210","scenario":"Synthetic audit of orphan removals over invented volume data-a on node-a.","expected_outcome":"Each removal writes one audit line with operation orphan_delete or orphan_forget and an outcome from the closed set; a call with no valid mode writes none.","status":"implemented","path":"nomad/host_volume_orphan_test.go","name":"TestHostVolumeRemoveOrphan_Audit","synthetic":true},
+    {"id":"DHV-T-211","scenario":"Synthetic node publication of invented volume data-a held by node-a in namespace ns-a.","expected_outcome":"The node entry of a dynamic volume carries its namespace, a static entry carries none, and an agent host_volume block cannot set it.","status":"implemented","path":"client/hostvolume/manager_test.go","name":"TestManager_PublishedEntries","synthetic":true},
+    {"id":"DHV-T-212","scenario":"Synthetic removal in delete mode of an orphan that a counting test plugin created for invented volume data-a, through the real server RPC and a real client.","expected_outcome":"The plugin delete runs exactly once, the volume directory and the client record are gone, the node stops advertising the volume, the client refuses the ID afterwards and a repeat is 404 with no second plugin run.","status":"implemented","path":"command/agent/host_volume_orphan_endpoint_test.go","name":"TestHTTP_HostVolumeOrphans_PluginDeleteEndToEnd","synthetic":true}
   ],
   "behaviors": [
     {
@@ -3639,6 +3646,74 @@
         "auth": {"status":"requirement","value":"Wander policy: the actor is the token accessor ID, anonymous for the anonymous token, management when ACLs are disabled, workload:<allocation ID> for a workload identity, client:<node ID> for a node secret, unauthenticated when authentication failed, and leader for the leader's own settlements.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
         "concurrency": {"status":"requirement","value":"Wander policy: a call forwarded from a follower is logged once, by the server that runs it. The reconciler logs once when it settles a volume, not on each attempt or code write.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"},
         "lifecycle": {"status":"requirement","value":"Wander policy: a create left pending by the RPC and settled later by the reconciler gives two lines, with different actors, because they are two events.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-201"],"implementation":"implemented"}
+      }
+    },
+    {
+      "id": "DHV-B-202",
+      "surface": "scheduling_lifecycle",
+      "operation_field": "orphan-list",
+      "prd_refs": ["US-016","6.5"],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
+      "assertions": {
+        "contract": {"status":"requirement","value":"Wander policy: the server RPC HostVolume.ListOrphans and GET /v1/volumes/host/orphans list every dynamic volume a node advertises with an ID and for which the servers hold no record on that node. The list is computed on request and stores nothing. There is no public-interface evidence for it.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-206","DHV-T-209"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: node_id and the namespace narrow the list; the namespace defaults to default and the wildcard lists every namespace the caller may read. An unknown or malformed node ID gives an empty list.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-206","DHV-T-209"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: each entry carries NodeID, VolumeID, Name and Namespace, sorted by node and volume ID, and never a host path. An empty list is an array. The index is the larger of the node table and volume table indexes.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-206","DHV-T-209"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: 403 without host-volume-read in the request namespace.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-206","DHV-T-209"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: an orphan with a namespace needs host-volume-read in that namespace. An orphan with an empty namespace, advertised by a client that predates the field, is listed only for the wildcard and only with node read. The advertised namespace is client-supplied and never grants access.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-206","DHV-T-209"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: a blocked listing wakes on a change of the node table or of the volume records.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-206","DHV-T-209"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: nothing is removed automatically. Only ready volumes are advertised, so an unavailable orphan is never listed.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-206","DHV-T-209"],"implementation":"implemented"}
+      }
+    },
+    {
+      "id": "DHV-B-203",
+      "surface": "scheduling_lifecycle",
+      "operation_field": "orphan-remove",
+      "prd_refs": ["US-016","6.5"],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
+      "assertions": {
+        "contract": {"status":"requirement","value":"Wander policy: the server RPC HostVolume.RemoveOrphan and DELETE /v1/volume/host/orphan/:node_id/:volume_id remove an orphaned volume from its node. Mode delete runs the plugin delete once and drops the client record. Mode forget drops the client record, keeps the directory and runs no plugin. Both write the client tombstone. Nothing is written to Raft.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-207","DHV-T-209","DHV-T-210","DHV-T-212"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: mode is required and has no default. The namespace defaults to default.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-207","DHV-T-209","DHV-T-210"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: the reply is empty and carries no index.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-207","DHV-T-209","DHV-T-210"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: 400 for a missing or unknown mode, the wildcard namespace, an empty ID, a registered orphan in delete mode and a namespace the client's record does not hold; 404 when the node does not advertise the volume in the request namespace; 409 when a record with the ID exists, when a live allocation mounts the volume or when the removal is already running; 502 for a client rejection or a transport failure. The texts are fixed.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-207","DHV-T-209","DHV-T-210"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: host-volume-delete in the request namespace, which host-volume-write implies. Another namespace grants nothing.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-207","DHV-T-209","DHV-T-210"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: the volume is marked in flight for the whole call and the record check is repeated before the client call.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-207","DHV-T-209","DHV-T-210"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: one audit line per removal with operation orphan_delete or orphan_forget. A call with no valid mode writes none.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-207","DHV-T-209","DHV-T-210"],"implementation":"implemented"}
+      }
+    },
+    {
+      "id": "DHV-B-204",
+      "surface": "scheduling_lifecycle",
+      "operation_field": "orphan-client",
+      "prd_refs": ["US-016","6.5"],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
+      "assertions": {
+        "contract": {"status":"requirement","value":"Wander policy: the client RPC HostVolume.Forget, routed through ClientHostVolume.Forget, drops the record of a volume of either kind, keeps the directory, runs no plugin and writes the tombstone before the record is dropped.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-208"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: the request names VolumeID, Namespace and NodeID. A volume the client no longer holds answers success.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-208"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: an empty reason on success and a reason code on rejection.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-208"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: delete_mismatch for another namespace or node, and volume_in_use while a live allocation mounts the volume. The same volume_in_use refusal now applies to the client Delete and Deregister.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-208"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: servers only, as for the other client host volume calls.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-208"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: the check runs under the volume lock. An allocation that starts afterwards is a small window.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-208"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: an allocation is live while its runner is not finished or destroyed; the stored client status is not used. A per_alloc source resolves to the name of the allocation.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-208"],"implementation":"implemented"}
+      }
+    },
+    {
+      "id": "DHV-B-205",
+      "surface": "scheduling_lifecycle",
+      "operation_field": "orphan-node-namespace",
+      "prd_refs": ["US-016","6.5"],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
+      "assertions": {
+        "contract": {"status":"requirement","value":"Wander policy: ClientHostVolumeConfig gains Namespace, the namespace of a dynamic volume as the client records it and empty for a static one. It is a hint for listing orphans.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-211"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: it is not an agent setting: HCL and JSON cannot set it and the agent clears it when it converts host_volume blocks.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-211"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: a client that predates the field advertises none.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-211"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: none.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-211"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: the value is client-supplied and never grants access; the node-read filter for dynamic entries without a record is unchanged.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-211"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: a change of namespace republishes the node on its own.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-211"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: published only while the volume is ready.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-211"],"implementation":"implemented"}
       }
     }
   ]
