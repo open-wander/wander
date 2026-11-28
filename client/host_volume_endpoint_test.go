@@ -73,7 +73,7 @@ func TestHostVolume_Register(t *testing.T) {
 	must.NoError(t, c.ClientRPC("HostVolume.Register", valid(), &resp))
 	must.Eq(t, structs.HostVolumeRegisterResponse{VolumeID: "vol-a", HostPath: dir, Status: "ready"}, resp)
 	hv := c.GetConfig().Node.HostVolumes
-	must.Eq(t, nstructs.ClientHostVolumeConfig{Name: "data", Path: dir, ID: "vol-a"}, *hv["data"])
+	must.Eq(t, nstructs.ClientHostVolumeConfig{Name: "data", Path: dir, ID: "vol-a", Namespace: "default"}, *hv["data"])
 
 	t.Run("name used by another dynamic volume", func(t *testing.T) {
 		req := valid()

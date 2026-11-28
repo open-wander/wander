@@ -13,7 +13,8 @@ import (
 // see. Static volumes, which have no ID, are always kept. A dynamic volume is
 // kept only when a record for it exists on the node and the caller may read host
 // volumes in every namespace that holds such a record. An advertised ID with no
-// record cannot be attributed to a namespace and is hidden.
+// record is hidden: the namespace the client advertises is client-supplied, so
+// it is never used to decide what a caller may read.
 //
 // A nil ACL (ACLs disabled, or a client identity), a management ACL, and a node
 // with no dynamic volumes are returned unchanged and cost no lookup. The bool

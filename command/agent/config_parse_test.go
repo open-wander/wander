@@ -5,6 +5,7 @@ package agent
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -906,4 +907,28 @@ func permutations(arr []string) [][]string {
 	}
 	helper(arr, len(arr))
 	return res
+}
+
+// The namespace and ID of a dynamic host volume are set by the client, never
+// by the agent configuration: a static host_volume block that names them
+// leaves them empty.
+func TestConfig_Parse_HostVolumeCannotSetNamespace(t *testing.T) {
+	ci.Parallel(t)
+
+	path := filepath.Join(t.TempDir(), "agent.hcl")
+	hcl := `client {
+  host_volume "data" {
+    path      = "/synthetic/data"
+    namespace = "ns-synthetic"
+    id        = "vol-synthetic-1"
+  }
+}
+`
+	require.NoError(t, os.WriteFile(path, []byte(hcl), 0o600))
+	cfg, err := ParseConfigFile(path)
+	require.NoError(t, err)
+	require.Len(t, cfg.Client.HostVolumes, 1)
+	require.Equal(t, "/synthetic/data", cfg.Client.HostVolumes[0].Path)
+	require.Empty(t, cfg.Client.HostVolumes[0].Namespace)
+	require.Empty(t, cfg.Client.HostVolumes[0].ID)
 }

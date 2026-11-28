@@ -20,6 +20,10 @@ const (
 	hostVolumeAuditDelete      = "delete"
 	hostVolumeAuditDeregister  = "deregister"
 	hostVolumeAuditDeleteClaim = "delete_claim"
+
+	// The removal of an orphaned volume, by the mode of the request.
+	hostVolumeAuditOrphanDelete = "orphan_delete"
+	hostVolumeAuditOrphanForget = "orphan_forget"
 )
 
 // Outcome codes of the audit trail. The set is closed: an outcome is chosen

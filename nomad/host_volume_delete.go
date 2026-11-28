@@ -36,6 +36,7 @@ var hostVolumeClientReasons = []string{
 	"delete_mismatch", "volume_kind_conflict", "invalid_input", "invalid_path", "filesystem_failed",
 	"not_executable", "start_failed", "timeout", "output_too_large", "nonzero_exit", "invalid_output",
 	"invalid_version", "unsupported_platform", "node_mismatch", "plugin_unavailable", "invalid_record",
+	"volume_in_use",
 }
 
 const hostVolumeReasonOther = "client_rejected"

@@ -623,6 +623,7 @@ func (c *Client) setupHostVolumes() error {
 			_, ok := c.GetConfig().StaticHostVolume(name)
 			return ok
 		},
+		InUse:   c.hostVolumeInUse,
 		Publish: c.updateNodeFromHostVolumes,
 	})
 	if err != nil {
@@ -630,6 +631,30 @@ func (c *Client) setupHostVolumes() error {
 	}
 	c.hostVolumeManager = m
 	return nil
+}
+
+// hostVolumeInUse reports whether a live allocation on this node mounts the
+// dynamic host volume with the namespace and name. Liveness comes from the
+// alloc runner, not from the client status in its copy of the allocation,
+// which can be stale: a runner whose wait channel is closed or that is
+// destroyed holds no volume. The mount is matched as the servers match it, so
+// a per_alloc source resolves to the name of this allocation.
+func (c *Client) hostVolumeInUse(namespace, name string) bool {
+	vol := &structs.DynamicHostVolume{Namespace: namespace, Name: name}
+	for _, ar := range c.getAllocRunners() {
+		select {
+		case <-ar.WaitCh():
+			continue
+		default:
+		}
+		if ar.IsDestroyed() {
+			continue
+		}
+		if len(structs.DynamicHostVolumeAllocRequests(vol, ar.Alloc(), nil)) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // runHostVolumes restores the dynamic host volumes and then reconciles them

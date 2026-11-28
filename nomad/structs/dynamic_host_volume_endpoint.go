@@ -166,3 +166,53 @@ func (v *DynamicHostVolume) GetCreateIndex() uint64 { return v.CreateIndex }
 func (c *DynamicHostVolumeClaim) GetID() string          { return c.ID }
 func (c *DynamicHostVolumeClaim) GetNamespace() string   { return c.Namespace }
 func (c *DynamicHostVolumeClaim) GetCreateIndex() uint64 { return c.CreateIndex }
+
+// Modes of HostVolume.RemoveOrphan. There is no default: a request names one.
+const (
+	// HostVolumeOrphanModeDelete runs the plugin delete on the node and drops
+	// its record.
+	HostVolumeOrphanModeDelete = "delete"
+	// HostVolumeOrphanModeForget drops the record on the node and keeps the
+	// directory. No plugin runs.
+	HostVolumeOrphanModeForget = "forget"
+)
+
+// HostVolumeOrphanListRequest lists the volumes that nodes advertise and the
+// servers hold no record of. NodeID limits the list to one node. The query
+// namespace limits it to one namespace, and a wildcard lists every namespace
+// the token may read.
+type HostVolumeOrphanListRequest struct {
+	NodeID string
+	QueryOptions
+}
+
+// HostVolumeOrphan is one advertised volume with no record. It carries no host
+// path. Namespace is what the node advertises, and is empty for a node that
+// does not say.
+type HostVolumeOrphan struct {
+	NodeID    string
+	VolumeID  string
+	Name      string
+	Namespace string
+}
+
+type HostVolumeOrphanListResponse struct {
+	Orphans []*HostVolumeOrphan
+	QueryMeta
+}
+
+// HostVolumeOrphanRemoveRequest asks the servers to remove an orphaned volume
+// from a node. The namespace is the request namespace. Mode is "delete" or
+// "forget" and has no default.
+type HostVolumeOrphanRemoveRequest struct {
+	NodeID   string
+	VolumeID string
+	Mode     string
+	WriteRequest
+}
+
+// HostVolumeOrphanRemoveResponse is empty: removing an orphan writes no
+// record on the servers, so there is no index to report.
+type HostVolumeOrphanRemoveResponse struct {
+	WriteMeta
+}

@@ -27,6 +27,10 @@ const (
 	// OperationDeregister drops the record of a registered volume. It never
 	// runs a plugin.
 	OperationDeregister = "deregister"
+	// OperationForget drops the record of a volume of either kind and keeps
+	// the directory. It never runs a plugin. It is Wander policy, for volumes
+	// the servers hold no record of.
+	OperationForget = "forget"
 )
 
 // Environment variable names of the create and delete protocol, as recorded
@@ -98,6 +102,11 @@ const (
 	// ReasonDeleteMismatch means a delete or deregistration named a volume
 	// this client holds under another namespace or node.
 	ReasonDeleteMismatch = "delete_mismatch"
+
+	// ReasonVolumeInUse means a live allocation on this node mounts the
+	// volume, so a delete, deregistration or forget changed nothing. Wander
+	// policy.
+	ReasonVolumeInUse = "volume_in_use"
 )
 
 // OpRequest holds the values for one create or delete call. Zero capacities

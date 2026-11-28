@@ -38,6 +38,13 @@ type ClientHostVolumeConfig struct {
 	// for a static one. The client sets it. It is not an agent
 	// configuration setting, so HCL never fills it.
 	ID string `hcl:"-"`
+
+	// Namespace is Wander policy: the namespace of a dynamic host volume and
+	// empty for a static one. The client sets it, so it is only a hint for
+	// listing orphaned volumes and never grants access. It is not an agent
+	// configuration setting, so HCL never fills it. A client that predates
+	// the field leaves it empty.
+	Namespace string `hcl:"-"`
 }
 
 func (p *ClientHostVolumeConfig) Copy() *ClientHostVolumeConfig {

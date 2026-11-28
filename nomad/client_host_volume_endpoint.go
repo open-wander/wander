@@ -59,6 +59,13 @@ func (a *ClientHostVolume) Deregister(args *cstructs.HostVolumeDeregisterRequest
 	return a.sendNodeRPC(args.NodeID, "HostVolume.Deregister", "ClientHostVolume.Deregister", args, reply)
 }
 
+// Forget asks the node to drop the record of a volume of either kind and keep
+// its directory. The node never runs a plugin.
+func (a *ClientHostVolume) Forget(args *cstructs.HostVolumeForgetRequest, reply *cstructs.HostVolumeForgetResponse) error {
+	defer metrics.MeasureSince([]string{"nomad", "client_host_volume", "forget"}, time.Now())
+	return a.sendNodeRPC(args.NodeID, "HostVolume.Forget", "ClientHostVolume.Forget", args, reply)
+}
+
 func (a *ClientHostVolume) sendNodeRPC(nodeID, method, fwdMethod string, args, reply any) error {
 	// client requests aren't RequestWithIdentity, so a placeholder fills in
 	// the identity data for metrics

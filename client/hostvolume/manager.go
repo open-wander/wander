@@ -85,6 +85,12 @@ type ManagerConfig struct {
 	// StaticName reports whether a static host_volume has the name.
 	StaticName func(name string) bool
 
+	// InUse reports whether a live allocation on this node mounts the volume
+	// of the namespace and name. A delete, deregistration or forget of a held
+	// volume is refused with ReasonVolumeInUse while it does. Nil means no
+	// check.
+	InUse func(namespace, name string) bool
+
 	// Publish receives the complete set of ready dynamic volumes, keyed by
 	// name, whenever it changes. It is never called with the manager mutex
 	// held and the map is the receiver's to keep.
@@ -748,7 +754,7 @@ func (m *Manager) buildSetLocked() map[string]*structs.ClientHostVolumeConfig {
 		if _, taken := set[r.Name]; taken {
 			continue
 		}
-		set[r.Name] = &structs.ClientHostVolumeConfig{Name: r.Name, Path: r.Path, ReadOnly: false, ID: r.VolumeID}
+		set[r.Name] = &structs.ClientHostVolumeConfig{Name: r.Name, Path: r.Path, ReadOnly: false, ID: r.VolumeID, Namespace: r.Namespace}
 	}
 	return set
 }
@@ -1016,6 +1022,17 @@ func (m *Manager) held(op string, req DeleteRequest) (*hvstate.Record, error) {
 	return rec, nil
 }
 
+// refuseInUse returns the refusal of a removal of a volume that a live
+// allocation mounts. The volume lock is held, so the answer cannot be undone
+// by a create of the same volume; an allocation that starts afterwards is a
+// window the servers' own check covers only for allocations they know about.
+func (m *Manager) refuseInUse(op string, rec *hvstate.Record) error {
+	if m.cfg.InUse != nil && m.cfg.InUse(rec.Namespace, rec.Name) {
+		return opErr(op, ReasonVolumeInUse, "a live allocation mounts the volume")
+	}
+	return nil
+}
+
 // Delete runs the delete operation of a plugin-created volume, then removes
 // the record and unpublishes the volume. A failed delete keeps the record
 // and its status. A volume this client does not hold answers success and runs
@@ -1039,6 +1056,9 @@ func (m *Manager) Delete(ctx context.Context, req DeleteRequest) error {
 	}
 	if rec.Kind == hvstate.KindRegistered {
 		return ErrRegisteredVolume
+	}
+	if err := m.refuseInUse(op, rec); err != nil {
+		return err
 	}
 	if err := m.putTombstone(req.VolumeID); err != nil {
 		return err
@@ -1069,6 +1089,37 @@ func (m *Manager) Deregister(ctx context.Context, req DeleteRequest) error {
 	}
 	if rec.Kind != hvstate.KindRegistered {
 		return opErr(op, ReasonVolumeKindConflict, "volume was created by a plugin")
+	}
+	if err := m.refuseInUse(op, rec); err != nil {
+		return err
+	}
+	if err := m.putTombstone(req.VolumeID); err != nil {
+		return err
+	}
+	return m.dropRecord(req.VolumeID)
+}
+
+// Forget drops the record of a volume of either kind and unpublishes it. It
+// never runs a plugin and never touches the directory, so the data stays on
+// disk. It is Wander policy, for a volume the servers hold no record of. The
+// rules for a volume not held and for mismatches are those of Delete, and a
+// volume that a live allocation mounts is refused with ReasonVolumeInUse.
+func (m *Manager) Forget(ctx context.Context, req DeleteRequest) error {
+	const op = OperationForget
+	if err := m.begin(ctx, op, req); err != nil {
+		return err
+	}
+	defer m.locks.release(req.VolumeID)
+
+	rec, err := m.held(op, req)
+	if err != nil {
+		return err
+	}
+	if rec == nil {
+		return m.putTombstone(req.VolumeID)
+	}
+	if err := m.refuseInUse(op, rec); err != nil {
+		return err
 	}
 	if err := m.putTombstone(req.VolumeID); err != nil {
 		return err
