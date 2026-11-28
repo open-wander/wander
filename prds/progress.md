@@ -1578,7 +1578,26 @@ node update on every server.
 - PATTERN: rpc - authorise before validating request fields, so a caller
   who may not act learns nothing from a 400.
 
+## 2026-11-28 — Task 4.9 complete
+
+- #108 (4.7e), #109 (4.7g) and #110 (gosec gate on changed lines) merged.
+- api/host_volumes.go: Client.HostVolumes() with List, Info, Create,
+  Register, Delete, Deregister, ListClaims, DeleteClaim, ListOrphans and
+  RemoveOrphan. Update is Create or Register with an ID set. force is sent
+  only when true; the orphan mode is a typed constant and anything else is
+  refused before a request is sent, as are empty IDs and a nil volume.
+- api.HostVolumeInfo gains ID and Namespace (inherited api/nodes.go).
+- Contract tests against an httptest server compare method, escaped path,
+  full query and JSON body; a round-trip test in command/agent fills every
+  server field by reflection and compares both ways, so a renamed or
+  dropped field fails. One integration test drives the real agent.
+- Review PASS with nits: Info("create") reaches the write handler (IDs are
+  UUIDs); the integration test does not drive Create, Delete, DeleteClaim
+  or RemoveOrphan, which the contract tests cover.
+- PATTERN: tests - a reflection filler that sets every field, checked to
+  have done so, makes a wire round-trip test catch drift.
+
 ## Resume point
 
 - Phases 1 to 3 are merged, swept and archived; 4.1 is merged.
-- 4.2 to 4.8 are done (4.7g on its branch). Then 4.9.
+- Phase 4 is done (4.9 on its branch). Next: phase 5 (5.1 CLI create and register).

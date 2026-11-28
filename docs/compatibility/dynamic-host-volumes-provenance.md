@@ -1266,6 +1266,31 @@ routes in `command/agent/host_volume_orphan_endpoint.go`, the node entry in
 | Nothing automatic | No leader pass, timer or node update removes, forgets or warns about an orphan. Only an operator request does. |
 | Inherited code | Five inherited files change. `command/agent/http.go` gains the two route lines. `command/agent/agent.go` clears `Namespace` beside `ID` when it converts `host_volume` blocks. `nomad/structs/volumes.go` gains the `Namespace` field of `ClientHostVolumeConfig`, beside the `ID` field of the node entry work, and the generated `nomad/structs/structs.generated.go` is regenerated for it. `client/client.go` gains `hostVolumeInUse` and the `InUse` wiring in `setupHostVolumes`. Comments only change in `client/node_updater.go` and `nomad/host_volume_node_read.go`, which are Wander files. Everything else is Wander code, including the changed client delete and deregister. |
 
+## Go API client (client) {#go-client}
+
+### Wander policy
+
+The public contract names no Go client methods, so the names and every
+client-side rule here are Wander policy. The only source is this repository's
+own HTTP layer. The client is in `api/host_volumes.go`; the public types
+import no server package.
+
+| Question | Wander policy |
+| --- | --- |
+| Handle | `api.Client.HostVolumes()` returns `*api.HostVolumes`. |
+| Methods | `List`, `Info`, `Create`, `Register`, `Delete`, `Deregister`, `ListClaims`, `DeleteClaim`, `ListOrphans` and `RemoveOrphan`, one for each HTTP operation of the server. Query methods take `*QueryOptions` and return `*QueryMeta`; write methods take `*WriteOptions` and return `*WriteMeta`. |
+| Update | There is no update method. An update is `Create` or `Register` with `Volume.ID` set, as on the wire. |
+| Query strings | Each method builds its own query string and never writes into the caller's options. `List` sends `node_id` and `node_pool`, `ListClaims` sends `claim_id`, `job_id`, `task_group` and `volume_name`, and `ListOrphans` sends `node_id`, each only when set. Namespace, prefix and paging come from the options. |
+| Force | `Delete` and `Deregister` send `force=true` only when force is true. They never send `force=false`. |
+| Mode | `RemoveOrphan` always sends `mode`. It has no default, and only the constants `HostVolumeOrphanModeDelete` and `HostVolumeOrphanModeForget` are accepted. |
+| Path escaping | Every path segment is escaped with `url.PathEscape`, so an ID with a slash reaches the server as `%2F` and is answered 404. |
+| Client-side refusals | Checked before any request, with fixed texts that echo no input: an empty volume ID (`host volume ID is required`), claim ID (`host volume claim ID is required`) or node ID (`node ID is required`); a nil request or volume on create or register (`host volume is required`); an orphan mode that is not one of the two constants, a wrongly cased one included (`orphan mode must be delete or forget`); a claim filter expression (`filter is not supported for claims`); and a claim prefix that differs from the claim ID (`prefix and claim ID differ`). The server answers 400 for the last two. Errors from the server pass through unchanged. |
+| Namespace of a write | With no namespace in the write options the server takes the namespace of the volume. The client adds the namespace of its configuration or `NOMAD_NAMESPACE` to every request, and the server refuses a request whose namespace differs from the namespace of the volume. The client never overrides either. |
+| Write metadata | Write methods return the index of the reply. `RemoveOrphan` returns `LastIndex` 0, because the server writes no record and sets no index for a removal. |
+| Types | `HostVolume`, `HostVolumeStub`, `HostVolumeClaim`, `HostVolumeOrphan`, the request types and `HostVolumeWriteResponse` carry every field the server returns under the same names. A claim names its allocation `AllocID` and an attachment `AllocationID`, as the server sends them. `Warnings` is a string and a null value decodes to `""`. State, origin and the two modes of a volume have typed string constants. |
+| Completeness test | A test in `command/agent` fills every field of every server reply type, encodes it with the agent's codec, decodes it into the api type and compares the re-encoded document with the original both ways. The node entry's `Name`, which is the map key in the api, and a null `Warnings` are the two documented differences. |
+| Inherited code | One inherited file changes. `api/nodes.go` gains `ID` and `Namespace` on `HostVolumeInfo`, empty for a static volume. They are plain strings, so existing callers and tests are unaffected. |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior
