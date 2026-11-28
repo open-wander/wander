@@ -60,3 +60,12 @@ must follow the clean-room and private-data rules in the linked PRD and
 | 6.2 | Add bounded metrics, diagnostics, and audit logging | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 4.7, 6.1 |
 | 6.3 | Run synthetic end-to-end, namespace, ACL, restart, failover, upgrade, amd64, and arm64 verification | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: all implementation tasks |
 | 6.4 | Complete provenance review, migration runbook, compatibility documentation, and release gate | [prd-dynamic-host-volumes.md](active/prd-dynamic-host-volumes.md) | TODO | Needs: 6.3 |
+
+## Follow-up: gosec cleanup (after dynamic host volumes)
+
+Owner decision 2026-11-28: CI fails on gosec findings on changed lines (`ci/check_gosec_changed.py` in the security job); the existing findings are cleaned up as a separate job once dynamic host volumes are done. Counts are from main at 2768122d01 over tracked Go files, attributed with `git blame` against the `v1.6.5` tag.
+
+| # | Task | PRD | Status | Notes |
+|---|------|-----|--------|-------|
+| G.1 | Resolve gosec findings on Wander-written lines | — | TODO | 42 findings (2 HIGH, 10 MEDIUM, 30 LOW). Dynamic host volume lines first (client/hostvolume/builtin.go G301 and G104, client/hostvolume/plugin.go G204, nomad/fsm.go G104 x4), before the release that ships dynamic host volumes. Fix real issues; mark a confirmed false positive with `#nosec <rule> -- <reason>` |
+| G.2 | Triage gosec findings in inherited Nomad 1.6.5 code | — | TODO | 838 findings (171 HIGH, 189 MEDIUM, 478 LOW). HIGH and MEDIUM first; most G115, G304 and G101 hits are expected false positives. Then gate the whole repository instead of changed lines only |

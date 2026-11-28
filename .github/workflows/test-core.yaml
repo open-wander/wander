@@ -61,9 +61,11 @@ jobs:
           make tidy
   security:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the gosec gate diffs against the base commit
       - name: Enforce source license boundary
         run: bash ci/check-license-boundary.sh
       - name: Check synthetic dynamic host volume contracts and fixtures
@@ -88,6 +90,16 @@ jobs:
           make templ-deps templ-generate
           go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           govulncheck ./...
+      # Inherited code carries gosec findings that are triaged separately;
+      # this step fails only for findings on lines changed by the PR or push.
+      - name: Gate gosec findings on changed lines
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+          python3 -m unittest ci/test_gosec_changed.py
+          python3 ci/check_gosec_changed.py "$BASE" "$(go env GOPATH)/bin/gosec"
       - name: Audit HTMX UI dependencies
         working-directory: ui
         run: |
