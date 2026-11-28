@@ -1157,6 +1157,52 @@ client state stores.
 | Reason code | `volume_deleted` is a reason of a create or register only; it is not on the delete reply list. |
 | Inherited code | Changed: `client/state/interface.go` gains `PutHostVolumeTombstone`, `GetHostVolumeTombstones` and `DeleteHostVolumeTombstone`, implemented in `db_bolt.go` (new bucket, existing buckets unchanged), `db_mem.go`, `db_noop.go` and `db_error.go`. |
 
+## HTTP delete, deregister and claims {#http-delete-claims-api}
+
+### Recorded evidence
+
+The public API documentation (SRC-api and SRC-api-claims, read 2026-11-26,
+interface evidence only) gives these facts. Delete is
+`DELETE /v1/volume/host/:volume_id/delete`, not a blocking query, needing
+`namespace:host-volume-write` or `namespace:host-volume-delete`; the ID must
+be the full ID; it is an error to delete a volume in use. The page's sample
+omits `/delete`. It shows no query parameter, no force, no body and no status
+code. Deregister is not documented. List claims is `GET /v1/volumes/claims`,
+blocking, with the query keys and reply fields recorded under
+[Claim list and delete](#claim-api). Delete claim is
+`DELETE /v1/volumes/claim/:claim_id` with an empty body; the sample shows
+`/v1/volume/claim/:id`. No claim read is documented. An observation
+(SRC-observe-sticky) found that the official binary answered 404 for the
+singular claim path and 200 with an empty body for the plural one. The matrix
+entries are DHV-B-006, DHV-B-008, DHV-B-009, DHV-B-010, DHV-B-022, DHV-B-147
+and DHV-B-148. Implemented in `command/agent/host_volume_endpoint.go`. Every
+route, parameter and status below that is not in this paragraph is Wander
+policy.
+
+### Wander policy
+
+| Question | Decision | Basis |
+| --- | --- | --- |
+| Delete route | `DELETE /v1/volume/host/:id/delete` calls `HostVolume.Delete`. | Public documentation (operation table). |
+| Deregister route | `DELETE /v1/volume/host/:id/deregister` calls `HostVolume.Deregister`. | Wander policy; no public deregister call. |
+| Bare ID | `DELETE /v1/volume/host/:id` is 405, as are other methods on `/delete` and `/deregister`. The sample path conflicts with the operation table, and Wander serves the table. | Wander policy. |
+| Other paths | A second segment other than `delete` and `deregister` is 404, and so is a third segment. `create` and `register` with `/delete` go to the RPC as IDs and give 404 `volume not found`. | Wander policy. |
+| Full ID | The RPC looks the ID up exactly, so a prefix is 404 `volume not found`. No UUID check is added: seeded test IDs are not UUIDs. | Public documentation (full ID); the 404 is Wander policy. |
+| Force | The `force` query parameter is optional; absent is false. Exactly one value of `true` or `false` is accepted. An empty value, `1`, `t`, `TRUE`, `yes` or a repeated parameter is 400 `invalid force value`, a fixed text that does not echo the value. The lenient `strconv.ParseBool` is not used for a flag that skips a client call. | Wander policy; no public force. |
+| Body and namespace | The request body is never read. `?namespace`, `?region` and the token follow the usual write request parsing; a wildcard namespace is refused by the RPC with 400. | Wander policy. |
+| Reply | 200 with an empty body and `X-Nomad-Index` set to the index of the removal. | Wander policy; the documentation shows no response. |
+| Coded errors | Every coded RPC error passes through unchanged with its fixed text: 400, 403, 404, 409, 500, 502 and 503 for delete and deregister, and 400, 403, 404, 409 and 503 for claim delete. The table test through the mux covers every status except 500 (`outcome not recorded`), which is passed through the same way but is not tested at HTTP level. The handler maps nothing and adds no text of its own except the force text above. No response carries a host path, the request body or a request value. | Wander policy. |
+| List route | `GET /v1/volumes/claims`; other methods are 405 and `/v1/volumes/claims/` is 404. It is a blocking query: `index` and `wait` work, and `X-Nomad-Index`, `X-Nomad-KnownLeader`, `X-Nomad-LastContact` and `X-Nomad-NextToken` are set. | Public documentation (route, blocking); headers are Wander policy. |
+| List parameters | `namespace` (a wildcard is allowed), `job_id`, `task_group`, `volume_name`, `per_page` and `next_token`. | Public documentation. |
+| claim_id and prefix | `claim_id` is the claim ID prefix and is applied after the generic query parsing, which fills the prefix from `prefix`. Both together with different values are 400 `claim_id and prefix differ`; equal values are accepted. | `claim_id` is public documentation; the rule for both is Wander policy. |
+| Filter | `filter` is 400 `filter is not supported for claims`: the expression would run against the stored field names (`AllocationID`), not the public ones. | Wander policy. |
+| List reply | An array of exactly `AllocID`, `CreateIndex`, `ID`, `JobID`, `ModifyIndex`, `Namespace`, `TaskGroupName`, `VolumeID` and `VolumeName`. `AllocID` is the stored `AllocationID`; `AllocationIndex` is left out. The mapping is a type of the agent package; `nomad/structs` is unchanged. An empty list is `[]`, never null. | Fields are public documentation; the mapping is Wander policy. |
+| Claim delete route | `DELETE /v1/volumes/claim/:claim_id`, one non-empty segment, else 404; other methods are 405 (no claim read is documented). The reply is 200 with an empty body and `X-Nomad-Index`. | Public documentation (route, empty body); methods are Wander policy. |
+| Sample path | Only the plural path is served. `/v1/volume/claim/:id` has no handler and is 404, which matches the observation that the official binary answered 404 for it. | Observed fact (SRC-observe-sticky) and Wander policy. |
+| Redirect | `/v1/volumes/claim` without a trailing slash is redirected by the inherited mux to the subtree path; it is not special-cased. | Wander policy. |
+| CSI routes | `/v1/volumes`, `/v1/volume/csi/` and the other CSI routes are unchanged; `/v1/volumes/claims` was a 404 before. | Wander policy. |
+| Inherited code | Changed: two lines are added to `command/agent/http.go`, which register `/v1/volumes/claims` and `/v1/volumes/claim/` beside the existing `/v1/volumes` routes. No CSI handler changes. Tests changed: `TestHTTP_HostVolume_Routes` gains cases for the new second segment (404 for an unknown one, 405 for GET on `/delete` and `/deregister`). |  |
+
 ## Audit log of volume operations (server) {#audit-log}
 
 ### Wander policy
