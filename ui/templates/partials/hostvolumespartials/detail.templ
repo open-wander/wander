@@ -1,0 +1,370 @@
+package hostvolumespartials
+
+import (
+	"net/url"
+	"strconv"
+	"time"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// Capability is one requested attachment and access mode pair.
+type Capability struct {
+	AttachmentMode string
+	AccessMode     string
+}
+
+// Constraint is one placement constraint as the API returns it.
+type Constraint struct {
+	LTarget string
+	Operand string
+	RTarget string
+}
+
+// Parameter is one plugin parameter; the list is sorted by key.
+type Parameter struct {
+	Key   string
+	Value string
+}
+
+// Attachment is an allocation using the volume on a node.
+type Attachment struct {
+	AllocationID   string
+	NodeID         string
+	AttachmentMode string
+	AccessMode     string
+	ReadOnly       bool
+}
+
+// Claim records that a job's task group holds the volume.
+type Claim struct {
+	ID        string
+	JobID     string
+	TaskGroup string
+	AllocID   string
+	Namespace string
+}
+
+// VolumeDetail is the detail view of one dynamic host volume. HostPath and
+// Parameters are shown exactly as the API returned them.
+type VolumeDetail struct {
+	ID          string
+	Name        string
+	Namespace   string
+	Type        string
+	Origin      string
+	State       string
+	Diagnostics string
+	NodeID      string
+	NodePool    string
+	PluginID    string
+	HostPath    string
+
+	CapacityBytes int64
+	MinBytes      int64
+	MaxBytes      int64
+
+	Capabilities []Capability
+	Constraints  []Constraint
+	Parameters   []Parameter
+	Attachments  []Attachment
+	Claims       []Claim
+	// ClaimsUnavailable is set when the claim list could not be read; the
+	// rest of the volume is still shown.
+	ClaimsUnavailable bool
+
+	CreateIndex uint64
+	ModifyIndex uint64
+	Created     time.Time
+	Modified    time.Time
+}
+
+// DetailContent renders the dynamic host volume detail content.
+templ DetailContent(volume VolumeDetail) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6 mb-6">
+			<p class="text-sm text-neutral-600 dark:text-neutral-400">Dynamic host volume</p>
+			<div class="flex flex-wrap items-center gap-4">
+				<h1 class="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{ volume.Name }</h1>
+				@StateBadge(volume.State)
+			</div>
+		</div>
+		<div class="space-y-6">
+			@detailSection("hv-identity", "Identity") {
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+					@dlRow("ID") {
+						<span class="font-mono">{ volume.ID }</span>
+					}
+					@dlRow("Name") {
+						{ volume.Name }
+					}
+					@dlRow("Namespace") {
+						{ volume.Namespace }
+					}
+					@dlRow("Type") {
+						{ valueOrNotReported(volume.Type) }
+					}
+					@dlRow("Origin") {
+						{ valueOrNotReported(volume.Origin) }
+					}
+				</dl>
+			}
+			@detailSection("hv-status", "Status") {
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+					@dlRow("State") {
+						{ stateLabel(volume.State) }
+					}
+					@dlRow("Diagnostics") {
+						{ valueOrNotReported(volume.Diagnostics) }
+					}
+				</dl>
+			}
+			@detailSection("hv-placement", "Placement") {
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+					@dlRow("Node") {
+						@nodeLink(volume.NodeID)
+					}
+					@dlRow("Node pool") {
+						{ valueOrNotReported(volume.NodePool) }
+					}
+					@dlRow("Host path") {
+						if volume.HostPath == "" {
+							Not reported
+						} else {
+							<span class="font-mono break-all">{ volume.HostPath }</span>
+						}
+					}
+				</dl>
+			}
+			@detailSection("hv-plugin", "Plugin") {
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+					@dlRow("Plugin ID") {
+						{ PluginLabel(volume.PluginID) }
+					}
+				</dl>
+				if len(volume.Parameters) > 0 {
+					<h3 class="mt-4 text-sm font-medium text-neutral-500 dark:text-neutral-400">Parameters</h3>
+					<dl class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2" data-parameters>
+						for _, parameter := range volume.Parameters {
+							<div>
+								<dt class="text-sm font-mono text-neutral-600 dark:text-neutral-400">{ parameter.Key }</dt>
+								<dd class="text-sm font-mono text-neutral-900 dark:text-neutral-100 break-all">{ parameter.Value }</dd>
+							</div>
+						}
+					</dl>
+				}
+			}
+			@detailSection("hv-capacity", "Capacity") {
+				<dl class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
+					@dlRow("Capacity") {
+						{ FormatBytes(volume.CapacityBytes) }
+					}
+					@dlRow("Requested minimum") {
+						{ requestedBytes(volume.MinBytes) }
+					}
+					@dlRow("Requested maximum") {
+						{ requestedBytes(volume.MaxBytes) }
+					}
+				</dl>
+			}
+			@detailSection("hv-capabilities", "Requested capabilities") {
+				if len(volume.Capabilities) == 0 {
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">No capabilities requested</p>
+				} else {
+					@components.Table(components.TableProps{
+						Columns: []components.Column{
+							{Key: "attachment", Label: "Attachment mode", Align: "left"},
+							{Key: "access", Label: "Access mode", Align: "left"},
+						},
+					}) {
+						@components.TableBody() {
+							for _, capability := range volume.Capabilities {
+								<tr>
+									@components.TableCell("left", "") {
+										{ valueOrNotReported(capability.AttachmentMode) }
+									}
+									@components.TableCell("left", "") {
+										{ valueOrNotReported(capability.AccessMode) }
+									}
+								</tr>
+							}
+						}
+					}
+				}
+			}
+			@detailSection("hv-constraints", "Constraints") {
+				if len(volume.Constraints) == 0 {
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">No constraints</p>
+				} else {
+					@components.Table(components.TableProps{
+						Columns: []components.Column{
+							{Key: "ltarget", Label: "Attribute", Align: "left"},
+							{Key: "operand", Label: "Operator", Align: "left"},
+							{Key: "rtarget", Label: "Value", Align: "left"},
+						},
+					}) {
+						@components.TableBody() {
+							for _, constraint := range volume.Constraints {
+								<tr>
+									@components.TableCell("left", "") {
+										<span class="font-mono">{ constraint.LTarget }</span>
+									}
+									@components.TableCell("left", "") {
+										<span class="font-mono">{ constraint.Operand }</span>
+									}
+									@components.TableCell("left", "") {
+										<span class="font-mono">{ constraint.RTarget }</span>
+									}
+								</tr>
+							}
+						}
+					}
+				}
+			}
+			@detailSection("hv-attachments", "Attachments") {
+				if len(volume.Attachments) == 0 {
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">No attachments</p>
+				} else {
+					@components.Table(components.TableProps{
+						Columns: []components.Column{
+							{Key: "alloc", Label: "Allocation", Align: "left"},
+							{Key: "node", Label: "Node", Align: "left"},
+							{Key: "attachment", Label: "Attachment mode", Align: "left"},
+							{Key: "access", Label: "Access mode", Align: "left"},
+							{Key: "readonly", Label: "Read-only", Align: "center"},
+						},
+					}) {
+						@components.TableBody() {
+							for _, attachment := range volume.Attachments {
+								<tr>
+									@components.TableCell("left", "") {
+										@allocationLink(attachment.AllocationID)
+									}
+									@components.TableCell("left", "") {
+										@nodeLink(attachment.NodeID)
+									}
+									@components.TableCell("left", "") {
+										{ valueOrNotReported(attachment.AttachmentMode) }
+									}
+									@components.TableCell("left", "") {
+										{ valueOrNotReported(attachment.AccessMode) }
+									}
+									@components.TableCell("center", "") {
+										if attachment.ReadOnly {
+											Yes
+										} else {
+											No
+										}
+									}
+								</tr>
+							}
+						}
+					}
+				}
+			}
+			@detailSection("hv-claims", "Claims") {
+				if volume.ClaimsUnavailable {
+					<p class="text-sm text-orange-700 dark:text-orange-300" role="status">Claims unavailable. The claim list could not be read; the rest of this volume is shown.</p>
+				} else if len(volume.Claims) == 0 {
+					<p class="text-sm text-neutral-500 dark:text-neutral-400">No claims</p>
+				} else {
+					@components.Table(components.TableProps{
+						Columns: []components.Column{
+							{Key: "id", Label: "Claim ID", Align: "left"},
+							{Key: "job", Label: "Job", Align: "left"},
+							{Key: "group", Label: "Task group", Align: "left"},
+							{Key: "alloc", Label: "Allocation", Align: "left"},
+						},
+					}) {
+						@components.TableBody() {
+							for _, claim := range volume.Claims {
+								<tr>
+									@components.TableCell("left", "") {
+										<span class="font-mono">{ claim.ID }</span>
+									}
+									@components.TableCell("left", "") {
+										<a href={ templ.SafeURL("/ui/jobs/" + url.PathEscape(claim.JobID) + "?namespace=" + url.QueryEscape(claim.Namespace)) } class="text-primary-600 dark:text-primary-400 hover:text-primary-700">{ claim.JobID }</a>
+									}
+									@components.TableCell("left", "") {
+										{ claim.TaskGroup }
+									}
+									@components.TableCell("left", "") {
+										@allocationLink(claim.AllocID)
+									}
+								</tr>
+							}
+						}
+					}
+				}
+			}
+			@detailSection("hv-lifecycle", "Lifecycle") {
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+					@dlRow("Create index") {
+						{ strconv.FormatUint(volume.CreateIndex, 10) }
+					}
+					@dlRow("Modify index") {
+						{ strconv.FormatUint(volume.ModifyIndex, 10) }
+					}
+					@dlRow("Created") {
+						{ formatTime(volume.Created) }
+					}
+					@dlRow("Modified") {
+						{ formatTime(volume.Modified) }
+					}
+				</dl>
+			}
+		</div>
+	</div>
+}
+
+templ detailSection(id, title string) {
+	<section aria-labelledby={ id } class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg p-6">
+		<h2 id={ id } class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">{ title }</h2>
+		{ children... }
+	</section>
+}
+
+templ dlRow(label string) {
+	<div>
+		<dt class="text-sm font-medium text-neutral-500 dark:text-neutral-400">{ label }</dt>
+		<dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{ children... }</dd>
+	</div>
+}
+
+templ nodeLink(nodeID string) {
+	if nodeID == "" {
+		Not reported
+	} else {
+		<a href={ templ.SafeURL("/ui/clients/" + url.PathEscape(nodeID)) } class="font-mono text-primary-600 dark:text-primary-400 hover:text-primary-700">{ shortID(nodeID) }</a>
+	}
+}
+
+templ allocationLink(allocationID string) {
+	if allocationID == "" {
+		Not reported
+	} else {
+		<a href={ templ.SafeURL("/ui/allocations/" + url.PathEscape(allocationID)) } class="font-mono text-primary-600 dark:text-primary-400 hover:text-primary-700">{ shortID(allocationID) }</a>
+	}
+}
+
+func valueOrNotReported(value string) string {
+	if value == "" {
+		return "Not reported"
+	}
+	return value
+}
+
+func requestedBytes(bytes int64) string {
+	if bytes <= 0 {
+		return "Not set"
+	}
+	return FormatBytes(bytes)
+}
+
+// formatTime prints UTC so the same record reads identically for every viewer.
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return "Not reported"
+	}
+	return t.UTC().Format("2 Jan 2006 15:04:05 MST")
+}

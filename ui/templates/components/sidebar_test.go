@@ -30,3 +30,19 @@ func TestSidebarOnlyLinksManagementUsersToAccessControl(t *testing.T) {
 		})
 	}
 }
+
+func TestSidebarLinksDynamicHostVolumesNextToCSI(t *testing.T) {
+	var output bytes.Buffer
+	if err := Sidebar(SidebarProps{}).Render(context.Background(), &output); err != nil {
+		t.Fatalf("render sidebar: %v", err)
+	}
+	html := output.String()
+	csi := strings.Index(html, `href="/ui/csi/volumes"`)
+	hostVolumes := strings.Index(html, `href="/ui/host-volumes"`)
+	if hostVolumes < 0 || !strings.Contains(html, "Host Volumes") {
+		t.Fatal("sidebar has no Host Volumes link")
+	}
+	if csi < 0 || hostVolumes < csi {
+		t.Fatalf("Host Volumes link (%d) must follow the unchanged CSI link (%d)", hostVolumes, csi)
+	}
+}

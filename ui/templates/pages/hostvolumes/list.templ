@@ -1,0 +1,11 @@
+package hostvolumes
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/hostvolumespartials"
+)
+
+// List renders the full dynamic host volumes list page with layout.
+templ List(layoutProps layouts.PageLayoutProps, props hostvolumespartials.ListProps) {
+	@layouts.PageLayout(layoutProps, hostvolumespartials.ListContent(props))
+}

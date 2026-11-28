@@ -68,6 +68,9 @@ func (r *Router) registerRoutes() {
 	// CSI routes
 	r.registerCSIRoutes()
 
+	// Dynamic host volume routes
+	r.registerHostVolumeRoutes()
+
 	// Settings routes
 	r.registerSettingsRoutes()
 
@@ -190,6 +193,15 @@ func (r *Router) registerAccessControlRoutes() {
 		r.mux.Handle(legacyPath, r.wrapMiddleware(alias))
 		r.mux.Handle(legacyPath+"/", r.wrapMiddleware(alias))
 	}
+}
+
+// registerHostVolumeRoutes sets up routes for dynamic host volumes. They are
+// separate from the CSI routes: CSI volumes keep their own pages.
+func (r *Router) registerHostVolumeRoutes() {
+	hostVolumesHandler := NewHostVolumesHandler(r.handler)
+
+	r.mux.Handle("/ui/host-volumes", r.wrapMiddleware(hostVolumesHandler))
+	r.mux.Handle("/ui/host-volumes/", r.wrapMiddleware(hostVolumesHandler))
 }
 
 // registerCSIRoutes sets up routes for the CSI section.

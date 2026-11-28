@@ -1,0 +1,11 @@
+package hostvolumes
+
+import (
+	"github.com/open-wander/wander/ui/templates/layouts"
+	"github.com/open-wander/wander/ui/templates/partials/hostvolumespartials"
+)
+
+// Detail renders the full dynamic host volume detail page with layout.
+templ Detail(layoutProps layouts.PageLayoutProps, volume hostvolumespartials.VolumeDetail) {
+	@layouts.PageLayout(layoutProps, hostvolumespartials.DetailContent(volume))
+}

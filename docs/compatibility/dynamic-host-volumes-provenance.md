@@ -1291,6 +1291,37 @@ import no server package.
 | Completeness test | A test in `command/agent` fills every field of every server reply type, encodes it with the agent's codec, decodes it into the api type and compares the re-encoded document with the original both ways. The node entry's `Name`, which is the map key in the api, and a null `Warnings` are the two documented differences. |
 | Inherited code | One inherited file changes. `api/nodes.go` gains `ID` and `Namespace` on `HostVolumeInfo`, empty for a static volume. They are plain strings, so existing callers and tests are unaffected. |
 
+## Web UI pages (UI) {#ui-pages}
+
+### Wander policy
+
+There is no public interface evidence for the web UI pages. The routes and
+every display rule here are Wander policy. The pages belong to the Wander UI
+under `ui/`, which is Wander's own HTMX and templ code, and they read only the
+typed client `api.Client.HostVolumes()`.
+
+| Question | Wander policy |
+| --- | --- |
+| Routes | `GET /ui/host-volumes` is the list and `GET /ui/host-volumes/{id}?namespace={namespace}` the detail page. Each is registered with and without a trailing slash, and any other method answers 405. A detail ID is path-unescaped; an empty ID or one with a slash is 404. |
+| Separate from CSI | The list is headed Dynamic host volumes and says that CSI volumes are listed under CSI. The CSI pages, templates and tests are not changed and carry no link to these pages. |
+| List columns | Name, linked to the detail page with the namespace of that volume; state badge; namespace; node as a short ID linked to the client page; node pool; plugin; capacity; claim count. |
+| Plugin display | The plugin ID, or `None (registered)` when it is empty. |
+| Capacity display | Binary units; `Not reported` for zero. The requested minimum and maximum on the detail page read `Not set` for zero. |
+| Filters | The namespace comes from the `namespace` query parameter, then the namespace cookie, then `default`. The `node` query parameter filters in the handler, so the node selector is built from the unfiltered list. Pages use `page` and `per_page` (default 25, at most 100). |
+| Claim count source | One `ListClaims` call per list page for the selected namespace, without a filter. Claims are counted by namespace and volume ID, never by name, because names repeat across nodes. |
+| Claim failure display | A failure of the claim list, a 403 included, does not fail the list. Each count shows a dash with the accessible label `Claims unavailable`. The detail page shows a `Claims unavailable` notice in place of the claim table. A failure of the volume list is never softened. |
+| Wildcard and pre-check | The wildcard namespace is passed to the API unchanged, because the server filters it to the readable namespaces. The UI pre-checks `host-volume-read` only for a concrete namespace (`CanReadHostVolume`), because a token scoped to named namespaces holds no capability for the wildcard. |
+| Detail namespace | A detail page needs a single namespace. The wildcard is answered 404 with a message saying so, before any API call, because the server answers 400 for a single read across namespaces. |
+| Detail claims | `ListClaims` is called with the volume name in the namespace of the volume, and only the claims whose volume ID equals the ID of the volume are shown. |
+| Host path and parameters | Shown exactly as the volume read returns them and escaped as text. An empty host path reads `Not reported`, parameters are listed by key and left out when there are none. Neither is fetched from another endpoint. |
+| Diagnostics | The status description of the volume. There is no other diagnostics field. |
+| Times and indexes | `CreateTime` and `ModifyTime` are Unix nanoseconds and are shown in UTC. The create and modify index are shown as numbers. |
+| State mapping | `ready` is a success badge; `requested`, `pending` and `deleting` a warning badge; `failed` and `unavailable` an error badge; anything else, an empty state included (`unknown`), a neutral badge. The state name is always printed. |
+| Error mapping | A 403 is the forbidden page naming `host-volume-read`, a 404 the not found page, and any other failure is logged and shown as the unavailable page with status 503. |
+| Navigation | A Host Volumes entry follows CSI in the System section of the sidebar. The breadcrumb is Home, Storage, Host volumes and the volume name. |
+| Browser tests | `TestHostVolumeBrowserStates` starts the UI server in front of a fake API with synthetic data and runs `specs/host-volumes.spec.ts` with its own Playwright configuration. The release configuration does not match that specification. |
+| Inherited code | No inherited 1.6.5 code changes. Wander files change: `ui/handlers/permissions.go` gains `CanReadHostVolume`, `ui/handlers/router.go` the route registration, `ui/templates/components/sidebar.templ` the navigation entry, and the route contract and sidebar tests gain cases. |
+
 ## Extension workflow {#extension-workflow}
 
 1. Identify the operation or field and the PRD references. Add a stable behavior

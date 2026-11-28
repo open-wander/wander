@@ -1,0 +1,273 @@
+package hostvolumespartials
+
+import (
+	"fmt"
+	"net/url"
+
+	"github.com/open-wander/wander/ui/templates/components"
+)
+
+// VolumeSummary is one row of the dynamic host volumes list.
+type VolumeSummary struct {
+	ID            string
+	Name          string
+	Namespace     string
+	NodeID        string
+	NodePool      string
+	PluginID      string
+	State         string
+	CapacityBytes int64
+	// Claims is only meaningful when ClaimsKnown is true; the claim list is
+	// fetched separately and may fail without the volumes themselves failing.
+	Claims      int
+	ClaimsKnown bool
+}
+
+// PaginationMeta holds pagination metadata for the list.
+type PaginationMeta struct {
+	Page    int
+	PerPage int
+	Total   int
+}
+
+// ListProps contains all props for the dynamic host volumes list.
+type ListProps struct {
+	Volumes []VolumeSummary
+	// Nodes are the node IDs present in the unfiltered list.
+	Nodes      []string
+	NodeFilter string
+	// NamespaceParam is the namespace carried in the request URL, if any. It
+	// is repeated in generated URLs so a filter or page change keeps the scope.
+	NamespaceParam string
+	Pagination     PaginationMeta
+}
+
+// ListContent renders the page content for the dynamic host volumes list.
+templ ListContent(props ListProps) {
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" hx-indicator="#host-volumes-loading">
+		<div class="sm:flex sm:items-center sm:justify-between mb-6">
+			<div>
+				<h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Dynamic host volumes</h1>
+				<p class="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+					Host volumes created or registered through the host volume API. CSI volumes are listed under CSI.
+				</p>
+			</div>
+			<div id="host-volumes-loading" class="htmx-indicator" role="status" aria-live="polite">
+				<span class="inline-flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400">
+					@components.Spinner(components.SpinnerProps{Size: "sm"})
+					<span>Loading host volumes</span>
+				</span>
+			</div>
+		</div>
+		<form
+			class="mb-6 flex flex-wrap items-end gap-4"
+			method="get"
+			action="/ui/host-volumes"
+			hx-get="/ui/host-volumes"
+			hx-trigger="change, submit"
+			hx-target="#host-volumes-table-container"
+			hx-swap="innerHTML"
+			hx-push-url="true"
+		>
+			if props.NamespaceParam != "" {
+				<input type="hidden" name="namespace" value={ props.NamespaceParam }/>
+			}
+			<div class="w-64">
+				<label for="host-volume-node-filter" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Node</label>
+				<select
+					id="host-volume-node-filter"
+					name="node"
+					class="block w-full rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm py-1.5 px-2"
+				>
+					<option value="">All nodes</option>
+					for _, node := range props.Nodes {
+						<option value={ node } selected?={ node == props.NodeFilter }>{ shortID(node) }</option>
+					}
+				</select>
+			</div>
+			<button type="submit" class="px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800">
+				Apply
+			</button>
+			if props.NodeFilter != "" {
+				<a
+					href={ templ.SafeURL(listURL(props.NamespaceParam, "")) }
+					class="px-3 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-800"
+				>
+					Clear filter
+				</a>
+			}
+		</form>
+		<div id="host-volumes-table-container" class="bg-white dark:bg-neutral-900 shadow-sm rounded-lg overflow-hidden">
+			@VolumesTable(props)
+		</div>
+	</div>
+}
+
+// VolumesTable renders the table and pagination swapped by HTMX requests.
+templ VolumesTable(props ListProps) {
+	if len(props.Volumes) == 0 {
+		if props.NodeFilter != "" {
+			@components.EmptyState(components.EmptyStateProps{
+				Icon:        "folder",
+				Title:       "No dynamic host volumes match this node",
+				Description: "Choose another node or clear the filter to see every dynamic host volume.",
+			})
+		} else {
+			@components.EmptyState(components.EmptyStateProps{
+				Icon:        "folder",
+				Title:       "No dynamic host volumes",
+				Description: "No dynamic host volumes are visible in this namespace.",
+			})
+		}
+	} else {
+		@components.Table(components.TableProps{
+			Columns: []components.Column{
+				{Key: "name", Label: "Name", Align: "left"},
+				{Key: "state", Label: "State", Align: "left"},
+				{Key: "namespace", Label: "Namespace", Align: "left"},
+				{Key: "node", Label: "Node", Align: "left"},
+				{Key: "pool", Label: "Node pool", Align: "left"},
+				{Key: "plugin", Label: "Plugin", Align: "left"},
+				{Key: "capacity", Label: "Capacity", Align: "right"},
+				{Key: "claims", Label: "Claims", Align: "center"},
+			},
+			Striped: true,
+			Hover:   true,
+		}) {
+			@components.TableBody() {
+				for _, volume := range props.Volumes {
+					@volumeRow(volume)
+				}
+			}
+		}
+		@components.Pagination(components.PaginationProps{
+			Page:     props.Pagination.Page,
+			PerPage:  props.Pagination.PerPage,
+			Total:    props.Pagination.Total,
+			BaseURL:  listURL(props.NamespaceParam, props.NodeFilter),
+			HxTarget: "#host-volumes-table-container",
+			HxSwap:   "innerHTML",
+		})
+	}
+}
+
+templ volumeRow(volume VolumeSummary) {
+	<tr data-volume-id={ volume.ID } class="transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+		@components.TableCell("left", "") {
+			<a href={ templ.SafeURL(detailURL(volume.ID, volume.Namespace)) } class="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">{ volume.Name }</a>
+		}
+		@components.TableCell("left", "") {
+			@StateBadge(volume.State)
+		}
+		@components.TableCell("left", "") {
+			<span class="text-sm text-neutral-700 dark:text-neutral-300">{ volume.Namespace }</span>
+		}
+		@components.TableCell("left", "") {
+			if volume.NodeID != "" {
+				<a href={ templ.SafeURL("/ui/clients/" + url.PathEscape(volume.NodeID)) } class="font-mono text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700">{ shortID(volume.NodeID) }</a>
+			} else {
+				<span class="text-sm text-neutral-500 dark:text-neutral-400">Not reported</span>
+			}
+		}
+		@components.TableCell("left", "") {
+			<span class="text-sm text-neutral-700 dark:text-neutral-300">{ volume.NodePool }</span>
+		}
+		@components.TableCell("left", "") {
+			<span class="text-sm text-neutral-700 dark:text-neutral-300">{ PluginLabel(volume.PluginID) }</span>
+		}
+		@components.TableCell("right", "") {
+			<span class="text-sm text-neutral-700 dark:text-neutral-300">{ FormatBytes(volume.CapacityBytes) }</span>
+		}
+		@components.TableCell("center", "") {
+			if volume.ClaimsKnown {
+				<span data-claims={ fmt.Sprintf("%d", volume.Claims) } class="text-sm font-medium text-neutral-700 dark:text-neutral-300">{ fmt.Sprintf("%d", volume.Claims) }</span>
+			} else {
+				<span data-claims="unavailable" class="text-sm text-neutral-500 dark:text-neutral-400">
+					<span aria-hidden="true">&mdash;</span>
+					<span class="sr-only">Claims unavailable</span>
+				</span>
+			}
+		}
+	</tr>
+}
+
+// StateBadge renders a host volume state with a colour that never carries the
+// meaning alone: the state name is always printed.
+templ StateBadge(state string) {
+	@components.Badge(components.BadgeProps{Variant: stateVariant(state), Dot: true, Size: "sm"}) {
+		{ stateLabel(state) }
+	}
+}
+
+func stateVariant(state string) string {
+	switch state {
+	case "ready":
+		return "success"
+	case "requested", "pending", "deleting":
+		return "warning"
+	case "failed", "unavailable":
+		return "error"
+	default:
+		return "neutral"
+	}
+}
+
+func stateLabel(state string) string {
+	if state == "" {
+		return "unknown"
+	}
+	return state
+}
+
+// PluginLabel names the plugin, or says the volume was registered without one.
+func PluginLabel(pluginID string) string {
+	if pluginID == "" {
+		return "None (registered)"
+	}
+	return pluginID
+}
+
+// listURL builds the list URL carrying the namespace and node scope.
+func listURL(namespace, node string) string {
+	params := url.Values{}
+	if namespace != "" {
+		params.Set("namespace", namespace)
+	}
+	if node != "" {
+		params.Set("node", node)
+	}
+	if len(params) == 0 {
+		return "/ui/host-volumes"
+	}
+	return "/ui/host-volumes?" + params.Encode()
+}
+
+// detailURL links to one volume; the namespace is always the volume's own so
+// a wildcard list never produces a wildcard detail link.
+func detailURL(id, namespace string) string {
+	return "/ui/host-volumes/" + url.PathEscape(id) + "?namespace=" + url.QueryEscape(namespace)
+}
+
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
+// FormatBytes renders a byte count; zero means the size was not reported.
+func FormatBytes(bytes int64) string {
+	if bytes <= 0 {
+		return "Not reported"
+	}
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
