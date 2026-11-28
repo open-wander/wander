@@ -51,7 +51,8 @@ This record does not authorize importing later state or snapshots.
 The JSON sources collection records the official documentation URLs, date,
 interface scope, independent summaries, and limitations. Only the public API,
 specification, plugin protocol specification, job fields, client configuration,
-volume command index, and ACL policy documentation were consulted.
+volume command index, the `volume init`, `volume create` and `volume register`
+command pages, and ACL policy documentation were consulted.
 Documentation currently labels several pages v2.1.x; URLs are mutable and no
 release-specific fidelity or binary conformance is claimed. Interface tokens
 retain compatibility names under [the boundary](../compatibility-boundary.md).
@@ -1290,6 +1291,44 @@ import no server package.
 | Types | `HostVolume`, `HostVolumeStub`, `HostVolumeClaim`, `HostVolumeOrphan`, the request types and `HostVolumeWriteResponse` carry every field the server returns under the same names. A claim names its allocation `AllocID` and an attachment `AllocationID`, as the server sends them. `Warnings` is a string and a null value decodes to `""`. State, origin and the two modes of a volume have typed string constants. |
 | Completeness test | A test in `command/agent` fills every field of every server reply type, encodes it with the agent's codec, decodes it into the api type and compares the re-encoded document with the original both ways. The node entry's `Name`, which is the map key in the api, and a null `Warnings` are the two documented differences. |
 | Inherited code | One inherited file changes. `api/nodes.go` gains `ID` and `Namespace` on `HostVolumeInfo`, empty for a static volume. They are plain strings, so existing callers and tests are unaffected. |
+
+## CLI: init, create and register (client) {#cli-create}
+
+### Recorded evidence
+
+The public command pages for `volume init`, `volume create` and `volume register`
+(SRC-cli-init, SRC-cli-create, SRC-cli-register, read 2026-11-28, labelled
+v2.1.x) state the facts below. They document no exit codes, no monitor output
+and no specification syntax beyond a valid volume specification.
+
+| Fact | Source |
+| --- | --- |
+| General options: `-address`, `-region`, `-namespace`, the colour and TLS flags and `-token`. | SRC-cli-create |
+| `volume init`: flags `-json` (an example JSON specification) and `-type` (`csi` or `host`, default `csi`); the output line `Example volume specification written to volume.hcl`. | SRC-cli-init |
+| `volume create [options] [file]` and `volume register [options] [file]`: the file is a path, and `-` reads stdin. | SRC-cli-create, SRC-cli-register |
+| Create prints the ID of a host volume and, without `-detach`, monitors it until it is ready to be scheduled. `-detach`, `-verbose` and `-policy-override` are bool flags; `-detach` is not valid for CSI and `-verbose` is for host volumes only. | SRC-cli-create |
+| Register takes `-policy-override` only, registers a volume that exists and can update a registration. Updatable: `capacity_min`, `capacity_max`, `capacity`, `constraint` (create only), `capability` (when not in use), `node_pool` (from empty to the pool of the node). Not updatable: `name`, `type`, `plugin_id`, `node_id`. | SRC-cli-register |
+| ACL capabilities `host-volume-create` and `host-volume-register`; neither command prompts. | SRC-cli-create, SRC-cli-register |
+
+### Wander policy
+
+Everything else is Wander policy, implemented in `command/volume_create_host.go`,
+`command/volume_register_host.go` and `command/volume_init_host.go`.
+
+| Question | Wander policy |
+| --- | --- |
+| Dispatch | The `type` of the specification selects the branch, as for CSI. The host branch reuses the HCL parser of the CSI branch, which also reads JSON, and adds no new parser. |
+| Keys | `id`, `name`, `namespace`, `type`, `plugin_id`, `node_id`, `node_pool`, `host_path`, `capacity`, `capacity_min`, `capacity_max`, `parameters` (a block of string values), `capability` blocks (`access_mode`, `attachment_mode`) and `constraint` blocks (`attribute`, `operator`, `value`). The key names `host_path`, `parameters`, `id` and `namespace` are not in the public pages. `type` is read by the dispatch and not sent. |
+| Format | HCL and JSON give the same volume. In JSON a block is an object or a list of objects. |
+| Refusals | A key outside the list, at the top level or in a block, is `volume specification has an unknown key`, `capability has an unknown key` or `constraint has an unknown key`. A key given twice, a value of the wrong kind and a size that does not parse have fixed texts of the same kind. No text echoes a key, a host path, a parameter or a size. Nothing is sent for a refused specification. |
+| Sizes | The syntax of the CSI sizes (`10GiB`, `20G`); an empty string is zero. |
+| Create output | the warnings of the server on stderr, then on stdout `Created host volume <ID>`, then `Volume <ID> is <state>` for each change of state until `ready`; the state in the create reply is not printed on its own. `-verbose` adds the ID, name, namespace, plugin, node, node pool, capacity, state and description after each line. A reply that is ready or failed needs no query. |
+| Monitor | Blocking queries for the namespace of the volume, starting at the index of the create reply and then at the index of each reply. No timeout. The process end stops it. |
+| Exit codes | 0 for ready and for `-detach`; 1 for a refused specification, a server error (printed as returned), a failed volume (`Volume <ID> failed: <description>`) and a query error, a volume removed while monitored included. |
+| Register output | `Registered host volume <ID>; no storage was created or modified`, after the warnings. An update is the same call with `id` in the specification and prints the same line. |
+| Namespace | The command never overrides the namespace of the client. The server refuses a request whose namespace differs from that of the specification, and the text is printed as returned. |
+| CSI | The CSI branch ignores `-detach`, `-verbose` and `-policy-override`, and its behaviour and tests are unchanged. The inherited text `Error parsing the volume type`, shared with CSI, can carry the position of a parse error. |
+| Init | `-type` takes `csi` or `host` without regard to case; any other value is `Volume type must be "csi" or "host"` with exit code 1 and writes nothing. The host example uses invented values and decodes with the host decoder. |
 
 ## Extension workflow {#extension-workflow}
 

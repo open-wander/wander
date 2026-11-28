@@ -18,6 +18,8 @@ DOC_PATHS = {
     "/nomad/plugins/author/host-volume", "/nomad/docs/job-specification/volume",
     "/nomad/docs/configuration/client", "/nomad/commands/volume",
     "/nomad/docs/secure/acl/policies", "/nomad/docs/other-specifications/acl-policy",
+    "/nomad/commands/volume/init", "/nomad/commands/volume/create",
+    "/nomad/commands/volume/register",
 }
 CATEGORIES = {"official_documentation", "black_box_observation", "wander_requirement"}
 

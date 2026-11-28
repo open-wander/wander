@@ -26,17 +26,41 @@ Usage: nomad volume create [options] <input>
   is read from the file at the supplied path.
 
   When ACLs are enabled, this command requires a token with the
-  'csi-write-volume' capability for the volume's namespace.
+  'csi-write-volume' capability for the volume's namespace. For a dynamic host
+  volume it requires the 'host-volume-create' capability.
+
+  For a dynamic host volume the ID of the volume is printed. Unless -detach is
+  set, the command then monitors the volume until it is ready or has failed.
 
 General Options:
 
-  ` + generalOptionsUsage(usageOptsDefault)
+  ` + generalOptionsUsage(usageOptsDefault) + `
+
+Create Options:
+
+  -detach
+    Return immediately instead of entering monitor mode for dynamic host
+    volumes. Used for dynamic host volumes only.
+
+  -verbose
+    Display full information when monitoring volume state. Used for dynamic
+    host volumes only.
+
+  -policy-override
+    Override soft mandatory Sentinel policies. Used for dynamic host volumes
+    only.
+`
 
 	return strings.TrimSpace(helpText)
 }
 
 func (c *VolumeCreateCommand) AutocompleteFlags() complete.Flags {
-	return c.Meta.AutocompleteFlags(FlagSetClient)
+	return mergeAutocompleteFlags(c.Meta.AutocompleteFlags(FlagSetClient),
+		complete.Flags{
+			"-detach":          complete.PredictNothing,
+			"-verbose":         complete.PredictNothing,
+			"-policy-override": complete.PredictNothing,
+		})
 }
 
 func (c *VolumeCreateCommand) AutocompleteArgs() complete.Predictor {
@@ -52,6 +76,10 @@ func (c *VolumeCreateCommand) Name() string { return "volume create" }
 func (c *VolumeCreateCommand) Run(args []string) int {
 	flags := c.Meta.FlagSet(c.Name(), FlagSetClient)
 	flags.Usage = func() { c.Ui.Output(c.Help()) }
+	var detach, verbose, policyOverride bool
+	flags.BoolVar(&detach, "detach", false, "")
+	flags.BoolVar(&verbose, "verbose", false, "")
+	flags.BoolVar(&policyOverride, "policy-override", false, "")
 
 	if err := flags.Parse(args); err != nil {
 		c.Ui.Error(fmt.Sprintf("Error parsing arguments %s", err))
@@ -101,6 +129,8 @@ func (c *VolumeCreateCommand) Run(args []string) int {
 	case "csi":
 		code := c.csiCreate(client, ast)
 		return code
+	case "host":
+		return c.hostCreate(client, ast, detach, verbose, policyOverride)
 	default:
 		c.Ui.Error(fmt.Sprintf("Error unknown volume type: %s", volType))
 		return 1

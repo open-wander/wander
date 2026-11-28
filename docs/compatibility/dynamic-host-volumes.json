@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "feature": "dynamic-host-volumes",
-  "evidence_cutoff": "2026-11-26",
+  "evidence_cutoff": "2026-11-28",
   "synthetic_only": true,
   "sources": [
     {"id":"SRC-api","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/api-docs/volumes","date":"2026-11-08","scope":"HTTP and claim operation tables; conflicting examples","summary":"Public operation tables only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
@@ -13,6 +13,9 @@
     {"id":"SRC-job","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/job-specification/volume#parameters","date":"2026-11-08","scope":"Dynamic host job fields","summary":"Job field contract only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-config","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/configuration/client","date":"2026-11-08","scope":"Host volume directory settings","summary":"Directory configuration interface only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-cli","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/commands/volume","date":"2026-11-08","scope":"Command family index","summary":"Command family existence only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
+    {"id":"SRC-cli-init","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/commands/volume/init","date":"2026-11-28","scope":"volume init usage, flags and example output","summary":"Flags -json and -type (csi or host, default csi); example output line `Example volume specification written to volume.hcl`.","limitations":"Mutable documentation, labelled v2.1.x; no independent binary verification; flag names, descriptions and the quoted output line only, no exit codes, spec syntax or monitor output."},
+    {"id":"SRC-cli-create","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/commands/volume/create","date":"2026-11-28","scope":"volume create usage, flags, ACL and monitor behaviour","summary":"File argument or - for stdin; the ID of a host volume is printed; without -detach the command monitors until the volume is ready; -detach, -verbose and -policy-override; ACL host-volume-create; no prompt.","limitations":"Mutable documentation, labelled v2.1.x; no independent binary verification; flag names, descriptions and the quoted output line only, no exit codes, spec syntax or monitor output."},
+    {"id":"SRC-cli-register","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/commands/volume/register","date":"2026-11-28","scope":"volume register usage, flags, ACL and updatable fields","summary":"File argument or - for stdin; registers an existing volume and can update a registration; -policy-override; updatable and fixed fields; ACL host-volume-register; no prompt.","limitations":"Mutable documentation, labelled v2.1.x; no independent binary verification; flag names, descriptions and the quoted output line only, no exit codes, spec syntax or monitor output."},
     {"id":"SRC-acl","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/secure/acl/policies#host-volume-rules","date":"2026-11-08","scope":"Host volume mount policy","summary":"Mount permissions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-acl-spec","category":"official_documentation","locator":"https://developer.hashicorp.com/nomad/docs/other-specifications/acl-policy","date":"2026-11-15","scope":"Namespace host-volume capabilities, their implications, and the read, write and scale shorthands","summary":"Capability names, descriptions and shorthand expansions only.","limitations":"Mutable documentation; no independent binary verification; unasserted facets remain unresolved."},
     {"id":"SRC-observe-plugin-inputs","category":"black_box_observation","locator":"docs/compatibility/dynamic-host-volumes-provenance.md#observation-plugin-inputs","date":"2026-11-20","scope":"Arguments, environment and result handling of the create and delete plugin calls","summary":"What an official release binary passed to a synthetic recording plugin, and how it treated two unusual create outputs.","limitations":"One client, one version, one platform, development mode; behaviour may differ elsewhere."},
@@ -78,9 +81,9 @@
     {"id":"DHV-T-055","scenario":"Synthetic go_client blocking-pagination-options using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected blocking-pagination-options outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-056","scenario":"Synthetic go_client errors using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected errors outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-057","scenario":"Synthetic cli volume command family using invented volume data-a and node-a where applicable.","expected_outcome":"Verify the contract and resolve/test each outstanding facet for volume command family.","status":"planned","synthetic":true},
-    {"id":"DHV-T-058","scenario":"Synthetic cli init using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected init outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-059","scenario":"Synthetic cli create using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected create outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-060","scenario":"Synthetic cli register using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected register outcome.","status":"planned","synthetic":true},
+    {"id":"DHV-T-058","scenario":"Synthetic cli init using invented volume data-a and node-a where applicable.","expected_outcome":"The init command writes a host volume specification in HCL or JSON for -type host, leaves CSI as the default, refuses another type, and the written specifications decode.","status":"implemented","path":"command/volume_host_test.go","name":"TestVolumeInit_Host","synthetic":true},
+    {"id":"DHV-T-059","scenario":"Synthetic cli create using invented volume data-a and node-a where applicable.","expected_outcome":"The create command prints the volume ID, monitors the volume in its own namespace until it is ready or failed unless -detach is set, and passes -policy-override and the warnings.","status":"implemented","path":"command/volume_host_test.go","name":"TestVolumeCreate_Host_MonitorsUntilReady","synthetic":true},
+    {"id":"DHV-T-060","scenario":"Synthetic cli register using invented volume data-a and node-a where applicable.","expected_outcome":"The register command sends the specification with -policy-override, prints the warnings and states that no storage was created or modified.","status":"implemented","path":"command/volume_host_test.go","name":"TestVolumeRegister_Host","synthetic":true},
     {"id":"DHV-T-061","scenario":"Synthetic cli status using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected status outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-062","scenario":"Synthetic cli list using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected list outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-063","scenario":"Synthetic cli update using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected update outcome.","status":"planned","synthetic":true},
@@ -88,7 +91,7 @@
     {"id":"DHV-T-065","scenario":"Synthetic cli deregister using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected deregister outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-066","scenario":"Synthetic cli claim-list using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected claim-list outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-067","scenario":"Synthetic cli claim-delete using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected claim-delete outcome.","status":"planned","synthetic":true},
-    {"id":"DHV-T-068","scenario":"Synthetic cli stdin-HCL-JSON using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected stdin-HCL-JSON outcome.","status":"planned","synthetic":true},
+    {"id":"DHV-T-068","scenario":"Synthetic cli stdin-HCL-JSON using invented volume data-a and node-a where applicable.","expected_outcome":"A host specification in HCL or JSON read from stdin decodes to the same volume as one read from a file.","status":"implemented","path":"command/volume_host_test.go","name":"TestVolumeCreate_Host_JSONAndStdinMatchFile","synthetic":true},
     {"id":"DHV-T-069","scenario":"Synthetic cli prefix-resolution using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected prefix-resolution outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-070","scenario":"Synthetic cli namespace-region using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected namespace-region outcome.","status":"planned","synthetic":true},
     {"id":"DHV-T-071","scenario":"Synthetic cli force-confirmation using invented volume data-a and node-a where applicable.","expected_outcome":"Resolve permitted interface evidence before defining the expected force-confirmation outcome.","status":"planned","synthetic":true},
@@ -1214,16 +1217,16 @@
       "surface": "cli",
       "operation_field": "init",
       "prd_refs": ["US-013","6.5"],
-      "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for init that remain null? Consult permitted evidence before implementation."],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"]},
-        "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"]},
-        "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"]}
+        "contract": {"status":"requirement","value":"Documented (SRC-cli-init): `volume init` writes an example specification and takes -type, either csi or host, and -json. Wander policy: -type host writes a synthetic host volume specification, in HCL or with -json in JSON, and the decoder of create and register accepts it.","evidence_refs":["SRC-cli-init","SRC-requirements"],"test_ids":["DHV-T-058"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Documented (SRC-cli-init): -type defaults to csi and -json is off. Wander policy: the file name is volume.hcl or volume.json unless one argument names the file; a file that exists is refused; the type is matched without regard to case.","evidence_refs":["SRC-cli-init","SRC-requirements"],"test_ids":["DHV-T-058"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Documented (SRC-cli-init): the line `Example volume specification written to <file>`. Wander policy: the host example uses invented values (name data-a, plugin mkdir) and comments for the fields of register; the CSI examples are unchanged.","evidence_refs":["SRC-cli-init","SRC-requirements"],"test_ids":["DHV-T-058"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: a type other than csi or host is refused with the fixed text `Volume type must be \"csi\" or \"host\"`, exit code 1, and nothing is written. The text does not echo the value.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: init reads no server state and sends no request, so it needs no token.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: init holds no state; two runs for the same file name are not coordinated and the second is refused when the first has written the file.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: init writes the file once and does not monitor or change anything else.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-058"],"implementation":"implemented"}
       }
     },
     {
@@ -1231,16 +1234,16 @@
       "surface": "cli",
       "operation_field": "create",
       "prd_refs": ["US-013","6.5"],
-      "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for create that remain null? Consult permitted evidence before implementation."],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"]},
-        "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"]},
-        "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"]}
+        "contract": {"status":"requirement","value":"Documented (SRC-cli-create): `volume create [options] [file]` reads a specification from a file or from - for stdin; for a dynamic host volume it prints the volume ID and, without -detach, monitors the volume until it is ready. Wander policy: the specification is HCL or JSON with the keys id, name, namespace, type, plugin_id, node_id, node_pool, host_path, capacity, capacity_min, capacity_max, parameters, capability and constraint; a specification with an ID updates the volume.","evidence_refs":["SRC-cli-create","SRC-requirements"],"test_ids":["DHV-T-059"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Documented (SRC-cli-create): -detach, -verbose and -policy-override are bool flags and default to false; -detach and -verbose are for dynamic host volumes only. Wander policy: sizes use the CSI syntax such as 10GiB; a key outside the list above, in the specification or in a capability or constraint block, a scalar key given twice, a size that does not parse and a value of the wrong kind are refused with fixed texts that never echo the input; the CSI branch ignores the three flags.","evidence_refs":["SRC-cli-create","SRC-requirements"],"test_ids":["DHV-T-059"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: the warnings of the server if there are any, then `Created host volume <ID>`, then one line `Volume <ID> is <state>` for each state change until ready; -verbose adds the fields of the volume after each line. A reply that is ready or failed needs no query. The monitor has no client timeout and ends with the process.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: exit code 0 for a volume that is ready or for -detach, 1 for a refused specification, a server error printed as returned (a namespace that differs from the namespace of the specification is refused by the server), a volume that is failed (`Volume <ID> failed: <description>`) and a query error such as a volume removed while monitored.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Documented (SRC-cli-create): ACL host-volume-create. Wander policy: the command sends the token and the server decides; the monitor reads the volume in its own namespace.","evidence_refs":["SRC-cli-create","SRC-requirements"],"test_ids":["DHV-T-059"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: the command holds no lock. A second create or update for a volume in flight is answered 409 by the server and printed as returned.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: the monitor follows the volume with blocking queries on the index of the last reply, starting at the index of the create reply, and prints a state only when it changes. No prompt is shown.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-059"],"implementation":"implemented"}
       }
     },
     {
@@ -1248,16 +1251,16 @@
       "surface": "cli",
       "operation_field": "register",
       "prd_refs": ["US-013","6.5"],
-      "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for register that remain null? Consult permitted evidence before implementation."],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"]},
-        "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"]},
-        "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"]}
+        "contract": {"status":"requirement","value":"Documented (SRC-cli-register): `volume register [options] [file]` reads a specification from a file or from - for stdin, registers a volume that exists already and can update a registration. Wander policy: the host specification is the one of create; host_path names the directory.","evidence_refs":["SRC-cli-register","SRC-requirements"],"test_ids":["DHV-T-060"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Documented (SRC-cli-register): -policy-override is the only flag and defaults to false. Documented updatable fields: capacity_min, capacity_max, capacity, constraint, capability, node_pool; not updatable: name, type, plugin_id, node_id. Wander policy: the server applies those rules and the command forwards the specification as decoded.","evidence_refs":["SRC-cli-register","SRC-requirements"],"test_ids":["DHV-T-060"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: the warnings of the server, then `Registered host volume <ID>; no storage was created or modified`. The command does not monitor the volume.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: exit code 0 on success and 1 for a refused specification or a server error, which is printed as returned. A namespace that differs from the namespace of the specification is refused by the server.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Documented (SRC-cli-register): ACL host-volume-register. Wander policy: the command sends the token and the server decides.","evidence_refs":["SRC-cli-register","SRC-requirements"],"test_ids":["DHV-T-060"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: the command holds no lock; the server serialises writes to one volume and answers 409 for a volume in flight.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: a specification with an ID updates the stored volume with the same call and the same output. No storage is created or modified and no prompt is shown.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-060"],"implementation":"implemented"}
       }
     },
     {
@@ -1384,16 +1387,16 @@
       "surface": "cli",
       "operation_field": "stdin-HCL-JSON",
       "prd_refs": ["US-013","6.5"],
-      "implementation_status": "unresolved",
-      "unresolved_questions": ["What are the exact inputs/defaults, output, error/status, ACL, concurrency, and lifecycle rules for stdin-HCL-JSON that remain null? Consult permitted evidence before implementation."],
+      "implementation_status": "implemented",
+      "unresolved_questions": [],
       "assertions": {
-        "contract": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"]},
-        "inputs_defaults": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"]},
-        "outputs": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"]},
-        "errors": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"]},
-        "auth": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"]},
-        "concurrency": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"]},
-        "lifecycle": {"status":"unresolved","value":null,"evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"]}
+        "contract": {"status":"requirement","value":"Documented (SRC-cli-create, SRC-cli-register): the file argument is a path, or - to read the specification from stdin. Wander policy: the HCL and the JSON form of a host specification decode to the same volume, from a file or from stdin, because both parse to one syntax tree.","evidence_refs":["SRC-cli-create","SRC-cli-register","SRC-requirements"],"test_ids":["DHV-T-068"],"implementation":"implemented"},
+        "inputs_defaults": {"status":"requirement","value":"Wander policy: the JSON form accepts a block as one object or as a list of objects, and parameters as an object or a list of one object; HCL repeats the block. Input that starts with an opening brace is read as JSON.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"],"implementation":"implemented"},
+        "outputs": {"status":"requirement","value":"Wander policy: the output does not depend on the format or on the source of the specification.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"],"implementation":"implemented"},
+        "errors": {"status":"requirement","value":"Wander policy: a specification that does not parse is refused with the inherited text `Error parsing the volume type`, which can carry the position of the parse error; the host decoder refusals are fixed texts that never echo a key, a host path or a parameter.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"],"implementation":"implemented"},
+        "auth": {"status":"requirement","value":"Wander policy: the format and the source do not change the token handling.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"],"implementation":"implemented"},
+        "concurrency": {"status":"requirement","value":"Wander policy: the command reads stdin once, to its end, before it sends anything.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"],"implementation":"implemented"},
+        "lifecycle": {"status":"requirement","value":"Wander policy: a read error on stdin or on the file is printed and exits 1 before any request.","evidence_refs":["SRC-requirements"],"test_ids":["DHV-T-068"],"implementation":"implemented"}
       }
     },
     {
